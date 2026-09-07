@@ -1,4 +1,4 @@
-import { KairoJobUsageLedger } from "@kairo/core";
+import { KairoJobLedger, KairoJobUsageLedger } from "@kairo/core";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 
 function resolveDataDir(pluginConfig: unknown): string | undefined {
@@ -11,11 +11,18 @@ function finiteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
+function readStringField(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === "string" && field.trim() ? field.trim() : undefined;
+}
+
 export function registerKairoUsageHooks(api: OpenClawPluginApi): void {
   const dataDir = resolveDataDir(api.pluginConfig);
   if (!dataDir) return;
 
   const usage = new KairoJobUsageLedger({ dataDir });
+  const jobs = new KairoJobLedger({ dataDir });
   const schedulerByRun = new Map<string, string>();
   const queues = new Map<string, Promise<void>>();
 
@@ -30,8 +37,27 @@ export function registerKairoUsageHooks(api: OpenClawPluginApi): void {
     }
   }
 
+  async function bindRunFromKairoJobStart(event: {
+    runId?: string;
+    toolName?: string;
+    params?: unknown;
+    error?: unknown;
+  }): Promise<string | undefined> {
+    if (event.toolName !== "kairo_job_start" || event.error) return undefined;
+    const runId = event.runId?.trim();
+    const project = readStringField(event.params, "project");
+    const jobId = readStringField(event.params, "jobId");
+    if (!runId || !project || !jobId) return undefined;
+
+    const job = await jobs.getJob(project, jobId);
+    const schedulerId = typeof job.scheduler_id === "string" ? job.scheduler_id.trim() : "";
+    if (!schedulerId) return undefined;
+    schedulerByRun.set(runId, schedulerId);
+    return schedulerId;
+  }
+
   api.on("llm_output", async (event, ctx) => {
-    const schedulerId = ctx.jobId?.trim();
+    const schedulerId = ctx.jobId?.trim() || schedulerByRun.get(event.runId);
     if (!schedulerId) return;
     schedulerByRun.set(event.runId, schedulerId);
 
@@ -51,7 +77,8 @@ export function registerKairoUsageHooks(api: OpenClawPluginApi): void {
   api.on("after_tool_call", async (event, ctx) => {
     const runId = event.runId ?? ctx.runId;
     if (!runId) return;
-    const schedulerId = schedulerByRun.get(runId);
+    let schedulerId = schedulerByRun.get(runId);
+    if (!schedulerId) schedulerId = await bindRunFromKairoJobStart(event);
     if (!schedulerId) return;
 
     await serialized(schedulerId, () =>
