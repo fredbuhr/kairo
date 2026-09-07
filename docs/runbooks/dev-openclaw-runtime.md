@@ -97,11 +97,23 @@ cp config/openclaw/workspace-template/USER.template.md "$OPENCLAW_WORKSPACE_DIR/
 
 ## 5. Install and configure KAIRO Tools
 
-Return to the plugin directory and install the already-built local package through OpenClaw's plugin manager:
+OpenClaw 2026.9.2 scans plugin dependency boundaries. Installing the development checkout directly is rejected because npm represents the local `@kairo/core` dependency as a symlink outside the plugin root.
+
+Build the plugin, then pack it so the bundled KAIRO core is copied into the archive:
 
 ```bash
 cd plugins/openclaw-kairo-tools
-"$OPENCLAW_BIN" plugins install "$PWD" --accept-capabilities
+npm run plugin:build
+PKG=$(npm pack --silent)
+tar -tzf "$PKG" | grep 'node_modules/@kairo/core'
+```
+
+The archive must contain real files under `package/node_modules/@kairo/core/` before continuing.
+
+Install that packed archive through OpenClaw's plugin manager:
+
+```bash
+"$OPENCLAW_BIN" plugins install "$PWD/$PKG" --accept-capabilities
 ```
 
 Configure the runtime-private KAIRO data path:
