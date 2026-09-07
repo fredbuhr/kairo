@@ -115,7 +115,19 @@ Before continuing, verify:
 - the packed `package.json` uses a normal version such as `"@kairo/core": "0.1.0"`, not `file:../../packages/kairo-core`;
 - `package/dist/entry.js` and `package/openclaw.plugin.json` are present.
 
-Install/update that packed archive through OpenClaw's plugin manager. For an already installed development plugin, use OpenClaw's supported update/install flow for the archive rather than copying files into the managed extension directory manually.
+For a first install of this reviewed local archive:
+
+```bash
+"$OPENCLAW_BIN" plugins install "$PWD/$PKG" --accept-capabilities
+```
+
+If `kairo-tools` is already installed from an earlier local archive, intentionally replace that managed install with the newly reviewed archive:
+
+```bash
+"$OPENCLAW_BIN" plugins install "$PWD/$PKG" --force --accept-capabilities
+```
+
+In OpenClaw 2026.9.2, `--force` confirms/replaces an already installed arbitrary local source; it does **not** bypass install policy or the code safety scan.
 
 Configure the runtime-private KAIRO data path and enable the plugin:
 
