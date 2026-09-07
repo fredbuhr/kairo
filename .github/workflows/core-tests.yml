@@ -1,0 +1,39 @@
+name: KAIRO core tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/kairo-core/**"
+      - ".github/workflows/core-tests.yml"
+  pull_request:
+    paths:
+      - "packages/kairo-core/**"
+      - ".github/workflows/core-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          check-latest: true
+
+      - name: Show runtime versions
+        run: |
+          node --version
+          npm --version
+
+      - name: Run core tests
+        working-directory: packages/kairo-core
+        run: npm test
