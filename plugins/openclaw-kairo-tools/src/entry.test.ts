@@ -6,6 +6,7 @@ import test from "node:test";
 import plugin from "./entry.js";
 
 type FakeRuntimeOptions = {
+  cronList?: () => Promise<any[]>;
   cronAdd?: (input: any) => Promise<any>;
   cronRemove?: (id: string) => Promise<any>;
 };
@@ -14,11 +15,13 @@ function createFakeRuntime(dataDir: string, options: FakeRuntimeOptions = {}) {
   const tools = new Map<string, any>();
   const factories = new Map<string, any>();
   const services = new Map<string, any>();
+  const hooks = new Map<string, any[]>();
   const cronAdds: any[] = [];
   const cronRemoves: string[] = [];
 
   const cron = {
     async list() {
+      if (options.cronList) return await options.cronList();
       return [];
     },
     async add(input: any) {
@@ -54,6 +57,11 @@ function createFakeRuntime(dataDir: string, options: FakeRuntimeOptions = {}) {
     registerService(service: any) {
       services.set(service.id, service);
     },
+    on(hookName: string, handler: any) {
+      const handlers = hooks.get(hookName) ?? [];
+      handlers.push(handler);
+      hooks.set(hookName, handlers);
+    },
     registerTool(tool: any, opts?: { name?: string }) {
       if (typeof tool === "function") {
         if (!opts?.name) throw new Error("Factory tool registration is missing a stable name.");
@@ -67,7 +75,15 @@ function createFakeRuntime(dataDir: string, options: FakeRuntimeOptions = {}) {
   (plugin as any).register(api);
 
   const serviceContext = {
-    config: {},
+    config: {
+      plugins: {
+        entries: {
+          "kairo-tools": {
+            config: { dataDir },
+          },
+        },
+      },
+    },
     stateDir: dataDir,
     logger: {
       debug() {},
@@ -84,6 +100,16 @@ function createFakeRuntime(dataDir: string, options: FakeRuntimeOptions = {}) {
     services,
     cronAdds,
     cronRemoves,
+    async triggerHook(hookName: string, event: any = {}) {
+      for (const handler of hooks.get(hookName) ?? []) {
+        await handler(event, {
+          config: serviceContext.config,
+          workspaceDir: dataDir,
+          getCron: () => cron,
+          abortSignal: new AbortController().signal,
+        });
+      }
+    },
     async startGatewayServices() {
       for (const service of services.values()) {
         await service.start(serviceContext);
@@ -208,6 +234,91 @@ test("missing Cron id is recorded as a durable scheduler failure", async () => {
     const jobs = await runtime.tools.get("kairo_job_list").execute("list", { project: "ztikix" });
     assert.equal(jobs.details.jobs.length, 1);
     assert.equal(jobs.details.jobs[0].status, "failed");
+  } finally {
+    await runtime.stopGatewayServices();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+test("cron reconciliation preserves queued job when scheduler exists", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "kairo-reconcile-present-"));
+  const runtime = createFakeRuntime(root, {
+    async cronList() {
+      return [{ id: "cron_gateway_123" }];
+    },
+  });
+
+  try {
+    await runtime.startGatewayServices();
+    await runtime.tools.get("kairo_project_create").execute("project", { name: "ZTIKIX" });
+
+    const concrete = runtime.factories.get("kairo_background_schedule")({
+      sessionKey: "agent:main:session:test",
+      agentId: "main",
+    });
+
+    const scheduled = await concrete.execute("schedule-call", {
+      project: "ztikix",
+      title: "Scheduler present",
+      instructions: "Remain queued.",
+      at: "2030-01-02T03:00:00Z",
+    });
+
+    const jobId = scheduled.details.job.id;
+
+    await runtime.triggerHook("cron_reconciled", {
+      reason: "startup",
+      enabled: true,
+    });
+
+    const result = await runtime.tools.get("kairo_job_get").execute("get", {
+      project: "ztikix",
+      jobId,
+    });
+
+    assert.equal(result.details.job.status, "queued");
+  } finally {
+    await runtime.stopGatewayServices();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+test("cron reconciliation fails queued job when scheduler is missing", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "kairo-reconcile-missing-"));
+  const runtime = createFakeRuntime(root, {
+    async cronList() {
+      return [];
+    },
+  });
+
+  try {
+    await runtime.startGatewayServices();
+    await runtime.tools.get("kairo_project_create").execute("project", { name: "ZTIKIX" });
+
+    const concrete = runtime.factories.get("kairo_background_schedule")({
+      sessionKey: "agent:main:session:test",
+      agentId: "main",
+    });
+
+    const scheduled = await concrete.execute("schedule-call", {
+      project: "ztikix",
+      title: "Scheduler missing",
+      instructions: "Fail explicitly if scheduler disappears.",
+      at: "2030-01-02T03:00:00Z",
+    });
+
+    const jobId = scheduled.details.job.id;
+
+    await runtime.triggerHook("cron_reconciled", {
+      reason: "startup",
+      enabled: true,
+    });
+
+    const result = await runtime.tools.get("kairo_job_get").execute("get", {
+      project: "ztikix",
+      jobId,
+    });
+
+    assert.equal(result.details.job.status, "failed");
+    assert.match(result.details.job.failure_reason, /scheduler.*missing/i);
   } finally {
     await runtime.stopGatewayServices();
     await rm(root, { recursive: true, force: true });
