@@ -128,11 +128,15 @@ function backgroundPrompt(params: {
     "3. Keep facts, hypotheses, deductions, opinions, and unknowns distinct.",
     "4. Never exceed the stated authority ceiling. This V0 background scheduler never grants A3+ external authority.",
     "5. Do not publish, send messages, purchase, trade, delete external data, or change external systems.",
-    "6. Record useful evidence with kairo_source_capture and durable discrete findings with kairo_knowledge_capture when appropriate.",
-    `7. On successful completion, call kairo_job_complete for job '${params.jobId}' with a concise factual summary.`,
-    `8. If the work cannot complete, call kairo_job_fail for job '${params.jobId}' with the specific reason when possible.`,
-    "9. If the task requires missing information or additional authority, stop and state the limitation explicitly.",
-    "10. Return a concise completion report to the originating session when finished.",
+    "6. Before any replay-sensitive internal mutation, call kairo_job_step_begin with a stable stepKey that identifies that exact mutation.",
+    "7. If kairo_job_step_begin returns already_completed, skip the mutation. If it returns already_started, the previous outcome is unknown: do not repeat the mutation blindly. Verify its effect deterministically when possible; otherwise stop and fail the Job with the uncertainty stated explicitly.",
+    "8. After a replay-sensitive mutation is confirmed successful, call kairo_job_step_complete with the same stepKey and a concise factual summary.",
+    "9. Pure reads and replay-safe deterministic computation do not require execution checkpoints.",
+    "10. Record useful evidence with kairo_source_capture and durable discrete findings with kairo_knowledge_capture when appropriate; checkpoint those writes when their duplication would matter.",
+    `11. On successful completion, call kairo_job_complete for job '${params.jobId}' with a concise factual summary. Job completion will be rejected while a started checkpoint remains unresolved.`,
+    `12. If the work cannot complete, call kairo_job_fail for job '${params.jobId}' with the specific reason when possible.`,
+    "13. If the task requires missing information or additional authority, stop and state the limitation explicitly.",
+    "14. Return a concise completion report to the originating session when finished.",
   ].join("\n");
 }
 
@@ -334,7 +338,7 @@ export default defineToolPlugin({
     tool({
       name: "kairo_job_get",
       label: "Get KAIRO Job",
-      description: "Read one durable KAIRO job record with its instructions, status, scheduler linkage, and outcome.",
+      description: "Read one durable KAIRO job record with its instructions, status, scheduler linkage, execution checkpoints, and outcome.",
       parameters: Type.Object(
         { project: Type.String({ minLength: 1 }), jobId: Type.String({ minLength: 1 }) },
         { additionalProperties: false },
@@ -359,9 +363,64 @@ export default defineToolPlugin({
       },
     }),
     tool({
+      name: "kairo_job_step_begin",
+      label: "Begin KAIRO Job Step",
+      description:
+        "Persist a replay-safety checkpoint immediately before a replay-sensitive internal mutation. Reuse the same stable stepKey on retries. If disposition is already_started, the previous mutation outcome is unknown: do not repeat it blindly. If disposition is already_completed, skip the mutation.",
+      parameters: Type.Object(
+        {
+          project: Type.String({ minLength: 1 }),
+          jobId: Type.String({ minLength: 1 }),
+          stepKey: Type.String({
+            minLength: 1,
+            maxLength: 128,
+            description: "Stable key for one exact replay-sensitive mutation, reused across retries.",
+          }),
+          description: Type.Optional(
+            Type.String({ description: "Concise description of the mutation guarded by this checkpoint." }),
+          ),
+        },
+        { additionalProperties: false },
+      ),
+      async execute({ project, jobId, stepKey, description }, config, context) {
+        context.signal?.throwIfAborted();
+        const result = await ledgerFor(config.dataDir).beginStep(project, jobId, { stepKey, description });
+        return {
+          job: compact(result.job),
+          step: result.step,
+          disposition: result.disposition,
+        };
+      },
+    }),
+    tool({
+      name: "kairo_job_step_complete",
+      label: "Complete KAIRO Job Step",
+      description:
+        "Mark a replay-safety checkpoint completed only after the guarded mutation is confirmed successful. Reuse the exact stepKey from kairo_job_step_begin. Repeated completion is idempotent.",
+      parameters: Type.Object(
+        {
+          project: Type.String({ minLength: 1 }),
+          jobId: Type.String({ minLength: 1 }),
+          stepKey: Type.String({ minLength: 1, maxLength: 128 }),
+          summary: Type.String({ minLength: 1, description: "Concise factual confirmation of the mutation outcome." }),
+        },
+        { additionalProperties: false },
+      ),
+      async execute({ project, jobId, stepKey, summary }, config, context) {
+        context.signal?.throwIfAborted();
+        const result = await ledgerFor(config.dataDir).completeStep(project, jobId, { stepKey, summary });
+        return {
+          job: compact(result.job),
+          step: result.step,
+          disposition: result.disposition,
+        };
+      },
+    }),
+    tool({
       name: "kairo_job_complete",
       label: "Complete KAIRO Job",
-      description: "Mark a KAIRO job completed and persist a concise factual completion summary.",
+      description:
+        "Mark a KAIRO job completed and persist a concise factual completion summary. Completion is rejected while any replay-safety checkpoint remains started and unresolved.",
       parameters: Type.Object(
         {
           project: Type.String({ minLength: 1 }),
@@ -471,7 +530,7 @@ export default defineToolPlugin({
                   delivery_mode: params.announce === false ? "none" : "announce",
                 },
                 limitation:
-                  "KAIRO now persists the job and scheduler linkage, but hard model-cost enforcement and crash/restart completion reconciliation remain pending.",
+                  "KAIRO persists the job, scheduler linkage, and replay-safety checkpoints, but hard model-cost enforcement and KAIRO-owned usage accounting remain pending.",
               });
             } catch (error) {
               const reason = error instanceof Error ? error.message : String(error);
