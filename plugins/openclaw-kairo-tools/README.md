@@ -2,7 +2,7 @@
 
 This package is the runtime adapter between OpenClaw and KAIRO Core.
 
-The model never writes KAIRO Markdown files directly. Durable writes go through `@kairo/core`, which owns validation, IDs, project isolation, provenance fields, storage rules, and the KAIRO-owned autonomous-job ledger.
+The model never writes KAIRO Markdown files directly. Durable writes go through `@kairo/core`, which owns validation, IDs, project isolation, provenance fields, storage rules, replay-safety checkpoints, and the KAIRO-owned autonomous-job ledger.
 
 ## Current V0 tool surface
 
@@ -27,6 +27,8 @@ Durable job state:
 - `kairo_job_list`
 - `kairo_job_get`
 - `kairo_job_start`
+- `kairo_job_step_begin`
+- `kairo_job_step_complete`
 - `kairo_job_complete`
 - `kairo_job_fail`
 
@@ -56,11 +58,14 @@ current OpenClaw session
     -> link Cron scheduler ID/tag (queued)
       -> Cron-owned future agentTurn
         -> kairo_job_start (running)
-        -> KAIRO tools + ordinary OpenClaw research tools
+        -> pure reads / replay-safe computation
+        -> kairo_job_step_begin before replay-sensitive mutation
+        -> guarded mutation
+        -> kairo_job_step_complete after confirmed success
         -> kairo_job_complete / kairo_job_fail
 ```
 
-This separates **KAIRO-owned audit state** from **OpenClaw-owned wake-up/runtime state**.
+This separates **KAIRO-owned audit/replay state** from **OpenClaw-owned wake-up/runtime state**.
 
 The runtime package uses an advanced `definePluginEntry` wrapper to register the Gateway service while preserving the stable tool declarations and generated metadata from the existing `defineToolPlugin` tool contract.
 
@@ -106,15 +111,34 @@ The installed plugin does not call OpenClaw's bundled-only `scheduleSessionTurn`
 
 Before scheduling, KAIRO creates a durable `Job`. A successful OpenClaw Cron ID is attached to that job. Scheduling errors are recorded as failed KAIRO jobs. If scheduler creation succeeds but KAIRO cannot link the scheduler state, the adapter attempts best-effort compensation by removing the newly created Cron job.
 
+### Replay-safety checkpoints
+
+A real `SIGKILL` proof on OpenClaw 2026.9.2 showed that an interrupted agent turn may resume after Gateway restart and that a tool result interrupted by the crash is treated as **unknown**. A harmless `sleep 90` step was replayed during that proof. KAIRO therefore does not blanket-fail every `running` Job on restart.
+
+For a replay-sensitive internal mutation, the scheduled turn must use a stable two-phase checkpoint:
+
+1. call `kairo_job_step_begin` immediately before the mutation;
+2. if it returns `started`, perform the mutation;
+3. after confirmed success, call `kairo_job_step_complete` with the same `stepKey`;
+4. if a retry receives `already_completed`, skip the mutation;
+5. if a retry receives `already_started`, the prior mutation outcome is unknown — verify deterministically if possible, otherwise stop/fail explicitly rather than repeating the mutation blindly.
+
+`kairo_job_complete` rejects completion while any execution checkpoint remains `started`. Pure reads and replay-safe deterministic computation do not need checkpoints.
+
+These checkpoints make uncertainty durable and visible. They do **not** prove that an arbitrary external side effect is idempotent; tool-specific deduplication or deterministic effect verification is still required before KAIRO can safely broaden autonomous mutation scope.
+
 ### Known V0 limitations
 
-The job ledger is durable, but important gaps remain before AT-04 is complete:
+The durable wake/restart/crash path is now characterized, but important gaps remain before the full AT-04 contract is complete:
 
-1. **Live wake/restart proof:** the Gateway-Cron adapter must still pass the corrected closed-client and controlled-restart proof on the real local runtime.
-2. **Hard model-cost enforcement:** a requested budget is recorded with `budget_enforced: false`; the future model router/accounting layer must enforce and record actual spend.
-3. **Crash/restart reconciliation:** a future agent turn is instructed to mark the job running/completed/failed, but a process crash can still leave a stale queued/running record. A health reconciler must detect this condition against OpenClaw scheduler/task state.
+1. **Hard model-cost enforcement:** a requested budget is recorded with `budget_enforced: false`; the future model router/accounting layer must enforce and record actual spend.
+2. **KAIRO-owned usage accounting:** provider/model/token/tool/cost metadata is not yet persisted on the KAIRO Job, even though OpenClaw run history exposes some usage data.
+3. **Replay-safe side effects:** generic KAIRO checkpoints expose unknown outcomes and prevent blind replay, but each non-idempotent tool/mutation still needs a deterministic or provider-supported deduplication contract.
+4. **Morning result surface:** there is no dedicated KAIRO morning-brief/result aggregation surface yet.
 
-KAIRO must not describe an advisory budget as guaranteed or a stale job as successfully completed.
+Queued-job reconciliation is implemented after OpenClaw `cron_reconciled` for future queued Jobs whose linked scheduler disappeared. `running` Jobs are deliberately left to native interrupted-turn recovery rather than blanket-failed.
+
+KAIRO must not describe an advisory budget as guaranteed, an unknown mutation as successful, or a delivery-only Cron error as a KAIRO work failure.
 
 ## Research-memory rules
 
@@ -167,9 +191,9 @@ This path has been demonstrated on the isolated local runtime.
 3. Confirm the durable Job is `queued` before closing the client.
 4. Close all clients while leaving the Gateway process running.
 5. At the scheduled time, the server should start the future agent turn and mark the KAIRO Job running.
-6. The turn may research, save sources/claims through KAIRO tools, and mark the Job completed/failed.
-7. Reconnect and confirm the Job record, evidence, findings, and outcome are durable.
+6. Before any replay-sensitive KAIRO mutation, confirm the turn begins a stable execution checkpoint and completes that checkpoint only after confirmed success.
+7. Reconnect and confirm the Job record, checkpoints, evidence, findings, and outcome are durable.
 8. Confirm no A3+ external action was performed.
 9. Repeat with a controlled Gateway restart before the due time.
 
-The live proof is the gate. Do not treat unit tests or a queued KAIRO record alone as proof that the server can wake the future turn.
+The closed-client, controlled-restart, and harmless abrupt-crash runtime paths have been demonstrated. The next live checkpoint proof should verify that a deliberately unresolved `started` execution checkpoint survives restart and prevents blind replay/job completion.

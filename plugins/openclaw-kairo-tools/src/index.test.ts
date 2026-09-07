@@ -62,6 +62,8 @@ test("plugin exposes the expected stable tool names", () => {
       "kairo_job_list",
       "kairo_job_get",
       "kairo_job_start",
+      "kairo_job_step_begin",
+      "kairo_job_step_complete",
       "kairo_job_complete",
       "kairo_job_fail",
       "kairo_background_schedule",
@@ -185,6 +187,10 @@ test("background scheduling creates and links a durable KAIRO job before returni
     assert.match(scheduled[0].message, /Authority ceiling: A2/);
     assert.match(scheduled[0].message, /Requested model budget: 0.5/);
     assert.match(scheduled[0].message, /kairo_job_start/);
+    assert.match(scheduled[0].message, /kairo_job_step_begin/);
+    assert.match(scheduled[0].message, /kairo_job_step_complete/);
+    assert.match(scheduled[0].message, /already_started/);
+    assert.match(scheduled[0].message, /do not repeat the mutation blindly/i);
     assert.match(scheduled[0].message, /kairo_job_complete/);
     assert.match(scheduled[0].message, /Do not publish, send messages, purchase, trade, delete external data/);
 
@@ -204,7 +210,7 @@ test("background scheduling creates and links a durable KAIRO job before returni
   }
 });
 
-test("scheduled job tools persist running and completed state", async () => {
+test("scheduled job tools persist replay checkpoints and completed state", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "kairo-job-tools-"));
   try {
     const { tools, factories } = createFakeApi(root);
@@ -224,6 +230,49 @@ test("scheduled job tools persist running and completed state", async () => {
     const running = await tools.get("kairo_job_start").execute("start", { project: "ztikix", jobId });
     assert.equal(running.details.job.status, "running");
 
+    const begin = await tools.get("kairo_job_step_begin").execute("step-begin", {
+      project: "ztikix",
+      jobId,
+      stepKey: "write:report",
+      description: "Persist the final internal report.",
+    });
+    assert.equal(begin.details.disposition, "started");
+    assert.equal(begin.details.step.status, "started");
+
+    const duplicateBegin = await tools.get("kairo_job_step_begin").execute("step-begin-retry", {
+      project: "ztikix",
+      jobId,
+      stepKey: "write:report",
+    });
+    assert.equal(duplicateBegin.details.disposition, "already_started");
+
+    await assert.rejects(
+      tools.get("kairo_job_complete").execute("too-early", {
+        project: "ztikix",
+        jobId,
+        summary: "Must not complete while the mutation outcome is unresolved.",
+      }),
+      /unresolved execution steps/i,
+    );
+
+    const stepComplete = await tools.get("kairo_job_step_complete").execute("step-complete", {
+      project: "ztikix",
+      jobId,
+      stepKey: "write:report",
+      summary: "Internal report persisted.",
+    });
+    assert.equal(stepComplete.details.disposition, "completed");
+    assert.equal(stepComplete.details.step.status, "completed");
+
+    const duplicateComplete = await tools.get("kairo_job_step_complete").execute("step-complete-retry", {
+      project: "ztikix",
+      jobId,
+      stepKey: "write:report",
+      summary: "Retry should preserve the first completion.",
+    });
+    assert.equal(duplicateComplete.details.disposition, "already_completed");
+    assert.equal(duplicateComplete.details.step.summary, "Internal report persisted.");
+
     const complete = await tools.get("kairo_job_complete").execute("complete", {
       project: "ztikix",
       jobId,
@@ -232,6 +281,8 @@ test("scheduled job tools persist running and completed state", async () => {
     assert.equal(complete.details.job.status, "completed");
 
     const getJob = await tools.get("kairo_job_get").execute("get", { project: "ztikix", jobId });
+    assert.match(getJob.details.job.body, /## Execution checkpoints/);
+    assert.match(getJob.details.job.body, /write:report/);
     assert.match(getJob.details.job.body, /Lifecycle completed/);
   } finally {
     await rm(root, { recursive: true, force: true });
