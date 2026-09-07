@@ -61,7 +61,8 @@ GitHub Actions validates:
 - OpenClaw plugin TypeScript build;
 - generated plugin metadata consistency;
 - adapter/core integration tests;
-- OpenClaw plugin validation against the pinned development release.
+- OpenClaw plugin validation against the pinned development release;
+- packed runtime archive contents, including the advanced entry and bundled KAIRO Core copy.
 
 The Gateway-Cron background path has dedicated tests for successful one-shot scheduling, unavailable Gateway Cron, and missing scheduler IDs.
 
@@ -70,7 +71,7 @@ The Gateway-Cron background path has dedicated tests for successful one-shot sch
 An isolated Ubuntu 24.04 / WSL2 runtime has demonstrated:
 
 - Node 22.22.3 and pinned OpenClaw 2026.9.2;
-- KAIRO plugin installation from a security-scanned packed archive;
+- KAIRO plugin installation from a reviewed packed archive;
 - plugin activation with the full stable `kairo_*` catalog;
 - an isolated runtime workspace and KAIRO data directory outside Git;
 - a real OpenAI API model call through the local OpenClaw Gateway;
@@ -78,11 +79,18 @@ An isolated Ubuntu 24.04 / WSL2 runtime has demonstrated:
 - retrieval of the same project on a later agent turn;
 - durable idea capture under the correct project;
 - preservation of the tentative idea as `type: idea` with `epistemic_status: hypothesis`;
-- human-readable Markdown persistence without accidental decision/knowledge promotion.
+- human-readable Markdown persistence without accidental decision/knowledge promotion;
+- a real future A2 KAIRO Job queued with an OpenClaw Cron scheduler ID;
+- execution of that Job after the initiating client disconnected while the Gateway remained running;
+- explicit Job lifecycle transition from `queued` to `running` to `completed`;
+- one-shot Cron cleanup after completion;
+- survival of a second queued Job across a controlled Gateway stop/restart;
+- reload of the exact same scheduler ID after Gateway restart;
+- successful post-restart wake and completion of that Job with durable Markdown state intact.
 
-This constitutes live evidence for the core AT-01 / AT-02 path and the runtime/storage/tool boundary.
+This constitutes live evidence for the core AT-01 / AT-02 path, the runtime/storage/tool boundary, and the AT-04 autonomous background/restart path.
 
-## Live background-wake proof: current state
+## Live background-wake proof
 
 The first real call to `kairo_background_schedule` intentionally failed closed:
 
@@ -91,24 +99,34 @@ The first real call to `kairo_background_schedule` intentionally failed closed:
 - KAIRO marked the Job `failed` with the concrete scheduler reason;
 - Gateway logs confirmed Cron itself was healthy but no KAIRO Cron job had been added.
 
-That observed failure drove the current Gateway-service Cron adapter. The next mandatory live proof is therefore:
+That observed failure drove the Gateway-service Cron adapter now merged on `main`.
 
-1. install the corrected packed KAIRO plugin and restart the local Gateway;
-2. schedule a harmless A2 KAIRO background job a few minutes ahead;
-3. confirm the Job is `queued` and stores the real OpenClaw Cron ID/tag;
-4. close the client while leaving the Gateway running;
-5. confirm the future turn wakes and moves the Job through `running` to `completed` or an explicit `failed` state;
-6. verify any research source/claim is stored with provenance and epistemic status;
-7. repeat around a controlled Gateway restart.
+The corrected path was then demonstrated live with a harmless A2 ZTIKIX job:
 
-Do not claim AT-04 complete until both normal closed-client wake and controlled-restart behavior are demonstrated.
+1. KAIRO created the Job first and persisted it as `queued`;
+2. OpenClaw Cron returned a real scheduler ID and tag, both stored durably on the Job;
+3. Gateway logs showed the matching `cron: job added` event;
+4. the initiating client disconnected while the Gateway remained running;
+5. the future turn woke at the scheduled time, called `kairo_job_start`, performed the bounded internal work, and called `kairo_job_complete`;
+6. the Job persisted `started_at`, `completed_at`, and a concise completion summary;
+7. the one-shot scheduler disappeared from `openclaw cron list` after execution.
+
+A separate controlled-restart proof then demonstrated:
+
+1. a new future KAIRO Job was queued with a distinct real Cron scheduler ID;
+2. the Gateway was stopped before the due time;
+3. after restart, `openclaw cron list` showed the same scheduler ID still present and idle;
+4. at the due time, the future turn woke and completed successfully;
+5. the KAIRO Job retained the same scheduler linkage and durable lifecycle state throughout.
+
+The live proof therefore establishes the intended V0 property: closing the client does not stop approved background work, and queued work survives a controlled OpenClaw Gateway restart.
 
 ## Acceptance-test assessment
 
 - **AT-01 Durable idea capture:** implemented and live-proven for the current local runtime.
 - **AT-02 Epistemic status:** implemented and live-proven for tentative idea capture.
 - **AT-03 Critic mode:** not implemented.
-- **AT-04 Autonomous overnight job:** Job ledger implemented; live wake/restart proof still pending.
+- **AT-04 Autonomous overnight job:** implemented and live-proven for closed-client execution plus controlled Gateway restart recovery.
 - **AT-05 Permission boundary:** A0-A2 background restriction exists; approval-request primitive is not implemented.
 - **AT-06 “I don't know”:** policy exists, deterministic acceptance proof still pending.
 - **AT-07 Model routing/accounting:** not implemented; a single OpenAI model works live, but routing and per-run accounting do not.
@@ -120,9 +138,9 @@ Do not claim AT-04 complete until both normal closed-client wake and controlled-
 
 ## Explicitly unfinished
 
-Highest-priority V0 work after the live background wake succeeds:
+Highest-priority V0 work after the AT-04 live proof:
 
-1. controlled-restart/stale-job reconciliation;
+1. stale queued/running Job reconciliation for unclean crashes and interrupted runs;
 2. provider/model/token/cost attribution and hard budget enforcement;
 3. Critic mode with linked recommendation/provenance;
 4. approval-request primitive for authority escalation;
@@ -141,4 +159,4 @@ Still intentionally deferred:
 
 ## Current engineering rule
 
-Do not implement the Cockpit or add unrelated infrastructure before the corrected background-wake path is proven live. After that, implement the smallest capability required by the next failing acceptance test.
+AT-04 is now live-proven. Continue capability-first: implement the smallest capability required by the next failing acceptance test, and let observed runtime failures drive reconciliation and infrastructure work rather than adding speculative machinery.
