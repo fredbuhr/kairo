@@ -2,9 +2,9 @@
 
 ## Purpose
 
-The repository now has unit/integration coverage for KAIRO Core, the OpenClaw tool adapter, bounded future-turn scheduling, and the KAIRO-owned Job ledger.
+The repository has unit/integration coverage for KAIRO Core, the OpenClaw tool adapter, the KAIRO-owned Job ledger, secure packed-plugin installation, and the Gateway-Cron background scheduling path.
 
-The next meaningful proof is **not more architecture**. It is to run the pinned OpenClaw runtime, load the real KAIRO plugin, use a real model provider, close the client, and verify that a future server-side turn wakes and updates durable KAIRO state.
+A local live proof has already demonstrated the real model → OpenClaw → KAIRO tool → durable Markdown path for project and tentative-idea capture. The next meaningful proof is **not more architecture**. It is to prove a corrected future server-side turn wakes without an active client, then repeat around a controlled Gateway restart.
 
 This runbook is intentionally for an isolated local development runtime. Production/VPS hardening comes after the behavior is proven.
 
@@ -95,31 +95,45 @@ cp config/openclaw/workspace-template/USER.template.md "$OPENCLAW_WORKSPACE_DIR/
 
 `USER.md` is now runtime-private. Edit that live file for test-user preferences if needed; do not copy the personalized version back into Git.
 
-## 5. Install and configure KAIRO Tools
+## 5. Pack, install, and configure KAIRO Tools
 
 OpenClaw 2026.9.2 scans plugin dependency boundaries. Installing the development checkout directly is rejected because npm represents the local `@kairo/core` dependency as a symlink outside the plugin root.
 
-Build the plugin, then pack it so the bundled KAIRO core is copied into the archive:
+Use KAIRO's pack script. It builds the advanced runtime entry and creates a self-contained archive whose installed `@kairo/core` is a real package copy rather than an external symlink:
 
 ```bash
 cd plugins/openclaw-kairo-tools
-npm run plugin:build
-PKG=$(npm pack --silent)
+npm run plugin:pack
+PKG=$(ls -1t kairo-openclaw-tools-*.tgz | head -1)
 tar -tzf "$PKG" | grep 'node_modules/@kairo/core'
+tar -xOf "$PKG" package/package.json | grep -A3 '"dependencies"'
 ```
 
-The archive must contain real files under `package/node_modules/@kairo/core/` before continuing.
+Before continuing, verify:
 
-Install that packed archive through OpenClaw's plugin manager:
+- real files exist under `package/node_modules/@kairo/core/`;
+- the packed `package.json` uses a normal version such as `"@kairo/core": "0.1.0"`, not `file:../../packages/kairo-core`;
+- `package/dist/entry.js` and `package/openclaw.plugin.json` are present.
+
+For a first install of this reviewed local archive:
 
 ```bash
 "$OPENCLAW_BIN" plugins install "$PWD/$PKG" --accept-capabilities
 ```
 
-Configure the runtime-private KAIRO data path:
+If `kairo-tools` is already installed from an earlier local archive, intentionally replace that managed install with the newly reviewed archive:
+
+```bash
+"$OPENCLAW_BIN" plugins install "$PWD/$PKG" --force --accept-capabilities
+```
+
+In OpenClaw 2026.9.2, `--force` confirms/replaces an already installed arbitrary local source; it does **not** bypass install policy or the code safety scan.
+
+Configure the runtime-private KAIRO data path and enable the plugin:
 
 ```bash
 "$OPENCLAW_BIN" config set plugins.entries.kairo-tools.config.dataDir "$KAIRO_DATA_DIR"
+"$OPENCLAW_BIN" plugins enable kairo-tools
 "$OPENCLAW_BIN" config validate
 ```
 
@@ -129,7 +143,7 @@ Inspect the plugin before starting the Gateway:
 "$OPENCLAW_BIN" plugins inspect kairo-tools --runtime --json
 ```
 
-The tool catalog should include the `kairo_*` tools generated in `openclaw.plugin.json`.
+The runtime source must resolve to the packed advanced entry (`dist/entry.js`), the plugin must be loaded/enabled, and the tool catalog must still include all stable `kairo_*` tools.
 
 ## 6. Configure one real model provider
 
@@ -145,7 +159,7 @@ After provider configuration, never commit the resulting OpenClaw auth/state fil
 
 ## 7. Start the local Gateway
 
-OpenClaw's local Gateway defaults around port `18789`. For this proof, keep it local:
+Keep the Gateway local:
 
 ```bash
 "$OPENCLAW_BIN" gateway --port 18789 --verbose
@@ -154,25 +168,23 @@ OpenClaw's local Gateway defaults around port `18789`. For this proof, keep it l
 In a second terminal, source the same environment helper and use the same local OpenClaw binary, then verify:
 
 ```bash
+cd ~/kairo
 source scripts/dev/openclaw-env.sh
-cd plugins/openclaw-kairo-tools
-export OPENCLAW_BIN="$PWD/node_modules/.bin/openclaw"
+export OPENCLAW_BIN="$HOME/kairo/plugins/openclaw-kairo-tools/node_modules/.bin/openclaw"
 "$OPENCLAW_BIN" health
-"$OPENCLAW_BIN" gateway status --require-rpc
 ```
 
-Do not continue if the health/RPC checks are not healthy.
+The Gateway process must remain running for the normal closed-client wake proof.
 
 ## 8. Live proof A — durable idea capture
 
-Through the local OpenClaw conversation surface, ask KAIRO to:
+This path has already been demonstrated in the first local proof. To repeat it from a clean data directory, ask KAIRO to:
 
 1. create project `ZTIKIX`;
 2. capture a clearly tentative idea under ZTIKIX;
 3. list the ideas;
-4. retrieve the new idea.
-
-Then start a **new session** and retrieve it again.
+4. retrieve the new idea;
+5. retrieve it again on a later agent turn without recreating it.
 
 Expected durable state under `$KAIRO_DATA_DIR`:
 
@@ -190,14 +202,18 @@ Verify the Markdown is readable by a human and the tentative statement did not b
 
 Schedule a harmless future task a few minutes ahead, for example:
 
-> For ZTIKIX, in five minutes perform a small public research check, save one genuine source if useful, preserve uncertainty, and return a concise result. Authority A2 only.
+> For ZTIKIX, in five minutes re-read the existing tentative sticker idea, produce a concise internal summary, preserve uncertainty, take no external action, and complete the KAIRO Job. Authority A2 only.
 
-KAIRO should return both:
+KAIRO must return both:
 
 - a KAIRO `job_*` ID;
-- an OpenClaw scheduler ID/tag.
+- a real OpenClaw Cron scheduler ID/tag.
 
-Before the scheduled time, inspect the job. It should be `queued` and should retain the scheduler linkage.
+**Stop immediately if the scheduler ID is missing.** Do not wait and do not treat a KAIRO Job alone as evidence that background work was scheduled.
+
+Before the scheduled time, inspect the Job Markdown. It must be `queued` and retain the scheduler linkage.
+
+Also verify the Gateway log contains a corresponding Cron job addition. This is important because the first live attempt exposed a bundled-only OpenClaw helper that returned no handle and created no Cron job.
 
 Now close the browser/client. **Leave the Gateway process running.**
 
@@ -208,27 +224,28 @@ After the scheduled time, reconnect and verify:
 - any saved source is a separate `Source` object;
 - any saved conclusion has an explicit epistemic status;
 - no A3+ external action occurred;
-- the job remains readable from `$KAIRO_DATA_DIR/projects/ztikix/jobs/`.
+- the Job remains readable from `$KAIRO_DATA_DIR/projects/ztikix/jobs/`.
 
 ## 10. Controlled restart proof
 
 The full V0 acceptance criterion also requires safe recovery around runtime restarts.
 
-Do **not** claim this test complete yet merely because a normal scheduled turn works.
+Do **not** claim this test complete merely because a normal scheduled turn works.
 
 The next controlled test is:
 
-1. schedule a future KAIRO job;
-2. stop/restart the Gateway before its due time;
-3. confirm OpenClaw Cron still owns/reloads the schedule;
-4. confirm KAIRO Job state is not lost;
-5. confirm the future turn either completes or leaves an explicit state that the reconciler can diagnose.
+1. schedule a future KAIRO Job;
+2. confirm the Job is queued and linked to a real Cron ID;
+3. stop/restart the Gateway before its due time;
+4. confirm OpenClaw Cron reloads the schedule;
+5. confirm KAIRO Job state is not lost;
+6. confirm the future turn either completes or leaves an explicit state that reconciliation can diagnose.
 
-This test will inform the stale-job reconciliation code rather than assuming its design up front.
+This test will inform stale-job reconciliation code rather than assuming its design up front.
 
 ## 11. What this runbook does not prove
 
-Even after both live proofs succeed, these remain unfinished:
+Even after both background proofs succeed, these remain unfinished:
 
 - hard per-job model-spend enforcement;
 - actual provider/token/cost accounting on the Job;
@@ -237,6 +254,7 @@ Even after both live proofs succeed, these remain unfinished:
 - remote authentication and HTTPS;
 - cross-device PWA;
 - model routing;
+- Critic mode and approval-request workflow;
 - social/crypto/voice integrations.
 
 That is intentional. The next code should respond to failures observed in the live proof rather than anticipate every possible infrastructure need.
