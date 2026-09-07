@@ -5,7 +5,9 @@
   "version": "0.1.0",
   "configSchema": {
     "type": "object",
-    "additionalProperties": false,
+    "required": [
+      "dataDir"
+    ],
     "properties": {
       "dataDir": {
         "type": "string",
@@ -13,7 +15,7 @@
         "description": "Absolute path to KAIRO runtime-private domain data."
       }
     },
-    "required": ["dataDir"]
+    "additionalProperties": false
   },
   "activation": {
     "onStartup": true
