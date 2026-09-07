@@ -103,6 +103,64 @@ test("llm_output attributes usage through cron job id and final snapshot overrid
   }
 });
 
+test("embedded cron run binds through kairo_job_start when llm_output lacks jobId", async () => {
+  const { dataDir, job } = await setup();
+  try {
+    const runtime = fakeApi(dataDir);
+
+    await runtime.emit(
+      "after_tool_call",
+      {
+        runId: "embedded-run",
+        toolName: "kairo_job_start",
+        params: { project: "ztikix", jobId: job.id },
+        durationMs: 11,
+      },
+      { runId: "embedded-run", toolName: "kairo_job_start" },
+    );
+
+    await runtime.emit(
+      "llm_output",
+      {
+        runId: "embedded-run",
+        sessionId: "embedded-session",
+        provider: "openai",
+        model: "gpt-5.6-luna",
+        resolvedRef: "openai/gpt-5.6-luna",
+        harnessId: "codex",
+        usage: { input: 18, output: 650, cacheRead: 91130, cacheWrite: 19914, total: 111712 },
+        assistantTexts: ["done"],
+      },
+      { runId: "embedded-run" },
+    );
+
+    await runtime.emit(
+      "after_tool_call",
+      {
+        runId: "embedded-run",
+        toolName: "kairo_job_complete",
+        params: { project: "ztikix", jobId: job.id, summary: "done" },
+        durationMs: 13,
+      },
+      { runId: "embedded-run", toolName: "kairo_job_complete" },
+    );
+
+    const recorded = await new KairoJobUsageLedger({ dataDir }).getUsage("ztikix", job.id);
+    assert.equal(recorded.summary.runs, 1);
+    assert.equal(recorded.summary.model_calls, 1);
+    assert.equal(recorded.summary.tool_calls, 2);
+    assert.deepEqual(recorded.summary.usage, {
+      input: 18,
+      output: 650,
+      cacheRead: 91130,
+      cacheWrite: 19914,
+      total: 111712,
+    });
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("non-cron model output is ignored", async () => {
   const { dataDir, job } = await setup();
   try {
