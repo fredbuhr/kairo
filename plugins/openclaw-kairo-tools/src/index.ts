@@ -3,6 +3,7 @@ import path from "node:path";
 import { KairoStore, type KairoRecord } from "@kairo/core";
 import { Type } from "typebox";
 import { defineToolPlugin } from "openclaw/plugin-sdk/tool-plugin";
+import { jsonResult } from "openclaw/plugin-sdk/tool-results";
 
 const projectStatus = Type.Union([
   Type.Literal("inbox"),
@@ -352,7 +353,7 @@ export default defineToolPlugin({
               }),
             });
             if (!handle) throw new Error("OpenClaw did not return a scheduler handle for KAIRO background work.");
-            return {
+            const payload = {
               schedule: {
                 id: handle.id,
                 tag,
@@ -364,6 +365,7 @@ export default defineToolPlugin({
               limitation:
                 "V0 scheduling uses OpenClaw Cron, but KAIRO task/job persistence and hard model-cost ceilings are not implemented yet.",
             };
+            return jsonResult(payload);
           },
         };
       },
