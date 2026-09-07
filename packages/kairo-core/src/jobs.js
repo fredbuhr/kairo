@@ -13,6 +13,7 @@ const JOB_STATUSES = new Set([
   "failed",
   "cancelled",
 ]);
+const JOB_STEP_STATUSES = new Set(["started", "completed"]);
 const AUTHORITY_LEVELS = new Set(["A0", "A1", "A2", "A3", "A4", "A5"]);
 
 function requireText(value, label) {
@@ -24,6 +25,14 @@ function requireText(value, label) {
 function optionalText(value) {
   const text = String(value ?? "").trim();
   return text || undefined;
+}
+
+function requireStepKey(value) {
+  const key = requireText(value, "stepKey");
+  if (!/^[a-z0-9][a-z0-9._:-]{0,127}$/i.test(key)) {
+    throw new TypeError("stepKey must be 1-128 characters using letters, numbers, '.', '_', ':', or '-'.");
+  }
+  return key;
 }
 
 function nowIso(clock) {
@@ -56,8 +65,29 @@ async function atomicWrite(filePath, content) {
   await rename(temp, filePath);
 }
 
-function jobBody({ title, instructions, completionSummary, failureReason }) {
+function oneLine(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function jobBody({ title, instructions, completionSummary, failureReason, executionSteps = [] }) {
   const sections = [`# ${title}`, `## Instructions\n${instructions}`];
+  if (executionSteps.length) {
+    sections.push(
+      `## Execution checkpoints\n${executionSteps
+        .map((step) => {
+          const details = [
+            `\`${step.key}\``,
+            step.status,
+            `started ${step.started_at}`,
+            ...(step.completed_at ? [`completed ${step.completed_at}`] : []),
+            ...(step.description ? [oneLine(step.description)] : []),
+            ...(step.summary ? [oneLine(step.summary)] : []),
+          ];
+          return `- ${details.join(" — ")}`;
+        })
+        .join("\n")}`,
+    );
+  }
   if (completionSummary) sections.push(`## Completion summary\n${completionSummary}`);
   if (failureReason) sections.push(`## Failure\n${failureReason}`);
   return sections.join("\n\n");
@@ -65,6 +95,42 @@ function jobBody({ title, instructions, completionSummary, failureReason }) {
 
 function jobFile(dataDir, projectSlug, jobId) {
   return path.join(dataDir, "projects", projectSlug, "jobs", `${jobId}.md`);
+}
+
+function executionSteps(job) {
+  const raw = job.execution_steps;
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    throw new KairoError("INVALID_JOB_STEPS", `Job '${job.id}' has invalid execution_steps metadata.`);
+  }
+  return raw.map((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new KairoError("INVALID_JOB_STEPS", `Job '${job.id}' has an invalid execution step.`);
+    }
+    const step = { ...value };
+    step.key = requireStepKey(step.key);
+    step.status = requireText(step.status, "Execution step status");
+    if (!JOB_STEP_STATUSES.has(step.status)) {
+      throw new KairoError(
+        "INVALID_JOB_STEPS",
+        `Job '${job.id}' has invalid execution step status '${step.status}'.`,
+      );
+    }
+    step.started_at = requireText(step.started_at, "Execution step started_at");
+    if (step.description !== undefined) step.description = requireText(step.description, "Execution step description");
+    if (step.completed_at !== undefined) step.completed_at = requireText(step.completed_at, "Execution step completed_at");
+    if (step.summary !== undefined) step.summary = requireText(step.summary, "Execution step summary");
+    return step;
+  });
+}
+
+function assertRunningStepJob(job) {
+  if (job.status !== "running") {
+    throw new KairoError(
+      "INVALID_JOB_STEP_STATE",
+      `Cannot modify execution checkpoints for job '${job.id}' while status is '${job.status}'.`,
+    );
+  }
 }
 
 /**
@@ -145,12 +211,109 @@ export class KairoJobLedger {
     });
   }
 
+  async beginStep(project, jobId, { stepKey, description } = {}) {
+    const key = requireStepKey(stepKey);
+    const normalizedDescription = optionalText(description);
+    let selectedStep;
+    let disposition;
+
+    const job = await this.#update(project, jobId, (current) => {
+      assertRunningStepJob(current);
+      const steps = executionSteps(current);
+      const existing = steps.find((step) => step.key === key);
+      if (existing) {
+        selectedStep = { ...existing };
+        disposition = existing.status === "completed" ? "already_completed" : "already_started";
+        return current;
+      }
+
+      const timestamp = nowIso(this.clock);
+      const step = {
+        key,
+        status: "started",
+        started_at: timestamp,
+        ...(normalizedDescription ? { description: normalizedDescription } : {}),
+      };
+      selectedStep = { ...step };
+      disposition = "started";
+      return {
+        ...current,
+        execution_steps: [...steps, step],
+        updated_at: timestamp,
+      };
+    });
+
+    return { job, step: selectedStep, disposition };
+  }
+
+  async completeStep(project, jobId, { stepKey, summary } = {}) {
+    const key = requireStepKey(stepKey);
+    const completionSummary = requireText(summary, "Execution step summary");
+    let selectedStep;
+    let disposition;
+
+    const job = await this.#update(project, jobId, (current) => {
+      assertRunningStepJob(current);
+      const steps = executionSteps(current);
+      const index = steps.findIndex((step) => step.key === key);
+      if (index === -1) {
+        throw new KairoError(
+          "JOB_STEP_NOT_FOUND",
+          `Execution step '${key}' was not started for job '${current.id}'.`,
+        );
+      }
+
+      const existing = steps[index];
+      if (existing.status === "completed") {
+        selectedStep = { ...existing };
+        disposition = "already_completed";
+        return current;
+      }
+
+      const timestamp = nowIso(this.clock);
+      const completed = {
+        ...existing,
+        status: "completed",
+        completed_at: timestamp,
+        summary: completionSummary,
+      };
+      const nextSteps = [...steps];
+      nextSteps[index] = completed;
+      selectedStep = { ...completed };
+      disposition = "completed";
+      return {
+        ...current,
+        execution_steps: nextSteps,
+        updated_at: timestamp,
+      };
+    });
+
+    return { job, step: selectedStep, disposition };
+  }
+
   async completeJob(project, jobId, { summary }) {
     const completionSummary = requireText(summary, "Completion summary");
-    return this.#transition(project, jobId, ["running", "queued"], "completed", {
-      completed_at: nowIso(this.clock),
-      completion_summary: completionSummary,
-    });
+    return this.#transition(
+      project,
+      jobId,
+      ["running", "queued"],
+      "completed",
+      {
+        completed_at: nowIso(this.clock),
+        completion_summary: completionSummary,
+      },
+      (job) => {
+        const unresolved = executionSteps(job).filter((step) => step.status === "started");
+        if (unresolved.length) {
+          throw new KairoError(
+            "UNRESOLVED_JOB_STEPS",
+            `Cannot complete job '${job.id}' with unresolved execution steps: ${unresolved
+              .map((step) => step.key)
+              .join(", ")}.`,
+          );
+        }
+      },
+    );
   }
 
   async failJob(project, jobId, { reason }) {
@@ -195,7 +358,7 @@ export class KairoJobLedger {
     return jobs.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
   }
 
-  async #transition(project, jobId, allowedFrom, target, patch) {
+  async #transition(project, jobId, allowedFrom, target, patch, validate) {
     if (!JOB_STATUSES.has(target)) throw new TypeError(`Invalid job status: ${target}`);
     return this.#update(project, jobId, (job) => {
       if (!allowedFrom.includes(job.status)) {
@@ -204,6 +367,7 @@ export class KairoJobLedger {
           `Cannot move job '${job.id}' from '${job.status}' to '${target}'.`,
         );
       }
+      validate?.(job);
       return {
         ...job,
         ...patch,
@@ -225,6 +389,7 @@ export class KairoJobLedger {
       instructions,
       completionSummary: next.completion_summary,
       failureReason: next.failure_reason,
+      executionSteps: executionSteps(next),
     });
     const metadata = { ...next };
     delete metadata.body;
