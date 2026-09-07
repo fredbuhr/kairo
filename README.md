@@ -6,9 +6,9 @@ It is being designed as a persistent layer between one user and their projects, 
 
 ## Status
 
-**Phase:** V0 runtime proof / durable autonomy.
+**Phase:** V0 capability proof / durable autonomy.
 
-The first live vertical slice is working in an isolated local runtime: a real model call through OpenClaw can invoke KAIRO tools, create/retrieve a project, capture a tentative idea, and persist human-readable Markdown through KAIRO Core. The next gate is the corrected server-side background wake path, followed by controlled-restart recovery.
+The first live vertical slice is working in an isolated local runtime: a real model call through OpenClaw can invoke KAIRO tools, create/retrieve a project, capture a tentative idea, and persist human-readable Markdown through KAIRO Core. KAIRO has also now live-proven approved background execution with no active client and successful recovery of a queued job across a controlled OpenClaw Gateway restart.
 
 No production deployment exists yet. KAIRO is still deliberately capability-first: prove durable autonomous behavior and its safety/audit boundaries before adding the full Cockpit or production infrastructure.
 
@@ -92,14 +92,12 @@ The actual runtime workspace is created outside the Git repository. Personal mem
 
 ## Near-term milestone
 
-The first software milestone has now been demonstrated live:
+Two foundational milestones have now been demonstrated live:
 
 > From a KAIRO conversation, create a durable, structured idea inside a project and retrieve it later with its provenance/epistemic status intact.
 
-The current milestone is the one that separates KAIRO from a chat UI:
+> Schedule an approved internal task, close the client, let the server finish the job, and recover the same queued work after a controlled Gateway restart.
 
-> Schedule an approved internal/research task, close every client, let the server finish the job, and surface a durable outcome when the user reconnects.
-
-After normal closed-client wake succeeds, the same path must be tested across a controlled Gateway restart before autonomous-job recovery can be considered adequate.
+The next V0 work should build on that durable autonomy rather than expanding UI surface area: stale-job reconciliation for unclean failures, model/cost accounting and budget enforcement, Critic mode, and explicit approval-request handling remain ahead.
 
 See the V0 acceptance tests for the complete definition of success.

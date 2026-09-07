@@ -4,9 +4,9 @@
 
 The repository has unit/integration coverage for KAIRO Core, the OpenClaw tool adapter, the KAIRO-owned Job ledger, secure packed-plugin installation, and the Gateway-Cron background scheduling path.
 
-A local live proof has already demonstrated the real model → OpenClaw → KAIRO tool → durable Markdown path for project and tentative-idea capture. The next meaningful proof is **not more architecture**. It is to prove a corrected future server-side turn wakes without an active client, then repeat around a controlled Gateway restart.
+The local live proof has demonstrated the real model → OpenClaw → KAIRO tool → durable Markdown path for project and tentative-idea capture, plus a corrected future server-side turn that wakes without an active client and survives a controlled Gateway restart.
 
-This runbook is intentionally for an isolated local development runtime. Production/VPS hardening comes after the behavior is proven.
+This runbook records how to reproduce those proofs in an isolated local development runtime. Production/VPS hardening comes after the behavior is proven.
 
 ## Safety rules
 
@@ -143,7 +143,7 @@ Inspect the plugin before starting the Gateway:
 "$OPENCLAW_BIN" plugins inspect kairo-tools --runtime --json
 ```
 
-The runtime source must resolve to the packed advanced entry (`dist/entry.js`), the plugin must be loaded/enabled, and the tool catalog must still include all stable `kairo_*` tools.
+The runtime source must resolve to the packed advanced entry (`dist/entry.js`), the plugin must be loaded/enabled, the `kairo-tools-cron` service must be registered, and the tool catalog must still include all stable `kairo_*` tools.
 
 ## 6. Configure one real model provider
 
@@ -200,7 +200,7 @@ Verify the Markdown is readable by a human and the tentative statement did not b
 
 ## 9. Live proof B — background wake with durable Job state
 
-Schedule a harmless future task a few minutes ahead, for example:
+This path has been demonstrated successfully with the Gateway-Cron adapter. To reproduce it, schedule a harmless future task a few minutes ahead, for example:
 
 > For ZTIKIX, in five minutes re-read the existing tentative sticker idea, produce a concise internal summary, preserve uncertainty, take no external action, and complete the KAIRO Job. Authority A2 only.
 
@@ -213,7 +213,7 @@ KAIRO must return both:
 
 Before the scheduled time, inspect the Job Markdown. It must be `queued` and retain the scheduler linkage.
 
-Also verify the Gateway log contains a corresponding Cron job addition. This is important because the first live attempt exposed a bundled-only OpenClaw helper that returned no handle and created no Cron job.
+Also verify the Gateway log contains a corresponding `cron: job added` event with the same scheduler ID. This is important because the first live attempt exposed a bundled-only OpenClaw helper that returned no handle and created no Cron job.
 
 Now close the browser/client. **Leave the Gateway process running.**
 
@@ -226,22 +226,33 @@ After the scheduled time, reconnect and verify:
 - no A3+ external action occurred;
 - the Job remains readable from `$KAIRO_DATA_DIR/projects/ztikix/jobs/`.
 
+For a one-shot success, also run:
+
+```bash
+"$OPENCLAW_BIN" cron list
+```
+
+and confirm the completed scheduler ID is no longer present.
+
+The first corrected live proof completed successfully and the one-shot scheduler was removed after execution.
+
 ## 10. Controlled restart proof
 
-The full V0 acceptance criterion also requires safe recovery around runtime restarts.
+This path has also been demonstrated successfully. To reproduce it:
 
-Do **not** claim this test complete merely because a normal scheduled turn works.
+1. schedule a new future KAIRO Job several minutes ahead;
+2. confirm the Job is `queued` and linked to a real Cron ID;
+3. stop the Gateway before its due time and confirm the listening port is free;
+4. restart the Gateway using the same isolated runtime environment;
+5. run `openclaw health` to confirm the restarted Gateway is healthy;
+6. run `openclaw cron list` and confirm the **same scheduler ID** is still present before the due time;
+7. confirm the KAIRO Job is still `queued` with the same scheduler linkage;
+8. leave the restarted Gateway running and wait past the due time;
+9. verify the future turn moves the Job through `running` to `completed` or an explicit `failed` state.
 
-The next controlled test is:
+The live controlled-restart proof preserved the exact same scheduler ID across Gateway stop/restart and the future turn completed successfully with durable KAIRO Job state intact.
 
-1. schedule a future KAIRO Job;
-2. confirm the Job is queued and linked to a real Cron ID;
-3. stop/restart the Gateway before its due time;
-4. confirm OpenClaw Cron reloads the schedule;
-5. confirm KAIRO Job state is not lost;
-6. confirm the future turn either completes or leaves an explicit state that reconciliation can diagnose.
-
-This test will inform stale-job reconciliation code rather than assuming its design up front.
+This proves controlled restart recovery for queued one-shot work. It does **not** yet prove automatic reconciliation for unclean crashes, jobs interrupted while already `running`, or scheduler/runtime divergence.
 
 ## 11. What this runbook does not prove
 
@@ -249,7 +260,7 @@ Even after both background proofs succeed, these remain unfinished:
 
 - hard per-job model-spend enforcement;
 - actual provider/token/cost accounting on the Job;
-- automatic stale-job reconciliation after crashes;
+- automatic stale queued/running Job reconciliation after unclean crashes or interrupted runs;
 - production backups/restore;
 - remote authentication and HTTPS;
 - cross-device PWA;
@@ -257,4 +268,4 @@ Even after both background proofs succeed, these remain unfinished:
 - Critic mode and approval-request workflow;
 - social/crypto/voice integrations.
 
-That is intentional. The next code should respond to failures observed in the live proof rather than anticipate every possible infrastructure need.
+That is intentional. The next code should respond to failures observed in live use rather than anticipate every possible infrastructure need.
