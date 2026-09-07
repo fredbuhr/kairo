@@ -1,0 +1,49 @@
+name: OpenClaw KAIRO tools
+
+on:
+  pull_request:
+    paths:
+      - "plugins/openclaw-kairo-tools/**"
+      - "packages/kairo-core/**"
+      - ".github/workflows/openclaw-tools.yml"
+  push:
+    branches: [main]
+    paths:
+      - "plugins/openclaw-kairo-tools/**"
+      - "packages/kairo-core/**"
+      - ".github/workflows/openclaw-tools.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: plugins/openclaw-kairo-tools
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.3
+
+      - name: Install pinned development dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build plugin and generate manifest
+        run: npm run plugin:build
+
+      - name: Ensure generated metadata is committed
+        working-directory: .
+        run: git diff --exit-code -- plugins/openclaw-kairo-tools/openclaw.plugin.json plugins/openclaw-kairo-tools/package.json
+
+      - name: Test adapter and core vertical slice
+        run: npm test
+
+      - name: Validate plugin with OpenClaw
+        run: npm run plugin:validate
