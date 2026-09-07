@@ -1,0 +1,33 @@
+{
+  "id": "kairo-tools",
+  "name": "KAIRO Tools",
+  "description": "Durable KAIRO project and idea tools backed by the user-owned KAIRO domain store.",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "required": [
+      "dataDir"
+    ],
+    "properties": {
+      "dataDir": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Absolute path to KAIRO runtime-private domain data."
+      }
+    },
+    "additionalProperties": false
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "kairo_project_create",
+      "kairo_project_list",
+      "kairo_project_get",
+      "kairo_idea_capture",
+      "kairo_idea_list",
+      "kairo_idea_get"
+    ]
+  }
+}
