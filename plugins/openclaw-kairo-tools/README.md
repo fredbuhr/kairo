@@ -2,7 +2,7 @@
 
 This package is the runtime adapter between OpenClaw and KAIRO Core.
 
-The model never writes KAIRO Markdown files directly. Durable writes go through `@kairo/core`, which owns validation, IDs, project isolation, provenance fields, and storage rules.
+The model never writes KAIRO Markdown files directly. Durable writes go through `@kairo/core`, which owns validation, IDs, project isolation, provenance fields, storage rules, and the KAIRO-owned autonomous-job ledger.
 
 ## Current V0 tool surface
 
@@ -22,6 +22,14 @@ Research memory:
 - `kairo_knowledge_capture`
 - `kairo_knowledge_get`
 
+Durable job state:
+
+- `kairo_job_list`
+- `kairo_job_get`
+- `kairo_job_start`
+- `kairo_job_complete`
+- `kairo_job_fail`
+
 Bounded background execution:
 
 - `kairo_background_schedule`
@@ -33,22 +41,26 @@ model
   -> OpenClaw
     -> KAIRO tool
       -> KAIRO Core
-        -> durable Markdown store
+        -> durable Markdown / job ledger
 ```
 
-OpenClaw may be replaced in the future without changing the KAIRO domain data contract.
+OpenClaw may be replaced in the future without changing the KAIRO domain data contract or losing KAIRO's execution history.
 
 For background execution the V0 path is:
 
 ```text
 current OpenClaw session
   -> kairo_background_schedule
+    -> create KAIRO Job (scheduling)
     -> OpenClaw session.workflow.scheduleSessionTurn
+    -> link scheduler handle (queued)
       -> Cron-owned future agent turn
+        -> kairo_job_start (running)
         -> KAIRO tools + ordinary OpenClaw research tools
+        -> kairo_job_complete / kairo_job_fail
 ```
 
-This proves that work can be scheduled server-side without keeping a browser or phone client open. It is not yet the complete KAIRO autonomous-job model.
+This separates **KAIRO-owned audit state** from **OpenClaw-owned wake-up/runtime state**.
 
 ## Runtime configuration
 
@@ -88,11 +100,18 @@ A scheduled turn is explicitly instructed not to:
 
 If the work requires more authority, the future turn must stop and report the limitation.
 
-The scheduler currently uses OpenClaw's Cron-backed `scheduleSessionTurn` API and can announce the result back to the originating session route.
+The scheduler uses OpenClaw's Cron-backed `scheduleSessionTurn` API and can announce the result back to the originating session route.
 
-### Known V0 limitation
+Before scheduling, KAIRO creates a durable `Job`. A successful OpenClaw scheduler handle is attached to that job. Scheduling errors are recorded as failed KAIRO jobs. If scheduler creation succeeds but KAIRO cannot link the handle, the adapter attempts best-effort unscheduling by tag.
 
-KAIRO does **not** yet persist a first-class KAIRO `Job` linked to the OpenClaw scheduler handle, and the requested model-spend budget is not yet a hard technical ceiling. Those are required before claiming the full autonomous-job acceptance test is complete.
+### Known V0 limitations
+
+The job ledger is now durable, but two important gaps remain before AT-04 is complete:
+
+1. **Hard model-cost enforcement:** a requested budget is recorded with `budget_enforced: false`; the future model router/accounting layer must enforce and record actual spend.
+2. **Crash/restart reconciliation:** a future agent turn is instructed to mark the job running/completed/failed, but a process crash can still leave a stale queued/running record. A health reconciler must detect this condition against OpenClaw scheduler/task state.
+
+KAIRO must not describe an advisory budget as guaranteed or a stale job as successfully completed.
 
 ## Research-memory rules
 
@@ -134,13 +153,14 @@ The build step uses OpenClaw's supported `defineToolPlugin` API and manifest gen
 5. Ask KAIRO to list/retrieve the idea.
 6. Confirm the original idea and provenance remain available from the same server-side KAIRO store.
 
-### Future background turn
+### Future background job
 
 1. In an active OpenClaw session, ask KAIRO to schedule bounded research for a future absolute time.
-2. Confirm OpenClaw returns a Cron scheduler handle.
+2. Confirm KAIRO returns both a `job_*` ID and an OpenClaw scheduler ID.
 3. Close all clients.
-4. At the scheduled time, the server should start the future agent turn.
-5. The turn may research, save sources/claims through KAIRO tools, and announce a completion report.
-6. Confirm no A3+ external action was performed.
+4. At the scheduled time, the server should start the future agent turn and mark the KAIRO job running.
+5. The turn may research, save sources/claims through KAIRO tools, and mark the job completed/failed.
+6. Reconnect and confirm the job record, evidence, findings, and outcome are durable.
+7. Confirm no A3+ external action was performed.
 
-The second flow is a runtime wake proof, not yet the full AT-04 durable-job proof.
+This is close to the full AT-04 path, but the crash reconciler and hard budget enforcement are still explicit exit requirements.

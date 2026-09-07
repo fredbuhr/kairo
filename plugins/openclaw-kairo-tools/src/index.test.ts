@@ -10,6 +10,7 @@ function createFakeApi(
   dataDir: string,
   options: {
     scheduleSessionTurn?: (params: any) => Promise<any>;
+    unscheduleSessionTurnsByTag?: (params: any) => Promise<any>;
   } = {},
 ) {
   const tools = new Map<string, any>();
@@ -17,12 +18,15 @@ function createFakeApi(
   const scheduleSessionTurn =
     options.scheduleSessionTurn ??
     (async (params: any) => ({ id: "cron_test", pluginId: "kairo-tools", sessionKey: params.sessionKey, kind: "session-turn" }));
+  const unscheduleSessionTurnsByTag =
+    options.unscheduleSessionTurnsByTag ?? (async () => ({ removed: 1, failed: 0 }));
 
   const api = {
     pluginConfig: { dataDir },
     session: {
       workflow: {
         scheduleSessionTurn,
+        unscheduleSessionTurnsByTag,
       },
     },
     registerTool(tool: any, opts?: { name?: string }) {
@@ -35,7 +39,7 @@ function createFakeApi(
     },
   };
   (plugin as any).register(api);
-  return { tools, factories, scheduleSessionTurn };
+  return { tools, factories, scheduleSessionTurn, unscheduleSessionTurnsByTag };
 }
 
 test("plugin exposes the expected stable tool names", () => {
@@ -55,6 +59,11 @@ test("plugin exposes the expected stable tool names", () => {
       "kairo_source_get",
       "kairo_knowledge_capture",
       "kairo_knowledge_get",
+      "kairo_job_list",
+      "kairo_job_get",
+      "kairo_job_start",
+      "kairo_job_complete",
+      "kairo_job_fail",
       "kairo_background_schedule",
     ],
   );
@@ -138,8 +147,8 @@ test("research memory keeps source evidence separate from epistemic claims", asy
   }
 });
 
-test("background scheduler creates a bounded OpenClaw future session turn", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "kairo-background-"));
+test("background scheduling creates and links a durable KAIRO job before returning", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "kairo-background-job-"));
   const scheduled: any[] = [];
   try {
     const { tools, factories } = createFakeApi(root, {
@@ -150,10 +159,9 @@ test("background scheduler creates a bounded OpenClaw future session turn", asyn
     });
     await tools.get("kairo_project_create").execute("project", { name: "ZTIKIX" });
 
-    const factory = factories.get("kairo_background_schedule");
-    assert.ok(factory);
-    const concrete = factory({
+    const concrete = factories.get("kairo_background_schedule")({
       sessionKey: "agent:main:session:test",
+      sessionId: "session-uuid-test",
       agentId: "main",
       sandboxed: false,
     });
@@ -165,6 +173,7 @@ test("background scheduler creates a bounded OpenClaw future session turn", asyn
       instructions: "Review relevant public trend signals and report only supported findings.",
       at: "2030-01-02T03:00:00+02:00",
       authorityCeiling: "A2",
+      requestedBudget: 0.5,
     });
 
     assert.equal(scheduled.length, 1);
@@ -174,11 +183,89 @@ test("background scheduler creates a bounded OpenClaw future session turn", asyn
     assert.equal(scheduled[0].deliveryMode, "announce");
     assert.match(scheduled[0].tag, /^kairo-bg-ztikix-/);
     assert.match(scheduled[0].message, /Authority ceiling: A2/);
+    assert.match(scheduled[0].message, /Requested model budget: 0.5/);
+    assert.match(scheduled[0].message, /kairo_job_start/);
+    assert.match(scheduled[0].message, /kairo_job_complete/);
     assert.match(scheduled[0].message, /Do not publish, send messages, purchase, trade, delete external data/);
-    assert.match(scheduled[0].message, /kairo_source_capture/);
-    assert.equal(result.details.schedule.id, "cron_123");
-    assert.equal(result.details.schedule.project, "ztikix");
-    assert.match(result.details.limitation, /hard model-cost ceilings are not implemented yet/);
+
+    const job = result.details.job;
+    assert.match(job.id, /^job_/);
+    assert.equal(job.status, "queued");
+    assert.equal(job.scheduler_id, "cron_123");
+    assert.equal(job.requested_budget, 0.5);
+    assert.equal(job.budget_enforced, false);
+    assert.match(scheduled[0].message, new RegExp(job.id));
+
+    const listed = await tools.get("kairo_job_list").execute("list-jobs", { project: "ztikix" });
+    assert.equal(listed.details.jobs.length, 1);
+    assert.equal(listed.details.jobs[0].id, job.id);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("scheduled job tools persist running and completed state", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "kairo-job-tools-"));
+  try {
+    const { tools, factories } = createFakeApi(root);
+    await tools.get("kairo_project_create").execute("project", { name: "ZTIKIX" });
+    const concrete = factories.get("kairo_background_schedule")({
+      sessionKey: "agent:main:session:test",
+      agentId: "main",
+    });
+    const scheduled = await concrete.execute("schedule-call", {
+      project: "ztikix",
+      title: "Lifecycle",
+      instructions: "Test lifecycle.",
+      at: "2030-01-02T03:00:00+02:00",
+    });
+    const jobId = scheduled.details.job.id;
+
+    const running = await tools.get("kairo_job_start").execute("start", { project: "ztikix", jobId });
+    assert.equal(running.details.job.status, "running");
+
+    const complete = await tools.get("kairo_job_complete").execute("complete", {
+      project: "ztikix",
+      jobId,
+      summary: "Lifecycle completed.",
+    });
+    assert.equal(complete.details.job.status, "completed");
+
+    const getJob = await tools.get("kairo_job_get").execute("get", { project: "ztikix", jobId });
+    assert.match(getJob.details.job.body, /Lifecycle completed/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("scheduler failure is written to the KAIRO job ledger", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "kairo-scheduler-failure-"));
+  try {
+    const { tools, factories } = createFakeApi(root, {
+      async scheduleSessionTurn() {
+        throw new Error("Cron unavailable");
+      },
+    });
+    await tools.get("kairo_project_create").execute("project", { name: "ZTIKIX" });
+    const concrete = factories.get("kairo_background_schedule")({
+      sessionKey: "agent:main:session:test",
+      agentId: "main",
+    });
+
+    await assert.rejects(
+      () =>
+        concrete.execute("schedule-call", {
+          project: "ztikix",
+          title: "Will fail",
+          instructions: "Test failure persistence.",
+          at: "2030-01-02T03:00:00+02:00",
+        }),
+      /Cron unavailable/,
+    );
+
+    const jobs = await tools.get("kairo_job_list").execute("list", { project: "ztikix" });
+    assert.equal(jobs.details.jobs.length, 1);
+    assert.equal(jobs.details.jobs[0].status, "failed");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

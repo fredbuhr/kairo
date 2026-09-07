@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { KairoStore, type KairoRecord } from "@kairo/core";
+import { KairoJobLedger, KairoStore, type KairoRecord } from "@kairo/core";
 import { Type } from "typebox";
 import { defineToolPlugin } from "openclaw/plugin-sdk/tool-plugin";
 import { jsonResult } from "openclaw/plugin-sdk/tool-results";
@@ -58,6 +58,12 @@ const backgroundScheduleParameters = Type.Object(
       description: "Absolute ISO-8601 date/time including Z or an explicit UTC offset, for example 2026-09-08T03:00:00+02:00.",
     }),
     authorityCeiling: Type.Optional(backgroundAuthority),
+    requestedBudget: Type.Optional(
+      Type.Number({
+        minimum: 0,
+        description: "Advisory requested model-spend budget for this job. V0 records it but does not hard-enforce it yet.",
+      }),
+    ),
     announce: Type.Optional(
       Type.Boolean({ description: "When true (default), announce the result back to the session route after the scheduled turn." }),
     ),
@@ -65,11 +71,19 @@ const backgroundScheduleParameters = Type.Object(
   { additionalProperties: false },
 );
 
-function storeFor(dataDir: string): KairoStore {
+function assertAbsoluteDataDir(dataDir: string): string {
   if (!path.isAbsolute(dataDir)) {
     throw new Error("KAIRO plugin dataDir must be an absolute path.");
   }
-  return new KairoStore({ dataDir });
+  return dataDir;
+}
+
+function storeFor(dataDir: string): KairoStore {
+  return new KairoStore({ dataDir: assertAbsoluteDataDir(dataDir) });
+}
+
+function ledgerFor(dataDir: string): KairoJobLedger {
+  return new KairoJobLedger({ dataDir: assertAbsoluteDataDir(dataDir) });
 }
 
 function compact(record: KairoRecord): Record<string, unknown> {
@@ -89,34 +103,43 @@ function parseAbsoluteSchedule(value: string): Date {
 
 function backgroundPrompt(params: {
   project: string;
+  jobId: string;
   title: string;
   instructions: string;
   authorityCeiling: "A0" | "A1" | "A2";
+  requestedBudget?: number;
 }): string {
   return [
     "[KAIRO BACKGROUND WORK]",
     `Project: ${params.project}`,
+    `KAIRO job: ${params.jobId}`,
     `Title: ${params.title}`,
     `Authority ceiling: ${params.authorityCeiling}`,
+    ...(params.requestedBudget !== undefined
+      ? [`Requested model budget: ${params.requestedBudget} (advisory in V0; not yet hard-enforced)`]
+      : []),
     "",
     "Task:",
     params.instructions,
     "",
     "Operating rules:",
-    "1. Re-read the relevant KAIRO project context before acting.",
-    "2. Keep facts, hypotheses, deductions, opinions, and unknowns distinct.",
-    "3. Never exceed the stated authority ceiling. This V0 background scheduler never grants A3+ external authority.",
-    "4. Do not publish, send messages, purchase, trade, delete external data, or change external systems.",
-    "5. Record useful evidence with kairo_source_capture and durable discrete findings with kairo_knowledge_capture when appropriate.",
-    "6. If the task requires missing information or additional authority, stop and state the limitation explicitly.",
-    "7. Return a concise completion report to the originating session when finished.",
+    `1. Call kairo_job_start for project '${params.project}' and job '${params.jobId}' before beginning substantive work.`,
+    "2. Re-read the relevant KAIRO project context before acting.",
+    "3. Keep facts, hypotheses, deductions, opinions, and unknowns distinct.",
+    "4. Never exceed the stated authority ceiling. This V0 background scheduler never grants A3+ external authority.",
+    "5. Do not publish, send messages, purchase, trade, delete external data, or change external systems.",
+    "6. Record useful evidence with kairo_source_capture and durable discrete findings with kairo_knowledge_capture when appropriate.",
+    `7. On successful completion, call kairo_job_complete for job '${params.jobId}' with a concise factual summary.`,
+    `8. If the work cannot complete, call kairo_job_fail for job '${params.jobId}' with the specific reason when possible.`,
+    "9. If the task requires missing information or additional authority, stop and state the limitation explicitly.",
+    "10. Return a concise completion report to the originating session when finished.",
   ].join("\n");
 }
 
 export default defineToolPlugin({
   id: "kairo-tools",
   name: "KAIRO Tools",
-  description: "Durable KAIRO project, idea, research-memory, and bounded background-work tools.",
+  description: "Durable KAIRO project, knowledge, job-ledger, and bounded background-work tools.",
   configSchema,
   tools: (tool) => [
     tool({
@@ -161,9 +184,7 @@ export default defineToolPlugin({
       label: "Get KAIRO Project",
       description: "Read one KAIRO project, including its human-readable Markdown body.",
       parameters: Type.Object(
-        {
-          project: Type.String({ minLength: 1, description: "Project slug or name." }),
-        },
+        { project: Type.String({ minLength: 1, description: "Project slug or name." }) },
         { additionalProperties: false },
       ),
       async execute({ project }, config, context) {
@@ -191,10 +212,7 @@ export default defineToolPlugin({
       ),
       async execute(params, config, context) {
         context.signal?.throwIfAborted();
-        const idea = await storeFor(config.dataDir).captureIdea({
-          ...params,
-          sourceKind: "openclaw",
-        });
+        const idea = await storeFor(config.dataDir).captureIdea({ ...params, sourceKind: "openclaw" });
         return { idea: compact(idea) };
       },
     }),
@@ -203,9 +221,7 @@ export default defineToolPlugin({
       label: "List KAIRO Ideas",
       description: "List ideas belonging to one KAIRO project without importing ideas from unrelated projects.",
       parameters: Type.Object(
-        {
-          project: Type.String({ minLength: 1, description: "Project slug or name." }),
-        },
+        { project: Type.String({ minLength: 1, description: "Project slug or name." }) },
         { additionalProperties: false },
       ),
       async execute({ project }, config, context) {
@@ -256,10 +272,7 @@ export default defineToolPlugin({
       label: "Get KAIRO Source",
       description: "Read one durable project source/evidence record.",
       parameters: Type.Object(
-        {
-          project: Type.String({ minLength: 1 }),
-          sourceId: Type.String({ minLength: 1 }),
-        },
+        { project: Type.String({ minLength: 1 }), sourceId: Type.String({ minLength: 1 }) },
         { additionalProperties: false },
       ),
       async execute({ project, sourceId }, config, context) {
@@ -296,10 +309,7 @@ export default defineToolPlugin({
       label: "Get KAIRO Knowledge",
       description: "Read one durable knowledge claim, including epistemic/provenance metadata and its Markdown body.",
       parameters: Type.Object(
-        {
-          project: Type.String({ minLength: 1 }),
-          claimId: Type.String({ minLength: 1 }),
-        },
+        { project: Type.String({ minLength: 1 }), claimId: Type.String({ minLength: 1 }) },
         { additionalProperties: false },
       ),
       async execute({ project, claimId }, config, context) {
@@ -308,10 +318,87 @@ export default defineToolPlugin({
       },
     }),
     tool({
+      name: "kairo_job_list",
+      label: "List KAIRO Jobs",
+      description: "List durable KAIRO execution jobs for one project, including scheduler linkage and lifecycle state.",
+      parameters: Type.Object(
+        { project: Type.String({ minLength: 1 }) },
+        { additionalProperties: false },
+      ),
+      async execute({ project }, config, context) {
+        context.signal?.throwIfAborted();
+        const jobs = await ledgerFor(config.dataDir).listJobs(project);
+        return { jobs: jobs.map(compact) };
+      },
+    }),
+    tool({
+      name: "kairo_job_get",
+      label: "Get KAIRO Job",
+      description: "Read one durable KAIRO job record with its instructions, status, scheduler linkage, and outcome.",
+      parameters: Type.Object(
+        { project: Type.String({ minLength: 1 }), jobId: Type.String({ minLength: 1 }) },
+        { additionalProperties: false },
+      ),
+      async execute({ project, jobId }, config, context) {
+        context.signal?.throwIfAborted();
+        return { job: await ledgerFor(config.dataDir).getJob(project, jobId) };
+      },
+    }),
+    tool({
+      name: "kairo_job_start",
+      label: "Start KAIRO Job",
+      description: "Mark a queued KAIRO job as running. Use at the beginning of the scheduled KAIRO work turn.",
+      parameters: Type.Object(
+        { project: Type.String({ minLength: 1 }), jobId: Type.String({ minLength: 1 }) },
+        { additionalProperties: false },
+      ),
+      async execute({ project, jobId }, config, context) {
+        context.signal?.throwIfAborted();
+        const job = await ledgerFor(config.dataDir).markRunning(project, jobId);
+        return { job: compact(job) };
+      },
+    }),
+    tool({
+      name: "kairo_job_complete",
+      label: "Complete KAIRO Job",
+      description: "Mark a KAIRO job completed and persist a concise factual completion summary.",
+      parameters: Type.Object(
+        {
+          project: Type.String({ minLength: 1 }),
+          jobId: Type.String({ minLength: 1 }),
+          summary: Type.String({ minLength: 1 }),
+        },
+        { additionalProperties: false },
+      ),
+      async execute({ project, jobId, summary }, config, context) {
+        context.signal?.throwIfAborted();
+        const job = await ledgerFor(config.dataDir).completeJob(project, jobId, { summary });
+        return { job: compact(job) };
+      },
+    }),
+    tool({
+      name: "kairo_job_fail",
+      label: "Fail KAIRO Job",
+      description: "Mark a KAIRO job failed and persist the specific reason. Do not use failure to hide uncertainty; explain the actual blocker.",
+      parameters: Type.Object(
+        {
+          project: Type.String({ minLength: 1 }),
+          jobId: Type.String({ minLength: 1 }),
+          reason: Type.String({ minLength: 1 }),
+        },
+        { additionalProperties: false },
+      ),
+      async execute({ project, jobId, reason }, config, context) {
+        context.signal?.throwIfAborted();
+        const job = await ledgerFor(config.dataDir).failJob(project, jobId, { reason });
+        return { job: compact(job) };
+      },
+    }),
+    tool({
       name: "kairo_background_schedule",
       label: "Schedule KAIRO Background Work",
       description:
-        "Schedule one bounded future KAIRO agent turn in the current session. V0 is limited to A0-A2 internal/research work and never grants publishing, financial, destructive, or other A3+ external authority.",
+        "Create a durable KAIRO job and schedule one bounded future agent turn in the current OpenClaw session. V0 is limited to A0-A2 internal/research work.",
       parameters: backgroundScheduleParameters,
       factory({ api, config, toolContext }) {
         const sessionKey = toolContext.sessionKey;
@@ -320,7 +407,7 @@ export default defineToolPlugin({
           name: "kairo_background_schedule",
           label: "Schedule KAIRO Background Work",
           description:
-            "Schedule one bounded future KAIRO agent turn in the current session. V0 is limited to A0-A2 internal/research work.",
+            "Create a durable KAIRO job and schedule one bounded future agent turn. V0 never grants A3+ external authority.",
           parameters: backgroundScheduleParameters,
           async execute(_toolCallId, rawParams, signal) {
             signal?.throwIfAborted();
@@ -330,42 +417,78 @@ export default defineToolPlugin({
               instructions: string;
               at: string;
               authorityCeiling?: "A0" | "A1" | "A2";
+              requestedBudget?: number;
               announce?: boolean;
             };
             const store = storeFor(config.dataDir);
+            const ledger = ledgerFor(config.dataDir);
             const project = await store.getProject(params.project);
             const at = parseAbsoluteSchedule(params.at);
             const authorityCeiling = params.authorityCeiling ?? "A2";
             const tag = `kairo-bg-${project.slug}-${randomUUID().slice(0, 8)}`;
-            const handle = await api.session.workflow.scheduleSessionTurn({
-              sessionKey,
-              agentId: toolContext.agentId,
-              at,
-              deleteAfterRun: true,
-              deliveryMode: params.announce === false ? "none" : "announce",
-              name: `KAIRO: ${params.title}`,
-              tag,
-              message: backgroundPrompt({
-                project: project.slug,
-                title: params.title,
-                instructions: params.instructions,
-                authorityCeiling,
-              }),
+            const job = await ledger.createJob({
+              project: project.slug,
+              title: params.title,
+              instructions: params.instructions,
+              authorityCeiling,
+              scheduledFor: at.toISOString(),
+              requestedBudget: params.requestedBudget,
+              sourceSession: toolContext.sessionId ?? sessionKey,
             });
-            if (!handle) throw new Error("OpenClaw did not return a scheduler handle for KAIRO background work.");
-            const payload = {
-              schedule: {
-                id: handle.id,
+
+            let handle;
+            try {
+              handle = await api.session.workflow.scheduleSessionTurn({
+                sessionKey,
+                agentId: toolContext.agentId,
+                at,
+                deleteAfterRun: true,
+                deliveryMode: params.announce === false ? "none" : "announce",
+                name: `KAIRO: ${params.title}`,
                 tag,
-                project: project.slug,
-                at: at.toISOString(),
-                authority_ceiling: authorityCeiling,
-                delivery_mode: params.announce === false ? "none" : "announce",
-              },
-              limitation:
-                "V0 scheduling uses OpenClaw Cron, but KAIRO task/job persistence and hard model-cost ceilings are not implemented yet.",
-            };
-            return jsonResult(payload);
+                message: backgroundPrompt({
+                  project: project.slug,
+                  jobId: job.id,
+                  title: params.title,
+                  instructions: params.instructions,
+                  authorityCeiling,
+                  requestedBudget: params.requestedBudget,
+                }),
+              });
+              if (!handle) throw new Error("OpenClaw did not return a scheduler handle for KAIRO background work.");
+              const queued = await ledger.linkScheduler(project.slug, job.id, {
+                schedulerId: handle.id,
+                schedulerTag: tag,
+              });
+              return jsonResult({
+                job: compact(queued),
+                schedule: {
+                  id: handle.id,
+                  tag,
+                  project: project.slug,
+                  at: at.toISOString(),
+                  authority_ceiling: authorityCeiling,
+                  delivery_mode: params.announce === false ? "none" : "announce",
+                },
+                limitation:
+                  "KAIRO now persists the job and scheduler linkage, but hard model-cost enforcement and crash/restart completion reconciliation remain pending.",
+              });
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : String(error);
+              try {
+                await ledger.failJob(project.slug, job.id, { reason: `Scheduling failed: ${reason}` });
+              } catch {
+                // Preserve the original scheduler error if ledger failure reporting also fails.
+              }
+              if (handle) {
+                try {
+                  await api.session.workflow.unscheduleSessionTurnsByTag({ sessionKey, tag });
+                } catch {
+                  // Best-effort compensation; the durable failed job records that manual reconciliation may be needed.
+                }
+              }
+              throw error;
+            }
           },
         };
       },

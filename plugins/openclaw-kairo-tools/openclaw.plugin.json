@@ -1,7 +1,7 @@
 {
   "id": "kairo-tools",
   "name": "KAIRO Tools",
-  "description": "Durable KAIRO project, idea, research-memory, and bounded background-work tools.",
+  "description": "Durable KAIRO project, knowledge, job-ledger, and bounded background-work tools.",
   "version": "0.1.0",
   "configSchema": {
     "type": "object",
@@ -32,6 +32,11 @@
       "kairo_source_get",
       "kairo_knowledge_capture",
       "kairo_knowledge_get",
+      "kairo_job_list",
+      "kairo_job_get",
+      "kairo_job_start",
+      "kairo_job_complete",
+      "kairo_job_fail",
       "kairo_background_schedule"
     ]
   }

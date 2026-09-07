@@ -1,6 +1,7 @@
 export type ProjectStatus = "inbox" | "incubation" | "active" | "waiting" | "paused" | "completed" | "archived";
 export type IdeaStatus = "captured" | "exploring" | "incubation" | "promoted" | "rejected";
 export type TaskStatus = "todo" | "queued" | "running" | "blocked" | "waiting_user" | "waiting_external" | "completed" | "abandoned" | "failed";
+export type JobStatus = "scheduling" | "queued" | "running" | "completed" | "failed" | "cancelled";
 export type EpistemicStatus = "fact" | "hypothesis" | "deduction" | "opinion" | "unknown";
 export type AuthorityLevel = "A0" | "A1" | "A2" | "A3" | "A4" | "A5";
 export type SourceKind = "url" | "document" | "dataset" | "conversation" | "note" | "other";
@@ -45,6 +46,23 @@ export interface TaskRecord extends KairoRecord {
   owner: string;
   status: TaskStatus;
   authority_ceiling: AuthorityLevel;
+}
+
+export interface JobRecord extends KairoRecord {
+  type: "job";
+  project_id: string;
+  project_slug: string;
+  title: string;
+  status: JobStatus;
+  authority_ceiling: AuthorityLevel;
+  scheduled_for?: string;
+  requested_budget?: number;
+  budget_enforced?: boolean;
+  scheduler_id?: string;
+  scheduler_tag?: string;
+  scheduler_kind?: string;
+  completion_summary?: string;
+  failure_reason?: string;
 }
 
 export interface KnowledgeClaimRecord extends KairoRecord {
@@ -149,4 +167,32 @@ export class KairoStore {
     summary?: string;
   }): Promise<SourceRecord>;
   getSource(project: string, sourceId: string): Promise<SourceRecord>;
+}
+
+export class KairoJobLedger {
+  constructor(options: { dataDir: string; clock?: () => Date });
+
+  createJob(input: {
+    project: string;
+    title: string;
+    instructions: string;
+    authorityCeiling?: AuthorityLevel;
+    scheduledFor?: string;
+    requestedBudget?: number;
+    sourceSession?: string;
+    taskId?: string;
+  }): Promise<JobRecord>;
+
+  linkScheduler(
+    project: string,
+    jobId: string,
+    scheduler: { schedulerId: string; schedulerTag: string; schedulerKind?: string },
+  ): Promise<JobRecord>;
+
+  markRunning(project: string, jobId: string): Promise<JobRecord>;
+  completeJob(project: string, jobId: string, input: { summary: string }): Promise<JobRecord>;
+  failJob(project: string, jobId: string, input: { reason: string }): Promise<JobRecord>;
+  cancelJob(project: string, jobId: string, input?: { reason?: string }): Promise<JobRecord>;
+  getJob(project: string, jobId: string): Promise<JobRecord>;
+  listJobs(project: string): Promise<JobRecord[]>;
 }
