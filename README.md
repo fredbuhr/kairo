@@ -8,7 +8,9 @@ It is being designed as a persistent layer between one user and their projects, 
 
 **Phase:** V0 capability proof / durable autonomy.
 
-The first live vertical slice is working in an isolated local runtime: a real model call through OpenClaw can invoke KAIRO tools, create/retrieve a project, capture a tentative idea, and persist human-readable Markdown through KAIRO Core. KAIRO has also now live-proven approved background execution with no active client and successful recovery of a queued job across a controlled OpenClaw Gateway restart.
+The first live vertical slice is working in an isolated local runtime: a real model call through OpenClaw can invoke KAIRO tools, create/retrieve a project, capture a tentative idea, and persist human-readable Markdown through KAIRO Core. KAIRO has also live-proven approved background execution with no active client, recovery of queued work across a controlled OpenClaw Gateway restart, and the behavior of a `running` KAIRO Job across an abrupt Gateway `SIGKILL`/restart.
+
+The abrupt-crash proof showed that OpenClaw 2026.9.2 can resume an interrupted agent turn and may replay a tool step whose prior outcome is unknown. KAIRO therefore deliberately does not auto-fail every `running` Job on restart; the next autonomy-hardening work is replay/idempotence/checkpoint semantics for steps that cannot safely be repeated.
 
 No production deployment exists yet. KAIRO is still deliberately capability-first: prove durable autonomous behavior and its safety/audit boundaries before adding the full Cockpit or production infrastructure.
 
@@ -92,12 +94,14 @@ The actual runtime workspace is created outside the Git repository. Personal mem
 
 ## Near-term milestone
 
-Two foundational milestones have now been demonstrated live:
+Three foundational runtime properties have now been demonstrated live:
 
 > From a KAIRO conversation, create a durable, structured idea inside a project and retrieve it later with its provenance/epistemic status intact.
 
 > Schedule an approved internal task, close the client, let the server finish the job, and recover the same queued work after a controlled Gateway restart.
 
-The next V0 work should build on that durable autonomy rather than expanding UI surface area: stale-job reconciliation for unclean failures, model/cost accounting and budget enforcement, Critic mode, and explicit approval-request handling remain ahead.
+> Kill the Gateway abruptly while a KAIRO Job is already running, preserve the durable `running` state without fabricating an outcome, allow OpenClaw's interrupted-turn recovery to complete the harmless work, block a later retry from reopening the completed Job, and clean up the one-shot scheduler.
+
+The next V0 work should build on that durable autonomy rather than expanding UI surface area: replay/idempotence guardrails, model/cost accounting and hard budget enforcement, Critic mode, and explicit approval-request handling remain ahead.
 
 See the V0 acceptance tests for the complete definition of success.

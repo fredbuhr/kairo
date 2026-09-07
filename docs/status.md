@@ -1,6 +1,6 @@
 # KAIRO implementation status
 
-Last updated: 2026-09-07
+Last updated: 2026-09-08
 
 This document describes what exists in code and what has been demonstrated live. It is intentionally stricter than the long-term roadmap.
 
@@ -49,7 +49,8 @@ Background scheduling:
 - limits V0 background authority to A0-A2;
 - instructs the future turn to use explicit Job lifecycle calls;
 - supports an advisory requested model budget but does not hard-enforce it yet;
-- uses a Gateway-hosted plugin service and OpenClaw Cron access through `ctx.getCron()` for installed-plugin scheduling.
+- uses a Gateway-hosted plugin service and OpenClaw Cron access through `ctx.getCron()` for installed-plugin scheduling;
+- reconciles future `queued` KAIRO Jobs after OpenClaw Cron reconciliation when their scheduler ID has disappeared, while deliberately leaving `running` Jobs unchanged.
 
 The earlier direct use of `api.session.workflow.scheduleSessionTurn(...)` was removed as the live proof showed that OpenClaw 2026.9.2 only returns a scheduler handle through that helper for bundled plugin origin.
 
@@ -64,7 +65,7 @@ GitHub Actions validates:
 - OpenClaw plugin validation against the pinned development release;
 - packed runtime archive contents, including the advanced entry and bundled KAIRO Core copy.
 
-The Gateway-Cron background path has dedicated tests for successful one-shot scheduling, unavailable Gateway Cron, and missing scheduler IDs.
+The Gateway-Cron background path has dedicated tests for successful one-shot scheduling, unavailable Gateway Cron, missing scheduler IDs, and queued-job reconciliation after `cron_reconciled`.
 
 ## Proven live locally
 
@@ -86,9 +87,14 @@ An isolated Ubuntu 24.04 / WSL2 runtime has demonstrated:
 - one-shot Cron cleanup after completion;
 - survival of a second queued Job across a controlled Gateway stop/restart;
 - reload of the exact same scheduler ID after Gateway restart;
-- successful post-restart wake and completion of that Job with durable Markdown state intact.
+- successful post-restart wake and completion of that Job with durable Markdown state intact;
+- conservative failure of a future `queued` KAIRO Job when its linked scheduler is missing after Cron reconciliation;
+- abrupt `SIGKILL` of the Gateway while a KAIRO Job was already `running`, leaving the durable Job in `running` with no false terminal transition;
+- OpenClaw 2026.9.2 recording that interrupted Cron run as `cron: job interrupted by gateway restart` after restart;
+- OpenClaw resuming the interrupted agent turn with the missing/interrupted tool result treated as unknown;
+- replay of the harmless unknown `sleep 90` step, successful KAIRO completion, a later Cron retry being blocked from re-entering the completed Job, and final one-shot scheduler cleanup.
 
-This constitutes live evidence for the core AT-01 / AT-02 path, the runtime/storage/tool boundary, and the AT-04 autonomous background/restart path.
+This constitutes live evidence for the core AT-01 / AT-02 path, the runtime/storage/tool boundary, and the core autonomous execution/restart portion of AT-04.
 
 ## Live background-wake proof
 
@@ -121,32 +127,52 @@ A separate controlled-restart proof then demonstrated:
 
 The live proof therefore establishes the intended V0 property: closing the client does not stop approved background work, and queued work survives a controlled OpenClaw Gateway restart.
 
+## Abrupt crash / running-job characterization
+
+A separate harmless A2 proof deliberately killed the Gateway with `SIGKILL` while the scheduled turn was already executing `sleep 90`.
+
+Observed behavior on pinned OpenClaw 2026.9.2:
+
+1. `kairo_job_start` had already persisted the KAIRO Job as `running`;
+2. the Gateway was killed while the local command was active;
+3. the KAIRO Job remained durably `running` after the abrupt process death, with no fabricated completion/failure;
+4. after Gateway restart, OpenClaw recorded the original Cron run as interrupted by the restart;
+5. OpenClaw resumed the interrupted turn and explicitly treated the missing tool result as unknown;
+6. the harmless `sleep 90` step was replayed and completed with exit code 0;
+7. `kairo_job_complete` then persisted the Job as `completed`;
+8. OpenClaw later retried the one-shot Cron job, but `kairo_job_start` rejected `completed -> running`;
+9. the retry inspected the durable Job, did not repeat the work, and the one-shot scheduler was ultimately cleaned up.
+
+This proof changes the crash-recovery design assumption. KAIRO must **not** automatically mark every `running` Job failed merely because the Gateway restarted. OpenClaw can legitimately resume an interrupted turn. The unresolved risk is narrower: a side-effecting step whose tool outcome is unknown may be replayed. KAIRO therefore needs idempotence/checkpoint semantics before autonomous work is allowed to perform non-idempotent internal mutations that cannot safely be retried.
+
+Cron delivery status is also not authoritative for KAIRO work outcome: a Cron run can report a delivery error even when the KAIRO Job itself completed correctly. KAIRO's durable lifecycle remains authoritative for KAIRO completion/failure.
+
 ## Acceptance-test assessment
 
 - **AT-01 Durable idea capture:** implemented and live-proven for the current local runtime.
 - **AT-02 Epistemic status:** implemented and live-proven for tentative idea capture.
 - **AT-03 Critic mode:** not implemented.
-- **AT-04 Autonomous overnight job:** implemented and live-proven for closed-client execution plus controlled Gateway restart recovery.
+- **AT-04 Autonomous overnight job:** core autonomous execution, closed-client wake, controlled restart, and abrupt-crash recovery behavior are live-proven. The full acceptance contract is still incomplete because KAIRO does not yet record provider/model/token/cost/tool accounting, enforce a hard spend ceiling, or expose a dedicated morning-brief/result surface.
 - **AT-05 Permission boundary:** A0-A2 background restriction exists; approval-request primitive is not implemented.
 - **AT-06 “I don't know”:** policy exists, deterministic acceptance proof still pending.
-- **AT-07 Model routing/accounting:** not implemented; a single OpenAI model works live, but routing and per-run accounting do not.
+- **AT-07 Model routing/accounting:** not implemented; a single OpenAI model works live, and OpenClaw run history exposes usage metadata, but KAIRO does not yet persist routing/accounting as its own domain state.
 - **AT-08 Multi-project isolation:** filesystem/domain isolation is tested; broader runtime brand/context isolation still needs acceptance proof.
 - **AT-09 Portfolio drill-down:** not implemented.
 - **AT-10 Human-readable export:** implemented for current durable domain records.
 - **AT-11 Health visibility:** OpenClaw health exists; KAIRO-specific health/backup/job summary is not implemented.
 - **AT-12 Cross-device state:** not implemented.
 
-## Explicitly unfinished
+## Current development sequence
 
-Highest-priority V0 work after the AT-04 live proof:
+Highest-priority V0 work after the live autonomy proofs:
 
-1. stale queued/running Job reconciliation for unclean crashes and interrupted runs;
-2. provider/model/token/cost attribution and hard budget enforcement;
-3. Critic mode with linked recommendation/provenance;
+1. define and implement the minimum replay/idempotence/checkpoint contract required for crash-safe autonomous steps;
+2. provider/model/token/tool/cost attribution on KAIRO Jobs plus hard budget enforcement;
+3. Critic mode with linked recommendation/provenance and deterministic “I don't know” acceptance proof;
 4. approval-request primitive for authority escalation;
-5. portfolio graph/navigation API;
+5. portfolio graph/navigation API plus minimal cross-device web surface;
 6. KAIRO health + tested backup/restore;
-7. minimal cross-device surface required by the V0 exit scenario.
+7. repeat the full V0 exit scenario end-to-end.
 
 Still intentionally deferred:
 
@@ -157,6 +183,11 @@ Still intentionally deferred:
 - CoinMarketCap/crypto module;
 - optional local inference.
 
-## Current engineering rule
+## Current engineering rules
 
-AT-04 is now live-proven. Continue capability-first: implement the smallest capability required by the next failing acceptance test, and let observed runtime failures drive reconciliation and infrastructure work rather than adding speculative machinery.
+- Continue capability-first: implement the smallest capability required by the next failing acceptance test.
+- Treat the KAIRO Job ledger as the authoritative KAIRO work lifecycle; do not infer KAIRO failure from delivery-only Cron errors.
+- Preserve OpenClaw's native interrupted-turn recovery; do not auto-fail every `running` Job on Gateway restart.
+- Treat missing/interrupted tool results after a crash as unknown, never as success.
+- Require replay-safe/idempotent semantics before expanding autonomous work to non-idempotent mutations.
+- Let observed runtime failures drive reconciliation and infrastructure work rather than adding speculative machinery.

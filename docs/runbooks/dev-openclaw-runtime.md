@@ -4,7 +4,7 @@
 
 The repository has unit/integration coverage for KAIRO Core, the OpenClaw tool adapter, the KAIRO-owned Job ledger, secure packed-plugin installation, and the Gateway-Cron background scheduling path.
 
-The local live proof has demonstrated the real model → OpenClaw → KAIRO tool → durable Markdown path for project and tentative-idea capture, plus a corrected future server-side turn that wakes without an active client and survives a controlled Gateway restart.
+The local live proof has demonstrated the real model → OpenClaw → KAIRO tool → durable Markdown path for project and tentative-idea capture, plus a corrected future server-side turn that wakes without an active client, survives a controlled Gateway restart, and has characterized the recovery behavior of a `running` Job across an abrupt Gateway kill.
 
 This runbook records how to reproduce those proofs in an isolated local development runtime. Production/VPS hardening comes after the behavior is proven.
 
@@ -15,6 +15,7 @@ This runbook records how to reproduce those proofs in an isolated local developm
 - Keep the Gateway on localhost for this proof; do not expose the OpenClaw administrative surface publicly.
 - Use a small test budget and harmless A0-A2 research/internal work only.
 - Do not configure social publishing, trading, financial actions, or destructive external tools for this test.
+- For crash/replay proofs, use only deliberately idempotent harmless work. Do not test with a mutation that would be dangerous if repeated.
 
 ## 1. Prerequisites
 
@@ -252,15 +253,58 @@ This path has also been demonstrated successfully. To reproduce it:
 
 The live controlled-restart proof preserved the exact same scheduler ID across Gateway stop/restart and the future turn completed successfully with durable KAIRO Job state intact.
 
-This proves controlled restart recovery for queued one-shot work. It does **not** yet prove automatic reconciliation for unclean crashes, jobs interrupted while already `running`, or scheduler/runtime divergence.
+Queued-job reconciliation is also implemented on `cron_reconciled`: a future queued KAIRO Job whose linked scheduler disappeared can be failed conservatively, while already-due and `running` Jobs are intentionally left unchanged.
 
-## 11. What this runbook does not prove
+## 11. Abrupt crash proof while a Job is running
 
-Even after both background proofs succeed, these remain unfinished:
+This path has been demonstrated with a deliberately harmless idempotent command. It is a characterization test, not a production failure drill.
 
+To reproduce safely:
+
+1. schedule a future A2 KAIRO Job whose substantive action is exactly a harmless wait such as `sleep 90`, with `announce=false`;
+2. confirm the Job is linked to a real one-shot Cron scheduler;
+3. wait until the durable Job reaches `status: running`;
+4. identify the Gateway PID and kill **only that exact Gateway process** with `SIGKILL`;
+5. confirm the listening port is free;
+6. inspect the KAIRO Job before restart and confirm it remains `running` with `started_at` and no `completed_at`/`failed_at`;
+7. restart the Gateway from the same isolated runtime;
+8. inspect `openclaw cron runs <scheduler-id> --json` and the resumed agent transcript;
+9. verify the interrupted run is recorded as interrupted by Gateway restart;
+10. verify OpenClaw treats the interrupted/missing tool result as unknown and resumes the turn;
+11. for this harmless proof only, allow the unknown `sleep 90` step to replay and finish;
+12. verify `kairo_job_complete` persists the Job as `completed`;
+13. if OpenClaw later retries the one-shot Cron job, verify `kairo_job_start` rejects `completed -> running`, the retry inspects the already-completed Job instead of repeating the work, and the scheduler is ultimately removed from `cron list`.
+
+The observed OpenClaw 2026.9.2 sequence was:
+
+```text
+KAIRO Job running
+→ abrupt Gateway death
+→ no false KAIRO terminal transition
+→ restart
+→ original Cron run recorded as interrupted
+→ interrupted turn resumed
+→ unknown harmless step replayed
+→ KAIRO Job completed
+→ later Cron retry cannot reopen completed Job
+→ one-shot scheduler cleaned up
+```
+
+### Design consequence
+
+Do **not** implement a blanket rule that marks every `running` KAIRO Job failed on Gateway restart. The runtime can legitimately resume interrupted work.
+
+The remaining safety issue is replay of an unknown side-effecting step. Until KAIRO has explicit idempotence/checkpoint semantics, abrupt-crash tests must use harmless replay-safe work only, and autonomous capability must not rely on repeating a mutation whose prior outcome cannot be determined.
+
+Also keep scheduler execution and result delivery separate: a Cron run can report a delivery error even when KAIRO's durable work completed successfully. KAIRO Job lifecycle is the authoritative KAIRO outcome.
+
+## 12. What this runbook does not prove
+
+Even after the background and crash proofs succeed, these remain unfinished:
+
+- replay/idempotence/checkpoint enforcement for side-effecting autonomous steps;
 - hard per-job model-spend enforcement;
-- actual provider/token/cost accounting on the Job;
-- automatic stale queued/running Job reconciliation after unclean crashes or interrupted runs;
+- KAIRO-owned provider/model/token/tool/cost accounting on the Job;
 - production backups/restore;
 - remote authentication and HTTPS;
 - cross-device PWA;
