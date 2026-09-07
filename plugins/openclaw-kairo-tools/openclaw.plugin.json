@@ -35,6 +35,8 @@
       "kairo_job_list",
       "kairo_job_get",
       "kairo_job_start",
+      "kairo_job_step_begin",
+      "kairo_job_step_complete",
       "kairo_job_complete",
       "kairo_job_fail",
       "kairo_background_schedule"
