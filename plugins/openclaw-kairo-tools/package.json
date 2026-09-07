@@ -22,6 +22,9 @@
     "@kairo/core": "file:../../packages/kairo-core",
     "typebox": "^1.1.38"
   },
+  "bundleDependencies": [
+    "@kairo/core"
+  ],
   "devDependencies": {
     "openclaw": "2026.9.2",
     "typescript": "^5.9.2"
