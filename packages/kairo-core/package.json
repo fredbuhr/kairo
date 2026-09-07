@@ -1,0 +1,14 @@
+{
+  "name": "@kairo/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dependency-free V0 domain and Markdown storage core for KAIRO.",
+  "engines": {
+    "node": ">=22.22.3"
+  },
+  "exports": "./src/index.js",
+  "scripts": {
+    "test": "node --test"
+  }
+}
