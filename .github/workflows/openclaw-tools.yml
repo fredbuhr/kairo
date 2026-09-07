@@ -56,8 +56,10 @@ jobs:
           npm run plugin:pack
           PKG="$(ls -1t kairo-openclaw-tools-*.tgz | head -1)"
           test -n "$PKG"
-          tar -tzf "$PKG" | grep -q '^package/dist/entry.js$'
-          tar -tzf "$PKG" | grep -q '^package/openclaw.plugin.json$'
-          tar -tzf "$PKG" | grep -q '^package/node_modules/@kairo/core/src/index.js$'
+          ARCHIVE_LIST="$(mktemp)"
+          tar -tzf "$PKG" > "$ARCHIVE_LIST"
+          grep -qx 'package/dist/entry.js' "$ARCHIVE_LIST"
+          grep -qx 'package/openclaw.plugin.json' "$ARCHIVE_LIST"
+          grep -qx 'package/node_modules/@kairo/core/src/index.js' "$ARCHIVE_LIST"
           PACKED_CORE_SPEC="$(tar -xOf "$PKG" package/package.json | node -e 'let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => process.stdout.write(JSON.parse(s).dependencies["@kairo/core"] ?? ""));')"
           test "$PACKED_CORE_SPEC" = "0.1.0"
