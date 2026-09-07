@@ -1,7 +1,7 @@
 {
   "id": "kairo-tools",
   "name": "KAIRO Tools",
-  "description": "Durable KAIRO project and idea tools backed by the user-owned KAIRO domain store.",
+  "description": "Durable KAIRO project, idea, research-memory, and bounded background-work tools.",
   "version": "0.1.0",
   "configSchema": {
     "type": "object",
@@ -27,7 +27,12 @@
       "kairo_project_get",
       "kairo_idea_capture",
       "kairo_idea_list",
-      "kairo_idea_get"
+      "kairo_idea_get",
+      "kairo_source_capture",
+      "kairo_source_get",
+      "kairo_knowledge_capture",
+      "kairo_knowledge_get",
+      "kairo_background_schedule"
     ]
   }
 }
