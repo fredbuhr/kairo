@@ -2,6 +2,8 @@ export type ProjectStatus = "inbox" | "incubation" | "active" | "waiting" | "pau
 export type IdeaStatus = "captured" | "exploring" | "incubation" | "promoted" | "rejected";
 export type TaskStatus = "todo" | "queued" | "running" | "blocked" | "waiting_user" | "waiting_external" | "completed" | "abandoned" | "failed";
 export type JobStatus = "scheduling" | "queued" | "running" | "completed" | "failed" | "cancelled";
+export type JobStepStatus = "started" | "completed";
+export type JobStepDisposition = "started" | "already_started" | "completed" | "already_completed";
 export type EpistemicStatus = "fact" | "hypothesis" | "deduction" | "opinion" | "unknown";
 export type AuthorityLevel = "A0" | "A1" | "A2" | "A3" | "A4" | "A5";
 export type SourceKind = "url" | "document" | "dataset" | "conversation" | "note" | "other";
@@ -48,6 +50,15 @@ export interface TaskRecord extends KairoRecord {
   authority_ceiling: AuthorityLevel;
 }
 
+export interface JobStepRecord {
+  key: string;
+  status: JobStepStatus;
+  started_at: string;
+  description?: string;
+  completed_at?: string;
+  summary?: string;
+}
+
 export interface JobRecord extends KairoRecord {
   type: "job";
   project_id: string;
@@ -61,8 +72,15 @@ export interface JobRecord extends KairoRecord {
   scheduler_id?: string;
   scheduler_tag?: string;
   scheduler_kind?: string;
+  execution_steps?: JobStepRecord[];
   completion_summary?: string;
   failure_reason?: string;
+}
+
+export interface JobStepResult {
+  job: JobRecord;
+  step: JobStepRecord;
+  disposition: JobStepDisposition;
 }
 
 export interface KnowledgeClaimRecord extends KairoRecord {
@@ -190,6 +208,16 @@ export class KairoJobLedger {
   ): Promise<JobRecord>;
 
   markRunning(project: string, jobId: string): Promise<JobRecord>;
+  beginStep(
+    project: string,
+    jobId: string,
+    input: { stepKey: string; description?: string },
+  ): Promise<JobStepResult>;
+  completeStep(
+    project: string,
+    jobId: string,
+    input: { stepKey: string; summary: string },
+  ): Promise<JobStepResult>;
   completeJob(project: string, jobId: string, input: { summary: string }): Promise<JobRecord>;
   failJob(project: string, jobId: string, input: { reason: string }): Promise<JobRecord>;
   cancelJob(project: string, jobId: string, input?: { reason?: string }): Promise<JobRecord>;
