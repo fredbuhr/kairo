@@ -78,11 +78,11 @@ function assertAbsoluteDataDir(dataDir: string): string {
   return dataDir;
 }
 
-function storeFor(dataDir: string): KairoStore {
+export function storeFor(dataDir: string): KairoStore {
   return new KairoStore({ dataDir: assertAbsoluteDataDir(dataDir) });
 }
 
-function ledgerFor(dataDir: string): KairoJobLedger {
+export function ledgerFor(dataDir: string): KairoJobLedger {
   return new KairoJobLedger({ dataDir: assertAbsoluteDataDir(dataDir) });
 }
 
