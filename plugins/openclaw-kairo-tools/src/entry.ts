@@ -8,6 +8,7 @@ import {
 } from "openclaw/plugin-sdk/tool-plugin";
 import { createGatewayCronBridge } from "./gateway-cron.js";
 import toolPlugin, { ledgerFor, storeFor } from "./index.js";
+import { registerKairoUsageHooks } from "./usage-hooks.js";
 
 const metadata = getToolPluginMetadata(toolPlugin);
 if (!metadata) {
@@ -52,6 +53,7 @@ const plugin = definePluginEntry({
   configSchema: toolPlugin.configSchema,
   register(api) {
     api.registerService(gatewayCron.service);
+    registerKairoUsageHooks(api);
 
     api.on("cron_reconciled", async (event, ctx) => {
       if (!event.enabled || ctx.abortSignal.aborted) return;

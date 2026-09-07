@@ -83,6 +83,36 @@ export interface JobStepResult {
   disposition: JobStepDisposition;
 }
 
+export interface JobUsageCounters {
+  input?: number;
+  output?: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+  total?: number;
+}
+
+export interface JobUsageSummary {
+  runs: number;
+  model_calls: number;
+  tool_calls: number;
+  provider_models: string[];
+  usage: JobUsageCounters;
+  known_cost_usd: number;
+  priced_runs: number;
+  unpriced_runs: number;
+  cost_complete: boolean;
+}
+
+export interface JobUsageState {
+  type: "job_usage";
+  job_id: string;
+  project_slug: string;
+  scheduler_id?: string;
+  created_at: string;
+  updated_at: string;
+  runs: unknown[];
+}
+
 export interface KnowledgeClaimRecord extends KairoRecord {
   type: "knowledge_claim";
   project_id: string;
@@ -223,4 +253,20 @@ export class KairoJobLedger {
   cancelJob(project: string, jobId: string, input?: { reason?: string }): Promise<JobRecord>;
   getJob(project: string, jobId: string): Promise<JobRecord>;
   listJobs(project: string): Promise<JobRecord[]>;
+}
+
+export class KairoJobUsageLedger {
+  constructor(options: { dataDir: string; clock?: () => Date });
+  findJobBySchedulerId(schedulerId: string): Promise<{
+    project_slug: string;
+    job_id: string;
+    scheduler_id: string;
+  } | null>;
+  recordLlmOutputBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordFinalSnapshotBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordToolCallBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordLlmOutput(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordFinalSnapshot(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordToolCall(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
+  getUsage(project: string, jobId: string): Promise<{ state: JobUsageState; summary: JobUsageSummary }>;
 }
