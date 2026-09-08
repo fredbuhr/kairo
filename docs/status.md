@@ -8,7 +8,7 @@ Last updated: 2026-09-08
 
 Block 1 is complete and its exit conditions are covered by end-to-end CI proofs. The former OpenClaw/filesystem V0 remains useful history, but it is no longer the target runtime. Its lessons are carried into the PostgreSQL/Temporal/NATS architecture rather than maintaining two parallel systems.
 
-Block 2 now has four active pieces rather than only planned contracts: KAIRO-owned policy/approval enforcement, replay-safe and canonically accounted model calls through LiteLLM, the canonical conversational command kernel, and a durable PydanticAI semantic-routing tier constrained to registered KAIRO capabilities.
+Block 2 now has five active pieces rather than only planned contracts: KAIRO-owned policy/approval enforcement, replay-safe and canonically accounted model calls through LiteLLM, the canonical conversational command kernel, a durable PydanticAI semantic-routing tier constrained to registered KAIRO capabilities, and rebuildable Mem0 + Graphiti/Neo4j projections driven from canonical conversation events.
 
 ## Foundation decisions now active
 
@@ -21,7 +21,8 @@ Block 2 now has four active pieces rather than only planned contracts: KAIRO-own
 - deterministic high-confidence command routing is the first tier;
 - PydanticAI provides a second-tier semantic route proposal only when deterministic routing has no match;
 - semantic PydanticAI provider access goes through the same replay-safe/accounted LiteLLM Worker gateway as other model calls;
-- Neo4j + Graphiti and Mem0 are rebuildable projections;
+- Neo4j + Graphiti and Mem0 are rebuildable projections, never canonical state;
+- Mem0 uses an isolated PostgreSQL `mem0` database rather than writing vector tables into KAIRO's canonical schema;
 - LiteLLM is the model-provider gateway;
 - PydanticAI is the agent framework;
 - Keycloak and OpenBao are identity/secrets boundaries;
@@ -93,6 +94,26 @@ KAIRO has a server-side conversational front door rather than a browser-only com
 
 The first user-routable capability remains `news.brief`. `assistant.route.semantic` is internal and cannot itself be proposed by the model.
 
+## Rebuildable memory and temporal context
+
+Conversation memory now starts from the same canonical `ConversationMessage` rows used by the Command Kernel rather than from a specialist memory database.
+
+- inserting a canonical message writes a `conversation.message.created` outbox record in the same PostgreSQL transaction;
+- the event contains stable message/conversation references but not a duplicate copy of message text;
+- a durable JetStream Worker consumer turns the event into a deterministic `memory.project` Task;
+- Core tracks one `mem0` and one `graphiti` projection row per canonical message/source version;
+- Mem0 stores raw message memory with `infer=False` and local FastEmbed embeddings, so this slice does not introduce a hidden generative provider call;
+- Mem0 vector tables live in a separate PostgreSQL `mem0` database that can be destroyed independently of canonical KAIRO state;
+- Graphiti writes the canonical message as a temporal `EpisodicNode` in Neo4j using the message UUID as its stable episode UUID;
+- Graphiti entity/fact extraction is deliberately deferred until its model calls can be routed through KAIRO's replay-safe/accounted model gateway;
+- projection generation numbers make a real rebuild possible after a previous Temporal Task has completed;
+- stale generation events/reports are ignored rather than rolling a rebuilt projection backwards;
+- `POST /internal/v1/memory/rebuild` reconstructs selected or all conversation-message projections from canonical Core data;
+- `GET /v1/memory/projections/conversation-messages/{message_id}` exposes projection state without making Mem0/Neo4j authoritative;
+- CI uses deterministic projectors when intelligence extras are absent and proves initial projection, generation-2 rebuild, stale-delivery rejection and unchanged canonical message data.
+
+ADR-019 records the rule that Mem0/Graphiti are disposable views and that future generative extraction must remain behind KAIRO's model/accounting boundary.
+
 ## News Intelligence already present
 
 News Intelligence is a first-class KAIRO capability (`news.brief`) rather than a separate application.
@@ -111,7 +132,7 @@ News Intelligence is a first-class KAIRO capability (`news.brief`) rather than a
 
 ## Next major milestone
 
-After the semantic-routing slice is green, continue Block 2 with rebuildable memory/context projections: canonical-event projection into Mem0 and Graphiti/Neo4j, followed by Docling ingestion, Langfuse correlation, then the MCP tool registry and first tool-bearing research workflow.
+After the rebuildable-memory slice is green, continue Block 2 with Docling ingestion and canonical document/chunk provenance, then Langfuse correlation, the MCP tool registry and the first tool-bearing research workflow. Semantic retrieval over Mem0/Graphiti can then be connected to agent context without changing their status as disposable projections.
 
 The target Block 2 exit remains: an approved autonomous workflow can research, use tools, create canonical artefacts, survive interruption, respect authority/cost limits and explain what it did.
 

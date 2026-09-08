@@ -5,11 +5,23 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    event as sa_event,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
+from .models import OutboxEvent
 
 
 def uuid_pk() -> Mapped[uuid.UUID]:
@@ -78,6 +90,34 @@ class ConversationMessage(Base):
 
     __table_args__ = (
         Index("ix_conversation_messages_conversation_created", "conversation_id", "created_at"),
+    )
+
+
+@sa_event.listens_for(ConversationMessage, "after_insert")
+def _enqueue_memory_projection_event(_mapper, connection, target: ConversationMessage) -> None:
+    """Insert the memory event in the same transaction as the canonical message.
+
+    The event intentionally carries only stable references. Workers must fetch the canonical
+    message from Core, so the JetStream event log never becomes a second copy of conversation
+    content.
+    """
+
+    connection.execute(
+        OutboxEvent.__table__.insert().values(
+            id=uuid.uuid4(),
+            subject="kairo.domain.conversation.message.created",
+            event_type="conversation.message.created",
+            aggregate_type="conversation_message",
+            aggregate_id=target.id,
+            correlation_id=uuid.uuid4(),
+            payload={
+                "message_id": str(target.id),
+                "conversation_id": str(target.conversation_id),
+                "role": target.role,
+                "projection_generation": 1,
+            },
+            attempts=0,
+        )
     )
 
 
