@@ -4,6 +4,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
@@ -24,33 +25,42 @@ async def _ensure_news_project(session: AsyncSession) -> Project:
         return project
 
     correlation_id = uuid.uuid4()
-    project = Project(
-        id=NEWS_PROJECT_ID,
-        name="KAIRO News",
-        status="active",
-        summary="System workspace for sourced news briefings and market-impact intelligence.",
+    inserted_id = await session.scalar(
+        pg_insert(Project)
+        .values(
+            id=NEWS_PROJECT_ID,
+            name="KAIRO News",
+            status="active",
+            summary="System workspace for sourced news briefings and market-impact intelligence.",
+            parent_id=None,
+        )
+        .on_conflict_do_nothing(index_elements=[Project.id])
+        .returning(Project.id)
     )
-    session.add(project)
-    await session.flush()
-    await enqueue_domain_event(
-        session,
-        event_type="project.created",
-        aggregate_type="project",
-        aggregate_id=project.id,
-        correlation_id=correlation_id,
-        payload={"project_id": str(project.id), "name": project.name, "status": project.status},
-    )
-    await append_audit(
-        session,
-        actor_type="system",
-        actor_id="news-intelligence",
-        action="project.create",
-        resource_type="project",
-        resource_id=str(project.id),
-        authority_level=0,
-        correlation_id=correlation_id,
-        request_json={"reason": "initialize News Intelligence workspace"},
-    )
+    project = await session.get(Project, NEWS_PROJECT_ID)
+    if project is None:
+        raise RuntimeError("KAIRO News workspace could not be initialized")
+
+    if inserted_id is not None:
+        await enqueue_domain_event(
+            session,
+            event_type="project.created",
+            aggregate_type="project",
+            aggregate_id=project.id,
+            correlation_id=correlation_id,
+            payload={"project_id": str(project.id), "name": project.name, "status": project.status},
+        )
+        await append_audit(
+            session,
+            actor_type="system",
+            actor_id="news-intelligence",
+            action="project.create",
+            resource_type="project",
+            resource_id=str(project.id),
+            authority_level=0,
+            correlation_id=correlation_id,
+            request_json={"reason": "initialize News Intelligence workspace"},
+        )
     return project
 
 
