@@ -1,0 +1,39 @@
+name: Document ingestion validation
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: document-ingestion-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  document-ingestion-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare deterministic document environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+          echo 'KAIRO_AUTH_ENABLED=false' >> .env
+
+      - name: Start canonical document substrate
+        run: |
+          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+
+      - name: Prove canonical document ingestion and versioned re-ingestion
+        run: python scripts/smoke/document_ingestion.py
+
+      - name: Dump document-ingestion state on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color --tail=500 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+
+      - name: Tear down document stack
+        if: always()
+        run: docker compose down -v --remove-orphans
