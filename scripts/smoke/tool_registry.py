@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 import urllib.error
 import urllib.parse
@@ -11,7 +12,8 @@ import urllib.request
 from typing import Any
 
 CORE = "http://localhost:8000"
-INTERNAL = {"X-Kairo-Internal-Token": "development-only-change-me"}
+INTERNAL_TOKEN = os.getenv("KAIRO_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
+INTERNAL = {"X-Kairo-Internal-Token": INTERNAL_TOKEN}
 
 
 def json_request(
@@ -79,40 +81,60 @@ def main() -> None:
     )
     assert server["catalog_generation"] == 0, server
 
-    _, catalog = json_request(
+    # Catalog schemas are untrusted remote input and must be structurally valid.
+    json_request(
         "POST",
         f"/internal/v1/tool-servers/{server['id']}/catalog",
+        expected=422,
         headers=INTERNAL,
         payload={
             "tools": [
                 {
-                    "name": "search",
-                    "title": "Search",
-                    "description": "Read-only search tool",
-                    "input_schema": {
-                        "type": "object",
-                        "properties": {"query": {"type": "string"}},
-                        "required": ["query"],
-                    },
-                    "annotations": {"readOnlyHint": True, "idempotentHint": True},
-                },
-                {
-                    "name": "send",
-                    "title": "Send",
-                    "description": "Side-effecting send tool",
-                    "input_schema": {
-                        "type": "object",
-                        "properties": {"message": {"type": "string"}},
-                        "required": ["message"],
-                    },
-                    "annotations": {},
-                },
+                    "name": "broken",
+                    "input_schema": {"type": "definitely-not-a-json-schema-type"},
+                }
             ]
         },
+    )
+
+    initial_catalog_payload = {
+        "tools": [
+            {
+                "name": "search",
+                "title": "Search",
+                "description": "Read-only search tool",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                    "additionalProperties": False,
+                },
+                "annotations": {"readOnlyHint": True, "idempotentHint": True},
+            },
+            {
+                "name": "send",
+                "title": "Send",
+                "description": "Side-effecting send tool",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"message": {"type": "string"}},
+                    "required": ["message"],
+                    "additionalProperties": False,
+                },
+                "annotations": {},
+            },
+        ]
+    }
+    _, catalog = json_request(
+        "POST",
+        f"/internal/v1/tool-servers/{server['id']}/catalog",
+        headers=INTERNAL,
+        payload=initial_catalog_payload,
     )
     assert len(catalog) == 2, catalog
     read_tool = next(item for item in catalog if item["key"] == "smoke.search")
     write_tool = next(item for item in catalog if item["key"] == "smoke.send")
+    initial_search_hash = read_tool["schema_hash"]
     assert read_tool["enabled"] is False, read_tool
     assert read_tool["risk_class"] == "read", read_tool
     assert read_tool["authority_level"] == 1, read_tool
@@ -147,6 +169,18 @@ def main() -> None:
     )
     assert enabled["enabled"] is True, enabled
 
+    # Invocation arguments are validated before any Task can be created.
+    json_request(
+        "POST",
+        "/v1/tool-invocations",
+        expected=422,
+        payload={
+            "project_id": project["id"],
+            "tool_key": "smoke.search",
+            "input": {},
+        },
+    )
+
     _, created = json_request(
         "POST",
         "/v1/tool-invocations",
@@ -166,6 +200,8 @@ def main() -> None:
     _, task = json_request("GET", f"/v1/tasks/{task_id}")
     assert task["input"]["capability"] == "tool.invoke", task
     assert task["input"]["tool_key"] == "smoke.search", task
+    assert task["input"]["tool_schema_hash"] == initial_search_hash, task
+    assert task["input"]["policy_scope"]["retry_policy"] == "safe_retry", task
     assert task["authority_ceiling"] == 1, task
 
     # Same key + same logical invocation returns the canonical existing record.
@@ -182,6 +218,105 @@ def main() -> None:
     )
     assert replay["invocation"]["id"] == invocation["id"], replay
     assert replay["task_id"] == task_id, replay
+
+    # Remote schema drift never inherits the previous enablement.
+    drifted_catalog_payload = {
+        "tools": [
+            {
+                "name": "search",
+                "title": "Search v2",
+                "description": "Read-only search tool with explicit limit",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 20},
+                    },
+                    "required": ["query", "limit"],
+                    "additionalProperties": False,
+                },
+                "annotations": {"readOnlyHint": True, "idempotentHint": True},
+            },
+            initial_catalog_payload["tools"][1],
+        ]
+    }
+    _, drifted_catalog = json_request(
+        "POST",
+        f"/internal/v1/tool-servers/{server['id']}/catalog",
+        headers=INTERNAL,
+        payload=drifted_catalog_payload,
+    )
+    drifted_search = next(item for item in drifted_catalog if item["key"] == "smoke.search")
+    assert drifted_search["schema_hash"] != initial_search_hash, drifted_search
+    assert drifted_search["enabled"] is False, drifted_search
+
+    # Disabled drift blocks an already-created invocation.
+    json_request(
+        "GET",
+        f"/internal/v1/tool-invocations/{invocation['id']}/context",
+        expected=409,
+        headers=INTERNAL,
+    )
+
+    # Even after an administrator re-enables v2, the old Task snapshot cannot silently
+    # acquire the new schema/policy. A new invocation is required.
+    _, reenabled = json_request(
+        "PATCH",
+        f"/v1/tools/{encoded_key}/policy",
+        payload={
+            "enabled": True,
+            "authority_level": 1,
+            "risk_class": "read",
+            "retry_policy": "safe_retry",
+        },
+    )
+    assert reenabled["enabled"] is True, reenabled
+    json_request(
+        "GET",
+        f"/internal/v1/tool-invocations/{invocation['id']}/context",
+        expected=409,
+        headers=INTERNAL,
+    )
+
+    json_request(
+        "POST",
+        "/v1/tool-invocations",
+        expected=422,
+        payload={
+            "project_id": project["id"],
+            "tool_key": "smoke.search",
+            "input": {"query": "kairo"},
+        },
+    )
+    _, fresh = json_request(
+        "POST",
+        "/v1/tool-invocations",
+        expected=201,
+        payload={
+            "project_id": project["id"],
+            "tool_key": "smoke.search",
+            "input": {"query": "kairo", "limit": 5},
+            "idempotency_key": "smoke-tool-invocation-v2",
+        },
+    )
+    fresh_invocation = fresh["invocation"]
+
+    # Terminal Worker failure propagation is idempotent in the canonical ledger.
+    _, failed = json_request(
+        "POST",
+        f"/internal/v1/tool-invocations/{fresh_invocation['id']}/fail",
+        headers=INTERNAL,
+        payload={"error": "simulated terminal policy/runtime failure"},
+    )
+    assert failed["status"] == "failed", failed
+    assert "simulated terminal" in failed["last_error"], failed
+    _, failed_again = json_request(
+        "POST",
+        f"/internal/v1/tool-invocations/{fresh_invocation['id']}/fail",
+        headers=INTERNAL,
+        payload={"error": "simulated terminal policy/runtime failure"},
+    )
+    assert failed_again["status"] == "failed", failed_again
 
     print("MCP tool registry integration PASS")
 
