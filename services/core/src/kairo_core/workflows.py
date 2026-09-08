@@ -26,6 +26,17 @@ def _workflow_id(task_id: uuid.UUID) -> str:
     return f"kairo-task-{task_id}"
 
 
+async def _lock_execution(session: AsyncSession, workflow_id: str) -> WorkflowExecution | None:
+    """Reload and lock the execution so stale request state cannot overwrite Worker progress."""
+
+    return await session.scalar(
+        select(WorkflowExecution)
+        .where(WorkflowExecution.workflow_id == workflow_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+
+
 @router.post("/v1/tasks/{task_id}/run", response_model=TaskRunResponse)
 async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_session)) -> TaskRunResponse:
     # Serialize the creation of the canonical execution record for a task. The lock is released
@@ -89,16 +100,32 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
             workflow_id=workflow_id, payload=payload
         )
     except Exception as exc:
-        execution.status = "start_unknown"
-        execution.last_error = str(exc)[:4000]
+        locked_execution = await _lock_execution(session, workflow_id)
+        if locked_execution is None:
+            raise HTTPException(status_code=404, detail="Workflow execution not found") from exc
+
+        # A concurrent caller or the Worker may already have proved that the workflow exists.
+        # In that case the start outcome is no longer ambiguous and we must not regress state.
+        if locked_execution.status in {"running", "completed"}:
+            await session.commit()
+            return TaskRunResponse(
+                task_id=task.id,
+                workflow_execution_id=locked_execution.id,
+                workflow_id=workflow_id,
+                status=locked_execution.status,
+                already_started=True,
+            )
+
+        locked_execution.status = "start_unknown"
+        locked_execution.last_error = str(exc)[:4000]
         await enqueue_domain_event(
             session,
             event_type="execution.start_unknown",
             aggregate_type="workflow_execution",
-            aggregate_id=execution.id,
+            aggregate_id=locked_execution.id,
             correlation_id=correlation_id,
             payload={
-                "execution_id": str(execution.id),
+                "execution_id": str(locked_execution.id),
                 "workflow_id": workflow_id,
                 "task_id": str(task.id),
                 "reason": "Temporal start result is unknown; retry with the same workflow ID",
@@ -113,28 +140,35 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
             },
         ) from exc
 
-    execution.status = "queued"
-    execution.run_id = run_id or execution.run_id
-    execution.last_error = None
+    # The workflow can start executing before the start RPC returns. Reload under lock so a stale
+    # request-side `pending_start` object can never overwrite Worker-owned `running/completed` state.
+    locked_execution = await _lock_execution(session, workflow_id)
+    if locked_execution is None:
+        raise HTTPException(status_code=404, detail="Workflow execution not found")
+    if locked_execution.status in {"pending_start", "start_unknown"}:
+        locked_execution.status = "queued"
+    locked_execution.run_id = run_id or locked_execution.run_id
+    locked_execution.last_error = None
     await enqueue_domain_event(
         session,
         event_type="execution.accepted",
         aggregate_type="workflow_execution",
-        aggregate_id=execution.id,
+        aggregate_id=locked_execution.id,
         correlation_id=correlation_id,
         payload={
-            "execution_id": str(execution.id),
+            "execution_id": str(locked_execution.id),
             "workflow_id": workflow_id,
             "task_id": str(task.id),
             "already_started": already_started,
+            "observed_status": locked_execution.status,
         },
     )
     await session.commit()
     return TaskRunResponse(
         task_id=task.id,
-        workflow_execution_id=execution.id,
+        workflow_execution_id=locked_execution.id,
         workflow_id=workflow_id,
-        status=execution.status,
+        status=locked_execution.status,
         already_started=already_started,
     )
 
