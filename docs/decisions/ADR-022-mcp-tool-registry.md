@@ -26,15 +26,29 @@ Remote annotations are treated only as conservative hints for initial classifica
 
 Only KAIRO policy state can enable a tool or change its authority/retry classification.
 
+### Schemas are untrusted contracts
+
+Remote input and output schemas are validated as JSON Schema before catalog state is accepted. Invocation arguments are validated against the currently registered input schema before KAIRO creates a Task.
+
+A remote schema hash is part of the effective authorization contract. If the schema changes, KAIRO updates the catalog record but automatically disables the tool. An administrator must review and explicitly re-enable the new contract.
+
+Previously created Tasks keep the schema hash and policy snapshot they were created with. Re-enabling a drifted tool does not upgrade an old pending invocation: Core rejects the stale snapshot and requires a new invocation.
+
 ### Stable KAIRO tool keys
 
-A remote MCP tool is addressed inside KAIRO by `<namespace>.<remote_name>`. The remote server and protocol implementation remain replaceable behind that key. The registry stores the remote schema hash so catalog drift is visible without changing KAIRO's logical identity.
+A remote MCP tool is addressed inside KAIRO by `<namespace>.<remote_name>`. The remote server and protocol implementation remain replaceable behind that key. Catalog drift is inspectable without changing KAIRO's logical identity.
 
 ### Every invocation is canonical
 
-A requested invocation creates a canonical `ToolInvocation` and a normal KAIRO `Task` with capability `tool.invoke`. The Task carries the exact tool key, authority level, estimated cost and policy scope. Temporal therefore reaches the existing KAIRO Core policy gate before the Worker can cross the MCP network boundary.
+A requested invocation creates a canonical `ToolInvocation` and a normal KAIRO `Task` with capability `tool.invoke`. The Task carries the exact tool key, schema hash, authority level, estimated cost, risk class, retry policy and server key. Temporal therefore reaches the existing KAIRO Core policy gate before the Worker can cross the MCP network boundary.
 
-The invocation ledger owns a stable idempotency key. Reusing a key for a different tool or input is rejected.
+The invocation ledger owns a stable idempotency key. Reusing a key for a different project, tool or input is rejected.
+
+### Authorization is checked twice
+
+The Temporal policy gate decides whether the Task may proceed. Immediately before the external MCP call, the Worker asks Core for the invocation context again. Core verifies that the server and tool are still enabled/available and that the live schema, authority, cost, risk and retry policy still match the Task snapshot.
+
+This second check prevents an approval obtained under one contract from silently inheriting a later policy or schema change.
 
 ### Replay policy is explicit
 
@@ -46,9 +60,11 @@ The Worker checkpoints MCP calls with Temporal heartbeats:
 
 A persisted result may be replayed into Core without calling the remote tool again.
 
-For `no_retry` tools, a retry that sees only `pre_call` fails closed because the first call may already have performed a side effect. KAIRO does not assume MCP transports or remote servers provide exactly-once execution.
+For `no_retry` tools, a retry that sees only `pre_call` raises a non-retryable Temporal application error because the first call may already have performed a side effect. KAIRO does not assume MCP transports or remote servers provide exactly-once execution.
 
 For explicitly `safe_retry` tools, the Worker may repeat a call after an ambiguous attempt.
+
+If the `tool.invoke` workflow terminates because policy is denied or the runtime exhausts retries, the Worker marks the canonical `ToolInvocation` failed before it marks the Task/Workflow failed. The ledger therefore does not remain indefinitely `pending` or `running` after a terminal workflow outcome.
 
 ### MCP is transport, not authority
 
@@ -58,6 +74,7 @@ The first production transport is Streamable HTTP via the official MCP Python SD
 
 - Agents can eventually use many MCP servers without learning provider-specific permission systems.
 - Tool discovery can be broad while execution remains narrow and explicit.
+- Schema drift becomes a review event rather than an implicit permission upgrade.
 - Side-effect ambiguity becomes visible instead of being hidden by retries.
 - Catalog and runtime adapters can change without invalidating canonical invocation history.
 - Future autonomous research workflows can reuse the same registry and call-specific policy gate rather than invent another tool abstraction.
