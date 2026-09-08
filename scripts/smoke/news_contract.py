@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Deterministic contract proof for the KAIRO News Intelligence activity.
+"""Deterministic contract proof for KAIRO News Intelligence.
 
 External search/model services are replaced with fixtures so CI validates capability routing,
-provenance retention, transient full-text handling, SSRF protection and market fallback without
-depending on the public internet or paid model credentials.
+provenance retention, transient full-text handling, SSRF protection, accounted model metadata and
+market fallback without depending on the public internet or paid model credentials.
 """
 
 from __future__ import annotations
 
 import asyncio
+from decimal import Decimal
 from typing import Any
 
-from kairo_worker import activities
+from kairo_worker import activities, news_activity
+from kairo_worker.model_gateway import ChatCompletionResult, ModelUsage
 
 
 SOURCES = [
@@ -53,16 +55,28 @@ async def fake_enrich(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return enriched
 
 
-async def fake_summary(**_: Any) -> dict[str, Any]:
-    return {
-        "headline": "Paris aujourd'hui — briefing KAIRO",
-        "summary": "La circulation évolue à Paris [S1]. Les marchés surveillent aussi la BCE [S2].",
-        "spoken_summary": "La circulation évolue à Paris. Les marchés surveillent aussi la BCE.",
-        "market_impact": None,
-    }
+async def fake_chat_completion(**_: Any) -> ChatCompletionResult:
+    return ChatCompletionResult(
+        content=(
+            '{"headline":"Paris aujourd\u0027hui — briefing KAIRO",'
+            '"summary":"La circulation évolue à Paris [S1]. Les marchés surveillent aussi la BCE [S2].",'
+            '"spoken_summary":"La circulation évolue à Paris. Les marchés surveillent aussi la BCE.",'
+            '"market_impact":null}'
+        ),
+        usage=ModelUsage(
+            provider_model="openai/gpt-fixture",
+            prompt_tokens=120,
+            completion_tokens=40,
+            total_tokens=160,
+            cost_usd=Decimal("0.0042"),
+            cost_reported=True,
+            litellm_call_id="fixture-call",
+        ),
+        raw={},
+    )
 
 
-async def unavailable_summary(**_: Any) -> dict[str, Any]:
+async def unavailable_chat_completion(**_: Any) -> ChatCompletionResult:
     raise RuntimeError("fixture model unavailable")
 
 
@@ -75,14 +89,16 @@ async def main() -> None:
     assert await activities._is_public_http_url("http://localhost:4000/v1") is False
     assert await activities._is_public_http_url("file:///etc/passwd") is False
 
-    activities.activity.heartbeat = no_heartbeat
+    news_activity.activity.heartbeat = no_heartbeat
     activities._search_searxng = fake_search
     activities._enrich_sources = fake_enrich
-    activities._summarize_with_litellm = fake_summary
+    news_activity.chat_completion = fake_chat_completion
 
-    result = await activities.perform_news_brief(
+    result = await news_activity.perform_news_brief(
         {
-            "task_id": "fixture-local",
+            "task_id": "00000000-0000-0000-0000-000000000001",
+            "workflow_execution_id": "00000000-0000-0000-0000-000000000002",
+            "correlation_id": "00000000-0000-0000-0000-000000000003",
             "workflow_id": "fixture-local-workflow",
             "task_title": "Paris news",
             "task_input": {
@@ -93,6 +109,7 @@ async def main() -> None:
                 "language": "fr",
                 "time_range": "day",
                 "max_sources": 10,
+                "model_estimated_cost_usd": "0.01",
             },
         }
     )
@@ -103,11 +120,18 @@ async def main() -> None:
     assert len(content["sources"]) == 2, content
     assert content["sources"][0]["content_available"] is True, content
     assert "analysis_text" not in content["sources"][0], content
+    assert content["model_usage"]["model_alias"] == news_activity.settings.kairo_news_model, content
+    assert content["model_usage"]["provider_model"] == "openai/gpt-fixture", content
+    assert content["model_usage"]["total_tokens"] == 160, content
+    assert content["model_usage"]["cost_usd"] == "0.0042", content
+    assert content["model_usage"]["cost_reported"] is True, content
 
-    activities._summarize_with_litellm = unavailable_summary
-    market_result = await activities.perform_news_brief(
+    news_activity.chat_completion = unavailable_chat_completion
+    market_result = await news_activity.perform_news_brief(
         {
-            "task_id": "fixture-market",
+            "task_id": "00000000-0000-0000-0000-000000000004",
+            "workflow_execution_id": "00000000-0000-0000-0000-000000000005",
+            "correlation_id": "00000000-0000-0000-0000-000000000006",
             "workflow_id": "fixture-market-workflow",
             "task_title": "Market news",
             "task_input": {
@@ -124,11 +148,12 @@ async def main() -> None:
     assert market["market_impact"]["score"] == 48, market
     assert market["market_impact"]["level"] == "medium", market
     assert market["model_warning"], market
+    assert market["model_usage"] is None, market
     assert "S2" in market["summary"], market
 
     print(
-        "NEWS CONTRACT PASS: sourced local briefing, transient article text, SSRF protection and "
-        "market fallback behave deterministically"
+        "NEWS CONTRACT PASS: sourced briefing, transient article text, accounted model metadata, "
+        "SSRF protection and deterministic market fallback behave correctly"
     )
 
 

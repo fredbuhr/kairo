@@ -42,5 +42,12 @@ class TemporalGateway:
         except WorkflowAlreadyStartedError as exc:
             return True, exc.run_id
 
+    async def signal_task_workflow(
+        self, *, workflow_id: str, signal: str, payload: dict[str, Any]
+    ) -> None:
+        client = await self.client()
+        handle = client.get_workflow_handle(workflow_id)
+        await handle.signal(signal, payload)
+
 
 temporal_gateway = TemporalGateway()
