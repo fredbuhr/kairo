@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import uuid
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -43,6 +44,52 @@ def deterministic_model_call_key(
 
     execution = workflow_execution_id or "no-execution"
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:model:{task_id}:{execution}:{call_slot}"))
+
+
+def deterministic_trace_id(
+    *, task_id: str, workflow_execution_id: str | None, correlation_id: str | None
+) -> str:
+    """Return a stable W3C-compatible trace id without importing an observability SDK.
+
+    Canonical KAIRO UUID correlations map directly to their 32 lowercase hexadecimal form. If a
+    caller has no canonical correlation UUID, a stable 16-byte identifier is derived from the task
+    and workflow identity. Langfuse/LiteLLM remain consumers of this correlation, never its owner.
+    """
+
+    if correlation_id:
+        try:
+            return uuid.UUID(str(correlation_id)).hex
+        except (TypeError, ValueError, AttributeError):
+            pass
+    seed = f"kairo:trace:{task_id}:{workflow_execution_id or 'no-execution'}:{correlation_id or 'none'}"
+    return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:32]
+
+
+def langfuse_metadata(
+    *,
+    task_id: str,
+    workflow_execution_id: str | None,
+    correlation_id: str | None,
+    model_alias: str,
+    idempotency_key: str,
+) -> dict[str, Any]:
+    """Build correlation-only metadata consumed by LiteLLM's Langfuse OTEL callback."""
+
+    trace_id = deterministic_trace_id(
+        task_id=task_id,
+        workflow_execution_id=workflow_execution_id,
+        correlation_id=correlation_id,
+    )
+    return {
+        "generation_name": "kairo.model.invoke",
+        "trace_id": trace_id,
+        "session_id": workflow_execution_id or task_id,
+        "tags": ["kairo", f"model:{model_alias}"],
+        "kairoTaskId": task_id,
+        "kairoWorkflowExecutionId": workflow_execution_id,
+        "kairoModelCallKey": idempotency_key,
+        "kairoModelAlias": model_alias,
+    }
 
 
 def read_activity_model_checkpoint() -> dict[str, Any] | None:
@@ -302,7 +349,8 @@ async def chat_completion(
     request whose first outcome is unknown.
 
     `x-litellm-call-id` is stable proxy correlation only. KAIRO does not assume LiteLLM or the upstream
-    provider implements exactly-once execution.
+    provider implements exactly-once execution. Observability metadata is derived from KAIRO IDs and
+    has no role in authorization, canonical spend accounting or replay decisions.
     """
 
     if not idempotency_key.strip():
@@ -343,6 +391,13 @@ async def chat_completion(
         "model": model_alias,
         "temperature": temperature,
         "messages": messages,
+        "metadata": langfuse_metadata(
+            task_id=task_id,
+            workflow_execution_id=workflow_execution_id,
+            correlation_id=correlation_id,
+            model_alias=model_alias,
+            idempotency_key=idempotency_key,
+        ),
     }
     _heartbeat_model_checkpoint(stage="started", idempotency_key=idempotency_key)
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
