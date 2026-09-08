@@ -7,6 +7,7 @@ export type JobStepDisposition = "started" | "already_started" | "completed" | "
 export type EpistemicStatus = "fact" | "hypothesis" | "deduction" | "opinion" | "unknown";
 export type AuthorityLevel = "A0" | "A1" | "A2" | "A3" | "A4" | "A5";
 export type SourceKind = "url" | "document" | "dataset" | "conversation" | "note" | "other";
+export type JobAllowedToolsSource = "default" | "explicit";
 
 export interface KairoRecord {
   id: string;
@@ -67,8 +68,12 @@ export interface JobRecord extends KairoRecord {
   status: JobStatus;
   authority_ceiling: AuthorityLevel;
   scheduled_for?: string;
+  requested_budget_usd?: number;
+  /** @deprecated Legacy jobs may still contain this field; reads expose requested_budget_usd too. */
   requested_budget?: number;
   budget_enforced?: boolean;
+  allowed_tools?: string[];
+  allowed_tools_source?: JobAllowedToolsSource;
   scheduler_id?: string;
   scheduler_tag?: string;
   scheduler_kind?: string;
@@ -116,6 +121,20 @@ export interface JobUsageState {
   created_at: string;
   updated_at: string;
   runs: unknown[];
+}
+
+export interface KairoBackupFileEntry {
+  path: string;
+  size: number;
+  sha256: string;
+}
+
+export interface KairoBackupManifest {
+  schema_version: 1;
+  type: "kairo_data_backup";
+  created_at: string;
+  file_count: number;
+  files: KairoBackupFileEntry[];
 }
 
 export interface KnowledgeClaimRecord extends KairoRecord {
@@ -231,7 +250,11 @@ export class KairoJobLedger {
     instructions: string;
     authorityCeiling?: AuthorityLevel;
     scheduledFor?: string;
+    requestedBudgetUsd?: number;
+    /** @deprecated Use requestedBudgetUsd. Legacy values are interpreted as USD. */
     requestedBudget?: number;
+    allowedTools?: string[];
+    allowedToolsSource?: JobAllowedToolsSource;
     sourceSession?: string;
     taskId?: string;
   }): Promise<JobRecord>;
@@ -285,3 +308,18 @@ export class KairoJobUsageLedger {
   recordToolCall(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
   getUsage(project: string, jobId: string): Promise<{ state: JobUsageState; summary: JobUsageSummary }>;
 }
+
+export function createKairoDataBackup(options: {
+  dataDir: string;
+  backupDir: string;
+  clock?: () => Date;
+}): Promise<KairoBackupManifest>;
+
+export function verifyKairoDataBackup(options: {
+  backupDir: string;
+}): Promise<KairoBackupManifest>;
+
+export function restoreKairoDataBackup(options: {
+  backupDir: string;
+  targetDataDir: string;
+}): Promise<KairoBackupManifest>;
