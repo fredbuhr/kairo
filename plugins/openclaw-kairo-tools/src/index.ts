@@ -592,12 +592,14 @@ export default defineToolPlugin({
 
             let handle;
             try {
+              const deliveryMode: "none" | "announce" =
+                params.announce === false ? "none" : "announce";
               const scheduleRequest = {
                 sessionKey,
                 agentId: toolContext.agentId,
                 at,
                 deleteAfterRun: true,
-                deliveryMode: params.announce === false ? "none" : "announce",
+                deliveryMode,
                 name: `KAIRO: ${params.title}`,
                 tag,
                 message: backgroundPrompt({
