@@ -39,9 +39,6 @@ async def _lock_execution(session: AsyncSession, workflow_id: str) -> WorkflowEx
 
 @router.post("/v1/tasks/{task_id}/run", response_model=TaskRunResponse)
 async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_session)) -> TaskRunResponse:
-    # Serialize the creation of the canonical execution record for a task. The lock is always
-    # released before the Temporal RPC; concurrent callers then reuse the same deterministic
-    # workflow ID and Temporal resolves which start won.
     task = await session.get(Task, task_id, with_for_update=True)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -89,13 +86,12 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
         await session.refresh(execution)
     else:
         correlation_id = execution.correlation_id
-        # Release the Task row lock before making a network call. Worker callbacks lock in the
-        # canonical Execution -> Task order, so keeping the Task lock here could create a cycle.
         await session.commit()
 
     payload = {
         "task_id": str(task.id),
         "workflow_id": workflow_id,
+        "workflow_execution_id": str(execution.id),
         "correlation_id": str(correlation_id),
     }
     try:
@@ -107,8 +103,6 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
         if locked_execution is None:
             raise HTTPException(status_code=404, detail="Workflow execution not found") from exc
 
-        # A concurrent caller or the Worker may already have proved that the workflow exists.
-        # In that case the start outcome is no longer ambiguous and we must not regress state.
         if locked_execution.status in {"running", "completed"}:
             await session.commit()
             return TaskRunResponse(
@@ -143,8 +137,6 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
             },
         ) from exc
 
-    # The workflow can start executing before the start RPC returns. Reload under lock so a stale
-    # request-side `pending_start` object can never overwrite Worker-owned `running/completed` state.
     locked_execution = await _lock_execution(session, workflow_id)
     if locked_execution is None:
         raise HTTPException(status_code=404, detail="Workflow execution not found")
