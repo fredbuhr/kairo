@@ -27,8 +27,23 @@ jobs:
       - name: Install JS dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Typecheck JS workspace
-        run: pnpm typecheck
+      - name: Typecheck protocol package
+        run: pnpm --filter @kairo/protocol typecheck
+
+      - name: Typecheck graph package
+        run: pnpm --filter @kairo/graph typecheck
+
+      - name: Typecheck Gantt package
+        run: pnpm --filter @kairo/gantt typecheck
+
+      - name: Typecheck UI package
+        run: pnpm --filter @kairo/ui typecheck
+
+      - name: Typecheck realtime service
+        run: pnpm --filter @kairo/realtime typecheck
+
+      - name: Typecheck KAIRO Web
+        run: pnpm --filter @kairo/web typecheck
 
       - name: Build KAIRO Web
         run: pnpm build:web
