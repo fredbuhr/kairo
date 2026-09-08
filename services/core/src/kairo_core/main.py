@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,7 @@ from .config import settings
 from .db import get_session, ping_database
 from .events import append_audit, enqueue_domain_event
 from .models import OutboxEvent, Project, RelationshipRecord, Task
+from .news import router as news_router
 from .outbox import OutboxRelay
 from .schemas import (
     OutboxStats,
@@ -42,7 +44,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="KAIRO Core", version=__version__, lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[origin.strip() for origin in settings.kairo_cors_origins.split(",") if origin.strip()],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(workflow_router)
+app.include_router(news_router)
 
 
 @app.get("/health/live")
@@ -112,6 +122,8 @@ async def architecture() -> dict[str, object]:
         "derived_context_graph": "graphiti-neo4j",
         "derived_memory": "mem0",
         "model_gateway": "litellm",
+        "news_discovery": "searxng",
+        "news_speech": "kokoro-fastapi",
         "policy_default": "deny",
     }
 
