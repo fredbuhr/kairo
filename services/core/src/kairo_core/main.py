@@ -2,6 +2,7 @@ import asyncio
 import uuid
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +24,8 @@ from .schemas import (
     TaskCreate,
     TaskRead,
 )
+from .temporal_gateway import temporal_gateway
+from .workflows import router as workflow_router
 
 
 @asynccontextmanager
@@ -39,6 +42,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="KAIRO Core", version=__version__, lifespan=lifespan)
+app.include_router(workflow_router)
 
 
 @app.get("/health/live")
@@ -56,15 +60,34 @@ async def health_alias() -> dict[str, str]:
     return await liveness()
 
 
+async def _seaweed_ready() -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            response = await client.get(f"{settings.seaweed_s3_endpoint}/")
+        return response.status_code < 500
+    except Exception:
+        return False
+
+
+async def _temporal_ready() -> bool:
+    try:
+        return await temporal_gateway.health()
+    except Exception:
+        return False
+
+
 @app.get("/health/ready", response_model=SystemReadiness)
 async def readiness(request: Request) -> SystemReadiness:
-    checks = {"postgres": False, "nats": False}
-    try:
-        checks["postgres"] = await ping_database()
-    except Exception:
-        checks["postgres"] = False
     relay: OutboxRelay = request.app.state.outbox_relay
-    checks["nats"] = relay.connected
+    postgres_ok, temporal_ok, seaweed_ok = await asyncio.gather(
+        ping_database(), _temporal_ready(), _seaweed_ready(), return_exceptions=True
+    )
+    checks = {
+        "postgres": postgres_ok is True,
+        "nats": relay.connected,
+        "temporal": temporal_ok is True,
+        "seaweedfs": seaweed_ok is True,
+    }
     if not all(checks.values()):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

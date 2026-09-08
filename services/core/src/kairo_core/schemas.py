@@ -86,6 +86,36 @@ class ArtifactRead(BaseModel):
     created_at: datetime
 
 
+class TaskRunResponse(BaseModel):
+    task_id: uuid.UUID
+    workflow_execution_id: uuid.UUID
+    workflow_id: str
+    status: str
+    already_started: bool = False
+
+
+class InternalStartResponse(BaseModel):
+    task_id: uuid.UUID
+    task_title: str
+    task_input: dict[str, Any]
+    execution_status: str
+
+
+class InternalCompleteRequest(BaseModel):
+    kind: str = Field(default="task-result", max_length=80)
+    title: str = Field(min_length=1, max_length=320)
+    content: dict[str, Any] = Field(default_factory=dict)
+
+
+class InternalCompleteResponse(BaseModel):
+    execution_status: str
+    artifact: ArtifactRead
+
+
+class InternalFailRequest(BaseModel):
+    error: str = Field(min_length=1, max_length=4000)
+
+
 class SystemReadiness(BaseModel):
     status: str
     checks: dict[str, bool]
