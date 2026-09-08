@@ -18,10 +18,6 @@ class ModelCallOutcomeUnknown(RuntimeError):
     """A previous attempt may have reached the paid provider, so replay must fail closed."""
 
 
-class ModelCallAccountingUnknown(RuntimeError):
-    """A provider result is known but canonical usage commit status is ambiguous."""
-
-
 @dataclass(frozen=True)
 class ModelUsage:
     provider_model: str
@@ -69,8 +65,8 @@ def _litellm_headers(idempotency_key: str | None = None) -> dict[str, str]:
     if settings.litellm_master_key:
         headers["Authorization"] = f"Bearer {settings.litellm_master_key}"
     if idempotency_key:
-        # LiteLLM exposes this identifier in spend logs/response headers. KAIRO still treats it as
-        # correlation only; provider execution is protected by the Temporal checkpoint below.
+        # LiteLLM exposes this identifier in spend logs/response headers. KAIRO treats it only as
+        # stable correlation; exactly-once provider execution is not assumed.
         headers["x-litellm-call-id"] = idempotency_key
     return headers
 
@@ -217,8 +213,6 @@ async def _record_usage(
     model_alias: str,
     usage: ModelUsage,
 ) -> None:
-    # The stable UUID makes duplicate/reconciliation candidates explicit even before Core gains a
-    # unique model-call ledger key in the next hardening slice.
     stable_correlation = str(
         uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:model-usage:{idempotency_key}")
     )
@@ -230,6 +224,7 @@ async def _record_usage(
         "task_id": task_id,
         "workflow_execution_id": workflow_execution_id,
         "correlation_id": stable_correlation,
+        "idempotency_key": idempotency_key,
         "provider": provider,
         "model_alias": model_alias,
         "model_name": usage.provider_model,
@@ -254,6 +249,37 @@ async def _record_usage(
         response.raise_for_status()
 
 
+async def _resume_accounting(
+    *,
+    task_id: str,
+    workflow_execution_id: str | None,
+    correlation_id: str | None,
+    model_alias: str,
+    idempotency_key: str,
+    result_payload: dict[str, Any],
+) -> ChatCompletionResult:
+    replayed = _result_from_snapshot(result_payload)
+    provider = (
+        replayed.usage.provider_model.split("/", 1)[0]
+        if "/" in replayed.usage.provider_model
+        else "litellm"
+    )
+    _heartbeat_model_checkpoint(stage="accounting", idempotency_key=idempotency_key, result=replayed)
+    # Core owns a unique idempotency key, so an ambiguous HTTP response can be retried safely: an
+    # already-committed row is returned without inserting or charging again.
+    await _record_usage(
+        task_id=task_id,
+        workflow_execution_id=workflow_execution_id,
+        correlation_id=correlation_id,
+        idempotency_key=idempotency_key,
+        provider=provider,
+        model_alias=model_alias,
+        usage=replayed.usage,
+    )
+    _heartbeat_model_checkpoint(stage="accounted", idempotency_key=idempotency_key, result=replayed)
+    return replayed
+
+
 async def chat_completion(
     *,
     task_id: str,
@@ -270,12 +296,13 @@ async def chat_completion(
     """Invoke one logical LiteLLM call without blindly replaying an ambiguous paid request.
 
     Temporal heartbeat details survive activity retries. KAIRO checkpoints immediately before the
-    provider request, after receiving a valid response, while committing accounting, and after the
-    usage handoff. A retry can therefore reuse a known result, while an attempt whose provider or
-    accounting outcome is ambiguous fails closed instead of silently issuing another paid call.
+    provider request and stores the validated response before canonical accounting. A known response
+    can safely replay its accounting handoff because Core deduplicates by the stable idempotency key.
+    If only the pre-provider checkpoint survived, KAIRO fails closed rather than risk a second paid
+    request whose first outcome is unknown.
 
-    `x-litellm-call-id` is used for stable proxy correlation only. KAIRO does not assume the proxy or
-    the upstream provider implements exactly-once execution.
+    `x-litellm-call-id` is stable proxy correlation only. KAIRO does not assume LiteLLM or the upstream
+    provider implements exactly-once execution.
     """
 
     if not idempotency_key.strip():
@@ -287,37 +314,22 @@ async def chat_completion(
         result_payload = checkpoint.get("result") if isinstance(checkpoint.get("result"), dict) else None
         if stage == "accounted" and result_payload:
             return _result_from_snapshot(result_payload)
-        if stage == "completed" and result_payload:
-            replayed = _result_from_snapshot(result_payload)
-            provider = (
-                replayed.usage.provider_model.split("/", 1)[0]
-                if "/" in replayed.usage.provider_model
-                else "litellm"
-            )
-            _heartbeat_model_checkpoint(
-                stage="accounting", idempotency_key=idempotency_key, result=replayed
-            )
-            await _record_usage(
+        if stage in {"completed", "accounting"} and result_payload:
+            return await _resume_accounting(
                 task_id=task_id,
                 workflow_execution_id=workflow_execution_id,
                 correlation_id=correlation_id,
-                idempotency_key=idempotency_key,
-                provider=provider,
                 model_alias=model_alias,
-                usage=replayed.usage,
-            )
-            _heartbeat_model_checkpoint(
-                stage="accounted", idempotency_key=idempotency_key, result=replayed
-            )
-            return replayed
-        if stage == "accounting":
-            raise ModelCallAccountingUnknown(
-                f"Model call {idempotency_key} completed, but canonical usage commit status is unknown; "
-                "refusing replay until reconciliation is available"
+                idempotency_key=idempotency_key,
+                result_payload=result_payload,
             )
         if stage == "started":
             raise ModelCallOutcomeUnknown(
                 f"Model call {idempotency_key} may already have reached the provider; refusing blind replay"
+            )
+        if stage in {"completed", "accounting", "accounted"}:
+            raise ModelCallOutcomeUnknown(
+                f"Model call {idempotency_key} checkpoint is missing its validated result"
             )
 
     await _authorize_model_call(
