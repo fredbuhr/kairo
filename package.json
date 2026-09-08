@@ -1,0 +1,15 @@
+{
+  "name": "kairo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "KAIRO Personal AI Operating System monorepo",
+  "packageManager": "pnpm@10.15.1",
+  "scripts": {
+    "dev:web": "pnpm --filter @kairo/web dev",
+    "dev:realtime": "pnpm --filter @kairo/realtime dev",
+    "build:web": "pnpm --filter @kairo/web build",
+    "build:realtime": "pnpm --filter @kairo/realtime build",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck"
+  }
+}

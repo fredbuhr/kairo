@@ -1,107 +1,122 @@
 # KAIRO
 
-KAIRO is a self-hosted personal AI operating system and autonomous assistant.
+KAIRO is a self-hosted **Personal AI Operating System**: one coherent interface and domain model for projects, knowledge, tasks, communication, agents, automation, finance, crypto, devices, voice, research, development and personal operations.
 
-It is being designed as a persistent layer between one user and their projects, ideas, tasks, knowledge, services, and AI providers. KAIRO is not intended to be a chatbot with a futuristic skin: it must preserve context over time, work while the user is offline, expose its reasoning limits, and turn conversations into durable, inspectable work.
+KAIRO is not a chatbot wrapper and it is not a fork of another assistant. KAIRO owns the user experience, system-of-record, policy model and integration contracts; specialized open-source engines remain replaceable behind those boundaries.
 
-## Status
+## Architecture reset — September 2026
 
-**Phase:** V0 capability proof / durable autonomy.
+The original V0 proved several important properties with an OpenClaw-based runtime and a filesystem/Markdown domain store: durable project capture, explicit epistemic status, background execution, restart recovery, conservative failure behavior and the need for replay-safe autonomous actions.
 
-The first live vertical slice is working in an isolated local runtime: a real model call through OpenClaw can invoke KAIRO tools, create/retrieve a project, capture a tentative idea, and persist human-readable Markdown through KAIRO Core. KAIRO has also live-proven approved background execution with no active client, recovery of queued work across a controlled OpenClaw Gateway restart, and the behavior of a `running` KAIRO Job across an abrupt Gateway `SIGKILL`/restart.
+Those experiments achieved their purpose. The target product is now broader, so the repository is being reset around the full platform architecture from the beginning instead of extending the V0 runtime.
 
-The abrupt-crash proof showed that OpenClaw 2026.9.2 can resume an interrupted agent turn and may replay a tool step whose prior outcome is unknown. KAIRO therefore deliberately does not auto-fail every `running` Job on restart; the next autonomy-hardening work is replay/idempotence/checkpoint semantics for steps that cannot safely be repeated.
+The new foundation deliberately includes the complete dependency graph early so integrations, identity, storage, authorization, eventing, observability, realtime collaboration, model routing and durable execution are designed together rather than retrofitted later.
 
-No production deployment exists yet. KAIRO is still deliberately capability-first: prove durable autonomous behavior and its safety/audit boundaries before adding the full Cockpit or production infrastructure.
-
-See [`docs/status.md`](docs/status.md) for the current acceptance-test assessment and observed live-runtime results.
-
-## Product principles
-
-- **One product, few dependencies.** Prefer built-in capabilities and small libraries over a permanent collection of SaaS tools.
-- **User-owned state.** Identity, project structure, memory, decisions, tasks, and audit history live under KAIRO's control.
-- **Human-readable memory.** Important knowledge must remain exportable and understandable as Markdown, even if KAIRO also maintains structured indexes.
-- **Autonomy over chat.** Closing the browser must not stop approved work.
-- **Model-agnostic intelligence.** OpenAI and Anthropic are inference providers, not the identity or memory of KAIRO.
-- **Least-cost routing.** Use no LLM when deterministic code is sufficient; otherwise use the least expensive model that meets the task's quality and risk requirements.
-- **Epistemic honesty.** KAIRO distinguishes facts, hypotheses, deductions, opinions, and unknowns.
-- **Constructive contradiction.** KAIRO does not flatter by default and includes an explicit critic mode.
-- **Explicit authority.** External, irreversible, financial, or sensitive actions require appropriate permission.
-- **Portable by design.** The UI, agent runtime, model providers, and storage implementation must remain replaceable behind stable KAIRO boundaries.
-
-## Initial architecture
+## KAIRO-owned layers
 
 ```text
-PC / phone / tablet
-        |
-        v
-+------------------+
-|   KAIRO Cockpit  |  responsive PWA
-+--------+---------+
-         |
-         v
-+------------------+
-|    KAIRO Core    |  domain logic and policy
-+--+-----------+---+
-   |           |
-   |           +-------------------+
-   v                               v
-OpenClaw runtime              KAIRO data
-agents / jobs / tools         Markdown + structured state
-   |                               |
-   +---------------+---------------+
-                   v
-              Model Router
-              /          \
-          OpenAI       Anthropic
-             (optional local provider later)
+KAIRO Web / Desktop / Mobile
+            |
+       KAIRO Core API
+            |
+   +--------+---------+
+   |                  |
+Policy + Domain    Intelligence
+   |                  |
+   +--------+---------+
+            |
+      Durable Workflows
+            |
+     Integration Adapters
+            |
+ Open-source engines / APIs
 ```
 
-OpenClaw is currently selected as the execution runtime, but KAIRO's domain model and durable data must not depend on an OpenClaw fork.
+KAIRO itself owns:
 
-## Repository boundaries
+- the Cockpit and design system;
+- the canonical domain model and graph semantics;
+- identity, permissions, approval and authority policy;
+- durable audit and provenance;
+- the relationship between projects, people, tasks, documents, conversations, agents, assets, finances and devices;
+- orchestration rules and stable adapter contracts;
+- the desktop Sidecar and local-device permission boundary.
 
-This repository contains **source code, architecture, templates, and versioned policy**.
+## Platform foundation
 
-It must **not** contain runtime-private data such as:
+The target foundation includes, from the start:
 
-- API keys or credentials;
-- the live personal `USER.md` profile;
-- the live knowledge vault;
-- OpenClaw runtime state or session databases;
-- private audio captures;
-- social-network tokens;
-- backups.
+- **PostgreSQL + pgvector** — authoritative operational/domain state and semantic indexes;
+- **Neo4j + Graphiti** — derived temporal knowledge graph;
+- **Valkey** — cache, locks and ephemeral coordination;
+- **NATS JetStream** — event bus;
+- **SeaweedFS** — S3-compatible object storage;
+- **Temporal** — durable workflows and crash-safe execution;
+- **LiteLLM** — provider/model gateway and routing boundary;
+- **PydanticAI** — KAIRO agent framework;
+- **Mem0** — derived long-term conversational memory;
+- **Docling** — document ingestion;
+- **Activepieces** — external automation/connectors;
+- **MCP** — common tool/plugin contract;
+- **Browser Use + Playwright** — web action and deterministic browser automation;
+- **OpenHands** — software-development agents;
+- **Ollama / llama.cpp / vLLM** — local inference tiers;
+- **Hocuspocus + Yjs** — realtime collaborative state;
+- **OpenBao** — secrets;
+- **Keycloak** — identity/SSO boundary;
+- **Langfuse + ClickHouse** — AI observability and evaluation;
+- **SearXNG** — private web metasearch;
+- **ntfy** — self-hosted notifications;
+- **LiveKit + local voice components** — realtime voice plane;
+- **rotki + CCXT + viem + optional Hummingbot** — crypto portfolio and execution boundary;
+- **Actual Budget** — personal finance adapter;
+- **Home Assistant** — home/device integration boundary;
+- **restic, gVisor, Headscale** — backup, sandboxing and private remote access.
 
-Those will live in encrypted/controlled runtime storage and be mounted into the application when deployed.
+Frontend engines include Dockview, shadcn/ui, TanStack, Lexical, Excalidraw, Schedule-X, Apache ECharts, MapLibre, React Flow, React Three Fiber, 3D force graph rendering, SVAR React Gantt and Yjs.
 
-## Documents
+See [`docs/component-matrix.md`](docs/component-matrix.md) for ownership and deployment mode.
 
-- [`docs/vision.md`](docs/vision.md) — product vision and requirements
-- [`docs/architecture.md`](docs/architecture.md) — current system boundaries
-- [`docs/domain-model.md`](docs/domain-model.md) — conceptual model behind the project graph / mindmap
-- [`docs/security-model.md`](docs/security-model.md) — authority, safety, secrets, and self-maintenance rules
-- [`docs/acceptance-tests-v0.md`](docs/acceptance-tests-v0.md) — what V0 must prove
-- [`docs/roadmap.md`](docs/roadmap.md) — staged implementation plan
-- [`docs/status.md`](docs/status.md) — implemented/live-proven/pending capability status
-- [`docs/decisions/`](docs/decisions/) — architecture decision records
+## Repository shape
 
-## OpenClaw workspace templates
+```text
+apps/
+  web/              KAIRO Cockpit
+  desktop/          Tauri Sidecar/Desktop shell
+services/
+  core/             canonical API, policy and domain
+  worker/           Temporal workers + AI execution
+  realtime/         Hocuspocus/Yjs collaboration
+packages/
+  protocol/         stable contracts/types/events
+  ui/               KAIRO design system
+  graph/            2D/3D graph views
+  gantt/            scheduling/Gantt UX
+config/
+  components.yaml   complete component registry
+infrastructure/
+  postgres/
+  litellm/
+  openbao/
+  livekit/
+  ...
+compose.yaml         integrated development topology
+```
 
-Versioned KAIRO defaults for OpenClaw live under [`config/openclaw/workspace-template/`](config/openclaw/workspace-template/).
+## Architectural rule
 
-The actual runtime workspace is created outside the Git repository. Personal memory and the live user profile are runtime data, not source code.
+**No specialist engine becomes KAIRO's system of record.** PostgreSQL and KAIRO-owned object storage hold canonical product state. Search indexes, vector indexes, Graphiti, Mem0, realtime documents and third-party tools are projections or adapters that can be rebuilt or replaced.
 
-## Near-term milestone
+The only exception is workflow execution state while a workflow is actively owned by Temporal; KAIRO stores its correlation, intent, policy, audit trail and resulting artefacts.
 
-Three foundational runtime properties have now been demonstrated live:
+## Security rule
 
-> From a KAIRO conversation, create a durable, structured idea inside a project and retrieve it later with its provenance/epistemic status intact.
+Technical capability is never equivalent to authority. Every external or sensitive action passes through the KAIRO policy/approval boundary. Private wallet keys and raw secrets never enter an LLM context.
 
-> Schedule an approved internal task, close the client, let the server finish the job, and recover the same queued work after a controlled Gateway restart.
+See [`docs/security-model.md`](docs/security-model.md).
 
-> Kill the Gateway abruptly while a KAIRO Job is already running, preserve the durable `running` state without fabricating an outcome, allow OpenClaw's interrupted-turn recovery to complete the harmless work, block a later retry from reopening the completed Job, and clean up the one-shot scheduler.
+## Implementation
 
-The next V0 work should build on that durable autonomy rather than expanding UI surface area: replay/idempotence guardrails, model/cost accounting and hard budget enforcement, Critic mode, and explicit approval-request handling remain ahead.
+The implementation plan is organized by large coherent platform blocks rather than dozens of micro-phases. See [`docs/implementation-plan.md`](docs/implementation-plan.md).
 
-See the V0 acceptance tests for the complete definition of success.
+Current branch status is tracked in [`docs/status.md`](docs/status.md).

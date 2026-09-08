@@ -1,0 +1,442 @@
+name: kairo
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [kairo]
+
+  neo4j:
+    image: neo4j:5.26-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER}/${NEO4J_PASSWORD}
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    volumes:
+      - neo4j_data:/data
+    networks: [kairo]
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - valkey_data:/data
+    networks: [kairo]
+
+  nats:
+    image: nats:2.11-alpine
+    restart: unless-stopped
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports:
+      - "127.0.0.1:4222:4222"
+      - "127.0.0.1:8222:8222"
+    volumes:
+      - nats_data:/data
+    networks: [kairo]
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    restart: unless-stopped
+    command: ["server", "-dir=/data", "-s3", "-s3.port=8333"]
+    ports:
+      - "127.0.0.1:9333:9333"
+      - "127.0.0.1:8333:8333"
+    volumes:
+      - seaweed_data:/data
+    networks: [kairo]
+
+  temporal:
+    image: temporalio/auto-setup:latest
+    restart: unless-stopped
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PWD: ${POSTGRES_PASSWORD}
+      POSTGRES_SEEDS: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:7233:7233"
+    networks: [kairo]
+
+  temporal-ui:
+    image: temporalio/ui:latest
+    restart: unless-stopped
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+    depends_on: [temporal]
+    ports:
+      - "127.0.0.1:8233:8080"
+    networks: [kairo]
+
+  openbao:
+    image: openbao/openbao:latest
+    restart: unless-stopped
+    cap_add: [IPC_LOCK]
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: ${OPENBAO_DEV_TOKEN}
+      BAO_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    command: ["server", "-dev"]
+    ports:
+      - "127.0.0.1:8200:8200"
+    networks: [kairo]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    restart: unless-stopped
+    command: ["start-dev"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8081:8080"
+    networks: [kairo]
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/litellm
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL}
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
+    volumes:
+      - ./infrastructure/litellm/config.yaml:/app/config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:4000:4000"
+    networks: [kairo]
+
+  activepieces:
+    image: ghcr.io/activepieces/activepieces:0.86.3
+    restart: unless-stopped
+    environment:
+      AP_CONTAINER_TYPE: WORKER_AND_APP
+      AP_DB_TYPE: POSTGRES
+      AP_POSTGRES_HOST: postgres
+      AP_POSTGRES_PORT: 5432
+      AP_POSTGRES_DATABASE: activepieces
+      AP_POSTGRES_USERNAME: ${POSTGRES_USER}
+      AP_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AP_REDIS_TYPE: STANDALONE
+      AP_REDIS_HOST: valkey
+      AP_REDIS_PORT: 6379
+      AP_FRONTEND_URL: http://localhost:8080
+      AP_EXECUTION_MODE: SANDBOX_CODE_ONLY
+      AP_ENCRYPTION_KEY: ${ACTIVEPIECES_ENCRYPTION_KEY}
+      AP_JWT_SECRET: ${ACTIVEPIECES_JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - activepieces_cache:/usr/src/app/cache
+    networks: [kairo]
+
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8082:8080"
+    volumes:
+      - searxng_data:/etc/searxng
+    networks: [kairo]
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks: [kairo]
+
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    restart: unless-stopped
+    command: ["serve"]
+    environment:
+      NTFY_BASE_URL: http://localhost:8083
+    ports:
+      - "127.0.0.1:8083:80"
+    volumes:
+      - ntfy_cache:/var/cache/ntfy
+      - ntfy_data:/var/lib/ntfy
+    networks: [kairo]
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.12
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    ports:
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+    networks: [kairo]
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    restart: unless-stopped
+    environment: &langfuse-env
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/langfuse
+      SALT: ${LANGFUSE_SALT}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
+      CLICKHOUSE_MIGRATION_URL: clickhouse://${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}@clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      REDIS_HOST: valkey
+      REDIS_PORT: 6379
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: kairo-langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://seaweedfs:8333
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: kairo
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: kairo-dev
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      TELEMETRY_ENABLED: "false"
+    depends_on: [postgres, valkey, clickhouse, seaweedfs]
+    networks: [kairo]
+
+  langfuse-web:
+    image: langfuse/langfuse:3
+    restart: unless-stopped
+    environment:
+      <<: *langfuse-env
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET}
+    depends_on: [langfuse-worker]
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [kairo]
+
+  livekit:
+    image: livekit/livekit-server:v1.13.1
+    restart: unless-stopped
+    command: ["--dev", "--bind", "0.0.0.0"]
+    ports:
+      - "127.0.0.1:7880:7880"
+      - "127.0.0.1:7881:7881"
+      - "7882:7882/udp"
+    networks: [kairo]
+
+  kairo-core:
+    build:
+      context: ./services/core
+    restart: unless-stopped
+    environment:
+      KAIRO_ENV: ${KAIRO_ENV}
+      KAIRO_COMPONENT_REGISTRY: /app/config/components.yaml
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      NATS_URL: nats://nats:4222
+      TEMPORAL_ADDRESS: temporal:7233
+      SEAWEED_S3_ENDPOINT: http://seaweedfs:8333
+      LITELLM_URL: http://litellm:4000
+      OPENBAO_ADDR: http://openbao:8200
+      KEYCLOAK_URL: http://keycloak:8080
+    volumes:
+      - ./config/components.yaml:/app/config/components.yaml:ro
+      - ./config/policies:/app/config/policies:ro
+    depends_on: [postgres, nats, temporal, seaweedfs, litellm, openbao, keycloak]
+    ports:
+      - "127.0.0.1:${KAIRO_API_PORT}:8000"
+    networks: [kairo]
+
+  kairo-worker:
+    build:
+      context: ./services/worker
+    restart: unless-stopped
+    environment:
+      KAIRO_ENV: ${KAIRO_ENV}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_TASK_QUEUE: kairo-default
+      NATS_URL: nats://nats:4222
+      LITELLM_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: ${NEO4J_USER}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      OLLAMA_BASE_URL: http://ollama:11434
+      SEARXNG_URL: http://searxng:8080
+      KAIRO_CORE_URL: http://kairo-core:8000
+    depends_on: [kairo-core, temporal, neo4j, ollama, searxng]
+    networks: [kairo]
+
+  kairo-realtime:
+    build:
+      context: ./services/realtime
+    restart: unless-stopped
+    environment:
+      PORT: 1234
+      KAIRO_CORE_URL: http://kairo-core:8000
+      NATS_URL: nats://nats:4222
+    depends_on: [kairo-core, nats]
+    ports:
+      - "127.0.0.1:${KAIRO_REALTIME_PORT}:1234"
+    networks: [kairo]
+
+  kairo-web:
+    build:
+      context: ./apps/web
+    restart: unless-stopped
+    environment:
+      VITE_KAIRO_API_URL: http://localhost:${KAIRO_API_PORT}
+      VITE_KAIRO_REALTIME_URL: ws://localhost:${KAIRO_REALTIME_PORT}
+    depends_on: [kairo-core, kairo-realtime]
+    ports:
+      - "127.0.0.1:${KAIRO_WEB_PORT}:5173"
+    networks: [kairo]
+
+  rotki:
+    image: rotki/rotki:latest
+    profiles: [finance]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8084:80"
+    volumes:
+      - rotki_data:/data
+      - rotki_logs:/logs
+    networks: [kairo]
+
+  actual-budget:
+    image: actualbudget/actual-server:latest
+    profiles: [finance]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5006:5006"
+    volumes:
+      - actual_data:/data
+    networks: [kairo]
+
+  hummingbot:
+    image: hummingbot/hummingbot:latest
+    profiles: [finance]
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+    volumes:
+      - hummingbot_conf:/home/hummingbot/conf
+      - hummingbot_logs:/home/hummingbot/logs
+      - hummingbot_data:/home/hummingbot/data
+    networks: [kairo]
+
+  home-assistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    profiles: [home]
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    volumes:
+      - homeassistant_config:/config
+      - /etc/localtime:/etc/localtime:ro
+
+  openhands:
+    image: docker.openhands.dev/openhands/openhands:1.6
+    profiles: [dev-agent]
+    restart: unless-stopped
+    environment:
+      AGENT_SERVER_IMAGE_REPOSITORY: ghcr.io/openhands/agent-server
+      AGENT_SERVER_IMAGE_TAG: 1.19.1-python
+      LOG_ALL_EVENTS: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - openhands_data:/.openhands
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - "127.0.0.1:3001:3000"
+    networks: [kairo]
+
+  vllm:
+    image: vllm/vllm-openai:latest
+    profiles: [gpu]
+    restart: unless-stopped
+    gpus: all
+    command: ["--model", "${VLLM_MODEL}"]
+    ports:
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+    networks: [kairo]
+
+  headscale:
+    image: headscale/headscale:latest
+    profiles: [remote]
+    restart: unless-stopped
+    command: ["serve"]
+    ports:
+      - "127.0.0.1:8085:8080"
+    volumes:
+      - headscale_data:/var/lib/headscale
+      - ./infrastructure/headscale:/etc/headscale:ro
+    networks: [kairo]
+
+networks:
+  kairo:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  neo4j_data:
+  valkey_data:
+  nats_data:
+  seaweed_data:
+  activepieces_cache:
+  searxng_data:
+  ollama_data:
+  ntfy_cache:
+  ntfy_data:
+  clickhouse_data:
+  clickhouse_logs:
+  rotki_data:
+  rotki_logs:
+  actual_data:
+  hummingbot_conf:
+  hummingbot_logs:
+  hummingbot_data:
+  homeassistant_config:
+  openhands_data:
+  huggingface_cache:
+  headscale_data:

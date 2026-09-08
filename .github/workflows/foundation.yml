@@ -1,0 +1,62 @@
+name: Foundation validation
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare development environment
+        run: cp .env.example .env
+
+      - name: Validate Compose topology
+        run: docker compose config >/dev/null
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install JS dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Typecheck protocol package
+        run: pnpm --filter @kairo/protocol typecheck
+
+      - name: Typecheck graph package
+        run: pnpm --filter @kairo/graph typecheck
+
+      - name: Typecheck Gantt package
+        run: pnpm --filter @kairo/gantt typecheck
+
+      - name: Typecheck UI package
+        run: pnpm --filter @kairo/ui typecheck
+
+      - name: Typecheck realtime service
+        run: pnpm --filter @kairo/realtime typecheck
+
+      - name: Typecheck KAIRO Web
+        run: pnpm --filter @kairo/web typecheck
+
+      - name: Build KAIRO Web
+        run: pnpm build:web
+
+      - name: Build realtime service
+        run: pnpm build:realtime
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Validate Python packages
+        run: |
+          uv build --package kairo-core
+          uv build --package kairo-worker
+
+      - name: Compile Python sources
+        run: python -m compileall services/core/src services/worker/src

@@ -1,169 +1,91 @@
-# Product vision
+# KAIRO vision
 
-## Purpose
+## Product definition
 
-KAIRO exists to reduce cognitive load across a multi-project life without flattening everything into a generic task manager.
+KAIRO is a self-hosted Personal AI Operating System that gives one user a persistent, inspectable and increasingly autonomous intelligence layer across their work and personal systems.
 
-The system should help the user move from:
+The product should feel like one coherent application even though it delegates specialized capabilities to multiple open-source engines.
 
-- ideas scattered across chats, notes, files, and memory;
-- projects that compete for attention without a common portfolio view;
-- repeated context rebuilding;
-- AI assistants that only work while a conversation is open;
-- model-specific silos;
+## Core promise
 
-toward:
+KAIRO should be able to answer and act on questions that cross application boundaries, for example:
 
-- a persistent graph of projects, concepts, goals, decisions, tasks, notes, evidence, and relationships;
-- an assistant that can capture spoken thoughts and turn them into durable structure;
-- approved autonomous work that continues while the user is offline;
-- an inspectable, human-readable memory;
-- deliberate contradiction and critique instead of automatic agreement;
-- model routing based on cost, task fit, and risk rather than brand loyalty.
+- What is blocking ZTIKIX right now?
+- Re-plan the launch after this dependency slipped by a week.
+- Show this project's knowledge structure as a 3D map and turn these nodes into tasks.
+- Prepare a research brief, attach the evidence, create the resulting decisions and update the Gantt.
+- Summarize my crypto exposure and prepare a transaction proposal without exposing a signing key to an LLM.
+- Work on this repository, run tests, produce a diff and ask for approval before deployment.
+- Tell me what needs my attention today across projects, messages, calendar, finances and autonomous jobs.
 
-## Primary user needs
+## Product spaces
 
-KAIRO must eventually support all of the following, while V0 focuses on the foundations that make them possible.
+The Cockpit is expected to converge on these integrated spaces:
 
-### 1. Multi-level portfolio map
+- Command Center / chat / voice;
+- Today / brief / attention queue;
+- Projects and portfolio;
+- tasks, Kanban, milestones and simple-but-powerful Gantt;
+- Knowledge, notes, documents and universal search;
+- 2D mindmap, realtime 3D mindmap and knowledge graph;
+- Calendar and time planning;
+- People / contacts / relationship context;
+- Inbox / notifications / approvals;
+- Research;
+- Automations;
+- Agents and skills;
+- Computer / browser / local-device actions;
+- Developer workspace;
+- Crypto;
+- personal finance;
+- home and devices;
+- analytics and dashboards;
+- maps and places;
+- model/cost control;
+- permissions, audit, backups and system health.
 
-The user needs a visual map that can move from macro to micro:
+## Product principles
 
-```text
-Portfolio
-  -> Project
-    -> Objective / Workstream
-      -> Milestone
-        -> Task / Idea / Decision / Knowledge
-```
+### One product, replaceable engines
+The user sees KAIRO, not a collection of embedded admin UIs. Specialist engines sit behind KAIRO-owned adapters.
 
-The map is a **view over KAIRO's domain graph**, not an independent drawing that must be maintained separately.
+### Complete dependency graph early
+Core infrastructure is selected and represented from the beginning so data ownership, security boundaries, identity, events and service dependencies are explicit before feature work expands.
 
-A node may belong to more than one context. For example, a note can be linked to both `ZTIKIX` and `Social strategy`, and a research source can support several decisions.
+### Canonical state stays under KAIRO control
+Projects, tasks, people, approvals, audit records, agent intents, financial proposals and product relationships cannot be trapped inside a workflow engine, chat history or third-party service.
 
-### 2. Voice capture
+### Derived systems are rebuildable
+Embeddings, memory indexes, knowledge graphs, caches and search indexes are projections. Losing one must not destroy canonical KAIRO state.
 
-From a phone or computer, the user should be able to speak naturally:
+### Autonomy is durable
+Approved work survives closed clients, process restarts and transient failures. Temporal is the durable execution substrate; KAIRO policy remains authoritative over what that work may do.
 
-- "note this idea for ZTIKIX";
-- "remind me to revisit this after the prototype";
-- "research this tonight and summarize it tomorrow";
-- "criticize this idea".
+### Authority is explicit
+External side effects and sensitive actions are gated by policy and approvals. Crypto signing is isolated from AI execution.
 
-KAIRO must transcribe, classify, preserve the original meaning, and ask only when ambiguity changes the resulting action.
+### Intelligence is model-agnostic
+Cloud and local models are providers, not KAIRO's identity or memory. LiteLLM provides a stable routing boundary.
 
-### 3. Durable, readable memory
+### No-LLM first
+Deterministic code should solve deterministic problems. When an LLM is needed, KAIRO selects the least-cost model that meets quality, latency and risk requirements.
 
-Important knowledge must be readable by a human without KAIRO.
+### Epistemic honesty
+Facts, hypotheses, deductions, opinions and unknowns remain distinguishable with provenance and verification dates.
 
-KAIRO therefore uses Markdown as the portable representation for durable notes, decisions, research, and project summaries while allowing structured indexes/databases for machine use.
+### Inspectability
+Every autonomous action can be traced to its trigger, policy, tool usage, model usage, cost, approvals and resulting artefacts.
 
-The memory model must distinguish at least:
+### Portable interaction
+Web, desktop and later mobile clients use stable KAIRO APIs. A local Sidecar exposes device capabilities without making the server omnipotent over the user's machine.
 
-- fact;
-- hypothesis;
-- deduction;
-- opinion;
-- idea;
-- decision;
-- unknown / insufficient evidence.
+## Non-goals
 
-Provenance and confidence matter. A tentative remark must never silently become a confirmed decision.
+KAIRO should not:
 
-### 4. Autonomous background work
-
-KAIRO is not successful if it stops when the browser closes.
-
-Approved work must be able to continue server-side, with:
-
-- durable jobs;
-- deadlines;
-- owner (`user`, `kairo`, or an agent);
-- budget limits;
-- authority limits;
-- status and failure history;
-- resulting artefacts;
-- a morning brief / notification surface.
-
-### 5. Critic mode and constructive resistance
-
-KAIRO should not optimize for agreement.
-
-Normal mode should already surface important contradictions. Explicit `Critic` mode should actively examine:
-
-1. the actual claim or proposal;
-2. assumptions required for it to work;
-3. evidence for and against;
-4. failure modes;
-5. opportunity cost;
-6. simpler alternatives;
-7. missing information;
-8. what would falsify the thesis;
-9. a recommendation and confidence level.
-
-Encouragement should be evidence-based (progress, completed milestones, consistency), not generic praise.
-
-### 6. Multi-project operation
-
-KAIRO must handle several active projects simultaneously without mixing their identities, brand rules, decisions, or knowledge.
-
-Initial known use cases include projects such as ZTIKIX and other creative/business/software initiatives. Project-specific agents or skills may be introduced when they have a clear operational purpose.
-
-### 7. Social publishing
-
-Later phases must support preparing, scheduling, approving, publishing, and analysing content across supported social platforms.
-
-The architecture must keep publication permissions separate from drafting permissions. A research or writing agent must not automatically gain authority to publish externally.
-
-### 8. Crypto intelligence
-
-Later phases should support market-data ingestion (including CoinMarketCap where appropriate), watchlists, thesis tracking, alerts, and structured critique of investment theses.
-
-V0 explicitly excludes autonomous trading and wallet signing.
-
-### 9. Self-diagnosis
-
-KAIRO should be able to inspect its own operational health and explain:
-
-- service failures;
-- expired connectors;
-- failed jobs;
-- storage / memory pressure;
-- backup failures;
-- excessive model costs;
-- available updates;
-- degraded capabilities.
-
-Self-diagnosis is not permission for uncontrolled self-modification.
-
-### 10. Cross-device continuity
-
-The same server-side state must be available from desktop and mobile clients regardless of OS. The target client is a responsive PWA, with voice capture optimized for mobile.
-
-## Non-goals for V0
-
-V0 will **not** attempt to provide:
-
-- autonomous crypto trading;
-- broad unsupervised account control;
-- a local LLM in production;
-- every social-network integration;
-- home automation;
-- a finished sci-fi HUD;
-- a fully autonomous self-updating system;
-- a general-purpose multi-user SaaS product.
-
-These can be revisited only after the core architecture proves useful in daily operation.
-
-## Definition of value
-
-A feature belongs in KAIRO only if it does at least one of the following:
-
-- reduces cognitive load;
-- saves meaningful time;
-- preserves valuable context;
-- improves decision quality;
-- enables safe autonomous work;
-- gives the user a capability they did not already have.
-
-A feature that merely makes KAIRO look more impressive is not sufficient justification for implementation.
+- rebuild generic databases, workflow engines, vector search, browser automation or home automation from scratch;
+- expose another project's admin UI as the primary user experience;
+- let agents bypass approval policy because a tool happens to be reachable;
+- store wallet seeds/private keys in prompts, chat logs, memory systems or source control;
+- couple canonical state to a single AI provider or agent framework;
+- silently self-update core policy or production code.

@@ -1,0 +1,23 @@
+version: 1
+default_effect: deny
+authority_levels:
+  A0:
+    description: read and observe approved sources
+  A1:
+    description: reversible writes to KAIRO-owned state
+  A2:
+    description: prepare external action without executing side effect
+  A3:
+    description: narrow pre-authorized external action
+  A4:
+    description: sensitive external action requiring explicit approval by default
+  A5:
+    description: critical, irreversible or financial action requiring strong approval by default
+rules:
+  external_side_effect_requires_policy_decision: true
+  secret_values_may_enter_llm_context: false
+  wallet_private_keys_may_enter_worker_environment: false
+  live_financial_execution_enabled: false
+  autonomous_core_self_update_enabled: false
+  realtime_state_is_canonical: false
+  derived_memory_is_canonical: false

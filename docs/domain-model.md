@@ -1,176 +1,168 @@
-# Domain model
+# KAIRO canonical domain model
 
-KAIRO's mindmap is a view over a domain graph. The graph must support both hierarchical navigation and cross-links between concepts.
+KAIRO's domain graph is the common language between chat, projects, Gantt, mindmaps, knowledge, automations, agents, finance and devices.
 
-## Core entity types
+PostgreSQL stores the canonical entities and relationships. Graph views, Graphiti context, vector indexes and UI hierarchies are projections over that state.
 
-### Project
-A durable body of work with its own goals, context, decisions, assets, and workstreams.
+## Universal identity
 
-Minimum fields:
-- `id`
-- `name`
-- `status`
-- `summary`
-- `created_at`
-- `updated_at`
-- `parent_id` (optional)
+Every durable entity has:
 
-Suggested statuses:
-- inbox
-- incubation
-- active
-- waiting
-- paused
-- completed
-- archived
+- stable UUID/ULID-style identifier;
+- `type`;
+- `created_at` / `updated_at`;
+- optional lifecycle state;
+- actor/provenance metadata;
+- optional project/portfolio scope;
+- soft-delete/archive semantics where appropriate.
 
-### Objective
-A desired outcome attached to a project or portfolio.
+## Work and planning
 
-### Workstream
-A coherent stream of work inside a project.
+### Portfolio / Project / Workstream
+Organize durable bodies of work without forcing every relationship into a folder hierarchy.
 
-### Milestone
-A meaningful checkpoint with a target state/date.
+### Objective / Milestone / Task
+Tasks support owner, status, priority, estimate, deadline, dependencies, schedule, authority ceiling, budget, automation links and resulting artefacts.
 
-### Task
-An actionable unit of work.
+### Plan / Schedule
+A plan is a versioned scheduling object. Gantt is one view of it, not a separate data silo.
 
-Important task fields:
-- owner: `user | kairo | agent:<id>`
-- status: `todo | queued | running | blocked | waiting_user | waiting_external | completed | abandoned | failed`
-- deadline (optional)
-- budget (optional)
-- authority ceiling
-- dependencies
-- resulting artefacts
+Dependencies are first-class edges so rescheduling and critical-path calculations can be implemented in KAIRO rather than being trapped inside a Gantt widget.
+
+## Knowledge and thinking
 
 ### Idea
-A proposal that is not yet a decision.
-
-An idea can have:
-- status (`captured`, `exploring`, `incubation`, `promoted`, `rejected`)
-- rationale
-- critic report
-- linked research
-- review date
+A proposal that is explicitly not yet a decision.
 
 ### Decision
-A choice that has actually been made.
+A committed choice with rationale, alternatives, evidence, consequences and supersession links.
 
-A decision records:
-- decision statement;
-- date;
-- rationale;
-- alternatives considered;
-- consequences;
-- evidence/sources;
-- confidence where relevant;
-- superseded-by relationship.
+### Note / Document / Source / Asset
+Human-authored or imported content and its binary artefacts.
 
-### Note
-Free-form human-readable knowledge that does not yet require a more specific type.
+### KnowledgeClaim
+A claim with epistemic status:
 
-### Knowledge claim
-A claim with epistemic metadata.
+- `fact`;
+- `hypothesis`;
+- `deduction`;
+- `opinion`;
+- `unknown`.
 
-Minimum epistemic status:
-- `fact`
-- `hypothesis`
-- `deduction`
-- `opinion`
-- `unknown`
+Claims support provenance, confidence, verification date and sources.
 
-A claim should support provenance, confidence, last verification date, and source links where applicable.
+### GraphNode / Relationship
+Domain entities can appear as graph nodes without duplicating their identity. Relationships are typed, directed/undirected as required and carry temporal/provenance metadata.
 
-### Source
-A document, URL, dataset, conversation excerpt, or other evidence object.
+The 2D mindmap, 3D mindmap and knowledge graph therefore visualize the same KAIRO world model through different projections.
 
-### Asset
-A file such as an image, video, audio item, PDF, CSV, design source, or generated artefact.
+## People and communication
 
-### Metric
-A time-series or point-in-time measurement associated with a project/entity.
+### Person / Organization
+Contacts, collaborators, companies and relationship context.
 
-### Automation / Standing order
-A repeatable rule that can produce jobs.
+### Conversation / Message / Thread
+Unified communication records with source adapter metadata. External systems remain the authoritative delivery service; KAIRO stores normalized references and user-owned context.
 
-### Job
-A specific execution instance, possibly autonomous.
+### CalendarEvent
+Time-bound event linked to people, projects, tasks, locations and source calendars.
+
+### Notification / AttentionItem
+A normalized event that may require user attention. Attention items can be generated from emails, approvals, workflows, finance alerts or system health.
+
+## AI and automation
 
 ### Agent
-A runtime worker identity or specialization. An agent is not automatically a domain owner; it acts under task and permission policy.
+Named specialization with model policy, skill/tool set, memory scope and authority ceiling.
 
-## Relationships
+### Skill / Tool / Integration
+Capabilities available through MCP, native adapters or Activepieces.
 
-Relationships are first-class. Examples:
+### Automation
+A standing rule/trigger definition owned by KAIRO even when execution is delegated to Activepieces or Temporal.
 
-- `PROJECT contains WORKSTREAM`
-- `WORKSTREAM targets OBJECTIVE`
-- `TASK advances MILESTONE`
-- `IDEA belongs_to PROJECT`
-- `IDEA related_to IDEA`
-- `DECISION resolves IDEA`
-- `DECISION supersedes DECISION`
-- `KNOWLEDGE_CLAIM supported_by SOURCE`
-- `TASK depends_on TASK`
-- `JOB executes TASK`
-- `JOB produces ASSET`
-- `METRIC measures PROJECT`
+### WorkflowRun / ActivityRun
+User-visible durable execution correlation. Temporal owns low-level runtime state; KAIRO stores purpose, policy, cost, approvals, status projection and result references.
 
-KAIRO should never force every relationship into a folder hierarchy.
+### ApprovalRequest
+Captures the action being proposed, actor, required authority, risk summary, exact side effect, expiry and approval/rejection evidence.
 
-## Mindmap levels
+### ModelRequest / UsageRecord
+Tracks logical model route, provider/model chosen, tokens, latency, cost, cache, quality/evaluation and originating workflow/entity.
 
-The default visual drill-down should roughly follow:
+## Devices and environment
+
+### Device
+Registered desktop, phone, server, browser session or trusted hardware endpoint.
+
+### DeviceCapabilityGrant
+User-approved capability such as microphone, clipboard, selected directories, screenshots or command execution.
+
+### HomeEntity
+Normalized reference to a Home Assistant entity/device/automation without copying Home Assistant's entire state model into KAIRO.
+
+### Location / Place
+Reusable place linked to calendar events, people, projects and maps.
+
+## Finance and crypto
+
+### FinancialAccount
+Fiat/bank/budget/investment account reference.
+
+### Wallet
+Blockchain wallet/address metadata. Raw private keys and seed phrases are never KAIRO domain fields.
+
+### Holding / Position
+Normalized asset quantity/exposure with source and valuation metadata.
+
+### LedgerEntry / TransactionReference
+Imported financial or blockchain transaction reference.
+
+### TransactionProposal
+An unsigned proposed action containing exact chain/exchange/account, amount, destination, fee/price constraints, simulation result, risk assessment, policy decision and expiry.
+
+### ExecutionAuthorization
+Explicit evidence that a financial action may proceed. The signer remains isolated from the LLM/agent runtime.
+
+## Audit and security
+
+### Policy / PermissionGrant
+Defines allowed capabilities and ceilings by user, agent, device, integration and project scope.
+
+### AuditEvent
+Append-oriented record of security-relevant or autonomous actions.
+
+### SecretReference
+Opaque reference to OpenBao; secret material is never stored in ordinary domain rows.
+
+## Relationship examples
 
 ```text
-Portfolio
- -> Domain / Project
-   -> Objective / Workstream
-     -> Milestone
-       -> Task / Idea / Decision / Knowledge / Metric
+PROJECT contains TASK
+TASK depends_on TASK
+TASK scheduled_in PLAN
+TASK assigned_to PERSON|AGENT
+DECISION resolves IDEA
+KNOWLEDGE_CLAIM supported_by SOURCE
+CONVERSATION concerns PROJECT
+CALENDAR_EVENT involves PERSON
+WORKFLOW_RUN executes TASK
+WORKFLOW_RUN produces ASSET
+AGENT uses SKILL
+DEVICE has_capability DEVICE_CAPABILITY_GRANT
+WALLET contains HOLDING
+TRANSACTION_PROPOSAL affects WALLET
+APPROVAL_REQUEST authorizes TRANSACTION_PROPOSAL
+HOME_ENTITY related_to LOCATION
 ```
 
-This is a presentation convention, not a storage limitation.
+## Data invariants
 
-## Markdown representation
-
-Important durable entities should be exportable as Markdown with stable front matter.
-
-Example:
-
-```markdown
----
-id: idea_0001
-type: idea
-project: ztikix
-status: incubation
-created: 2026-09-07
-epistemic_status: hypothesis
-confidence: 0.65
----
-
-# Rage Bait reaction
-
-## Idea
-Create a ZTIKIX reaction around the concept of rage bait.
-
-## Why
-...
-
-## Links
-- [[ZTIKIX]]
-- [[Social strategy]]
-```
-
-The exact schema will evolve; stable IDs and explicit types are the important V0 constraints.
-
-## Invariants
-
-- An **idea is not a decision**.
-- A **deduction is not a fact**.
-- A task created for KAIRO must carry an authority ceiling before execution.
-- Important generated conclusions must retain provenance to the job and sources that produced them.
-- Archiving an entity must not silently delete history.
+- an idea is not a decision;
+- a deduction is not a fact;
+- Graphiti/Mem0/vector indexes are never the only copy of canonical facts or decisions;
+- every external side effect has an idempotency/correlation key where technically possible;
+- autonomous tasks carry an authority ceiling before execution;
+- important generated conclusions retain provenance to models, tools and sources;
+- financial signing material never enters an LLM context;
+- archiving does not silently erase audit history.

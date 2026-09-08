@@ -1,186 +1,132 @@
-# Security and authority model
+# KAIRO security and authority model
 
-KAIRO is expected to act autonomously, so authority must be explicit before capability expands.
+KAIRO is designed to observe, reason and eventually act across sensitive personal systems. Capability therefore remains separate from authority at every layer.
 
 ## Authority levels
 
 ### A0 — Read / observe
-Allowed without confirmation when the integration itself is approved.
+Approved integrations may be read without per-action confirmation.
 
-Examples:
-- read project data;
-- search the web;
-- inspect system health;
-- read supported market data;
-- inspect analytics.
+Examples: read project data, inspect system health, search public information, read market data, inspect analytics.
 
-### A1 — Internal write
-May modify KAIRO-owned internal state.
+### A1 — Internal KAIRO write
+May change KAIRO-owned reversible state.
 
-Examples:
-- create notes;
-- classify an idea;
-- update task status;
-- write research reports;
-- update the project graph.
+Examples: create notes, update task status, add graph relationships, write research reports.
 
-### A2 — Prepare external action
-May prepare but not execute an external side effect.
+### A2 — Prepare an external action
+May construct and validate an action but cannot cause the external side effect.
 
-Examples:
-- draft an email;
-- draft a social post;
-- prepare a server change plan;
-- prepare a transaction proposal.
+Examples: draft an email, prepare a deployment plan, build an unsigned transaction, simulate a trade.
 
-### A3 — Pre-authorized external action
-May execute only within a narrowly pre-approved standing order.
+### A3 — Narrow standing external authority
+May execute only a precisely pre-authorized, reversible/low-consequence standing order with scope, destination, limits and audit.
 
-Examples:
-- publish an already approved item at its scheduled time;
-- send a routine notification to the user;
-- perform a known-safe integration refresh.
-
-A3 actions require auditable scope, destination, and rollback/mitigation where possible.
+Examples: send KAIRO notifications, perform known-safe refreshes, publish content that was separately approved and scheduled.
 
 ### A4 — Sensitive external action
-Requires explicit user confirmation at execution time unless a future policy states otherwise.
+Requires explicit approval at execution time unless a future dedicated policy narrows the case safely.
 
-Examples:
-- send a consequential email;
-- make a public statement not previously approved;
-- modify production infrastructure;
-- change authentication or permissions;
-- install/update core software.
+Examples: consequential communication, production infrastructure changes, authentication changes, public publication that was not pre-approved.
 
 ### A5 — Critical / irreversible / financial
-Always requires strong explicit confirmation in V0/V1.
+Strong explicit confirmation is required by default.
 
-Examples:
-- financial transactions;
-- wallet signing;
-- destructive deletion without recoverable backup;
-- irreversible account actions;
-- legal/contractual commitments.
+Examples: wallet signing, live exchange trades, transfers, destructive deletion without recoverable backup, legal commitments.
 
-## Default-deny rule
+Live autonomous finance remains disabled until a separate security review/ADR explicitly defines bounded standing authority.
 
-A tool's technical availability does not imply permission to use it.
+## Effective permission
 
-A job must not exceed the lowest of:
+A request may use only the intersection of:
 
-1. the user's global authority policy;
-2. the integration's granted scope;
-3. the task-specific authority ceiling;
-4. the agent's configured policy.
+1. user's global policy;
+2. actor/agent policy;
+3. project/workspace policy;
+4. device capability grants;
+5. integration OAuth/API scope;
+6. workflow/task authority ceiling;
+7. environment restrictions;
+8. current approval evidence.
 
-## Autonomous-job contract
+Default is deny.
 
-Every autonomous job should carry:
+## Policy decision before execution
 
-- purpose;
-- project/task ID;
-- allowed tools;
-- authority ceiling;
-- optional API budget;
-- optional deadline;
-- expected artefact/result;
-- failure behavior;
-- notification/approval behavior.
+Every side-effecting Temporal activity must receive a KAIRO policy decision or a verifiable approval token/capability scoped to that exact activity. A NATS event, model output or tool availability is never sufficient authorization.
 
 ## Secrets
 
-Never commit live secrets to Git, even in a private repository.
+OpenBao is the source for service/integration secret material.
 
-Keep outside source control:
+Rules:
 
-- API keys;
-- OAuth refresh/access tokens;
-- passwords;
-- private keys;
-- wallet secrets;
-- production `.env` files;
-- OpenClaw state databases;
-- live personal memory/profile data.
+- Git contains templates only;
+- PostgreSQL stores opaque secret references, not secret values;
+- LLM prompts receive the minimum derived information required for reasoning;
+- tools that require secrets obtain them inside the execution boundary, not through the model context;
+- credentials are separated by environment/integration and rotated independently;
+- audit logs redact secret values.
 
-Use least-privilege credentials and separate credentials by integration/environment where practical.
+## Crypto signing boundary
 
-## Personal data
+KAIRO can read portfolio data, analyze risk, prepare and simulate transactions, and request approval.
 
-The live `USER.md`, `MEMORY.md`, daily memory, private vault, and raw voice captures are runtime data.
+Private keys/seed phrases must never be accessible to PydanticAI, LiteLLM, Mem0, Graphiti, Langfuse, chat history or ordinary application logs.
 
-Version-control only **templates and schemas**. Do not commit the user's live personal profile simply because the repository is private.
-
-## Voice data
-
-Default desired policy for future voice capture:
-
-1. record only after explicit user action / approved wake mechanism;
-2. upload over encrypted transport;
-3. transcribe;
-4. confirm persistence target when ambiguity matters;
-5. delete raw audio after successful transcription unless retention is explicitly requested.
-
-## Self-diagnosis vs self-modification
-
-KAIRO may inspect its own health, identify likely problems, and recommend changes.
-
-It must not silently:
-
-- update its own core runtime;
-- change authority policy;
-- rotate authentication configuration;
-- rewrite foundational identity/policy files;
-- deploy unreviewed code to production.
-
-Any future self-change workflow must produce a diff/plan, backup state, test results, and a user approval point.
-
-## Updates
-
-Core updates should follow:
+Preferred execution flow:
 
 ```text
-update available
- -> inspect changelog / compatibility
- -> backup verified
- -> test in non-production or controlled upgrade
- -> user approval where required
- -> apply
- -> health checks
- -> rollback if needed
+Agent analysis
+ -> TransactionProposal
+ -> deterministic validation/simulation
+ -> KAIRO policy decision
+ -> explicit user approval
+ -> isolated signer / hardware wallet / user wallet
+ -> broadcast adapter
+ -> immutable audit record
 ```
 
-## External publication
+The signer exposes a narrow signing API or user interaction, not raw key export.
 
-Drafting and publishing are separate capabilities.
+## Local-device boundary
 
-A content-generation agent may have A2 but not A3/A4. Social publishing should use platform-specific scopes and an approval queue.
+The Tauri Sidecar is a separate trust boundary. Server authorization does not automatically grant microphone, clipboard, screenshot, filesystem or shell access on a registered device.
 
-## Crypto
+Local capability grants are explicit, revocable and auditable.
 
-V0/V1 crypto capability is analytical only:
+## Browser/code execution
 
-- market data;
-- watchlists;
-- thesis tracking;
-- alerts;
-- critique;
-- scenario analysis.
+Untrusted or agent-generated code should run in isolated containers. Production deployment should use gVisor or an equivalent strengthened sandbox where supported.
 
-Autonomous trading, wallet signing, or custody are explicitly out of scope.
+Browser sessions use dedicated profiles/credentials and least privilege. Playwright deterministic flows are preferred over free-form AI browsing for sensitive actions.
 
-## Auditability
+## Identity
 
-Sensitive and autonomous operations should record:
+Keycloak provides authentication/SSO. KAIRO remains single-user initially but uses proper subject/device identities from the beginning so later multi-user/team scenarios do not require replacing the authorization model.
 
-- actor/agent;
+## Audit
+
+Security/autonomy events record:
+
+- actor and device;
 - request/trigger;
-- timestamp;
-- permission level;
-- tools invoked;
-- external destination;
-- model/provider where relevant;
-- cost;
-- result;
-- approval record;
-- failure/retry information.
+- domain entity/workflow correlation;
+- policy decision and authority level;
+- tools/integrations invoked;
+- model/provider/cost where relevant;
+- external destination/side effect;
+- approval evidence;
+- idempotency key;
+- result/error/retry;
+- artefacts produced.
+
+Langfuse traces AI behavior, but the KAIRO audit log remains the security source of truth.
+
+## Backup and recovery
+
+restic performs encrypted off-host backups of canonical databases/config/object data according to a tested restore procedure. Backups must be verified before enabling higher authority levels.
+
+## Self-modification
+
+KAIRO may diagnose itself and prepare code/config changes. It may not silently alter core policy, authentication, secrets, production infrastructure or deploy unreviewed code. Self-change flows require a diff, tests, backup/rollback plan and approval.
