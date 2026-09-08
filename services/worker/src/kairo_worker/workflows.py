@@ -11,6 +11,7 @@ with workflow.unsafe.imports_passed_through():
     from .memory_projection import perform_memory_projection
     from .news_activity import perform_news_brief
     from .policy_activities import check_policy_gate
+    from .research_agent import perform_autonomous_research
     from .semantic_router import perform_semantic_route
     from .tool_runtime import fail_tool_invocation, perform_tool_invocation
 
@@ -118,6 +119,13 @@ class TaskExecutionWorkflow:
                     work_payload,
                     start_to_close_timeout=timedelta(seconds=90),
                     heartbeat_timeout=timedelta(seconds=60),
+                    retry_policy=ACTIVITY_RETRY,
+                )
+            elif capability == "research.autonomous":
+                result = await workflow.execute_activity(
+                    perform_autonomous_research,
+                    work_payload,
+                    start_to_close_timeout=timedelta(minutes=10),
                     retry_policy=ACTIVITY_RETRY,
                 )
             elif capability == "memory.project":
