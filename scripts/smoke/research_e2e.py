@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import time
@@ -11,6 +12,8 @@ import urllib.parse
 import urllib.request
 from decimal import Decimal
 from typing import Any
+
+from mcp import Client
 
 CORE = os.getenv("KAIRO_E2E_CORE", "http://127.0.0.1:8000")
 MODEL_FIXTURE = os.getenv("KAIRO_E2E_MODEL", "http://127.0.0.1:4000")
@@ -80,6 +83,30 @@ def wait_task(task_id: str, *, timeout_seconds: float = 180.0) -> dict[str, Any]
     raise TimeoutError(f"Research task did not finish: {last}")
 
 
+async def live_fixture_catalog_item() -> dict[str, Any]:
+    async with Client(MCP_FIXTURE + "/mcp") as client:
+        listing = await client.list_tools()
+    matches = [tool for tool in listing.tools if tool.name == "company_facts"]
+    assert len(matches) == 1, listing
+    dumped = matches[0].model_dump(mode="json", by_alias=True)
+    input_schema = dumped.get("inputSchema")
+    if input_schema is None:
+        input_schema = dumped.get("input_schema")
+    output_schema = dumped.get("outputSchema")
+    if output_schema is None and "output_schema" in dumped:
+        output_schema = dumped.get("output_schema")
+    assert isinstance(input_schema, dict), dumped
+    assert output_schema is None or isinstance(output_schema, dict), dumped
+    return {
+        "name": "company_facts",
+        "title": "Company facts",
+        "description": "Read deterministic company facts without side effects.",
+        "input_schema": input_schema,
+        "output_schema": output_schema,
+        "annotations": {"readOnlyHint": True, "idempotentHint": True},
+    }
+
+
 def main() -> None:
     wait_json(CORE + "/health/ready")
     wait_json(MODEL_FIXTURE + "/health")
@@ -105,37 +132,12 @@ def main() -> None:
         },
     )
 
+    live_tool = asyncio.run(live_fixture_catalog_item())
     _, catalog = json_request(
         "POST",
         f"/internal/v1/tool-servers/{server['id']}/catalog",
         headers=INTERNAL,
-        payload={
-            "tools": [
-                {
-                    "name": "company_facts",
-                    "title": "Company facts",
-                    "description": "Read deterministic company facts without side effects.",
-                    "input_schema": {
-                        "type": "object",
-                        "properties": {"company": {"type": "string"}},
-                        "required": ["company"],
-                        "additionalProperties": False,
-                    },
-                    "output_schema": {
-                        "type": "object",
-                        "properties": {
-                            "company": {"type": "string"},
-                            "revenue_eur_m": {"type": "number"},
-                            "employees": {"type": "integer"},
-                            "founded": {"type": "integer"},
-                            "source": {"type": "string"},
-                        },
-                        "required": ["company", "revenue_eur_m", "employees", "founded", "source"],
-                    },
-                    "annotations": {"readOnlyHint": True, "idempotentHint": True},
-                }
-            ]
-        },
+        payload={"tools": [live_tool]},
     )
     assert len(catalog) == 1, catalog
     tool = catalog[0]
@@ -143,6 +145,7 @@ def main() -> None:
     assert tool["enabled"] is False, tool
     assert tool["risk_class"] == "read", tool
     assert tool["authority_level"] == 1, tool
+    assert len(tool["schema_hash"]) == 64, tool
 
     encoded_key = urllib.parse.quote("fixture.company_facts", safe="")
     _, enabled = json_request(
@@ -225,9 +228,9 @@ def main() -> None:
     assert all(value and value != "missing-call-id" for value in stats["call_ids"]), stats
 
     print(
-        "PASS: autonomous Research planned one read-only MCP child task, executed it through Temporal, "
-        "synthesized a provenance-checked report, exposed its canonical public read model, persisted one "
-        "Artifact and accounted exactly two distinct model-call slots"
+        "PASS: autonomous Research synchronized the live MCP schema, planned one read-only child Task, "
+        "revalidated the same contract before execution, synthesized a provenance-checked report, exposed "
+        "its public read model and accounted exactly two distinct model-call slots"
     )
 
 
