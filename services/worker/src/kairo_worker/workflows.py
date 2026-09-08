@@ -12,7 +12,7 @@ with workflow.unsafe.imports_passed_through():
     from .news_activity import perform_news_brief
     from .policy_activities import check_policy_gate
     from .semantic_router import perform_semantic_route
-    from .tool_runtime import perform_tool_invocation
+    from .tool_runtime import fail_tool_invocation, perform_tool_invocation
 
 ACTIVITY_RETRY = RetryPolicy(
     initial_interval=timedelta(seconds=1),
@@ -160,6 +160,13 @@ class TaskExecutionWorkflow:
             )
             return completion
         except Exception as exc:
+            if capability == "tool.invoke":
+                await workflow.execute_activity(
+                    fail_tool_invocation,
+                    {"task_input": task_input, "error": str(exc)},
+                    start_to_close_timeout=timedelta(seconds=30),
+                    retry_policy=ACTIVITY_RETRY,
+                )
             await workflow.execute_activity(
                 fail_execution,
                 {"workflow_id": workflow_id, "error": str(exc)},
