@@ -86,8 +86,21 @@ class ArtifactRead(BaseModel):
     created_at: datetime
 
 
+class AssetRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    project_id: uuid.UUID | None
+    bucket: str
+    object_key: str
+    mime_type: str | None
+    size_bytes: int | None
+    sha256: str | None
+    metadata_json: dict[str, Any]
+    created_at: datetime
+
+
 class DeviceRegistrationCreate(BaseModel):
-    keycloak_subject: str = Field(min_length=1, max_length=240)
     device_key: str = Field(min_length=1, max_length=240)
     name: str = Field(min_length=1, max_length=240)
     platform: str = Field(min_length=1, max_length=80)
@@ -118,7 +131,11 @@ class DeviceRegistrationRead(BaseModel):
 
 class SecretReferenceCreate(BaseModel):
     name: str = Field(min_length=1, max_length=240)
-    provider_path: str = Field(min_length=1, max_length=1024)
+    provider_path: str = Field(
+        min_length=1,
+        max_length=1024,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_./-]*$",
+    )
     purpose: str = Field(min_length=1, max_length=320)
 
 
@@ -136,6 +153,14 @@ class SecretReferenceRead(BaseModel):
     purpose: str
     created_at: datetime
     updated_at: datetime
+
+
+class SecretReferenceStatusRead(BaseModel):
+    reference_id: uuid.UUID
+    provider: Literal["openbao"] = "openbao"
+    exists: bool
+    keys: list[str] = Field(default_factory=list)
+    version: int | None = None
 
 
 class TaskRunResponse(BaseModel):
