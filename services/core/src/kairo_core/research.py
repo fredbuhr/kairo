@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .auth import Principal, require_kairo_user
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
-from .models import Project, Task
+from .models import Project, Task, WorkflowExecution
 from .schemas import TaskRunResponse
 from .security import require_internal_token
 from .tool_models import ToolDefinition, ToolInvocation, ToolServer
@@ -90,6 +90,24 @@ async def _eligible_tools(session: AsyncSession, task_input: dict[str, Any]) -> 
         statement = statement.where(ToolDefinition.key.in_(requested))
     rows = await session.execute(statement)
     return list(rows.scalars())
+
+
+async def _terminal_research_tool_response(
+    session: AsyncSession, invocation: ToolInvocation
+) -> ResearchToolStarted:
+    if invocation.workflow_execution_id is None:
+        raise HTTPException(status_code=409, detail="Terminal invocation has no workflow execution")
+    execution = await session.get(WorkflowExecution, invocation.workflow_execution_id)
+    if execution is None:
+        raise HTTPException(status_code=409, detail="Tool workflow execution is missing")
+    return ResearchToolStarted(
+        invocation_id=invocation.id,
+        task_id=invocation.task_id,
+        workflow_execution_id=execution.id,
+        workflow_id=execution.workflow_id,
+        status=invocation.status,
+        already_started=True,
+    )
 
 
 @router.post("/v1/research/runs", response_model=TaskRunResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -219,6 +237,8 @@ async def start_research_tool(
     if existing is not None:
         if existing.tool_definition_id != tool.id or existing.input_json != body.input:
             raise HTTPException(status_code=409, detail="Research tool slot is already bound to another call")
+        if existing.status in {"completed", "failed"}:
+            return await _terminal_research_tool_response(session, existing)
         run = await run_task(existing.task_id, session)
         return ResearchToolStarted(
             invocation_id=existing.id,
