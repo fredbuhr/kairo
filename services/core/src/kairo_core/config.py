@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     kairo_env: str = "development"
     kairo_component_registry: str = "/app/config/components.yaml"
     kairo_internal_token: str = "development-only-change-me"
+    kairo_cors_origins: str = "http://localhost:5173"
     database_url: str = "postgresql+asyncpg://kairo:kairo@postgres:5432/kairo"
     nats_url: str = "nats://nats:4222"
     nats_domain_stream: str = "KAIRO_DOMAIN"
@@ -20,6 +21,8 @@ class Settings(BaseSettings):
     litellm_url: str = "http://litellm:4000"
     openbao_addr: str = "http://openbao:8200"
     keycloak_url: str = "http://keycloak:8080"
+    kokoro_tts_url: str = "http://kokoro-tts:8880"
+    kokoro_default_voice: str = "ff_siwis"
 
 
 settings = Settings()
