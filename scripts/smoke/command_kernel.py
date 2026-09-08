@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""End-to-end proof of KAIRO's canonical conversational command kernel."""
+
+from __future__ import annotations
+
+import json
+import time
+import urllib.error
+import urllib.request
+from typing import Any
+
+CORE = "http://localhost:8000"
+
+
+def json_request(
+    method: str,
+    path: str,
+    *,
+    payload: dict[str, Any] | None = None,
+    expected: int = 200,
+) -> tuple[int, Any]:
+    data = None if payload is None else json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        CORE + path,
+        data=data,
+        method=method,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            status = response.status
+            body = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        body = json.loads(exc.read().decode("utf-8"))
+    if status != expected:
+        raise AssertionError(f"{method} {path}: expected {expected}, got {status}: {body}")
+    return status, body
+
+
+def wait_ready() -> None:
+    deadline = time.time() + 90
+    last_error: Exception | None = None
+    while time.time() < deadline:
+        try:
+            _, body = json_request("GET", "/health/ready")
+            if body["status"] == "ready":
+                return
+        except Exception as exc:  # noqa: BLE001 - smoke test reports the final readiness failure
+            last_error = exc
+        time.sleep(1)
+    raise RuntimeError(f"KAIRO Core did not become ready: {last_error}")
+
+
+def main() -> None:
+    wait_ready()
+
+    _, capabilities = json_request("GET", "/v1/capabilities")
+    news = next(item for item in capabilities if item["key"] == "news.brief")
+    assert news["runtime"] == "temporal", news
+    assert news["authority_level"] == 1, news
+
+    _, routed = json_request(
+        "POST",
+        "/v1/assistant/commands",
+        expected=202,
+        payload={
+            "text": "Quelles sont les nouvelles du jour sur la ville de Paris ?",
+            "locale": "fr-FR",
+            "output": "auto",
+        },
+    )
+    assert routed["capability"] == "news.brief", routed
+    assert routed["parameters"]["mode"] == "local", routed
+    assert routed["parameters"]["location"] == "Paris", routed
+    assert routed["route_reason"] == "deterministic.local-news", routed
+
+    command_id = routed["command_id"]
+    conversation_id = routed["conversation_id"]
+    task_id = routed["task_id"]
+
+    _, command = json_request("GET", f"/v1/commands/{command_id}")
+    assert command["status"] == "accepted", command
+    assert command["capability_key"] == "news.brief", command
+    assert command["task_id"] == task_id, command
+    assert command["workflow_execution_id"] == routed["workflow_execution_id"], command
+
+    _, conversation = json_request("GET", f"/v1/conversations/{conversation_id}")
+    assert conversation["status"] == "active", conversation
+    assert conversation["locale"] == "fr-FR", conversation
+
+    _, messages = json_request("GET", f"/v1/conversations/{conversation_id}/messages")
+    assert len(messages) == 1, messages
+    assert messages[0]["role"] == "user", messages
+    assert "Paris" in messages[0]["content"], messages
+
+    _, task = json_request("GET", f"/v1/tasks/{task_id}")
+    assert task["input"]["capability"] == "news.brief", task
+    assert task["input"]["command_id"] == command_id, task
+
+    _, unsupported = json_request(
+        "POST",
+        "/v1/assistant/commands",
+        expected=422,
+        payload={
+            "text": "Ouvre mon agenda demain matin.",
+            "conversation_id": conversation_id,
+            "locale": "fr-FR",
+            "output": "auto",
+        },
+    )
+    detail = unsupported["detail"]
+    unsupported_id = detail["command_id"]
+    assert detail["conversation_id"] == conversation_id, unsupported
+
+    _, rejected_command = json_request("GET", f"/v1/commands/{unsupported_id}")
+    assert rejected_command["status"] == "unsupported", rejected_command
+    assert rejected_command["capability_key"] is None, rejected_command
+    assert rejected_command["route_reason"] == "no_deterministic_capability_match", rejected_command
+
+    _, messages = json_request("GET", f"/v1/conversations/{conversation_id}/messages")
+    assert len(messages) == 2, messages
+
+    print(
+        "COMMAND KERNEL INTEGRATION PASS: capability registry, canonical conversation/message/command "
+        "state, durable Task/Temporal handoff and conservative unsupported routing are proven."
+    )
+
+
+if __name__ == "__main__":
+    main()
