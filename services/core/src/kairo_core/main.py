@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import __version__
 from .assets import router as assets_router
+from .autonomy import router as autonomy_router
 from .components import load_component_registry
 from .config import settings
 from .db import get_session, ping_database
@@ -58,6 +59,7 @@ app.include_router(workflow_router)
 app.include_router(news_router)
 app.include_router(resources_router)
 app.include_router(assets_router)
+app.include_router(autonomy_router)
 
 
 @app.get("/health/live")
@@ -162,6 +164,8 @@ async def architecture() -> dict[str, object]:
         "news_discovery": "searxng",
         "news_speech": "kokoro-fastapi",
         "policy_default": "deny",
+        "policy_authority": "kairo-core-signed-capability-token",
+        "model_budget_ledger": "postgresql",
     }
 
 
