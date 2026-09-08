@@ -3,7 +3,7 @@ import json
 
 from pydantic_ai import UnexpectedModelBehavior
 
-from kairo_worker.research_agent import plan_research
+from kairo_worker.research_agent import plan_research, synthesize_research
 
 
 TOOLS = [
@@ -17,6 +17,15 @@ TOOLS = [
             "required": ["query"],
             "additionalProperties": False,
         },
+    }
+]
+
+EVIDENCE = [
+    {
+        "invocation_id": "11111111-1111-1111-1111-111111111111",
+        "tool_key": "web.search",
+        "input": {"query": "KAIRO architecture"},
+        "result": {"items": [{"title": "Architecture note", "summary": "KAIRO uses durable tasks."}]},
     }
 ]
 
@@ -71,7 +80,53 @@ async def main() -> None:
     else:
         raise AssertionError("Planner accepted a tool outside the Core-provided catalog")
 
-    print("PASS: research planner is bounded to the supplied read-only tool catalog")
+    async def sourced_completion(_messages):
+        return json.dumps(
+            {
+                "answer": "KAIRO uses durable tasks.",
+                "findings": [
+                    {
+                        "claim": "The evidence states that KAIRO uses durable tasks.",
+                        "evidence_invocation_ids": [EVIDENCE[0]["invocation_id"]],
+                    }
+                ],
+                "caveats": ["Only one evidence item was supplied."],
+            }
+        )
+
+    report = await synthesize_research(
+        query="Research KAIRO architecture",
+        tool_results=EVIDENCE,
+        completion=sourced_completion,
+    )
+    assert report.findings[0].evidence_invocation_ids == [EVIDENCE[0]["invocation_id"]], report
+
+    async def hallucinated_citation(_messages):
+        return json.dumps(
+            {
+                "answer": "Unsupported answer.",
+                "findings": [
+                    {
+                        "claim": "Unsupported claim.",
+                        "evidence_invocation_ids": ["99999999-9999-9999-9999-999999999999"],
+                    }
+                ],
+                "caveats": [],
+            }
+        )
+
+    try:
+        await synthesize_research(
+            query="Research KAIRO architecture",
+            tool_results=EVIDENCE,
+            completion=hallucinated_citation,
+        )
+    except UnexpectedModelBehavior:
+        pass
+    else:
+        raise AssertionError("Synthesizer accepted a citation outside the evidence bundle")
+
+    print("PASS: research planner and synthesis stay inside KAIRO's tool/evidence boundaries")
 
 
 if __name__ == "__main__":
