@@ -8,19 +8,18 @@ from typing import Any, Literal
 
 import httpx
 from pydantic import BaseModel, Field
-from pydantic_ai import (
-    Agent,
+from pydantic_ai import Agent, PromptedOutput, UnexpectedModelBehavior
+from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
-    PromptedOutput,
     RetryPromptPart,
     SystemPromptPart,
     TextPart,
-    UnexpectedModelBehavior,
     UserPromptPart,
 )
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from temporalio import activity
 
 from .config import settings
 from .model_gateway import (
@@ -80,7 +79,7 @@ def render_provider_messages(
 
     rendered: list[dict[str, Any]] = []
     if info.instructions:
-        rendered.append({"role": "system", "content": str(info.instructions)})
+        rendered.append({"role": "system", "content": info.instructions})
 
     for message in messages:
         if isinstance(message, ModelRequest):
@@ -168,6 +167,7 @@ def _internal_headers() -> dict[str, str]:
     return {"X-Kairo-Internal-Token": settings.kairo_internal_token}
 
 
+@activity.defn(name="perform_semantic_route")
 async def perform_semantic_route(payload: dict[str, Any]) -> dict[str, Any]:
     task_input = SemanticRouteTask.model_validate(payload["task_input"])
     task_id = str(payload["task_id"])
