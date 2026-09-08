@@ -70,6 +70,9 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall services/core/src services/worker/src scripts/smoke
 
+      - name: Prove LiteLLM accounting contract
+        run: uv run --project services/worker python scripts/smoke/model_gateway_contract.py
+
       - name: Prove News Intelligence contract
         run: uv run --project services/worker python scripts/smoke/news_contract.py
 
