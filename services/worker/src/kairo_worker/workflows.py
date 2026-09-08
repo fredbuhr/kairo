@@ -12,6 +12,7 @@ with workflow.unsafe.imports_passed_through():
     from .news_activity import perform_news_brief
     from .policy_activities import check_policy_gate
     from .semantic_router import perform_semantic_route
+    from .tool_runtime import perform_tool_invocation
 
 ACTIVITY_RETRY = RetryPolicy(
     initial_interval=timedelta(seconds=1),
@@ -86,12 +87,14 @@ class TaskExecutionWorkflow:
         capability = str(task_input.get("capability") or "foundation")
         authority_level = int(task_input.get("authority_level") or 1)
         estimated_cost_usd = str(task_input.get("estimated_cost_usd") or "0")
+        resource_type = "tool" if capability == "tool.invoke" else "capability"
+        resource_id = str(task_input.get("tool_key") or capability)
         gate_payload = {
             "task_id": payload["task_id"],
             "workflow_execution_id": payload.get("workflow_execution_id"),
             "action": capability,
-            "resource_type": "capability",
-            "resource_id": capability,
+            "resource_type": resource_type,
+            "resource_id": resource_id,
             "authority_level": authority_level,
             "estimated_cost_usd": estimated_cost_usd,
             "scope": task_input.get("policy_scope") or {"capability": capability},
@@ -131,6 +134,14 @@ class TaskExecutionWorkflow:
                     work_payload,
                     start_to_close_timeout=timedelta(minutes=10),
                     heartbeat_timeout=timedelta(seconds=120),
+                    retry_policy=ACTIVITY_RETRY,
+                )
+            elif capability == "tool.invoke":
+                result = await workflow.execute_activity(
+                    perform_tool_invocation,
+                    work_payload,
+                    start_to_close_timeout=timedelta(minutes=5),
+                    heartbeat_timeout=timedelta(seconds=60),
                     retry_policy=ACTIVITY_RETRY,
                 )
             else:
