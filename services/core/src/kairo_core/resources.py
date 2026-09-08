@@ -21,9 +21,9 @@ from .schemas import (
 router = APIRouter()
 
 
-async def _commit_or_conflict(session: AsyncSession, detail: str) -> None:
+async def _flush_or_conflict(session: AsyncSession, detail: str) -> None:
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from exc
@@ -41,7 +41,7 @@ async def register_device(
     correlation_id = uuid.uuid4()
     device = DeviceRegistration(**body.model_dump())
     session.add(device)
-    await session.flush()
+    await _flush_or_conflict(session, "Device is already registered for this subject")
     await enqueue_domain_event(
         session,
         event_type="device.registered",
@@ -72,7 +72,7 @@ async def register_device(
             "has_public_key": bool(device.public_key),
         },
     )
-    await _commit_or_conflict(session, "Device is already registered for this subject")
+    await session.commit()
     await session.refresh(device)
     return device
 
@@ -184,7 +184,7 @@ async def create_secret_reference(
     correlation_id = uuid.uuid4()
     reference = SecretReference(**body.model_dump())
     session.add(reference)
-    await session.flush()
+    await _flush_or_conflict(session, "Secret provider path is already registered")
     await enqueue_domain_event(
         session,
         event_type="secret-reference.created",
@@ -213,7 +213,7 @@ async def create_secret_reference(
             "purpose": reference.purpose,
         },
     )
-    await _commit_or_conflict(session, "Secret provider path is already registered")
+    await session.commit()
     await session.refresh(reference)
     return reference
 
