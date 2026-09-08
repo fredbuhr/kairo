@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +14,8 @@ class Settings(BaseSettings):
     litellm_url: str = "http://litellm:4000"
     litellm_master_key: str = ""
     kairo_news_model: str = "smart"
+    kairo_semantic_router_model: str = "local-fast"
+    kairo_semantic_router_estimated_cost_usd: Decimal = Decimal("0.002")
     searxng_url: str = "http://searxng:8080"
     nats_url: str = "nats://nats:4222"
 
