@@ -7,6 +7,7 @@ import json
 import time
 import urllib.error
 import urllib.request
+from decimal import Decimal
 from typing import Any
 
 CORE = "http://localhost:8000"
@@ -18,13 +19,15 @@ def json_request(
     *,
     payload: dict[str, Any] | None = None,
     expected: int = 200,
+    headers: dict[str, str] | None = None,
 ) -> tuple[int, Any]:
     data = None if payload is None else json.dumps(payload).encode("utf-8")
+    request_headers = {"Content-Type": "application/json", **(headers or {})}
     request = urllib.request.Request(
         CORE + path,
         data=data,
         method=method,
-        headers={"Content-Type": "application/json"},
+        headers=request_headers,
     )
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
@@ -133,15 +136,29 @@ def main() -> None:
     _, routing_task = json_request("GET", f"/v1/tasks/{pending['routing_task_id']}")
     assert routing_task["input"]["capability"] == "assistant.route.semantic", routing_task
     assert routing_task["input"]["command_id"] == pending["command_id"], routing_task
-    assert routing_task["budget_usd"] == "0.020000", routing_task
+    assert Decimal(str(routing_task["budget_usd"])) == Decimal("0.02"), routing_task
     assert routing_task["authority_ceiling"] == 1, routing_task
+
+    # A terminal routing-workflow failure must also terminalize the canonical Command. Otherwise
+    # clients would poll a permanently stuck `routing` state even though Temporal already failed.
+    json_request(
+        "POST",
+        f"/internal/v1/executions/{pending['routing_workflow_id']}/fail",
+        payload={"error": "forced semantic routing failure for smoke proof"},
+        headers={"X-Kairo-Internal-Token": "CHANGE_ME_INTERNAL_TOKEN"},
+    )
+    _, failed_command = json_request("GET", f"/v1/commands/{pending['command_id']}")
+    assert failed_command["status"] == "failed", failed_command
+    assert failed_command["route_reason"] == "semantic.execution-failed", failed_command
+    assert "semantic_error" in failed_command["result_json"], failed_command
 
     _, messages = json_request("GET", f"/v1/conversations/{conversation_id}/messages")
     assert len(messages) == 2, messages
 
     print(
         "COMMAND KERNEL INTEGRATION PASS: registered capability boundaries, canonical conversation "
-        "state, deterministic Task handoff and durable semantic fallback are proven."
+        "state, deterministic Task handoff, durable semantic fallback and terminal failure propagation "
+        "are proven."
     )
 
 
