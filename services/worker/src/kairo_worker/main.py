@@ -1,37 +1,35 @@
 import asyncio
-from datetime import timedelta
 
-from temporalio import activity, workflow
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from .activities import (
+    begin_execution,
+    complete_execution,
+    fail_execution,
+    perform_foundation_work,
+    perform_news_brief,
+)
 from .config import settings
-
-
-@activity.defn
-async def foundation_ping(payload: dict) -> dict:
-    """First deterministic activity used to prove the permanent Temporal boundary."""
-    return {"ok": True, "payload": payload, "engine": "temporal"}
-
-
-@workflow.defn
-class FoundationWorkflow:
-    @workflow.run
-    async def run(self, payload: dict) -> dict:
-        return await workflow.execute_activity(
-            foundation_ping,
-            payload,
-            start_to_close_timeout=timedelta(seconds=30),
-        )
+from .workflows import FoundationWorkflow, TaskExecutionWorkflow
 
 
 async def serve() -> None:
-    client = await Client.connect(settings.temporal_address)
+    client = await Client.connect(
+        settings.temporal_address,
+        namespace=settings.temporal_namespace,
+    )
     worker = Worker(
         client,
         task_queue=settings.temporal_task_queue,
-        workflows=[FoundationWorkflow],
-        activities=[foundation_ping],
+        workflows=[TaskExecutionWorkflow, FoundationWorkflow],
+        activities=[
+            begin_execution,
+            perform_foundation_work,
+            perform_news_brief,
+            complete_execution,
+            fail_execution,
+        ],
     )
     await worker.run()
 

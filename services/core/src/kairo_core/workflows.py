@@ -1,0 +1,370 @@
+import uuid
+from datetime import UTC, datetime
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .db import get_session
+from .events import append_audit, enqueue_domain_event
+from .models import Artifact, Task, WorkflowExecution
+from .schemas import (
+    ArtifactRead,
+    InternalCompleteRequest,
+    InternalCompleteResponse,
+    InternalFailRequest,
+    InternalStartResponse,
+    TaskRunResponse,
+)
+from .security import require_internal_token
+from .temporal_gateway import temporal_gateway
+
+router = APIRouter()
+
+
+def _workflow_id(task_id: uuid.UUID) -> str:
+    return f"kairo-task-{task_id}"
+
+
+async def _lock_execution(session: AsyncSession, workflow_id: str) -> WorkflowExecution | None:
+    """Reload and lock the execution so stale request state cannot overwrite Worker progress."""
+
+    return await session.scalar(
+        select(WorkflowExecution)
+        .where(WorkflowExecution.workflow_id == workflow_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+
+
+@router.post("/v1/tasks/{task_id}/run", response_model=TaskRunResponse)
+async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_session)) -> TaskRunResponse:
+    # Serialize the creation of the canonical execution record for a task. The lock is always
+    # released before the Temporal RPC; concurrent callers then reuse the same deterministic
+    # workflow ID and Temporal resolves which start won.
+    task = await session.get(Task, task_id, with_for_update=True)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.status == "completed":
+        raise HTTPException(status_code=409, detail="Completed task cannot be started again")
+
+    workflow_id = _workflow_id(task.id)
+    execution = await session.scalar(
+        select(WorkflowExecution).where(WorkflowExecution.workflow_id == workflow_id)
+    )
+    if execution is None:
+        correlation_id = uuid.uuid4()
+        execution = WorkflowExecution(
+            task_id=task.id,
+            workflow_id=workflow_id,
+            status="pending_start",
+            correlation_id=correlation_id,
+        )
+        session.add(execution)
+        task.status = "queued"
+        await session.flush()
+        await enqueue_domain_event(
+            session,
+            event_type="execution.requested",
+            aggregate_type="workflow_execution",
+            aggregate_id=execution.id,
+            correlation_id=correlation_id,
+            payload={
+                "execution_id": str(execution.id),
+                "workflow_id": workflow_id,
+                "task_id": str(task.id),
+            },
+        )
+        await append_audit(
+            session,
+            actor_type="user",
+            actor_id=None,
+            action="task.run.request",
+            resource_type="task",
+            resource_id=str(task.id),
+            authority_level=min(task.authority_ceiling, 1),
+            correlation_id=correlation_id,
+        )
+        await session.commit()
+        await session.refresh(execution)
+    else:
+        correlation_id = execution.correlation_id
+        # Release the Task row lock before making a network call. Worker callbacks lock in the
+        # canonical Execution -> Task order, so keeping the Task lock here could create a cycle.
+        await session.commit()
+
+    payload = {
+        "task_id": str(task.id),
+        "workflow_id": workflow_id,
+        "correlation_id": str(correlation_id),
+    }
+    try:
+        already_started, run_id = await temporal_gateway.start_task_workflow(
+            workflow_id=workflow_id, payload=payload
+        )
+    except Exception as exc:
+        locked_execution = await _lock_execution(session, workflow_id)
+        if locked_execution is None:
+            raise HTTPException(status_code=404, detail="Workflow execution not found") from exc
+
+        # A concurrent caller or the Worker may already have proved that the workflow exists.
+        # In that case the start outcome is no longer ambiguous and we must not regress state.
+        if locked_execution.status in {"running", "completed"}:
+            await session.commit()
+            return TaskRunResponse(
+                task_id=task.id,
+                workflow_execution_id=locked_execution.id,
+                workflow_id=workflow_id,
+                status=locked_execution.status,
+                already_started=True,
+            )
+
+        locked_execution.status = "start_unknown"
+        locked_execution.last_error = str(exc)[:4000]
+        await enqueue_domain_event(
+            session,
+            event_type="execution.start_unknown",
+            aggregate_type="workflow_execution",
+            aggregate_id=locked_execution.id,
+            correlation_id=correlation_id,
+            payload={
+                "execution_id": str(locked_execution.id),
+                "workflow_id": workflow_id,
+                "task_id": str(task.id),
+                "reason": "Temporal start result is unknown; retry with the same workflow ID",
+            },
+        )
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "message": "Temporal start outcome is unknown; retrying is safe",
+                "workflow_id": workflow_id,
+            },
+        ) from exc
+
+    # The workflow can start executing before the start RPC returns. Reload under lock so a stale
+    # request-side `pending_start` object can never overwrite Worker-owned `running/completed` state.
+    locked_execution = await _lock_execution(session, workflow_id)
+    if locked_execution is None:
+        raise HTTPException(status_code=404, detail="Workflow execution not found")
+    if locked_execution.status in {"pending_start", "start_unknown"}:
+        locked_execution.status = "queued"
+    locked_execution.run_id = run_id or locked_execution.run_id
+    locked_execution.last_error = None
+    await enqueue_domain_event(
+        session,
+        event_type="execution.accepted",
+        aggregate_type="workflow_execution",
+        aggregate_id=locked_execution.id,
+        correlation_id=correlation_id,
+        payload={
+            "execution_id": str(locked_execution.id),
+            "workflow_id": workflow_id,
+            "task_id": str(task.id),
+            "already_started": already_started,
+            "observed_status": locked_execution.status,
+        },
+    )
+    await session.commit()
+    return TaskRunResponse(
+        task_id=task.id,
+        workflow_execution_id=locked_execution.id,
+        workflow_id=workflow_id,
+        status=locked_execution.status,
+        already_started=already_started,
+    )
+
+
+@router.post(
+    "/internal/v1/executions/{workflow_id}/start",
+    response_model=InternalStartResponse,
+    dependencies=[Depends(require_internal_token)],
+)
+async def internal_start_execution(
+    workflow_id: str, session: AsyncSession = Depends(get_session)
+) -> InternalStartResponse:
+    execution = await session.scalar(
+        select(WorkflowExecution)
+        .where(WorkflowExecution.workflow_id == workflow_id)
+        .with_for_update()
+    )
+    if not execution:
+        raise HTTPException(status_code=404, detail="Workflow execution not found")
+    task = await session.get(Task, execution.task_id, with_for_update=True)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if execution.status not in {"running", "completed"}:
+        now = datetime.now(UTC)
+        execution.status = "running"
+        execution.started_at = execution.started_at or now
+        task.status = "running"
+        task.started_at = task.started_at or now
+        await enqueue_domain_event(
+            session,
+            event_type="execution.started",
+            aggregate_type="workflow_execution",
+            aggregate_id=execution.id,
+            correlation_id=execution.correlation_id,
+            payload={"execution_id": str(execution.id), "task_id": str(task.id)},
+        )
+        await append_audit(
+            session,
+            actor_type="worker",
+            actor_id=workflow_id,
+            action="task.execution.start",
+            resource_type="task",
+            resource_id=str(task.id),
+            authority_level=min(task.authority_ceiling, 1),
+            correlation_id=execution.correlation_id,
+            idempotency_key=f"{workflow_id}:start",
+        )
+        await session.commit()
+
+    return InternalStartResponse(
+        task_id=task.id,
+        task_title=task.title,
+        task_input=task.input,
+        execution_status=execution.status,
+    )
+
+
+@router.post(
+    "/internal/v1/executions/{workflow_id}/complete",
+    response_model=InternalCompleteResponse,
+    dependencies=[Depends(require_internal_token)],
+)
+async def internal_complete_execution(
+    workflow_id: str,
+    body: InternalCompleteRequest,
+    session: AsyncSession = Depends(get_session),
+) -> InternalCompleteResponse:
+    execution = await session.scalar(
+        select(WorkflowExecution)
+        .where(WorkflowExecution.workflow_id == workflow_id)
+        .with_for_update()
+    )
+    if not execution:
+        raise HTTPException(status_code=404, detail="Workflow execution not found")
+    task = await session.get(Task, execution.task_id, with_for_update=True)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    artifact = await session.scalar(
+        select(Artifact).where(Artifact.workflow_execution_id == execution.id)
+    )
+    if execution.status == "completed" and artifact:
+        return InternalCompleteResponse(execution_status="completed", artifact=artifact)
+
+    if artifact is None:
+        artifact = Artifact(
+            project_id=task.project_id,
+            task_id=task.id,
+            workflow_execution_id=execution.id,
+            kind=body.kind,
+            title=body.title,
+            content=body.content,
+        )
+        session.add(artifact)
+        await session.flush()
+        await enqueue_domain_event(
+            session,
+            event_type="artifact.created",
+            aggregate_type="artifact",
+            aggregate_id=artifact.id,
+            correlation_id=execution.correlation_id,
+            payload={
+                "artifact_id": str(artifact.id),
+                "task_id": str(task.id),
+                "project_id": str(task.project_id),
+                "kind": artifact.kind,
+            },
+        )
+
+    now = datetime.now(UTC)
+    execution.status = "completed"
+    execution.completed_at = execution.completed_at or now
+    execution.last_error = None
+    task.status = "completed"
+    task.completed_at = task.completed_at or now
+    await enqueue_domain_event(
+        session,
+        event_type="task.completed",
+        aggregate_type="task",
+        aggregate_id=task.id,
+        correlation_id=execution.correlation_id,
+        payload={"task_id": str(task.id), "artifact_id": str(artifact.id)},
+    )
+    await append_audit(
+        session,
+        actor_type="worker",
+        actor_id=workflow_id,
+        action="task.execution.complete",
+        resource_type="task",
+        resource_id=str(task.id),
+        authority_level=min(task.authority_ceiling, 1),
+        correlation_id=execution.correlation_id,
+        idempotency_key=f"{workflow_id}:complete",
+        result_json={"artifact_id": str(artifact.id)},
+    )
+    await session.commit()
+    await session.refresh(artifact)
+    return InternalCompleteResponse(execution_status="completed", artifact=artifact)
+
+
+@router.post(
+    "/internal/v1/executions/{workflow_id}/fail",
+    dependencies=[Depends(require_internal_token)],
+)
+async def internal_fail_execution(
+    workflow_id: str,
+    body: InternalFailRequest,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, str]:
+    execution = await session.scalar(
+        select(WorkflowExecution)
+        .where(WorkflowExecution.workflow_id == workflow_id)
+        .with_for_update()
+    )
+    if not execution:
+        raise HTTPException(status_code=404, detail="Workflow execution not found")
+    task = await session.get(Task, execution.task_id, with_for_update=True)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if execution.status != "completed":
+        execution.status = "failed"
+        execution.last_error = body.error
+        task.status = "failed"
+        await enqueue_domain_event(
+            session,
+            event_type="execution.failed",
+            aggregate_type="workflow_execution",
+            aggregate_id=execution.id,
+            correlation_id=execution.correlation_id,
+            payload={"execution_id": str(execution.id), "task_id": str(task.id)},
+        )
+        await append_audit(
+            session,
+            actor_type="worker",
+            actor_id=workflow_id,
+            action="task.execution.fail",
+            resource_type="task",
+            resource_id=str(task.id),
+            authority_level=min(task.authority_ceiling, 1),
+            correlation_id=execution.correlation_id,
+            idempotency_key=f"{workflow_id}:fail",
+            result_json={"error": body.error},
+        )
+        await session.commit()
+    return {"status": execution.status}
+
+
+@router.get("/v1/tasks/{task_id}/artifacts", response_model=list[ArtifactRead])
+async def task_artifacts(
+    task_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> list[Artifact]:
+    result = await session.execute(
+        select(Artifact).where(Artifact.task_id == task_id).order_by(Artifact.created_at)
+    )
+    return list(result.scalars())

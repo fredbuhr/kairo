@@ -4,20 +4,25 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kairo-worker"
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.12"
 dependencies = [
-  "temporalio>=1.15,<2",
+  "temporalio>=1.16,<2",
   "pydantic-settings>=2.10,<3",
+  "httpx>=0.28,<1",
+  "nats-py>=2.11,<3",
+  "boto3>=1.40,<2",
+  "trafilatura==2.2.0",
+]
+
+[project.optional-dependencies]
+intelligence = [
   "pydantic-ai",
   "mem0ai",
   "graphiti-core",
   "docling",
   "browser-use",
   "playwright>=1.55,<2",
-  "httpx>=0.28,<1",
-  "nats-py>=2.11,<3",
-  "boto3>=1.40,<2",
 ]
 
 [tool.hatch.build.targets.wheel]

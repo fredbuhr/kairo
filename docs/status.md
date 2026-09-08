@@ -4,34 +4,11 @@ Last updated: 2026-09-08
 
 ## Current phase
 
-**Architecture reset / full-platform foundation.**
+**Block 1 — canonical system of record and durable execution.**
 
-The prior OpenClaw/filesystem V0 proved useful runtime properties but is no longer the target implementation. Its code and ADRs remain recoverable through Git history; target-architecture files remove that dependency rather than carrying parallel runtimes indefinitely.
+The architecture reset is complete enough to run real integration proofs. The active implementation branch is `feat/block1-system-of-record`.
 
-## Proven by the previous V0
-
-The earlier implementation demonstrated:
-
-- stable project/idea/task/knowledge identifiers;
-- explicit epistemic status and provenance concepts;
-- background execution with no active client;
-- survival of queued work across controlled runtime restarts;
-- conservative handling of interrupted `running` work;
-- the danger of replaying an activity whose result is unknown;
-- the need for idempotency, hard budget enforcement, explicit approvals and authoritative user-visible work state.
-
-Those lessons remain requirements in the new architecture and motivate Temporal, the policy boundary and explicit audit/idempotency contracts.
-
-## Removed from the target architecture
-
-- OpenClaw runtime/plugin/workspace templates;
-- OpenClaw Cron scheduling adapter;
-- OpenClaw-specific CI;
-- filesystem/Markdown store as canonical operational state;
-- V0 job ledger implementation tied to that runtime;
-- V0 proof scripts/runbooks and superseded ADR set.
-
-Markdown remains an export/import format for user-readable knowledge, not the primary operational database.
+The prior OpenClaw/filesystem V0 remains useful history, but it is no longer the target runtime. Its lessons are carried into the PostgreSQL/Temporal/NATS architecture rather than maintaining two parallel systems.
 
 ## Foundation decisions now active
 
@@ -47,14 +24,49 @@ Markdown remains an export/import format for user-readable knowledge, not the pr
 - Activepieces and MCP provide external tool/automation integration;
 - specialist engines are declared in the component registry from the beginning.
 
-## Work now in progress on `architecture/full-platform-foundation`
+## Block 1 implemented
 
-1. replace legacy repository topology with the permanent monorepo structure;
-2. add complete component registry and Compose topology;
-3. add minimal Core/Worker/Realtime/Web service skeletons;
-4. add CI/static validation for the new foundation;
-5. open the architecture reset for review before merging to `main`.
+- Alembic migrations for canonical projects, tasks, relationships, workflow executions, artifacts, assets, devices, secret references, audit and outbox records;
+- Core-owned domain mutations through PostgreSQL;
+- transactional outbox relay from PostgreSQL to NATS JetStream;
+- deterministic Temporal Workflow IDs and conservative `start_unknown` handling for ambiguous starts;
+- Worker mutations return through internal KAIRO Core endpoints rather than writing canonical state directly;
+- idempotent task completion with one canonical artifact per workflow execution;
+- separate Temporal workflow and activity modules so network libraries are not imported into the workflow sandbox;
+- different heartbeat budgets for short foundation work and longer intelligence work.
+
+## Block 1 proof status
+
+The real integration job has successfully demonstrated:
+
+1. boot PostgreSQL, NATS, SeaweedFS, Temporal, KAIRO Core and KAIRO Worker;
+2. create a canonical Project, Task and Relationship;
+3. start a durable task workflow;
+4. hard-stop the Worker while the activity is running;
+5. keep canonical task state as `running` while the Worker is down;
+6. restart the Worker and resume through Temporal;
+7. complete with exactly one canonical Artifact;
+8. reject a second run of the completed task;
+9. drain the transactional outbox with the relay still connected.
+
+This closes the failure that previously came from importing `httpx` through the Temporal workflow sandbox.
+
+## News Intelligence added
+
+News Intelligence is now a first-class KAIRO capability (`news.brief`) rather than a separate application.
+
+- SearXNG discovers current news and general web sources through a private metasearch service;
+- Trafilatura transiently extracts main article text from accessible public pages for better summarization without persisting full copyrighted article bodies;
+- enrichment blocks localhost, private/non-global IP destinations and redirects toward internal services;
+- LiteLLM creates sourced text/spoken briefings and is replaceable by provider/model alias;
+- deterministic fallback summaries remain available when the model gateway is unavailable;
+- `market_impact` mode combines a deterministic relevance signal with model synthesis while keeping sources and uncertainty visible;
+- each request is a canonical Task in the `KAIRO News` workspace;
+- each completed briefing is an Artifact with source metadata and provenance;
+- Kokoro-FastAPI provides local French speech synthesis under the optional `voice` Compose profile;
+- the web application now has a working News Intelligence workspace with local/general/market modes, source list, progress state and audio playback;
+- CI has a deterministic News Intelligence contract proof that does not depend on the public internet or paid model credentials.
 
 ## Next major milestone
 
-Boot the complete foundation, run migrations, create the first canonical Project/Task/Relationship through `kairo-core`, publish its domain event through NATS, and execute a Temporal workflow that safely writes a resulting artefact back through the Core policy boundary.
+Finish hardening Block 1 around concurrency, authorization/policy and recovery edge cases, then connect the realtime/event layer and conversational command routing so capabilities such as `news.brief` can be invoked naturally from KAIRO's general assistant surface as well as their dedicated workspaces.

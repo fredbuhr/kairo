@@ -1,0 +1,22 @@
+use_default_settings: true
+
+general:
+  debug: false
+  instance_name: "KAIRO Search"
+
+search:
+  safe_search: 1
+  formats:
+    - html
+    - json
+    - rss
+
+server:
+  # Overridden by SEARXNG_SECRET in Compose.
+  secret_key: "development-only-change-me"
+  limiter: false
+  image_proxy: false
+
+valkey:
+  # Overridden by SEARXNG_VALKEY_URL in Compose.
+  url: valkey://valkey:6379/0
