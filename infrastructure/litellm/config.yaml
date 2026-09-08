@@ -1,0 +1,22 @@
+model_list:
+  - model_name: smart
+    litellm_params:
+      model: openai/os.environ/OPENAI_MODEL
+      api_key: os.environ/OPENAI_API_KEY
+  - model_name: alternative
+    litellm_params:
+      model: anthropic/os.environ/ANTHROPIC_MODEL
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: local-fast
+    litellm_params:
+      model: ollama/os.environ/OLLAMA_MODEL
+      api_base: http://ollama:11434
+
+router_settings:
+  routing_strategy: least-busy
+  num_retries: 2
+  timeout: 120
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
