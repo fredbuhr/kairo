@@ -11,7 +11,7 @@ from .memory_projection import perform_memory_projection
 from .news_activity import perform_news_brief
 from .policy_activities import check_policy_gate
 from .semantic_router import perform_semantic_route
-from .tool_runtime import perform_tool_invocation
+from .tool_runtime import fail_tool_invocation, perform_tool_invocation
 from .workflows import FoundationWorkflow, TaskExecutionWorkflow
 
 
@@ -33,6 +33,7 @@ async def serve() -> None:
             perform_memory_projection,
             perform_document_ingestion,
             perform_tool_invocation,
+            fail_tool_invocation,
             complete_execution,
             fail_execution,
         ],
