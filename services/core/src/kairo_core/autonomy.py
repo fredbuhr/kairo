@@ -135,10 +135,6 @@ def _remaining(task: Task, spent: Decimal) -> Decimal | None:
     return max(Decimal("0"), Decimal(task.budget_usd) - spent)
 
 
-def _scope_matches(granted: dict[str, Any], requested: dict[str, Any]) -> bool:
-    return all(granted.get(key) == value for key, value in requested.items())
-
-
 def _mint_policy_token(
     *,
     task: Task,
@@ -363,14 +359,15 @@ async def authorize_activity(
             .where(
                 ApprovalRequest.task_id == task.id,
                 ApprovalRequest.action == body.action,
+                ApprovalRequest.resource_type == body.resource_type,
+                ApprovalRequest.resource_id == body.resource_id,
+                ApprovalRequest.scope_json == body.scope,
                 ApprovalRequest.status == "approved",
                 ApprovalRequest.authority_level >= body.authority_level,
             )
             .order_by(ApprovalRequest.decided_at.desc())
         )
         if approval and approval.expires_at and approval.expires_at <= now:
-            approval = None
-        if approval and not _scope_matches(approval.scope_json, body.scope):
             approval = None
 
         if approval is None:
@@ -379,7 +376,11 @@ async def authorize_activity(
                 .where(
                     ApprovalRequest.task_id == task.id,
                     ApprovalRequest.action == body.action,
+                    ApprovalRequest.resource_type == body.resource_type,
+                    ApprovalRequest.resource_id == body.resource_id,
+                    ApprovalRequest.scope_json == body.scope,
                     ApprovalRequest.status == "pending",
+                    ApprovalRequest.authority_level >= body.authority_level,
                 )
                 .order_by(ApprovalRequest.created_at.desc())
             )
