@@ -16,10 +16,10 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Import Core with research router
         run: uv run --project services/core python -c "from kairo_core.main import app; assert app.title == 'KAIRO Core'"
+      - name: Prove bounded PydanticAI research planner and sourced synthesis
+        run: uv run --project services/worker python scripts/smoke/research_agent_contract.py
       - name: Prove multi-slot model checkpoint ledger
         run: uv run --project services/worker python scripts/smoke/model_checkpoint_ledger.py
-      - name: Prove bounded PydanticAI research planning and sourced synthesis
-        run: uv run --project services/worker python scripts/smoke/research_agent_contract.py
 
   research-core-integration:
     runs-on: ubuntu-latest
@@ -43,3 +43,78 @@ jobs:
       - name: Tear down research stack
         if: always()
         run: docker compose down -v --remove-orphans
+
+  research-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Prepare deterministic end-to-end environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_AUTH_ENABLED=false' >> .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+
+      - name: Start canonical Core and Temporal substrate
+        run: |
+          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+
+      - name: Start deterministic LiteLLM and MCP fixtures
+        run: |
+          python scripts/smoke/fake_research_litellm.py > /tmp/kairo-research-litellm.log 2>&1 &
+          echo $! > /tmp/kairo-research-litellm.pid
+          uv run --project services/worker python scripts/smoke/fake_research_mcp.py > /tmp/kairo-research-mcp.log 2>&1 &
+          echo $! > /tmp/kairo-research-mcp.pid
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4000/health >/dev/null && curl -fsS http://127.0.0.1:8765/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'Research fixtures did not become ready' >&2
+          cat /tmp/kairo-research-litellm.log || true
+          cat /tmp/kairo-research-mcp.log || true
+          exit 1
+
+      - name: Start minimal KAIRO Research Worker
+        env:
+          TEMPORAL_ADDRESS: 127.0.0.1:7233
+          TEMPORAL_NAMESPACE: default
+          TEMPORAL_TASK_QUEUE: kairo-default
+          KAIRO_CORE_URL: http://127.0.0.1:8000
+          KAIRO_INTERNAL_TOKEN: CHANGE_ME_INTERNAL_TOKEN
+          LITELLM_URL: http://127.0.0.1:4000
+          LITELLM_MASTER_KEY: ""
+        run: |
+          uv run --project services/worker python scripts/smoke/research_e2e_worker.py > /tmp/kairo-research-worker.log 2>&1 &
+          echo $! > /tmp/kairo-research-worker.pid
+
+      - name: Prove plan, MCP child execution, sourced synthesis and two-slot accounting
+        env:
+          KAIRO_INTERNAL_TOKEN: CHANGE_ME_INTERNAL_TOKEN
+        run: python scripts/smoke/research_e2e.py
+
+      - name: Dump autonomous Research state on failure
+        if: failure()
+        run: |
+          echo '--- fake LiteLLM ---'
+          cat /tmp/kairo-research-litellm.log || true
+          echo '--- fake MCP ---'
+          cat /tmp/kairo-research-mcp.log || true
+          echo '--- Research Worker ---'
+          cat /tmp/kairo-research-worker.log || true
+          echo '--- Compose ---'
+          docker compose ps -a
+          docker compose logs --no-color --tail=700 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+
+      - name: Tear down Research E2E
+        if: always()
+        run: |
+          for file in /tmp/kairo-research-worker.pid /tmp/kairo-research-mcp.pid /tmp/kairo-research-litellm.pid; do
+            if [ -f "$file" ]; then
+              kill "$(cat "$file")" 2>/dev/null || true
+            fi
+          done
+          docker compose down -v --remove-orphans
