@@ -8,7 +8,7 @@ Last updated: 2026-09-08
 
 Block 1 is complete and its exit conditions are covered by end-to-end CI proofs. The former OpenClaw/filesystem V0 remains useful history, but it is no longer the target runtime. Its lessons are carried into the PostgreSQL/Temporal/NATS architecture rather than maintaining two parallel systems.
 
-Block 2 now has five active pieces rather than only planned contracts: KAIRO-owned policy/approval enforcement, replay-safe and canonically accounted model calls through LiteLLM, the canonical conversational command kernel, a durable PydanticAI semantic-routing tier constrained to registered KAIRO capabilities, and rebuildable Mem0 + Graphiti/Neo4j projections driven from canonical conversation events.
+Block 2 now has seven active pieces rather than only planned contracts: KAIRO-owned policy/approval enforcement, replay-safe and canonically accounted model calls through LiteLLM, the canonical conversational command kernel, a durable PydanticAI semantic-routing tier constrained to registered KAIRO capabilities, rebuildable Mem0 + Graphiti/Neo4j projections driven from canonical conversation events, versioned canonical document ingestion/chunk provenance, and Langfuse correlation derived from KAIRO execution identity.
 
 ## Foundation decisions now active
 
@@ -23,7 +23,8 @@ Block 2 now has five active pieces rather than only planned contracts: KAIRO-own
 - semantic PydanticAI provider access goes through the same replay-safe/accounted LiteLLM Worker gateway as other model calls;
 - Neo4j + Graphiti and Mem0 are rebuildable projections, never canonical state;
 - Mem0 uses an isolated PostgreSQL `mem0` database rather than writing vector tables into KAIRO's canonical schema;
-- LiteLLM is the model-provider gateway;
+- LiteLLM is the model-provider gateway and model-observability fan-out point;
+- Langfuse + ClickHouse are non-authoritative AI observability stores correlated from KAIRO IDs;
 - PydanticAI is the agent framework;
 - Keycloak and OpenBao are identity/secrets boundaries;
 - Hocuspocus/Yjs provides realtime collaboration without becoming the domain store;
@@ -114,6 +115,40 @@ Conversation memory now starts from the same canonical `ConversationMessage` row
 
 ADR-019 records the rule that Mem0/Graphiti are disposable views and that future generative extraction must remain behind KAIRO's model/accounting boundary.
 
+## Canonical document ingestion and provenance
+
+Documents are now durable KAIRO domain objects rather than transient parser outputs.
+
+- an uploaded SeaweedFS `Asset` remains the immutable source object and retains its SHA-256 digest;
+- `Document` binds one source Asset to a stable KAIRO document identity and project boundary;
+- unscoped assets are explicitly attached to the system `KAIRO Documents` workspace when they become Documents, so document Tasks never execute with a null project boundary;
+- every parse creates a new `DocumentVersion` generation instead of overwriting previous extraction state;
+- `DocumentChunk` rows retain deterministic ordinal/content hashes and version-level provenance;
+- `document.ingest` runs as a canonical Task through Temporal and the Worker;
+- Docling is the preferred parser when the intelligence extras are installed, while a deterministic text fallback keeps CI/substrate installations functional for text-like media;
+- the Worker verifies the downloaded SeaweedFS bytes against the canonical Asset SHA-256 before parsing;
+- activity retries do not expose false terminal document failures: only the canonical workflow failure path marks a DocumentVersion `failed` after Temporal has exhausted execution;
+- late failure of an older generation cannot downgrade a newer document generation;
+- CI proves upload → document → Temporal → chunks → generation-2 reingestion and the unscoped-asset workspace fallback.
+
+ADR-020 records the rule that Asset, Document, DocumentVersion and derived chunks have distinct ownership/provenance roles.
+
+## Correlated model observability
+
+Langfuse observability is now correlated directly from KAIRO's durable execution identity rather than inventing separate trace identifiers.
+
+- every outbound LiteLLM model request carries a stable W3C-compatible 32-hex trace ID derived from the canonical KAIRO correlation UUID, with a deterministic fallback when needed;
+- workflow execution ID is used as the Langfuse session ID when available;
+- task ID, workflow execution ID, logical model-call key and model alias are attached as correlation-only metadata;
+- custom trace metadata does not duplicate prompt/message bodies;
+- LiteLLM's `langfuse_otel` callback is the single model telemetry fan-out path;
+- self-hosted Langfuse receives headless organization/project/API-key initialization in both development and production Compose overlays;
+- the same project keys are supplied to LiteLLM's OTEL exporter, so a fresh self-hosted stack does not require UI bootstrap before tracing;
+- Langfuse has no role in policy authorization, approval, provider replay decisions or canonical spend accounting;
+- KAIRO deliberately does not make LiteLLM depend on Langfuse service readiness.
+
+ADR-021 records the observability-only boundary. The deterministic model-gateway contract proves trace correlation alongside the existing replay/accounting invariants.
+
 ## News Intelligence already present
 
 News Intelligence is a first-class KAIRO capability (`news.brief`) rather than a separate application.
@@ -132,7 +167,7 @@ News Intelligence is a first-class KAIRO capability (`news.brief`) rather than a
 
 ## Next major milestone
 
-After the rebuildable-memory slice is green, continue Block 2 with Docling ingestion and canonical document/chunk provenance, then Langfuse correlation, the MCP tool registry and the first tool-bearing research workflow. Semantic retrieval over Mem0/Graphiti can then be connected to agent context without changing their status as disposable projections.
+Continue Block 2 with the canonical MCP tool registry and typed tool-execution boundary, then build the first tool-bearing research workflow. Semantic retrieval over Mem0/Graphiti and document chunks can then be connected to agent context without changing their status as derived/rebuildable data.
 
 The target Block 2 exit remains: an approved autonomous workflow can research, use tools, create canonical artefacts, survive interruption, respect authority/cost limits and explain what it did.
 
