@@ -94,7 +94,7 @@ jobs:
       - name: Prove plan, MCP child execution, sourced synthesis and two-slot accounting
         env:
           KAIRO_INTERNAL_TOKEN: CHANGE_ME_INTERNAL_TOKEN
-        run: python scripts/smoke/research_e2e.py
+        run: uv run --project services/worker python scripts/smoke/research_e2e.py
 
       - name: Dump autonomous Research state on failure
         if: failure()
