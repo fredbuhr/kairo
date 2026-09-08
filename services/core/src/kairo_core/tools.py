@@ -4,10 +4,12 @@ import hashlib
 import json
 import uuid
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from jsonschema import SchemaError, ValidationError
+from jsonschema.validators import validator_for
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -171,6 +173,105 @@ def _risk_defaults(annotations: dict[str, Any]) -> tuple[str, int, str]:
     return "write", 2, "safe_retry" if idempotent else "no_retry"
 
 
+def _validate_schema_document(schema: dict[str, Any], *, label: str) -> None:
+    try:
+        validator_cls = validator_for(schema)
+        validator_cls.check_schema(schema)
+    except SchemaError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{label} is not a valid JSON Schema: {exc.message}",
+        ) from exc
+
+
+def _validate_tool_input(schema: dict[str, Any], value: dict[str, Any]) -> None:
+    try:
+        validator_cls = validator_for(schema)
+        validator_cls.check_schema(schema)
+        validator_cls(schema).validate(value)
+    except SchemaError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Stored tool input schema is invalid: {exc.message}",
+        ) from exc
+    except ValidationError as exc:
+        location = "$"
+        if exc.absolute_path:
+            location += "." + ".".join(str(part) for part in exc.absolute_path)
+        raise HTTPException(
+            status_code=422,
+            detail=f"Tool input does not match its JSON Schema at {location}: {exc.message}",
+        ) from exc
+
+
+def _as_decimal(value: Any) -> Decimal | None:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+async def _load_invocation_binding(
+    session: AsyncSession,
+    invocation: ToolInvocation,
+    *,
+    require_current_authorization: bool,
+) -> tuple[ToolDefinition, ToolServer, Task]:
+    tool = await session.get(ToolDefinition, invocation.tool_definition_id)
+    task = await session.get(Task, invocation.task_id)
+    server = await session.get(ToolServer, tool.server_id) if tool else None
+    if not tool or not server or not task:
+        raise HTTPException(status_code=409, detail="Tool registry binding is incomplete")
+
+    if not require_current_authorization or invocation.status == "completed":
+        return tool, server, task
+    if invocation.status == "failed":
+        raise HTTPException(status_code=409, detail="Failed tool invocation cannot be executed")
+    if not server.enabled or not tool.available or not tool.enabled:
+        raise HTTPException(status_code=409, detail="Tool authorization is no longer active")
+
+    task_input = task.input or {}
+    scope = task_input.get("policy_scope") if isinstance(task_input.get("policy_scope"), dict) else {}
+    mismatches: list[str] = []
+
+    if str(task_input.get("tool_key") or "") != tool.key:
+        mismatches.append("tool_key")
+    if str(task_input.get("tool_schema_hash") or "") != tool.schema_hash:
+        mismatches.append("schema_hash")
+
+    try:
+        task_authority = int(task_input.get("authority_level"))
+    except (TypeError, ValueError):
+        task_authority = -1
+    if task_authority != int(tool.authority_level) or int(invocation.authority_level) != int(tool.authority_level):
+        mismatches.append("authority_level")
+
+    task_cost = _as_decimal(task_input.get("estimated_cost_usd"))
+    if (
+        task_cost is None
+        or task_cost != Decimal(tool.estimated_cost_usd)
+        or Decimal(invocation.estimated_cost_usd) != Decimal(tool.estimated_cost_usd)
+    ):
+        mismatches.append("estimated_cost_usd")
+
+    if str(scope.get("risk_class") or "") != tool.risk_class:
+        mismatches.append("risk_class")
+    if str(scope.get("retry_policy") or "") != tool.retry_policy:
+        mismatches.append("retry_policy")
+    if str(scope.get("server_key") or "") != server.key:
+        mismatches.append("server_key")
+
+    if mismatches:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Tool authorization snapshot is stale; create a new invocation",
+                "mismatches": sorted(set(mismatches)),
+            },
+        )
+    return tool, server, task
+
+
 @router.post("/v1/tool-servers", response_model=ToolServerRead, status_code=status.HTTP_201_CREATED)
 async def create_tool_server(
     body: ToolServerCreate,
@@ -240,13 +341,23 @@ async def sync_tool_catalog(
     server = await session.get(ToolServer, server_id, with_for_update=True)
     if not server:
         raise HTTPException(status_code=404, detail="Tool server not found")
-    now = datetime.now(UTC)
+
     seen_names: set[str] = set()
-    synced: list[ToolDefinition] = []
     for item in body.tools:
         if item.name in seen_names:
             raise HTTPException(status_code=422, detail=f"Duplicate remote tool name: {item.name}")
         seen_names.add(item.name)
+        key = f"{server.namespace}.{item.name}"
+        if len(key) > 200:
+            raise HTTPException(status_code=422, detail=f"Tool key exceeds 200 characters: {key}")
+        _validate_schema_document(item.input_schema, label=f"{key} input_schema")
+        if item.output_schema is not None:
+            _validate_schema_document(item.output_schema, label=f"{key} output_schema")
+
+    now = datetime.now(UTC)
+    synced: list[ToolDefinition] = []
+    drifted: list[ToolDefinition] = []
+    for item in body.tools:
         definition = await session.scalar(
             select(ToolDefinition).where(
                 ToolDefinition.server_id == server.id,
@@ -277,6 +388,7 @@ async def sync_tool_catalog(
             )
             session.add(definition)
         else:
+            schema_changed = definition.schema_hash != schema_hash
             definition.title = item.title or item.name
             definition.description = item.description
             definition.input_schema = item.input_schema
@@ -285,12 +397,16 @@ async def sync_tool_catalog(
             definition.schema_hash = schema_hash
             definition.available = True
             definition.last_seen_at = now
+            if schema_changed:
+                definition.enabled = False
+                drifted.append(definition)
         synced.append(definition)
 
     existing_rows = await session.execute(select(ToolDefinition).where(ToolDefinition.server_id == server.id))
     for definition in existing_rows.scalars():
         if definition.remote_name not in seen_names:
             definition.available = False
+            definition.enabled = False
 
     server.catalog_generation += 1
     correlation_id = uuid.uuid4()
@@ -304,8 +420,22 @@ async def sync_tool_catalog(
             "tool_server_id": str(server.id),
             "generation": server.catalog_generation,
             "tool_count": len(synced),
+            "disabled_on_schema_drift": [tool.key for tool in drifted],
         },
     )
+    for definition in drifted:
+        await enqueue_domain_event(
+            session,
+            event_type="tool.schema_drift.detected",
+            aggregate_type="tool_definition",
+            aggregate_id=definition.id,
+            correlation_id=correlation_id,
+            payload={
+                "tool_key": definition.key,
+                "schema_hash": definition.schema_hash,
+                "action": "disabled_pending_review",
+            },
+        )
     await session.commit()
     for definition in synced:
         await session.refresh(definition)
@@ -379,9 +509,6 @@ async def create_tool_invocation(
     tool = await session.scalar(select(ToolDefinition).where(ToolDefinition.key == body.tool_key))
     if not tool:
         raise HTTPException(status_code=404, detail="Tool not found")
-    server = await session.get(ToolServer, tool.server_id)
-    if not server or not server.enabled or not tool.available or not tool.enabled:
-        raise HTTPException(status_code=409, detail="Tool is not enabled and available")
 
     invocation_id = uuid.uuid4()
     idempotency_key = body.idempotency_key or str(
@@ -391,9 +518,23 @@ async def create_tool_invocation(
         select(ToolInvocation).where(ToolInvocation.idempotency_key == idempotency_key)
     )
     if existing:
-        if existing.tool_definition_id != tool.id or existing.input_json != body.input:
+        existing_task = await session.get(Task, existing.task_id)
+        if (
+            existing.tool_definition_id != tool.id
+            or existing.input_json != body.input
+            or existing_task is None
+            or existing_task.project_id != project.id
+        ):
             raise HTTPException(status_code=409, detail="Idempotency key is already bound to another invocation")
-        return ToolInvocationCreated(invocation=ToolInvocationRead.model_validate(existing), task_id=existing.task_id)
+        return ToolInvocationCreated(
+            invocation=ToolInvocationRead.model_validate(existing),
+            task_id=existing.task_id,
+        )
+
+    server = await session.get(ToolServer, tool.server_id)
+    if not server or not server.enabled or not tool.available or not tool.enabled:
+        raise HTTPException(status_code=409, detail="Tool is not enabled and available")
+    _validate_tool_input(tool.input_schema, body.input)
 
     correlation_id = uuid.uuid4()
     task = Task(
@@ -409,11 +550,13 @@ async def create_tool_invocation(
             "capability": "tool.invoke",
             "tool_invocation_id": str(invocation_id),
             "tool_key": tool.key,
+            "tool_schema_hash": tool.schema_hash,
             "authority_level": tool.authority_level,
             "estimated_cost_usd": str(tool.estimated_cost_usd),
             "policy_scope": {
                 "tool_key": tool.key,
                 "risk_class": tool.risk_class,
+                "retry_policy": tool.retry_policy,
                 "server_key": server.key,
             },
             "approval_reason": f"KAIRO requests MCP tool {tool.key} ({tool.risk_class})",
@@ -482,10 +625,11 @@ async def tool_invocation_context(
     invocation = await session.get(ToolInvocation, invocation_id)
     if not invocation:
         raise HTTPException(status_code=404, detail="Tool invocation not found")
-    tool = await session.get(ToolDefinition, invocation.tool_definition_id)
-    server = await session.get(ToolServer, tool.server_id) if tool else None
-    if not tool or not server:
-        raise HTTPException(status_code=409, detail="Tool registry entry is incomplete")
+    tool, server, _ = await _load_invocation_binding(
+        session,
+        invocation,
+        require_current_authorization=True,
+    )
     return ToolInvocationContext(
         invocation_id=invocation.id,
         task_id=invocation.task_id,
@@ -516,11 +660,13 @@ async def start_tool_invocation(
     invocation = await session.get(ToolInvocation, invocation_id, with_for_update=True)
     if not invocation:
         raise HTTPException(status_code=404, detail="Tool invocation not found")
+    if invocation.status == "completed":
+        return invocation
+
+    await _load_invocation_binding(session, invocation, require_current_authorization=True)
     execution = await session.get(WorkflowExecution, workflow_execution_id)
     if not execution or execution.task_id != invocation.task_id:
         raise HTTPException(status_code=409, detail="Workflow execution does not belong to invocation task")
-    if invocation.status == "completed":
-        return invocation
     invocation.workflow_execution_id = execution.id
     invocation.status = "running"
     invocation.started_at = invocation.started_at or datetime.now(UTC)
@@ -546,6 +692,8 @@ async def complete_tool_invocation(
         if invocation.result_json != body.result:
             raise HTTPException(status_code=409, detail="Completed invocation result cannot be rebound")
         return invocation
+    if invocation.status == "failed":
+        raise HTTPException(status_code=409, detail="Failed invocation cannot be completed")
     invocation.status = "completed"
     invocation.result_json = body.result
     invocation.last_error = None
@@ -590,9 +738,36 @@ async def fail_tool_invocation(
         raise HTTPException(status_code=404, detail="Tool invocation not found")
     if invocation.status == "completed":
         return invocation
+
+    transitioned = invocation.status != "failed"
     invocation.status = "failed"
     invocation.last_error = body.error
-    invocation.completed_at = datetime.now(UTC)
+    invocation.completed_at = invocation.completed_at or datetime.now(UTC)
+    if transitioned:
+        await enqueue_domain_event(
+            session,
+            event_type="tool.invocation.failed",
+            aggregate_type="tool_invocation",
+            aggregate_id=invocation.id,
+            correlation_id=invocation.correlation_id,
+            payload={
+                "invocation_id": str(invocation.id),
+                "task_id": str(invocation.task_id),
+                "error": body.error[:4000],
+            },
+        )
+        await append_audit(
+            session,
+            actor_type="worker",
+            actor_id=str(invocation.workflow_execution_id) if invocation.workflow_execution_id else None,
+            action="tool.invoke.fail",
+            resource_type="tool_invocation",
+            resource_id=str(invocation.id),
+            authority_level=invocation.authority_level,
+            correlation_id=invocation.correlation_id,
+            idempotency_key=f"tool-invocation:{invocation.id}:fail",
+            result_json={"error": body.error[:4000]},
+        )
     await session.commit()
     await session.refresh(invocation)
     return invocation
