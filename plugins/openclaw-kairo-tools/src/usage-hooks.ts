@@ -101,12 +101,25 @@ export function registerKairoUsageHooks(api: OpenClawPluginApi): void {
       const runId = ctx.runId?.trim();
       const schedulerId = ctx.jobId?.trim();
       if (!runId || !schedulerId) return;
-      await bindKnownScheduler({
+      const bound = await bindKnownScheduler({
         runId,
         schedulerId,
         sessionId: ctx.sessionId,
         trigger: ctx.trigger,
       });
+      if (!bound) return;
+
+      const provider = ctx.modelProviderId?.trim();
+      const model = ctx.modelId?.trim();
+      if (!provider && !model) return;
+      await serialized(schedulerId, () =>
+        usage.recordRouteRequestBySchedulerId(schedulerId, {
+          runId,
+          sessionId: ctx.sessionId,
+          provider,
+          model,
+        }),
+      );
     },
     { eligibleTriggers: ["cron"] as const },
   );
@@ -216,6 +229,11 @@ export function registerKairoUsageHooks(api: OpenClawPluginApi): void {
         turnUsd: finiteNumber(snapshot.turnUsd),
         durationMs: finiteNumber(snapshot.durationMs),
         fallbackUsed: snapshot.fallbackUsed,
+        overrideSource: snapshot.overrideSource,
+        authMode: snapshot.authMode,
+        reasoningEffort: snapshot.reasoningEffort,
+        fastMode: snapshot.fastMode,
+        contextTokenBudget: finiteNumber(snapshot.contextTokenBudget),
       }),
     );
   });
