@@ -38,7 +38,7 @@ docker compose --env-file .env.production \
 
 The production overlay changes the trust-sensitive behavior:
 
-- OpenBao uses persistent file storage instead of `-dev` mode;
+- OpenBao uses persistent file storage instead of `-dev` mode and explicitly erases inherited `BAO_DEV_*` values;
 - Keycloak uses `start` instead of `start-dev` and does not import the development realm fixture;
 - KAIRO Core always has authentication enabled;
 - KAIRO Core receives an explicit OpenBao workload token and production Keycloak issuer/JWKS configuration.
@@ -84,10 +84,10 @@ KAIRO_CONFIRM_RESTORE=YES \
 bash scripts/ops/restore.sh latest
 ```
 
-The restore procedure first materializes the snapshot into staging, verifies all required volume payloads exist, stops durable-state users, replaces the four target volumes and restarts the services that were previously running. If the destructive copy fails, affected services remain stopped for operator inspection rather than starting against a partial restore.
+The restore procedure first materializes the snapshot into staging, verifies all required volume payloads exist, stops durable-state users, replaces the four target volumes and restarts the services that were previously running. If the destructive copy fails, affected services remain stopped for operator inspection rather than starting against a partial restore. Root-owned Restic staging data is cleaned through the isolated ops helper rather than by weakening host permissions.
 
 A production OpenBao process restored from persistent storage may still require operator unseal before `/health/trust` becomes ready.
 
 ## CI recovery proof
 
-`backup-restore-integration` performs a destructive recovery drill on disposable volumes. It seeds independent markers in PostgreSQL, NATS and SeaweedFS, snapshots them, removes the live markers, restores the snapshot, and verifies that all three markers return. This prevents backup code that merely creates archives from being mistaken for a working recovery path.
+`backup-restore-integration` performs a destructive recovery drill on disposable volumes. It seeds independent markers in PostgreSQL, NATS, SeaweedFS and OpenBao, snapshots all four stores, removes the live markers, restores the snapshot, and verifies that every marker returns. This prevents backup code that merely creates archives from being mistaken for a working recovery path.
