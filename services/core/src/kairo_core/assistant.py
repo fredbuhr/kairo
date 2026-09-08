@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import get_session
-from .news import create_news_brief
+from .news import start_news_brief
 from .schemas import (
     AssistantCommandCreate,
     AssistantCommandResponse,
@@ -163,7 +163,7 @@ async def assistant_command(
         max_sources=10,
         output=route.output,
     )
-    execution = await create_news_brief(news_request, session)
+    execution = await start_news_brief(news_request, session)
     return AssistantCommandResponse(
         capability=route.capability,
         confidence=route.confidence,
