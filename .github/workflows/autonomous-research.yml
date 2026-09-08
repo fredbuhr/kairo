@@ -18,3 +18,26 @@ jobs:
         run: uv run --project services/core python -c "from kairo_core.main import app; assert app.title == 'KAIRO Core'"
       - name: Prove bounded PydanticAI research planner
         run: uv run --project services/worker python scripts/smoke/research_agent_contract.py
+
+  research-core-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare research environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_AUTH_ENABLED=false' >> .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+      - name: Start canonical research substrate
+        run: docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+      - name: Prove read-only A1 research boundary and deterministic child slots
+        run: python scripts/smoke/research_boundary.py
+      - name: Dump research state on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color --tail=500 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+      - name: Tear down research stack
+        if: always()
+        run: docker compose down -v --remove-orphans
