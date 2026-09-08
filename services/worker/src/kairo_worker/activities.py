@@ -8,6 +8,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from temporalio import activity
+from trafilatura import extract
 
 from .config import settings
 
@@ -155,6 +156,62 @@ async def _search_searxng(
     return sources
 
 
+async def _enrich_sources(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Read accessible article bodies transiently for better analysis.
+
+    The extracted body is held only in activity memory and removed before the KAIRO Artifact is
+    persisted. Paywalls, JavaScript-only pages and robots/network failures simply fall back to the
+    SearXNG snippet.
+    """
+
+    semaphore = asyncio.Semaphore(4)
+    headers = {
+        "User-Agent": "KAIRO-News/0.2 (+local personal research assistant)",
+        "Accept": "text/html,application/xhtml+xml",
+    }
+
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(10.0, connect=5.0), follow_redirects=True, headers=headers
+    ) as client:
+
+        async def enrich(source: dict[str, Any]) -> dict[str, Any]:
+            enriched = dict(source)
+            enriched["content_available"] = False
+            try:
+                async with semaphore:
+                    response = await client.get(source["url"])
+                response.raise_for_status()
+                content_type = response.headers.get("content-type", "").lower()
+                if "html" not in content_type or len(response.content) > 2_500_000:
+                    return enriched
+                extracted = await asyncio.to_thread(
+                    extract,
+                    response.text,
+                    url=str(response.url),
+                    include_comments=False,
+                    include_tables=False,
+                )
+                article_text = _clean_text(extracted, 5000)
+                if article_text:
+                    enriched["analysis_text"] = article_text
+                    enriched["content_available"] = True
+            except Exception:
+                pass
+            return enriched
+
+        enriched_head = await asyncio.gather(*(enrich(source) for source in sources[:6]))
+
+    tail = [dict(source, content_available=False) for source in sources[6:]]
+    return [*enriched_head, *tail]
+
+
+def _public_sources(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {key: value for key, value in source.items() if key != "analysis_text"}
+        for source in sources
+    ]
+
+
 def _fallback_brief(
     *, query: str, mode: str, language: str, sources: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -222,7 +279,7 @@ async def _summarize_with_litellm(
             "title": source["title"],
             "domain": source["domain"],
             "published_at": source["published_at"],
-            "snippet": source["snippet"][:600],
+            "text": str(source.get("analysis_text") or source["snippet"])[:3000],
             "market_score_hint": source["market_score"],
         }
         for source in sources
@@ -324,12 +381,24 @@ async def perform_news_brief(payload: dict[str, Any]) -> dict[str, Any]:
         mode=mode,
     )
 
-    activity.heartbeat({"stage": "summarize", "sources": len(sources)})
-    brief = _fallback_brief(query=query, mode=mode, language=language, sources=sources)
-    if sources:
+    activity.heartbeat({"stage": "article-enrichment", "sources": len(sources)})
+    analysis_sources = await _enrich_sources(sources) if sources else []
+    public_sources = _public_sources(analysis_sources)
+
+    activity.heartbeat(
+        {
+            "stage": "summarize",
+            "sources": len(public_sources),
+            "full_text_sources": sum(
+                1 for source in public_sources if source.get("content_available") is True
+            ),
+        }
+    )
+    brief = _fallback_brief(query=query, mode=mode, language=language, sources=public_sources)
+    if analysis_sources:
         try:
             model_brief = await _summarize_with_litellm(
-                query=query, mode=mode, language=language, sources=sources
+                query=query, mode=mode, language=language, sources=analysis_sources
             )
             if model_brief:
                 brief.update({key: value for key, value in model_brief.items() if value is not None})
@@ -348,7 +417,7 @@ async def perform_news_brief(payload: dict[str, Any]) -> dict[str, Any]:
             "summary": str(brief.get("summary") or ""),
             "spoken_summary": str(brief.get("spoken_summary") or brief.get("summary") or ""),
             "market_impact": brief.get("market_impact"),
-            "sources": sources,
+            "sources": public_sources,
             "model_warning": brief.get("model_warning"),
         },
     }
