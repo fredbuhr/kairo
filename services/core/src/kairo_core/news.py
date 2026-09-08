@@ -76,14 +76,11 @@ async def _get_news_task(task_id: uuid.UUID, session: AsyncSession) -> Task:
     return task
 
 
-@router.post(
-    "/v1/news/briefs",
-    response_model=NewsBriefRunResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-async def create_news_brief(
-    body: NewsBriefCreate, session: AsyncSession = Depends(get_session)
+async def start_news_brief(
+    body: NewsBriefCreate, session: AsyncSession
 ) -> NewsBriefRunResponse:
+    """Start the canonical `news.brief` capability independent of its transport surface."""
+
     project = await _ensure_news_project(session)
     correlation_id = uuid.uuid4()
     task_input = body.model_dump(mode="json")
@@ -137,6 +134,17 @@ async def create_news_brief(
     )
 
 
+@router.post(
+    "/v1/news/briefs",
+    response_model=NewsBriefRunResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def create_news_brief(
+    body: NewsBriefCreate, session: AsyncSession = Depends(get_session)
+) -> NewsBriefRunResponse:
+    return await start_news_brief(body, session)
+
+
 @router.get("/v1/news/briefs/{task_id}", response_model=NewsBriefRead)
 async def get_news_brief(
     task_id: uuid.UUID, session: AsyncSession = Depends(get_session)
@@ -183,7 +191,9 @@ async def news_brief_audio(
     if not spoken_summary:
         raise HTTPException(status_code=422, detail="News brief has no text to synthesize")
 
-    selected_voice = (voice or str((task.input or {}).get("voice") or settings.kokoro_default_voice))[:120]
+    selected_voice = (
+        voice or str((task.input or {}).get("voice") or settings.kokoro_default_voice)
+    )[:120]
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
