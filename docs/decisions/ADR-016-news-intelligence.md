@@ -1,0 +1,62 @@
+# ADR-016 — News Intelligence is a sourced KAIRO capability
+
+## Status
+
+Accepted.
+
+## Context
+
+KAIRO must answer requests such as:
+
+- “Quelles sont les nouvelles du jour sur la ville de Paris ?”
+- “Quelles nouvelles risquent d'impacter la bourse aujourd'hui ?”
+- “Lis-moi le briefing.”
+
+The capability must work from the same KAIRO data model and durable execution substrate as other tasks. It must not create a parallel source of truth or couple the product to a single news provider.
+
+## Decision
+
+News Intelligence is implemented as a KAIRO task capability named `news.brief`.
+
+1. **Discovery — SearXNG**
+   - KAIRO Worker queries the private SearXNG instance.
+   - News/general search results are normalized and deduplicated.
+   - KAIRO keeps source metadata, links and short search-result extracts rather than mirroring full newspaper articles.
+
+2. **Analysis — KAIRO Worker + LiteLLM**
+   - The Worker supplies only retrieved source metadata/extracts to the summarization model.
+   - Summaries must cite source identifiers such as `[S1]` and must not invent facts absent from the supplied material.
+   - If LiteLLM is unavailable, KAIRO produces a deterministic source digest instead of losing the briefing.
+
+3. **Market-impact mode**
+   - A deterministic keyword signal provides an initial relevance score.
+   - The model may synthesize likely market impact, direction, sectors and assets from the supplied sources.
+   - This output is analytical context, not an instruction to trade. Sources and uncertainty remain visible.
+
+4. **Canonical persistence — PostgreSQL**
+   - A request is a normal KAIRO `Task` in the system workspace `KAIRO News`.
+   - The completed result is a normal `Artifact` with kind `news-brief`.
+   - Source URLs, source metadata, generated summary, spoken summary and market-impact metadata live inside the artifact content.
+   - Task and artifact lifecycle events use the existing transactional outbox and NATS event path.
+
+5. **Durability — Temporal**
+   - News collection and synthesis run inside the existing durable task workflow.
+   - Network activities remain outside Temporal workflow sandbox code.
+   - News activities use a longer heartbeat budget than short foundation activities because model calls can take materially longer.
+
+6. **Speech — Kokoro-FastAPI**
+   - Audio is synthesized locally and on demand from the persisted `spoken_summary`.
+   - Kokoro-FastAPI runs under the optional Compose `voice` profile.
+   - MP3 output is streamed to the client; it is not duplicated into canonical state unless a later product requirement explicitly asks to retain audio.
+
+7. **Interface**
+   - The web client exposes query, analysis mode and output mode.
+   - The result shows the briefing, market-impact metadata when requested, and the retained source list.
+   - Audio playback calls the KAIRO Core audio endpoint; the browser never talks to the TTS engine directly.
+
+## Consequences
+
+- News providers, model providers and TTS engines remain replaceable behind KAIRO-owned contracts.
+- A news request inherits KAIRO's audit, durability, eventing and future scheduling/notification capabilities.
+- KAIRO can later add source subscriptions, watchlists, embeddings, entity extraction and alerting without replacing the first implementation.
+- Full-text article ingestion, paywall bypassing and republishing are explicitly outside this capability.
