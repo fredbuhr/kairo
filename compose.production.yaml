@@ -27,6 +27,7 @@ services:
   kairo-core:
     environment:
       KAIRO_AUTH_ENABLED: "true"
+      KAIRO_POLICY_SIGNING_KEY: ${KAIRO_POLICY_SIGNING_KEY}
       ASSET_MAX_BYTES: ${ASSET_MAX_BYTES}
       SEAWEED_FILER_ENDPOINT: http://seaweedfs:8888
       OPENBAO_TOKEN: ${OPENBAO_TOKEN}

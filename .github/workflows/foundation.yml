@@ -70,6 +70,9 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall services/core/src services/worker/src scripts/smoke
 
+      - name: Prove LiteLLM accounting contract
+        run: uv run --project services/worker python scripts/smoke/model_gateway_contract.py
+
       - name: Prove News Intelligence contract
         run: uv run --project services/worker python scripts/smoke/news_contract.py
 
@@ -162,3 +165,32 @@ jobs:
           docker compose --env-file .env -f compose.yaml -f compose.override.yaml -f compose.ops.yaml --profile ops run --rm ops-cleanup || true
           docker compose --env-file .env -f compose.yaml -f compose.override.yaml -f compose.ops.yaml --profile ops down -v --remove-orphans
           rm -rf backups/restic .kairo-backup-staging
+
+  block2-policy-integration:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare autonomy-boundary environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+
+      - name: Start durable execution, identity and Core policy substrate
+        run: |
+          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace keycloak kairo-core kairo-worker
+
+      - name: Prove approval suspension, hard budgets and policy tokens
+        run: python scripts/smoke/block2_policy.py
+
+      - name: Dump autonomy-boundary state on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color --tail=450 postgres nats temporal-admin-tools temporal temporal-create-namespace keycloak kairo-core kairo-worker
+
+      - name: Tear down autonomy stack
+        if: always()
+        run: docker compose down -v --remove-orphans

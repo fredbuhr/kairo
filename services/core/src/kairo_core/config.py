@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     kairo_env: str = "development"
     kairo_component_registry: str = "/app/config/components.yaml"
     kairo_internal_token: str = "development-only-change-me"
+    kairo_policy_signing_key: str = "development-policy-signing-change-me"
     kairo_cors_origins: str = "http://localhost:5173"
     kairo_auth_enabled: bool = True
     asset_max_bytes: int = 25 * 1024 * 1024
