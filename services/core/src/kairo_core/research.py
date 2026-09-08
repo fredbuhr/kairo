@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .auth import Principal, require_kairo_user
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
-from .models import Project, Task, WorkflowExecution
-from .schemas import TaskRunResponse
+from .models import Artifact, Project, Task, WorkflowExecution
+from .schemas import ArtifactRead, TaskRunResponse
 from .security import require_internal_token
 from .tool_models import ToolDefinition, ToolInvocation, ToolServer
 from .tools import _validate_tool_input
@@ -29,6 +29,14 @@ class ResearchRunCreate(BaseModel):
     allowed_tool_keys: list[str] = Field(default_factory=list, max_length=32)
     model_alias: str = Field(default="local-fast", min_length=1, max_length=120)
     estimated_model_cost_usd: Decimal = Field(default=Decimal("0.01"), ge=0, le=1)
+
+
+class ResearchRunRead(BaseModel):
+    task_id: uuid.UUID
+    project_id: uuid.UUID
+    status: str
+    query: str
+    artifact: ArtifactRead | None = None
 
 
 class ResearchContext(BaseModel):
@@ -166,6 +174,30 @@ async def create_research_run(
     )
     await session.commit()
     return await run_task(task.id, session)
+
+
+@router.get("/v1/research/runs/{task_id}", response_model=ResearchRunRead)
+async def get_research_run(
+    task_id: uuid.UUID,
+    _: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> ResearchRunRead:
+    task = await session.get(Task, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Research task not found")
+    task_input = _research_task_input(task)
+    artifact = await session.scalar(
+        select(Artifact)
+        .where(Artifact.task_id == task.id, Artifact.kind == "autonomous-research")
+        .order_by(Artifact.created_at.desc())
+    )
+    return ResearchRunRead(
+        task_id=task.id,
+        project_id=task.project_id,
+        status=task.status,
+        query=str(task_input.get("query") or ""),
+        artifact=ArtifactRead.model_validate(artifact) if artifact is not None else None,
+    )
 
 
 @router.get(
