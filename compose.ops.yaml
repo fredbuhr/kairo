@@ -34,11 +34,24 @@ services:
           cp -a "$${source}/." "$${target}/"
         done
     volumes:
-      - ./.kairo-backup-staging:/staging:ro
+      - ./.kairo-backup-staging:/staging
       - postgres_data:/restore/postgres
       - nats_data:/restore/nats
       - seaweed_data:/restore/seaweed
       - openbao_data:/restore/openbao
+
+  ops-cleanup:
+    image: alpine:3.22
+    profiles: [ops]
+    entrypoint: ["/bin/sh"]
+    command:
+      - -ec
+      - |
+        rm -rf /staging/* /staging/.[!.]* /staging/..?* 2>/dev/null || true
+        rm -rf /repository/* /repository/.[!.]* /repository/..?* 2>/dev/null || true
+    volumes:
+      - ./.kairo-backup-staging:/staging
+      - ${RESTIC_LOCAL_PATH:-./backups/restic}:/repository
 
 volumes:
   openbao_data:
