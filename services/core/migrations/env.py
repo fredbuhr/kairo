@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from kairo_core.config import settings
 from kairo_core.db import Base
-from kairo_core import autonomy_models, command_models, memory_models, models  # noqa: F401
+from kairo_core import autonomy_models, command_models, document_models, memory_models, models  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))

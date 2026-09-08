@@ -2,11 +2,12 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .command_models import CommandRecord
 from .db import get_session
+from .document_models import Document, DocumentVersion
 from .events import append_audit, enqueue_domain_event
 from .models import Artifact, Task, WorkflowExecution
 from .schemas import (
@@ -105,6 +106,90 @@ async def _propagate_semantic_route_failure(
         correlation_id=command.correlation_id,
         idempotency_key=f"command:{command.id}:semantic-route-fail",
         result_json={"error": error[:4000], "routing_task_id": str(task.id)},
+    )
+
+
+async def _propagate_document_ingestion_failure(
+    session: AsyncSession,
+    *,
+    task: Task,
+    execution: WorkflowExecution,
+    error: str,
+) -> None:
+    """Project a terminal document Task failure onto its canonical parse generation.
+
+    Worker activity attempts are intentionally not allowed to mark a DocumentVersion terminal:
+    Temporal may still retry them. This hook only runs from the canonical workflow failure path,
+    after the activity retry policy has been exhausted or policy has terminally denied execution.
+    """
+
+    task_input = task.input or {}
+    if str(task_input.get("capability") or "") != "document.ingest":
+        return
+
+    raw_version_id = task_input.get("document_version_id")
+    if raw_version_id is None:
+        return
+    try:
+        version_id = uuid.UUID(str(raw_version_id))
+    except (TypeError, ValueError):
+        return
+
+    version = await session.scalar(
+        select(DocumentVersion).where(DocumentVersion.id == version_id).with_for_update()
+    )
+    if version is None or version.status == "completed":
+        return
+
+    transitioned = version.status != "failed"
+    version.status = "failed"
+    version.last_error = error[:4000]
+    version.completed_at = version.completed_at or datetime.now(UTC)
+
+    document = await session.scalar(
+        select(Document).where(Document.id == version.document_id).with_for_update()
+    )
+    if document is not None:
+        latest_generation = int(
+            await session.scalar(
+                select(func.max(DocumentVersion.generation)).where(
+                    DocumentVersion.document_id == document.id
+                )
+            )
+            or version.generation
+        )
+        if version.generation == latest_generation:
+            document.status = "failed"
+
+    if not transitioned:
+        return
+
+    await enqueue_domain_event(
+        session,
+        event_type="document.ingestion.failed",
+        aggregate_type="document_version",
+        aggregate_id=version.id,
+        correlation_id=execution.correlation_id,
+        payload={
+            "document_id": str(version.document_id),
+            "document_version_id": str(version.id),
+            "generation": version.generation,
+            "task_id": str(task.id),
+            "workflow_execution_id": str(execution.id),
+            "error": error[:4000],
+        },
+    )
+    await append_audit(
+        session,
+        actor_type="worker",
+        actor_id=execution.workflow_id,
+        action="document.ingest.fail",
+        resource_type="document_version",
+        resource_id=str(version.id),
+        authority_level=1,
+        correlation_id=execution.correlation_id,
+        idempotency_key=f"document-version:{version.id}:ingestion-fail",
+        result_json={"error": error[:4000], "task_id": str(task.id)},
     )
 
 
@@ -422,6 +507,12 @@ async def internal_fail_execution(
                 result_json={"error": body.error},
             )
         await _propagate_semantic_route_failure(
+            session,
+            task=task,
+            execution=execution,
+            error=body.error,
+        )
+        await _propagate_document_ingestion_failure(
             session,
             task=task,
             execution=execution,

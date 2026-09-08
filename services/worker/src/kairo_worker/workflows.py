@@ -7,6 +7,7 @@ from temporalio.exceptions import ApplicationError
 
 with workflow.unsafe.imports_passed_through():
     from .activities import begin_execution, complete_execution, fail_execution, perform_foundation_work
+    from .document_ingestion import perform_document_ingestion
     from .memory_projection import perform_memory_projection
     from .news_activity import perform_news_brief
     from .policy_activities import check_policy_gate
@@ -121,6 +122,14 @@ class TaskExecutionWorkflow:
                     perform_memory_projection,
                     work_payload,
                     start_to_close_timeout=timedelta(minutes=5),
+                    heartbeat_timeout=timedelta(seconds=120),
+                    retry_policy=ACTIVITY_RETRY,
+                )
+            elif capability == "document.ingest":
+                result = await workflow.execute_activity(
+                    perform_document_ingestion,
+                    work_payload,
+                    start_to_close_timeout=timedelta(minutes=10),
                     heartbeat_timeout=timedelta(seconds=120),
                     retry_policy=ACTIVITY_RETRY,
                 )
