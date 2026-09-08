@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 import httpx
@@ -57,6 +59,21 @@ async def _get_context(invocation_id: str) -> dict[str, Any]:
         return response.json()
 
 
+async def _get_task(task_id: str) -> dict[str, Any]:
+    """Read the immutable tool authorization snapshot stored on the canonical KAIRO Task."""
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.get(
+            f"{settings.kairo_core_url.rstrip('/')}/v1/tasks/{task_id}",
+            headers=_headers(),
+        )
+        response.raise_for_status()
+        payload = response.json()
+    if not isinstance(payload, dict):
+        raise RuntimeError("KAIRO Core returned an invalid Task snapshot")
+    return payload
+
+
 async def _start(invocation_id: str, workflow_execution_id: str) -> None:
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.post(
@@ -95,6 +112,56 @@ def _result_payload(result: Any) -> dict[str, Any]:
     if isinstance(result, dict):
         return result
     return {"value": str(result)}
+
+
+def _live_tool_schema_hash(tool: Any) -> str:
+    """Hash one live MCP tool contract using the same canonical payload shape as KAIRO Core."""
+
+    if not hasattr(tool, "model_dump"):
+        raise RuntimeError("MCP tool definition is not serializable")
+    dumped = tool.model_dump(mode="json", by_alias=True)
+    if not isinstance(dumped, dict):
+        raise RuntimeError("MCP tool definition serialized to an invalid payload")
+
+    name = str(dumped.get("name") or "")
+    if not name:
+        raise RuntimeError("MCP tool definition has no name")
+    input_schema = dumped.get("inputSchema")
+    if input_schema is None:
+        input_schema = dumped.get("input_schema")
+    if not isinstance(input_schema, dict):
+        input_schema = {}
+    output_schema = dumped.get("outputSchema")
+    if output_schema is None and "output_schema" in dumped:
+        output_schema = dumped.get("output_schema")
+    if output_schema is not None and not isinstance(output_schema, dict):
+        raise RuntimeError(f"MCP tool {name} advertises an invalid output schema")
+
+    encoded = json.dumps(
+        {
+            "name": name,
+            "input_schema": input_schema,
+            "output_schema": output_schema,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _require_live_tool_contract(
+    tools: list[Any], *, remote_name: str, expected_schema_hash: str
+) -> Any:
+    live = next((tool for tool in tools if str(getattr(tool, "name", "")) == remote_name), None)
+    if live is None:
+        raise RuntimeError(f"MCP tool {remote_name} disappeared from the live server catalog")
+    live_hash = _live_tool_schema_hash(live)
+    if not expected_schema_hash or live_hash != expected_schema_hash:
+        raise RuntimeError(
+            f"MCP tool {remote_name} live schema drifted from the immutable KAIRO Task snapshot"
+        )
+    return live
 
 
 @activity.defn(name="fail_tool_invocation")
@@ -148,14 +215,33 @@ async def perform_tool_invocation(payload: dict[str, Any]) -> dict[str, Any]:
     endpoint = str(context.get("endpoint_url") or "")
     remote_name = str(context.get("remote_name") or "")
     arguments = context.get("input") if isinstance(context.get("input"), dict) else {}
-    if not endpoint or not remote_name:
-        raise RuntimeError("Tool registry context is missing endpoint or remote tool name")
+    task_id = str(context.get("task_id") or "")
+    if not endpoint or not remote_name or not task_id:
+        raise RuntimeError("Tool registry context is missing endpoint, remote tool name or task id")
 
-    # Once this heartbeat is durable, a no-retry tool is treated as outcome-ambiguous
-    # after a crash even if the process died a microsecond before the network call.
-    _heartbeat("pre_call", invocation_id)
+    task = await _get_task(task_id)
+    canonical_input = task.get("input") if isinstance(task.get("input"), dict) else {}
+    expected_schema_hash = str(canonical_input.get("tool_schema_hash") or "")
+    if not expected_schema_hash:
+        raise RuntimeError("Canonical tool Task snapshot is missing tool_schema_hash")
+
     async with Client(endpoint) as client:
+        # Refresh the live catalog immediately before execution. Besides detecting disappearance or
+        # contract drift, list_tools() primes the MCP SDK's output-schema cache so call_tool() checks
+        # structured results against the server-advertised output contract.
+        live_catalog = await client.list_tools()
+        live_tools = live_catalog.tools if hasattr(live_catalog, "tools") else []
+        _require_live_tool_contract(
+            list(live_tools),
+            remote_name=remote_name,
+            expected_schema_hash=expected_schema_hash,
+        )
+
+        # Only after the read-only contract refresh succeeds do we cross the side-effect boundary.
+        # A crash after this heartbeat makes a no-retry tool outcome ambiguous by design.
+        _heartbeat("pre_call", invocation_id)
         result = await client.call_tool(remote_name, arguments)
+
     result_payload = _result_payload(result)
     if bool(result_payload.get("isError") or result_payload.get("is_error")):
         raise RuntimeError(f"MCP tool returned an error: {result_payload}")
