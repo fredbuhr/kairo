@@ -28,7 +28,10 @@ def _workflow_id(task_id: uuid.UUID) -> str:
 
 @router.post("/v1/tasks/{task_id}/run", response_model=TaskRunResponse)
 async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_session)) -> TaskRunResponse:
-    task = await session.get(Task, task_id)
+    # Serialize the creation of the canonical execution record for a task. The lock is released
+    # at the first commit before the Temporal RPC; concurrent callers then reuse the same
+    # deterministic workflow ID and the Temporal gateway resolves which start won.
+    task = await session.get(Task, task_id, with_for_update=True)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     if task.status == "completed":
