@@ -2,10 +2,12 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
 secrets/
 runtime/
 data/
 backups/
+.kairo-backup-staging/
 
 # Node
 node_modules/
