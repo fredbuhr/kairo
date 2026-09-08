@@ -39,9 +39,9 @@ async def _lock_execution(session: AsyncSession, workflow_id: str) -> WorkflowEx
 
 @router.post("/v1/tasks/{task_id}/run", response_model=TaskRunResponse)
 async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_session)) -> TaskRunResponse:
-    # Serialize the creation of the canonical execution record for a task. The lock is released
-    # at the first commit before the Temporal RPC; concurrent callers then reuse the same
-    # deterministic workflow ID and the Temporal gateway resolves which start won.
+    # Serialize the creation of the canonical execution record for a task. The lock is always
+    # released before the Temporal RPC; concurrent callers then reuse the same deterministic
+    # workflow ID and Temporal resolves which start won.
     task = await session.get(Task, task_id, with_for_update=True)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -89,6 +89,9 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
         await session.refresh(execution)
     else:
         correlation_id = execution.correlation_id
+        # Release the Task row lock before making a network call. Worker callbacks lock in the
+        # canonical Execution -> Task order, so keeping the Task lock here could create a cycle.
+        await session.commit()
 
     payload = {
         "task_id": str(task.id),
