@@ -1,0 +1,97 @@
+import uuid
+from datetime import datetime
+from decimal import Decimal
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ProjectCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=240)
+    status: str = Field(default="active", max_length=32)
+    summary: str | None = None
+    parent_id: uuid.UUID | None = None
+
+
+class ProjectRead(ProjectCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class TaskCreate(BaseModel):
+    project_id: uuid.UUID
+    title: str = Field(min_length=1, max_length=320)
+    description: str | None = None
+    owner_type: str = Field(default="user", max_length=32)
+    owner_ref: str | None = None
+    authority_ceiling: int = Field(default=1, ge=0, le=5)
+    budget_usd: Decimal | None = Field(default=None, ge=0)
+    input: dict[str, Any] = Field(default_factory=dict)
+
+
+class TaskRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    project_id: uuid.UUID
+    title: str
+    description: str | None
+    status: str
+    owner_type: str
+    owner_ref: str | None
+    authority_ceiling: int
+    budget_usd: Decimal | None
+    input: dict[str, Any]
+    started_at: datetime | None
+    completed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class RelationshipCreate(BaseModel):
+    source_type: str = Field(min_length=1, max_length=64)
+    source_id: uuid.UUID
+    relation_type: str = Field(min_length=1, max_length=96)
+    target_type: str = Field(min_length=1, max_length=64)
+    target_id: uuid.UUID
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class RelationshipRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    source_type: str
+    source_id: uuid.UUID
+    relation_type: str
+    target_type: str
+    target_id: uuid.UUID
+    metadata_json: dict[str, Any]
+    created_at: datetime
+
+
+class ArtifactRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    project_id: uuid.UUID
+    task_id: uuid.UUID | None
+    workflow_execution_id: uuid.UUID | None
+    kind: str
+    title: str
+    content: dict[str, Any]
+    created_at: datetime
+
+
+class SystemReadiness(BaseModel):
+    status: str
+    checks: dict[str, bool]
+
+
+class OutboxStats(BaseModel):
+    pending: int
+    published: int
+    relay_connected: bool
