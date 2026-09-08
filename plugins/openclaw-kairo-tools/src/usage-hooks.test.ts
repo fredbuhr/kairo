@@ -42,13 +42,52 @@ function fakeApi(dataDir: string) {
   };
 }
 
-test("llm_output attributes usage through cron job id and final snapshot overrides totals", async () => {
+test("cron turn binds before Codex, preserves call identities, and uses final snapshot when available", async () => {
   const { dataDir, job } = await setup();
   try {
     const runtime = fakeApi(dataDir);
+    assert.ok(runtime.hooks.has("before_agent_reply"));
+    assert.ok(runtime.hooks.has("model_call_started"));
+    assert.ok(runtime.hooks.has("model_call_ended"));
     assert.ok(runtime.hooks.has("llm_output"));
     assert.ok(runtime.hooks.has("after_tool_call"));
     assert.ok(runtime.hooks.has("reply_payload_sending"));
+
+    await runtime.emit(
+      "before_agent_reply",
+      { cleanedBody: "[KAIRO BACKGROUND WORK]" },
+      {
+        trigger: "cron",
+        runId: "run-hook-1",
+        jobId: "cron_hook_123",
+        sessionId: "session-hook-1",
+      },
+    );
+
+    await runtime.emit("model_call_started", {
+      runId: "run-hook-1",
+      callId: "call-hook-1",
+      sessionId: "session-hook-1",
+      provider: "openai",
+      model: "gpt-5.6-luna",
+      api: "responses",
+      transport: "app-server",
+      contextTokenBudget: 258400,
+    });
+    await runtime.emit("model_call_ended", {
+      runId: "run-hook-1",
+      callId: "call-hook-1",
+      sessionId: "session-hook-1",
+      provider: "openai",
+      model: "gpt-5.6-luna",
+      api: "responses",
+      transport: "app-server",
+      durationMs: 180,
+      outcome: "completed",
+      requestPayloadBytes: 1200,
+      responseStreamBytes: 800,
+      timeToFirstByteMs: 70,
+    });
 
     await runtime.emit(
       "llm_output",
@@ -62,17 +101,30 @@ test("llm_output attributes usage through cron job id and final snapshot overrid
         usage: { input: 10, output: 5, total: 15 },
         assistantTexts: [],
       },
-      { jobId: "cron_hook_123", runId: "run-hook-1" },
+      { runId: "run-hook-1" },
     );
 
     await runtime.emit(
       "after_tool_call",
       {
         runId: "run-hook-1",
+        toolCallId: "tool-hook-1",
         toolName: "kairo_project_get",
+        params: { project: "ztikix" },
         durationMs: 20,
       },
-      { runId: "run-hook-1", toolName: "kairo_project_get" },
+      { runId: "run-hook-1", toolName: "kairo_project_get", toolCallId: "tool-hook-1" },
+    );
+    await runtime.emit(
+      "after_tool_call",
+      {
+        runId: "run-hook-1",
+        toolCallId: "tool-hook-1",
+        toolName: "kairo_project_get",
+        params: { project: "ztikix" },
+        durationMs: 20,
+      },
+      { runId: "run-hook-1", toolName: "kairo_project_get", toolCallId: "tool-hook-1" },
     );
 
     await runtime.emit("reply_payload_sending", {
@@ -84,6 +136,7 @@ test("llm_output attributes usage through cron job id and final snapshot overrid
         provider: "openai",
         model: "gpt-5.6-luna",
         resolvedRef: "openai/gpt-5.6-luna",
+        requested: "openai/gpt-5.6-luna",
         usage: { input: 12, output: 7, cacheRead: 30, total: 49 },
         turnUsd: 0.0042,
         durationMs: 200,
@@ -91,32 +144,48 @@ test("llm_output attributes usage through cron job id and final snapshot overrid
       },
     });
 
-    const usage = await new KairoJobUsageLedger({ dataDir }).getUsage("ztikix", job.id);
-    assert.equal(usage.summary.runs, 1);
-    assert.equal(usage.summary.model_calls, 1);
-    assert.equal(usage.summary.tool_calls, 1);
-    assert.deepEqual(usage.summary.usage, { input: 12, output: 7, cacheRead: 30, total: 49 });
-    assert.equal(usage.summary.known_cost_usd, 0.0042);
-    assert.equal(usage.summary.cost_complete, true);
+    const recorded = await new KairoJobUsageLedger({ dataDir }).getUsage("ztikix", job.id);
+    assert.equal(recorded.summary.schema_version, 2);
+    assert.equal(recorded.summary.runs, 1);
+    assert.equal(recorded.summary.model_calls, 1);
+    assert.equal(recorded.summary.usage_observations, 1);
+    assert.equal(recorded.summary.tool_calls, 1);
+    assert.deepEqual(recorded.summary.usage, { input: 12, output: 7, cacheRead: 30, total: 49 });
+    assert.deepEqual(recorded.summary.usage_sources, ["final_snapshot"]);
+    assert.equal(recorded.summary.usage_complete, true);
+    assert.equal(recorded.summary.known_cost_usd, 0.0042);
+    assert.equal(recorded.summary.cost_complete, true);
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
 });
 
-test("embedded cron run binds through kairo_job_start when llm_output lacks jobId", async () => {
+test("embedded Cron usage still persists without delivery snapshot or model-call hooks", async () => {
   const { dataDir, job } = await setup();
   try {
     const runtime = fakeApi(dataDir);
 
     await runtime.emit(
+      "before_agent_reply",
+      { cleanedBody: "[KAIRO BACKGROUND WORK]" },
+      {
+        trigger: "cron",
+        runId: "embedded-run",
+        jobId: "cron_hook_123",
+        sessionId: "embedded-session",
+      },
+    );
+
+    await runtime.emit(
       "after_tool_call",
       {
         runId: "embedded-run",
+        toolCallId: "tool-start",
         toolName: "kairo_job_start",
         params: { project: "ztikix", jobId: job.id },
         durationMs: 11,
       },
-      { runId: "embedded-run", toolName: "kairo_job_start" },
+      { runId: "embedded-run", toolName: "kairo_job_start", toolCallId: "tool-start" },
     );
 
     await runtime.emit(
@@ -138,16 +207,18 @@ test("embedded cron run binds through kairo_job_start when llm_output lacks jobI
       "after_tool_call",
       {
         runId: "embedded-run",
+        toolCallId: "tool-complete",
         toolName: "kairo_job_complete",
         params: { project: "ztikix", jobId: job.id, summary: "done" },
         durationMs: 13,
       },
-      { runId: "embedded-run", toolName: "kairo_job_complete" },
+      { runId: "embedded-run", toolName: "kairo_job_complete", toolCallId: "tool-complete" },
     );
 
     const recorded = await new KairoJobUsageLedger({ dataDir }).getUsage("ztikix", job.id);
     assert.equal(recorded.summary.runs, 1);
-    assert.equal(recorded.summary.model_calls, 1);
+    assert.equal(recorded.summary.model_calls, 0);
+    assert.equal(recorded.summary.usage_observations, 1);
     assert.equal(recorded.summary.tool_calls, 2);
     assert.deepEqual(recorded.summary.usage, {
       input: 18,
@@ -156,6 +227,48 @@ test("embedded cron run binds through kairo_job_start when llm_output lacks jobI
       cacheWrite: 19914,
       total: 111712,
     });
+    assert.deepEqual(recorded.summary.usage_sources, ["llm_output_observed"]);
+    assert.equal(recorded.summary.usage_complete, false);
+    assert.equal(recorded.summary.cost_complete, false);
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("kairo_job_start remains a fallback correlation anchor if outer Cron hook is unavailable", async () => {
+  const { dataDir, job } = await setup();
+  try {
+    const runtime = fakeApi(dataDir);
+
+    await runtime.emit(
+      "after_tool_call",
+      {
+        runId: "fallback-run",
+        toolCallId: "fallback-start",
+        toolName: "kairo_job_start",
+        params: { project: "ztikix", jobId: job.id },
+        durationMs: 11,
+      },
+      { runId: "fallback-run", toolName: "kairo_job_start", toolCallId: "fallback-start" },
+    );
+
+    await runtime.emit(
+      "llm_output",
+      {
+        runId: "fallback-run",
+        sessionId: "fallback-session",
+        provider: "openai",
+        model: "gpt-5.6-luna",
+        usage: { input: 2, output: 1, total: 3 },
+        assistantTexts: [],
+      },
+      { runId: "fallback-run" },
+    );
+
+    const recorded = await new KairoJobUsageLedger({ dataDir }).getUsage("ztikix", job.id);
+    assert.equal(recorded.summary.runs, 1);
+    assert.equal(recorded.summary.usage_observations, 1);
+    assert.equal(recorded.summary.tool_calls, 1);
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
