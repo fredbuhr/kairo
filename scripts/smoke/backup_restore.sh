@@ -29,7 +29,7 @@ docker compose exec -T postgres sh -ec '
   psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<"SQL"
 DROP TABLE IF EXISTS kairo_backup_probe;
 CREATE TABLE kairo_backup_probe (value text NOT NULL);
-INSERT INTO kairo_backup_probe(value) VALUES ('canonical-postgres-proof');
+INSERT INTO kairo_backup_probe(value) VALUES ($$canonical-postgres-proof$$);
 SQL
 '
 docker compose exec -T nats sh -ec 'printf "%s\n" "canonical-nats-proof" > /data/kairo-backup-probe'
