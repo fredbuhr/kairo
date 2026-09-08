@@ -1,6 +1,8 @@
 import { KairoJobLedger, KairoJobUsageLedger } from "@kairo/core";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 
+const MAX_RUN_BINDINGS = 1024;
+
 function resolveDataDir(pluginConfig: unknown): string | undefined {
   if (!pluginConfig || typeof pluginConfig !== "object" || Array.isArray(pluginConfig)) return undefined;
   const dataDir = (pluginConfig as { dataDir?: unknown }).dataDir;
@@ -26,6 +28,16 @@ export function registerKairoUsageHooks(api: OpenClawPluginApi): void {
   const schedulerByRun = new Map<string, string>();
   const queues = new Map<string, Promise<void>>();
 
+  function rememberRun(runId: string, schedulerId: string): void {
+    schedulerByRun.delete(runId);
+    schedulerByRun.set(runId, schedulerId);
+    while (schedulerByRun.size > MAX_RUN_BINDINGS) {
+      const oldest = schedulerByRun.keys().next().value as string | undefined;
+      if (!oldest) break;
+      schedulerByRun.delete(oldest);
+    }
+  }
+
   async function serialized(schedulerId: string, operation: () => Promise<unknown>): Promise<void> {
     const previous = queues.get(schedulerId) ?? Promise.resolve();
     const current = previous.catch(() => undefined).then(operation).then(() => undefined);
@@ -35,6 +47,26 @@ export function registerKairoUsageHooks(api: OpenClawPluginApi): void {
     } finally {
       if (queues.get(schedulerId) === current) queues.delete(schedulerId);
     }
+  }
+
+  async function bindKnownScheduler(params: {
+    runId: string;
+    schedulerId: string;
+    sessionId?: string;
+    trigger?: string;
+  }): Promise<boolean> {
+    const match = await usage.findJobBySchedulerId(params.schedulerId);
+    if (!match) return false;
+    rememberRun(params.runId, params.schedulerId);
+    await serialized(params.schedulerId, () =>
+      usage.recordRunBinding(match.project_slug, match.job_id, {
+        schedulerId: params.schedulerId,
+        runId: params.runId,
+        sessionId: params.sessionId,
+        trigger: params.trigger,
+      }),
+    );
+    return true;
   }
 
   async function bindRunFromKairoJobStart(event: {
@@ -52,23 +84,96 @@ export function registerKairoUsageHooks(api: OpenClawPluginApi): void {
     const job = await jobs.getJob(project, jobId);
     const schedulerId = typeof job.scheduler_id === "string" ? job.scheduler_id.trim() : "";
     if (!schedulerId) return undefined;
-    schedulerByRun.set(runId, schedulerId);
+    rememberRun(runId, schedulerId);
+    await serialized(schedulerId, () =>
+      usage.recordRunBinding(project, jobId, {
+        schedulerId,
+        runId,
+        trigger: "cron",
+      }),
+    );
     return schedulerId;
   }
 
-  api.on("llm_output", async (event, ctx) => {
-    const schedulerId = ctx.jobId?.trim() || schedulerByRun.get(event.runId);
+  api.on(
+    "before_agent_reply",
+    async (_event, ctx) => {
+      const runId = ctx.runId?.trim();
+      const schedulerId = ctx.jobId?.trim();
+      if (!runId || !schedulerId) return;
+      await bindKnownScheduler({
+        runId,
+        schedulerId,
+        sessionId: ctx.sessionId,
+        trigger: ctx.trigger,
+      });
+    },
+    { eligibleTriggers: ["cron"] as const },
+  );
+
+  api.on("model_call_started", async (event) => {
+    const schedulerId = schedulerByRun.get(event.runId);
     if (!schedulerId) return;
-    schedulerByRun.set(event.runId, schedulerId);
+    await serialized(schedulerId, () =>
+      usage.recordModelCallStartedBySchedulerId(schedulerId, {
+        runId: event.runId,
+        callId: event.callId,
+        sessionId: event.sessionId,
+        provider: event.provider,
+        model: event.model,
+        api: event.api,
+        transport: event.transport,
+        contextTokenBudget: finiteNumber(event.contextTokenBudget),
+      }),
+    );
+  });
+
+  api.on("model_call_ended", async (event) => {
+    const schedulerId = schedulerByRun.get(event.runId);
+    if (!schedulerId) return;
+    await serialized(schedulerId, () =>
+      usage.recordModelCallEndedBySchedulerId(schedulerId, {
+        runId: event.runId,
+        callId: event.callId,
+        sessionId: event.sessionId,
+        provider: event.provider,
+        model: event.model,
+        api: event.api,
+        transport: event.transport,
+        durationMs: finiteNumber(event.durationMs),
+        outcome: event.outcome,
+        errorCategory: event.errorCategory,
+        failureKind: event.failureKind,
+        requestPayloadBytes: finiteNumber(event.requestPayloadBytes),
+        responseStreamBytes: finiteNumber(event.responseStreamBytes),
+        timeToFirstByteMs: finiteNumber(event.timeToFirstByteMs),
+        upstreamRequestIdHash: event.upstreamRequestIdHash,
+      }),
+    );
+  });
+
+  api.on("llm_output", async (event, ctx) => {
+    const directSchedulerId = ctx.jobId?.trim();
+    if (directSchedulerId && !schedulerByRun.has(event.runId)) {
+      await bindKnownScheduler({
+        runId: event.runId,
+        schedulerId: directSchedulerId,
+        sessionId: event.sessionId,
+        trigger: ctx.trigger,
+      });
+    }
+    const schedulerId = schedulerByRun.get(event.runId);
+    if (!schedulerId) return;
 
     await serialized(schedulerId, () =>
-      usage.recordLlmOutputBySchedulerId(schedulerId, {
+      usage.recordUsageObservationBySchedulerId(schedulerId, {
         runId: event.runId,
         sessionId: event.sessionId,
         provider: event.provider,
         model: event.model,
         resolvedRef: event.resolvedRef,
         harnessId: event.harnessId,
+        contextTokenBudget: finiteNumber(event.contextTokenBudget),
         usage: event.usage,
       }),
     );
@@ -84,6 +189,7 @@ export function registerKairoUsageHooks(api: OpenClawPluginApi): void {
     await serialized(schedulerId, () =>
       usage.recordToolCallBySchedulerId(schedulerId, {
         runId,
+        toolCallId: event.toolCallId ?? ctx.toolCallId,
         toolName: event.toolName,
         error: event.error,
         durationMs: finiteNumber(event.durationMs),
@@ -105,6 +211,7 @@ export function registerKairoUsageHooks(api: OpenClawPluginApi): void {
         provider: snapshot.provider,
         model: snapshot.model,
         resolvedRef: snapshot.resolvedRef,
+        requested: snapshot.requested,
         usage: snapshot.usage,
         turnUsd: finiteNumber(snapshot.turnUsd),
         durationMs: finiteNumber(snapshot.durationMs),
