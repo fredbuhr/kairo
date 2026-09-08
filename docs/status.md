@@ -8,7 +8,7 @@ Last updated: 2026-09-08
 
 Block 1 is complete and its exit conditions are covered by end-to-end CI proofs. The former OpenClaw/filesystem V0 remains useful history, but it is no longer the target runtime. Its lessons are carried into the PostgreSQL/Temporal/NATS architecture rather than maintaining two parallel systems.
 
-Block 2 now has three active pieces rather than only planned contracts: KAIRO-owned policy/approval enforcement, replay-safe and canonically accounted model calls through LiteLLM, and the first canonical conversational command kernel.
+Block 2 now has four active pieces rather than only planned contracts: KAIRO-owned policy/approval enforcement, replay-safe and canonically accounted model calls through LiteLLM, the canonical conversational command kernel, and a durable PydanticAI semantic-routing tier constrained to registered KAIRO capabilities.
 
 ## Foundation decisions now active
 
@@ -18,7 +18,9 @@ Block 2 now has three active pieces rather than only planned contracts: KAIRO-ow
 - NATS JetStream is the event bus, fed by a transactional outbox;
 - canonical Conversation/Message/Command records own conversational continuity and routing history;
 - KAIRO-owned Capability contracts sit above replaceable specialist engines;
-- deterministic high-confidence command routing is the first tier, with semantic routing reserved for a later second tier;
+- deterministic high-confidence command routing is the first tier;
+- PydanticAI provides a second-tier semantic route proposal only when deterministic routing has no match;
+- semantic PydanticAI provider access goes through the same replay-safe/accounted LiteLLM Worker gateway as other model calls;
 - Neo4j + Graphiti and Mem0 are rebuildable projections;
 - LiteLLM is the model-provider gateway;
 - PydanticAI is the agent framework;
@@ -49,7 +51,7 @@ The permanent platform substrate now includes:
 
 ## Block 1 proof status
 
-The completion gate contains four independent CI jobs and all four pass together:
+The completion gate contains independent CI jobs that continue to pass together:
 
 1. `validate` — development, production and operations Compose topologies; TypeScript/Python builds; deterministic capability/model/news contracts;
 2. `block1-integration` — create canonical entities, start a durable Temporal workflow, hard-stop the Worker, restart it, resume execution, finish exactly once and drain the transactional outbox;
@@ -69,21 +71,27 @@ This closes the Block 1 exit requirement: KAIRO can create/read canonical entiti
 - paid model calls keep replay checkpoints through Temporal heartbeats and refuse blind provider replay when the prior outcome is ambiguous;
 - retries can replay known results or repeat only the idempotent accounting handoff rather than silently double-spending.
 
-## Canonical Command Kernel now present
+## Canonical Command Kernel and semantic routing
 
 KAIRO has a server-side conversational front door rather than a browser-only command field.
 
 - canonical `Conversation`, `ConversationMessage`, `Command` and `Capability` records;
 - versioned capability metadata with input/output schemas, authority level, cost class and runtime;
 - `POST /v1/assistant/commands` as the universal command entry point;
-- deterministic high-confidence routing for proven intents;
-- conservative persistence and refusal for unsupported commands instead of invented intent;
-- stable command-to-Task/Workflow correlation;
+- deterministic high-confidence routing for proven intents without a model call;
+- ambiguous commands create a canonical `assistant.route.semantic` Task instead of being guessed synchronously;
+- PydanticAI validates a typed route proposal but has no direct provider/tool authority;
+- `FunctionModel` delegates the single semantic model turn to the existing KAIRO `model_gateway`;
+- semantic routing defaults to the `local-fast` LiteLLM alias and carries its own hard Task budget;
+- Core sends only capabilities explicitly marked `routable=true` and independently re-validates the returned key, confidence and input schema;
+- malformed/low-confidence/invented routes become `unsupported` rather than side effects;
+- semantic final Task IDs are deterministic so retries reuse an existing capability invocation;
+- stable Command → routing Task → final Task/Workflow correlation;
 - a persisted `conversation_id` reused by the web Command Center across requests;
-- `GET /v1/capabilities`, Conversation/Message reads and Command inspection;
-- a dedicated CI integration job proving PostgreSQL command state and Temporal handoff without public Internet or paid model credentials.
+- the Web Command Center follows asynchronous semantic routing before attaching to the final capability Task;
+- `GET /v1/capabilities`, Conversation/Message reads and Command inspection.
 
-The first registered capability is `news.brief`. The dedicated News HTTP endpoint and the universal command path now call the same transport-independent capability service.
+The first user-routable capability remains `news.brief`. `assistant.route.semantic` is internal and cannot itself be proposed by the model.
 
 ## News Intelligence already present
 
@@ -103,7 +111,7 @@ News Intelligence is a first-class KAIRO capability (`news.brief`) rather than a
 
 ## Next major milestone
 
-Continue Block 2 from this command boundary rather than adding isolated demos: add the PydanticAI semantic routing/agent layer behind the same canonical Command/Capability contracts, then Mem0 and Graphiti projections fed only from canonical KAIRO events, Docling ingestion, MCP tool registry, research/browser/Activepieces adapters and Langfuse trace correlation.
+After the semantic-routing slice is green, continue Block 2 with rebuildable memory/context projections: canonical-event projection into Mem0 and Graphiti/Neo4j, followed by Docling ingestion, Langfuse correlation, then the MCP tool registry and first tool-bearing research workflow.
 
 The target Block 2 exit remains: an approved autonomous workflow can research, use tools, create canonical artefacts, survive interruption, respect authority/cost limits and explain what it did.
 
