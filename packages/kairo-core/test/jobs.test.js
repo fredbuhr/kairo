@@ -32,7 +32,7 @@ async function createRunningJob(ledger, title = "Checkpoint test") {
   return await ledger.markRunning("ztikix", job.id);
 }
 
-test("persists scheduling intent before an external scheduler is linked", async () => {
+test("persists scheduling intent with explicit USD budget and exact tool cap", async () => {
   await withLedger(async ({ ledger, dataDir }) => {
     const job = await ledger.createJob({
       project: "ztikix",
@@ -40,22 +40,83 @@ test("persists scheduling intent before an external scheduler is linked", async 
       instructions: "Compare relevant public signals.",
       authorityCeiling: "A2",
       scheduledFor: "2026-09-08T01:00:00.000Z",
-      requestedBudget: 0.5,
+      requestedBudgetUsd: 0.5,
+      allowedTools: ["kairo_job_start", "kairo_project_get", "kairo_job_complete"],
+      allowedToolsSource: "explicit",
       sourceSession: "session-123",
     });
 
     assert.match(job.id, /^job_/);
     assert.equal(job.status, "scheduling");
     assert.equal(job.authority_ceiling, "A2");
-    assert.equal(job.requested_budget, 0.5);
+    assert.equal(job.requested_budget_usd, 0.5);
+    assert.equal(job.requested_budget, undefined);
     assert.equal(job.budget_enforced, false);
+    assert.deepEqual(job.allowed_tools, [
+      "kairo_job_start",
+      "kairo_project_get",
+      "kairo_job_complete",
+    ]);
+    assert.equal(job.allowed_tools_source, "explicit");
 
     const markdown = await readFile(
       path.join(dataDir, "projects", "ztikix", "jobs", `${job.id}.md`),
       "utf8",
     );
     assert.match(markdown, /status: "scheduling"/);
+    assert.match(markdown, /requested_budget_usd: 0.5/);
+    assert.match(markdown, /allowed_tools:/);
     assert.match(markdown, /## Instructions/);
+  });
+});
+
+test("accepts the legacy requestedBudget alias as USD without persisting an ambiguous field", async () => {
+  await withLedger(async ({ ledger }) => {
+    const job = await ledger.createJob({
+      project: "ztikix",
+      title: "Legacy budget alias",
+      instructions: "Exercise the transition alias.",
+      requestedBudget: 0.25,
+    });
+    assert.equal(job.requested_budget_usd, 0.25);
+    assert.equal(job.requested_budget, undefined);
+    assert.equal(job.budget_enforced, false);
+
+    await assert.rejects(
+      ledger.createJob({
+        project: "ztikix",
+        title: "Budget conflict",
+        instructions: "Reject conflicting unit aliases.",
+        requestedBudgetUsd: 0.25,
+        requestedBudget: 0.5,
+      }),
+      /must match/,
+    );
+  });
+});
+
+test("tool caps reject wildcard and group expansion but allow an explicit deny-all list", async () => {
+  await withLedger(async ({ ledger }) => {
+    for (const invalid of [["*"], ["exec*"], ["group:runtime"]]) {
+      await assert.rejects(
+        ledger.createJob({
+          project: "ztikix",
+          title: "Invalid cap",
+          instructions: "Reject broad policy syntax.",
+          allowedTools: invalid,
+        }),
+        /exact tool names/,
+      );
+    }
+
+    const denyAll = await ledger.createJob({
+      project: "ztikix",
+      title: "Deny all cap",
+      instructions: "A zero-tool job remains representable and fail-closed.",
+      allowedTools: [],
+      allowedToolsSource: "explicit",
+    });
+    assert.deepEqual(denyAll.allowed_tools, []);
   });
 });
 
