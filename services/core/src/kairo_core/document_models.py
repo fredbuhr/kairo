@@ -4,11 +4,13 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
+
+DOCUMENTS_PROJECT_ID = uuid.UUID("a8da482d-fb63-52b5-a687-0f65d64b10ad")
 
 
 class Document(Base):
@@ -18,8 +20,11 @@ class Document(Base):
     asset_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("assets.id", ondelete="RESTRICT"), nullable=False, unique=True
     )
-    project_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL")
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="RESTRICT"),
+        nullable=False,
+        server_default=text("'a8da482d-fb63-52b5-a687-0f65d64b10ad'::uuid"),
     )
     title: Mapped[str] = mapped_column(String(320), nullable=False)
     media_type: Mapped[str | None] = mapped_column(String(240))
