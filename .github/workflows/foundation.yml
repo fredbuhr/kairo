@@ -59,4 +59,33 @@ jobs:
           uv build --package kairo-worker
 
       - name: Compile Python sources
-        run: python -m compileall services/core/src services/worker/src
+        run: python -m compileall services/core/src services/worker/src scripts/smoke
+
+  block1-integration:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare integration environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+
+      - name: Start Block 1 substrate
+        run: |
+          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+
+      - name: Prove crash recovery and outbox delivery
+        run: python scripts/smoke/block1.py
+
+      - name: Dump service state on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color --tail=300 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+
+      - name: Tear down integration stack
+        if: always()
+        run: docker compose down -v --remove-orphans

@@ -2,7 +2,7 @@ name: kairo
 
 services:
   postgres:
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:0.8.6-pg17
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -33,7 +33,7 @@ services:
     networks: [kairo]
 
   valkey:
-    image: valkey/valkey:8-alpine
+    image: valkey/valkey:8.1.10-alpine
     restart: unless-stopped
     command: ["valkey-server", "--appendonly", "yes"]
     ports:
@@ -43,7 +43,7 @@ services:
     networks: [kairo]
 
   nats:
-    image: nats:2.11-alpine
+    image: nats:2.14.5-alpine
     restart: unless-stopped
     command: ["-js", "-sd", "/data", "-m", "8222"]
     ports:
@@ -51,10 +51,15 @@ services:
       - "127.0.0.1:8222:8222"
     volumes:
       - nats_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     networks: [kairo]
 
   seaweedfs:
-    image: chrislusf/seaweedfs:latest
+    image: chrislusf/seaweedfs:4.46
     restart: unless-stopped
     command: ["server", "-dir=/data", "-s3", "-s3.port=8333"]
     ports:
@@ -64,8 +69,27 @@ services:
       - seaweed_data:/data
     networks: [kairo]
 
+  temporal-admin-tools:
+    image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}
+    restart: on-failure:6
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PWD: ${POSTGRES_PASSWORD}
+      POSTGRES_SEEDS: postgres
+      SQL_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./infrastructure/temporal/scripts:/scripts:ro
+    entrypoint: ["/bin/sh"]
+    command: ["/scripts/setup-postgres.sh"]
+    networks: [kairo]
+
   temporal:
-    image: temporalio/auto-setup:latest
+    image: temporalio/server:${TEMPORAL_VERSION}
     restart: unless-stopped
     environment:
       DB: postgres12
@@ -73,25 +97,53 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PWD: ${POSTGRES_PASSWORD}
       POSTGRES_SEEDS: postgres
+      BIND_ON_IP: 0.0.0.0
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
     depends_on:
-      postgres:
-        condition: service_healthy
+      temporal-admin-tools:
+        condition: service_completed_successfully
+    volumes:
+      - ./infrastructure/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro
     ports:
       - "127.0.0.1:7233:7233"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "7233"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 60
+    networks: [kairo]
+
+  temporal-create-namespace:
+    image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}
+    restart: on-failure:5
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      DEFAULT_NAMESPACE: default
+      DEFAULT_NAMESPACE_RETENTION: 24h
+    depends_on:
+      temporal:
+        condition: service_healthy
+    volumes:
+      - ./infrastructure/temporal/scripts:/scripts:ro
+    entrypoint: ["/bin/sh"]
+    command: ["/scripts/create-namespace.sh"]
     networks: [kairo]
 
   temporal-ui:
-    image: temporalio/ui:latest
+    image: temporalio/ui:${TEMPORAL_UI_VERSION}
     restart: unless-stopped
     environment:
       TEMPORAL_ADDRESS: temporal:7233
-    depends_on: [temporal]
+    depends_on:
+      temporal:
+        condition: service_healthy
     ports:
       - "127.0.0.1:8233:8080"
     networks: [kairo]
 
   openbao:
-    image: openbao/openbao:latest
+    image: openbao/openbao:2.6.2
     restart: unless-stopped
     cap_add: [IPC_LOCK]
     environment:
@@ -103,7 +155,7 @@ services:
     networks: [kairo]
 
   keycloak:
-    image: quay.io/keycloak/keycloak:latest
+    image: quay.io/keycloak/keycloak:26.7.3
     restart: unless-stopped
     command: ["start-dev"]
     environment:
@@ -180,7 +232,7 @@ services:
     networks: [kairo]
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.33.3
     restart: unless-stopped
     ports:
       - "127.0.0.1:11434:11434"
@@ -268,9 +320,12 @@ services:
     environment:
       KAIRO_ENV: ${KAIRO_ENV}
       KAIRO_COMPONENT_REGISTRY: /app/config/components.yaml
+      KAIRO_INTERNAL_TOKEN: ${KAIRO_INTERNAL_TOKEN}
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       NATS_URL: nats://nats:4222
       TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      TEMPORAL_TASK_QUEUE: kairo-default
       SEAWEED_S3_ENDPOINT: http://seaweedfs:8333
       LITELLM_URL: http://litellm:4000
       OPENBAO_ADDR: http://openbao:8200
@@ -278,7 +333,15 @@ services:
     volumes:
       - ./config/components.yaml:/app/config/components.yaml:ro
       - ./config/policies:/app/config/policies:ro
-    depends_on: [postgres, nats, temporal, seaweedfs, litellm, openbao, keycloak]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      seaweedfs:
+        condition: service_started
+      temporal-create-namespace:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:${KAIRO_API_PORT}:8000"
     networks: [kairo]
@@ -286,11 +349,15 @@ services:
   kairo-worker:
     build:
       context: ./services/worker
+      args:
+        KAIRO_WORKER_EXTRAS: ${KAIRO_WORKER_EXTRAS}
     restart: unless-stopped
     environment:
       KAIRO_ENV: ${KAIRO_ENV}
+      KAIRO_INTERNAL_TOKEN: ${KAIRO_INTERNAL_TOKEN}
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
       TEMPORAL_TASK_QUEUE: kairo-default
       NATS_URL: nats://nats:4222
       LITELLM_URL: http://litellm:4000
@@ -301,7 +368,11 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       SEARXNG_URL: http://searxng:8080
       KAIRO_CORE_URL: http://kairo-core:8000
-    depends_on: [kairo-core, temporal, neo4j, ollama, searxng]
+    depends_on:
+      kairo-core:
+        condition: service_started
+      temporal-create-namespace:
+        condition: service_completed_successfully
     networks: [kairo]
 
   kairo-realtime:
