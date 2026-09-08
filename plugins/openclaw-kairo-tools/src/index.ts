@@ -38,6 +38,25 @@ const backgroundAuthority = Type.Union([
   Type.Literal("A2"),
 ]);
 
+const BACKGROUND_JOB_LIFECYCLE_TOOLS = [
+  "kairo_job_start",
+  "kairo_job_get",
+  "kairo_job_step_begin",
+  "kairo_job_step_complete",
+  "kairo_job_complete",
+  "kairo_job_fail",
+] as const;
+
+const DEFAULT_BACKGROUND_TASK_TOOLS = [
+  "kairo_project_list",
+  "kairo_project_get",
+  "kairo_idea_list",
+  "kairo_idea_get",
+  "kairo_source_get",
+  "kairo_knowledge_get",
+  "kairo_job_list",
+] as const;
+
 const configSchema = Type.Object(
   {
     dataDir: Type.String({
@@ -58,11 +77,29 @@ const backgroundScheduleParameters = Type.Object(
       description: "Absolute ISO-8601 date/time including Z or an explicit UTC offset, for example 2026-09-08T03:00:00+02:00.",
     }),
     authorityCeiling: Type.Optional(backgroundAuthority),
+    requestedBudgetUsd: Type.Optional(
+      Type.Number({
+        minimum: 0,
+        description: "Advisory requested model-spend budget in USD. Recorded durably but not hard-enforced until Gate 4 proves a pre-call enforcement seam.",
+      }),
+    ),
     requestedBudget: Type.Optional(
       Type.Number({
         minimum: 0,
-        description: "Advisory requested model-spend budget for this job. V0 records it but does not hard-enforce it yet.",
+        description: "Deprecated alias for requestedBudgetUsd. Legacy values are interpreted as USD.",
       }),
+    ),
+    allowedTools: Type.Optional(
+      Type.Array(
+        Type.String({
+          minLength: 1,
+          maxLength: 128,
+          description: "Exact additional tool name allowed for the future turn. Wildcards and tool groups are rejected. KAIRO lifecycle tools are added automatically.",
+        }),
+        {
+          description: "Exact additional task-tool allow-list. When omitted, KAIRO applies a conservative read-only KAIRO default. External, shell, browser, messaging, and web tools require explicit inclusion.",
+        },
+      ),
     ),
     announce: Type.Optional(
       Type.Boolean({ description: "When true (default), announce the result back to the session route after the scheduled turn." }),
@@ -101,13 +138,63 @@ function parseAbsoluteSchedule(value: string): Date {
   return new Date(timestamp);
 }
 
+function resolveRequestedBudgetUsd(params: {
+  requestedBudgetUsd?: number;
+  requestedBudget?: number;
+}): number | undefined {
+  if (
+    params.requestedBudgetUsd !== undefined &&
+    params.requestedBudget !== undefined &&
+    params.requestedBudgetUsd !== params.requestedBudget
+  ) {
+    throw new TypeError("requestedBudgetUsd and legacy requestedBudget must match when both are provided.");
+  }
+  return params.requestedBudgetUsd ?? params.requestedBudget;
+}
+
+function normalizeExactToolNames(values: readonly string[], label: string): string[] {
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    const name = String(raw ?? "").trim();
+    if (
+      !name ||
+      !/^[a-z0-9][a-z0-9_.:-]{0,127}$/i.test(name) ||
+      name.toLowerCase().startsWith("group:") ||
+      /[*?\[\]{}]/.test(name)
+    ) {
+      throw new TypeError(`${label} entries must be exact tool names, not groups or wildcard patterns.`);
+    }
+    const identity = name.toLowerCase();
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    normalized.push(name);
+  }
+  return normalized;
+}
+
+function backgroundAllowedTools(requested?: string[]): {
+  tools: string[];
+  source: "default" | "explicit";
+} {
+  const taskTools = normalizeExactToolNames(
+    requested ?? DEFAULT_BACKGROUND_TASK_TOOLS,
+    "allowedTools",
+  );
+  return {
+    tools: normalizeExactToolNames([...BACKGROUND_JOB_LIFECYCLE_TOOLS, ...taskTools], "allowedTools"),
+    source: requested === undefined ? "default" : "explicit",
+  };
+}
+
 function backgroundPrompt(params: {
   project: string;
   jobId: string;
   title: string;
   instructions: string;
   authorityCeiling: "A0" | "A1" | "A2";
-  requestedBudget?: number;
+  requestedBudgetUsd?: number;
+  allowedTools: string[];
 }): string {
   return [
     "[KAIRO BACKGROUND WORK]",
@@ -115,28 +202,30 @@ function backgroundPrompt(params: {
     `KAIRO job: ${params.jobId}`,
     `Title: ${params.title}`,
     `Authority ceiling: ${params.authorityCeiling}`,
-    ...(params.requestedBudget !== undefined
-      ? [`Requested model budget: ${params.requestedBudget} (advisory in V0; not yet hard-enforced)`]
+    ...(params.requestedBudgetUsd !== undefined
+      ? [`Requested model budget (USD): ${params.requestedBudgetUsd} (advisory; not yet hard-enforced)`]
       : []),
+    `Allowed tools (runtime-enforced): ${params.allowedTools.join(", ")}`,
     "",
     "Task:",
     params.instructions,
     "",
     "Operating rules:",
     `1. Call kairo_job_start for project '${params.project}' and job '${params.jobId}' before beginning substantive work.`,
-    "2. Re-read the relevant KAIRO project context before acting.",
-    "3. Keep facts, hypotheses, deductions, opinions, and unknowns distinct.",
-    "4. Never exceed the stated authority ceiling. This V0 background scheduler never grants A3+ external authority.",
-    "5. Do not publish, send messages, purchase, trade, delete external data, or change external systems.",
-    "6. Before any replay-sensitive internal mutation, call kairo_job_step_begin with a stable stepKey that identifies that exact mutation.",
-    "7. If kairo_job_step_begin returns already_completed, skip the mutation. If it returns already_started, the previous outcome is unknown: do not repeat the mutation blindly. Verify its effect deterministically when possible; otherwise stop and fail the Job with the uncertainty stated explicitly.",
-    "8. After a replay-sensitive mutation is confirmed successful, call kairo_job_step_complete with the same stepKey and a concise factual summary.",
-    "9. Pure reads and replay-safe deterministic computation do not require execution checkpoints.",
-    "10. Record useful evidence with kairo_source_capture and durable discrete findings with kairo_knowledge_capture when appropriate; checkpoint those writes when their duplication would matter.",
-    `11. On successful completion, call kairo_job_complete for job '${params.jobId}' with a concise factual summary. Job completion will be rejected while a started checkpoint remains unresolved.`,
-    `12. If the work cannot complete, call kairo_job_fail for job '${params.jobId}' with the specific reason when possible.`,
-    "13. If the task requires missing information or additional authority, stop and state the limitation explicitly.",
-    "14. Return a concise completion report to the originating session when finished.",
+    "2. Use only the runtime-enforced allowed tools listed above. If a required tool is absent, do not work around the cap; fail the Job with the missing capability stated explicitly.",
+    "3. Re-read the relevant KAIRO project context before acting.",
+    "4. Keep facts, hypotheses, deductions, opinions, and unknowns distinct.",
+    "5. Never exceed the stated authority ceiling. This V0 background scheduler never grants A3+ external authority.",
+    "6. Do not publish, send messages, purchase, trade, delete external data, or change external systems.",
+    "7. Before any replay-sensitive internal mutation, call kairo_job_step_begin with a stable stepKey that identifies that exact mutation.",
+    "8. If kairo_job_step_begin returns already_completed, skip the mutation. If it returns already_started, the previous outcome is unknown: do not repeat the mutation blindly. Verify its effect deterministically when possible; otherwise stop and fail the Job with the uncertainty stated explicitly.",
+    "9. After a replay-sensitive mutation is confirmed successful, call kairo_job_step_complete with the same stepKey and a concise factual summary.",
+    "10. Pure reads and replay-safe deterministic computation do not require execution checkpoints.",
+    "11. Persist evidence or knowledge only when the corresponding capture tool is present in the allowed-tools list and the task actually requires that write.",
+    `12. On successful completion, call kairo_job_complete for job '${params.jobId}' with a concise factual summary. Job completion will be rejected while a started checkpoint remains unresolved.`,
+    `13. If the work cannot complete, call kairo_job_fail for job '${params.jobId}' with the specific reason when possible.`,
+    "14. If the task requires missing information or additional authority, stop and state the limitation explicitly.",
+    "15. Return a concise completion report to the originating session when finished.",
   ].join("\n");
 }
 
@@ -457,7 +546,7 @@ export default defineToolPlugin({
       name: "kairo_background_schedule",
       label: "Schedule KAIRO Background Work",
       description:
-        "Create a durable KAIRO job and schedule one bounded future agent turn in the current OpenClaw session. V0 is limited to A0-A2 internal/research work.",
+        "Create a durable KAIRO job and schedule one bounded future agent turn in the current OpenClaw session. V0 is limited to A0-A2 internal/research work and enforces a per-job exact tool cap.",
       parameters: backgroundScheduleParameters,
       factory({ api, config, toolContext }) {
         const sessionKey = toolContext.sessionKey;
@@ -466,7 +555,7 @@ export default defineToolPlugin({
           name: "kairo_background_schedule",
           label: "Schedule KAIRO Background Work",
           description:
-            "Create a durable KAIRO job and schedule one bounded future agent turn. V0 never grants A3+ external authority.",
+            "Create a durable KAIRO job and schedule one bounded future agent turn. V0 never grants A3+ external authority and enforces the durable allowed-tools cap in OpenClaw Cron.",
           parameters: backgroundScheduleParameters,
           async execute(_toolCallId, rawParams, signal) {
             signal?.throwIfAborted();
@@ -476,7 +565,9 @@ export default defineToolPlugin({
               instructions: string;
               at: string;
               authorityCeiling?: "A0" | "A1" | "A2";
+              requestedBudgetUsd?: number;
               requestedBudget?: number;
+              allowedTools?: string[];
               announce?: boolean;
             };
             const store = storeFor(config.dataDir);
@@ -484,6 +575,8 @@ export default defineToolPlugin({
             const project = await store.getProject(params.project);
             const at = parseAbsoluteSchedule(params.at);
             const authorityCeiling = params.authorityCeiling ?? "A2";
+            const budgetUsd = resolveRequestedBudgetUsd(params);
+            const toolCap = backgroundAllowedTools(params.allowedTools);
             const tag = `kairo-bg-${project.slug}-${randomUUID().slice(0, 8)}`;
             const job = await ledger.createJob({
               project: project.slug,
@@ -491,18 +584,22 @@ export default defineToolPlugin({
               instructions: params.instructions,
               authorityCeiling,
               scheduledFor: at.toISOString(),
-              requestedBudget: params.requestedBudget,
+              requestedBudgetUsd: budgetUsd,
+              allowedTools: toolCap.tools,
+              allowedToolsSource: toolCap.source,
               sourceSession: toolContext.sessionId ?? sessionKey,
             });
 
             let handle;
             try {
-              handle = await api.session.workflow.scheduleSessionTurn({
+              const deliveryMode: "none" | "announce" =
+                params.announce === false ? "none" : "announce";
+              const scheduleRequest = {
                 sessionKey,
                 agentId: toolContext.agentId,
                 at,
                 deleteAfterRun: true,
-                deliveryMode: params.announce === false ? "none" : "announce",
+                deliveryMode,
                 name: `KAIRO: ${params.title}`,
                 tag,
                 message: backgroundPrompt({
@@ -511,9 +608,12 @@ export default defineToolPlugin({
                   title: params.title,
                   instructions: params.instructions,
                   authorityCeiling,
-                  requestedBudget: params.requestedBudget,
+                  requestedBudgetUsd: budgetUsd,
+                  allowedTools: toolCap.tools,
                 }),
-              });
+                allowedTools: toolCap.tools,
+              };
+              handle = await api.session.workflow.scheduleSessionTurn(scheduleRequest);
               if (!handle) throw new Error("OpenClaw did not return a scheduler handle for KAIRO background work.");
               const queued = await ledger.linkScheduler(project.slug, job.id, {
                 schedulerId: handle.id,
@@ -527,10 +627,11 @@ export default defineToolPlugin({
                   project: project.slug,
                   at: at.toISOString(),
                   authority_ceiling: authorityCeiling,
+                  allowed_tools: toolCap.tools,
                   delivery_mode: params.announce === false ? "none" : "announce",
                 },
                 limitation:
-                  "KAIRO persists the job, scheduler linkage, and replay-safety checkpoints, but hard model-cost enforcement and KAIRO-owned usage accounting remain pending.",
+                  "KAIRO enforces this job's exact tool cap through OpenClaw Cron and records KAIRO-owned usage. requestedBudgetUsd remains advisory until Gate 4 proves a pre-call model-spend enforcement seam.",
               });
             } catch (error) {
               const reason = error instanceof Error ? error.message : String(error);

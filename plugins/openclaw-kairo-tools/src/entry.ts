@@ -46,6 +46,25 @@ function resolveScheduledAt(params: Record<string, unknown>): Date {
   throw new Error("KAIRO background scheduling requires a valid one-shot time.");
 }
 
+function resolveAllowedTools(params: Record<string, unknown>): string[] {
+  const raw = params.allowedTools;
+  if (!Array.isArray(raw)) {
+    throw new Error("KAIRO background scheduling requires an explicit allowedTools runtime cap.");
+  }
+  return raw.map((value) => {
+    const name = typeof value === "string" ? value.trim() : "";
+    if (
+      !name ||
+      !/^[a-z0-9][a-z0-9_.:-]{0,127}$/i.test(name) ||
+      name.toLowerCase().startsWith("group:") ||
+      /[*?\[\]{}]/.test(name)
+    ) {
+      throw new Error("KAIRO allowedTools must contain exact tool names only.");
+    }
+    return name;
+  });
+}
+
 const plugin = definePluginEntry({
   id: metadata.id,
   name: metadata.name,
@@ -101,6 +120,7 @@ const plugin = definePluginEntry({
       if (!sessionKey || !message) {
         throw new Error("KAIRO background scheduling requires a session key and message.");
       }
+      const allowedTools = resolveAllowedTools(params);
       const tag = typeof params.tag === "string" && params.tag.trim()
         ? params.tag.trim()
         : `kairo-bg-${Date.now()}`;
@@ -118,6 +138,7 @@ const plugin = definePluginEntry({
         tag,
         message,
         announce: params.deliveryMode !== "none",
+        toolsAllow: allowedTools,
       });
       const key = `${sessionKey}\u0000${tag}`;
       const ids = schedulerIdsByTag.get(key) ?? new Set<string>();

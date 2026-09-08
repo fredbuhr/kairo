@@ -149,7 +149,7 @@ test("research memory keeps source evidence separate from epistemic claims", asy
   }
 });
 
-test("background scheduling creates and links a durable KAIRO job before returning", async () => {
+test("background scheduling persists and forwards explicit USD budget and exact tool cap", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "kairo-background-job-"));
   const scheduled: any[] = [];
   try {
@@ -175,7 +175,13 @@ test("background scheduling creates and links a durable KAIRO job before returni
       instructions: "Review relevant public trend signals and report only supported findings.",
       at: "2030-01-02T03:00:00+02:00",
       authorityCeiling: "A2",
-      requestedBudget: 0.5,
+      requestedBudgetUsd: 0.5,
+      allowedTools: [
+        "kairo_project_get",
+        "web_search",
+        "kairo_source_capture",
+        "kairo_knowledge_capture",
+      ],
     });
 
     assert.equal(scheduled.length, 1);
@@ -185,7 +191,8 @@ test("background scheduling creates and links a durable KAIRO job before returni
     assert.equal(scheduled[0].deliveryMode, "announce");
     assert.match(scheduled[0].tag, /^kairo-bg-ztikix-/);
     assert.match(scheduled[0].message, /Authority ceiling: A2/);
-    assert.match(scheduled[0].message, /Requested model budget: 0.5/);
+    assert.match(scheduled[0].message, /Requested model budget \(USD\): 0.5/);
+    assert.match(scheduled[0].message, /Allowed tools \(runtime-enforced\):/);
     assert.match(scheduled[0].message, /kairo_job_start/);
     assert.match(scheduled[0].message, /kairo_job_step_begin/);
     assert.match(scheduled[0].message, /kairo_job_step_complete/);
@@ -193,18 +200,102 @@ test("background scheduling creates and links a durable KAIRO job before returni
     assert.match(scheduled[0].message, /do not repeat the mutation blindly/i);
     assert.match(scheduled[0].message, /kairo_job_complete/);
     assert.match(scheduled[0].message, /Do not publish, send messages, purchase, trade, delete external data/);
+    assert.ok(scheduled[0].allowedTools.includes("kairo_job_start"));
+    assert.ok(scheduled[0].allowedTools.includes("kairo_project_get"));
+    assert.ok(scheduled[0].allowedTools.includes("web_search"));
+    assert.equal(scheduled[0].allowedTools.includes("exec"), false);
+    assert.equal(scheduled[0].allowedTools.includes("message"), false);
 
     const job = result.details.job;
     assert.match(job.id, /^job_/);
     assert.equal(job.status, "queued");
     assert.equal(job.scheduler_id, "cron_123");
-    assert.equal(job.requested_budget, 0.5);
+    assert.equal(job.requested_budget_usd, 0.5);
+    assert.equal(job.requested_budget, undefined);
     assert.equal(job.budget_enforced, false);
+    assert.equal(job.allowed_tools_source, "explicit");
+    assert.deepEqual(job.allowed_tools, scheduled[0].allowedTools);
+    assert.deepEqual(result.details.schedule.allowed_tools, job.allowed_tools);
     assert.match(scheduled[0].message, new RegExp(job.id));
+    assert.match(result.details.limitation, /records KAIRO-owned usage/);
+    assert.match(result.details.limitation, /requestedBudgetUsd remains advisory/);
 
     const listed = await tools.get("kairo_job_list").execute("list-jobs", { project: "ztikix" });
     assert.equal(listed.details.jobs.length, 1);
     assert.equal(listed.details.jobs[0].id, job.id);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("background scheduling defaults to a conservative KAIRO-only read surface", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "kairo-background-default-cap-"));
+  const scheduled: any[] = [];
+  try {
+    const { tools, factories } = createFakeApi(root, {
+      async scheduleSessionTurn(params) {
+        scheduled.push(params);
+        return { id: "cron_default", pluginId: "kairo-tools", sessionKey: params.sessionKey, kind: "session-turn" };
+      },
+    });
+    await tools.get("kairo_project_create").execute("project", { name: "ZTIKIX" });
+    const concrete = factories.get("kairo_background_schedule")({
+      sessionKey: "agent:main:session:test",
+      agentId: "main",
+    });
+
+    const result = await concrete.execute("schedule-default", {
+      project: "ztikix",
+      title: "Read-only default",
+      instructions: "Read the project and summarize it.",
+      at: "2030-01-02T03:00:00Z",
+    });
+
+    const cap = scheduled[0].allowedTools as string[];
+    assert.ok(cap.includes("kairo_job_start"));
+    assert.ok(cap.includes("kairo_project_get"));
+    assert.ok(cap.includes("kairo_job_complete"));
+    for (const forbiddenByDefault of [
+      "exec",
+      "process",
+      "message",
+      "browser",
+      "web_search",
+      "web_fetch",
+      "kairo_source_capture",
+      "kairo_knowledge_capture",
+    ]) {
+      assert.equal(cap.includes(forbiddenByDefault), false, forbiddenByDefault);
+    }
+    assert.equal(result.details.job.allowed_tools_source, "default");
+    assert.deepEqual(result.details.job.allowed_tools, cap);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("background scheduling rejects broad wildcard and tool-group caps", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "kairo-background-invalid-cap-"));
+  try {
+    const { tools, factories } = createFakeApi(root);
+    await tools.get("kairo_project_create").execute("project", { name: "ZTIKIX" });
+    const concrete = factories.get("kairo_background_schedule")({
+      sessionKey: "agent:main:session:test",
+      agentId: "main",
+    });
+
+    for (const allowedTools of [["*"], ["exec*"], ["group:runtime"]]) {
+      await assert.rejects(
+        concrete.execute("schedule-invalid", {
+          project: "ztikix",
+          title: "Invalid cap",
+          instructions: "Do not broaden the runtime surface.",
+          at: "2030-01-02T03:00:00Z",
+          allowedTools,
+        }),
+        /exact tool names/,
+      );
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -17,7 +17,7 @@
     "plugin:build": "npm run build && openclaw plugins build --entry ./dist/entry.js",
     "plugin:pack": "npm run plugin:build && node ./scripts/pack.mjs",
     "plugin:validate": "npm run plugin:build && openclaw plugins validate --entry ./dist/entry.js",
-    "test": "npm run build && node --test dist/index.test.js dist/entry.test.js dist/usage-hooks.test.js"
+    "test": "npm run build && node --test dist/index.test.js dist/entry.test.js dist/gateway-cron.test.js dist/usage-hooks.test.js"
   },
   "dependencies": {
     "@kairo/core": "file:../../packages/kairo-core",
