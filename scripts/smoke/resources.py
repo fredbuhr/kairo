@@ -34,11 +34,11 @@ def request(
         with urllib.request.urlopen(req, timeout=20) as response:
             status_code = response.status
             payload = response.read()
-            response_headers = dict(response.headers.items())
+            response_headers = {key.lower(): value for key, value in response.headers.items()}
     except urllib.error.HTTPError as exc:
         status_code = exc.code
         payload = exc.read()
-        response_headers = dict(exc.headers.items())
+        response_headers = {key.lower(): value for key, value in exc.headers.items()}
     allowed = expected or {200}
     if status_code not in allowed:
         raise AssertionError(
@@ -231,7 +231,7 @@ def main() -> int:
         expected={200},
     )
     assert downloaded == proof
-    assert download_headers.get("X-Content-SHA256") == hashlib.sha256(proof).hexdigest()
+    assert download_headers.get("x-content-sha256") == hashlib.sha256(proof).hexdigest()
 
     request(
         "DELETE",
