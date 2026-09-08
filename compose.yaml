@@ -223,12 +223,20 @@ services:
     networks: [kairo]
 
   searxng:
-    image: searxng/searxng:latest
+    image: ghcr.io/searxng/searxng:2026.9.7-3e454637f
     restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET}
+      SEARXNG_VALKEY_URL: valkey://valkey:6379/0
+      SEARXNG_LIMITER: "false"
+    depends_on:
+      valkey:
+        condition: service_started
     ports:
       - "127.0.0.1:8082:8080"
     volumes:
-      - searxng_data:/etc/searxng
+      - ./infrastructure/searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - searxng_cache:/var/cache/searxng
     networks: [kairo]
 
   ollama:
@@ -313,6 +321,18 @@ services:
       - "7882:7882/udp"
     networks: [kairo]
 
+  kokoro-tts:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.8.0
+    profiles: [voice]
+    restart: unless-stopped
+    environment:
+      USE_GPU: "false"
+      DEFAULT_VOICE: ${KOKORO_DEFAULT_VOICE}
+      ENABLE_DEBUG_ENDPOINTS: "false"
+    ports:
+      - "127.0.0.1:8880:8880"
+    networks: [kairo]
+
   kairo-core:
     build:
       context: ./services/core
@@ -321,6 +341,7 @@ services:
       KAIRO_ENV: ${KAIRO_ENV}
       KAIRO_COMPONENT_REGISTRY: /app/config/components.yaml
       KAIRO_INTERNAL_TOKEN: ${KAIRO_INTERNAL_TOKEN}
+      KAIRO_CORS_ORIGINS: ${KAIRO_CORS_ORIGINS}
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       NATS_URL: nats://nats:4222
       TEMPORAL_ADDRESS: temporal:7233
@@ -330,6 +351,8 @@ services:
       LITELLM_URL: http://litellm:4000
       OPENBAO_ADDR: http://openbao:8200
       KEYCLOAK_URL: http://keycloak:8080
+      KOKORO_TTS_URL: http://kokoro-tts:8880
+      KOKORO_DEFAULT_VOICE: ${KOKORO_DEFAULT_VOICE}
     volumes:
       - ./config/components.yaml:/app/config/components.yaml:ro
       - ./config/policies:/app/config/policies:ro
@@ -362,6 +385,7 @@ services:
       NATS_URL: nats://nats:4222
       LITELLM_URL: http://litellm:4000
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      KAIRO_NEWS_MODEL: ${KAIRO_NEWS_MODEL}
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: ${NEO4J_USER}
       NEO4J_PASSWORD: ${NEO4J_PASSWORD}
@@ -495,7 +519,7 @@ volumes:
   nats_data:
   seaweed_data:
   activepieces_cache:
-  searxng_data:
+  searxng_cache:
   ollama_data:
   ntfy_cache:
   ntfy_data:
