@@ -110,7 +110,7 @@ components:
     profile: core
   - id: searxng
     name: SearXNG
-    category: research
+    category: research-news
     mode: service
     ownership: search-adapter
     profile: core
@@ -162,6 +162,12 @@ components:
     mode: service
     ownership: realtime-transport
     profile: core
+  - id: kokoro-fastapi
+    name: Kokoro-FastAPI
+    category: voice
+    mode: service
+    ownership: speech-synthesis-adapter
+    profile: voice
   - id: whisper-cpp
     name: whisper.cpp
     category: voice
