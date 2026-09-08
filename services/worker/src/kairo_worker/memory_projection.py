@@ -37,7 +37,8 @@ def memory_projector_mode() -> str:
 
 
 def _postgres_connection_string() -> str:
-    value = settings.mem0_database_url
+    explicit = settings.mem0_database_url.strip()
+    value = explicit or f"{settings.database_url.rsplit('/', 1)[0]}/mem0"
     if value.startswith("postgresql+asyncpg://"):
         return "postgresql://" + value.removeprefix("postgresql+asyncpg://")
     if value.startswith("postgresql+psycopg://"):
