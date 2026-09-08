@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Block 1 end-to-end durability proof.
 
-Creates canonical state, starts a Temporal workflow, hard-stops the worker during a
-heartbeat activity, restarts it and verifies exactly-once canonical completion.
+Creates canonical state, proves concurrent starts converge on one durable execution, then starts
+another Temporal workflow, hard-stops the worker during a heartbeat activity, restarts it and
+verifies exactly-once canonical completion.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 BASE_URL = os.environ.get("KAIRO_API_URL", "http://127.0.0.1:8000").rstrip("/")
@@ -72,6 +74,45 @@ def main() -> int:
         {"name": f"Block1 proof {suffix}", "summary": "CI durability proof"},
     )
     assert code == 201, (code, project)
+
+    # Prove two user requests arriving at the same time converge on the same canonical execution
+    # and deterministic Temporal Workflow ID instead of creating duplicate work records.
+    code, concurrent_task = request(
+        "POST",
+        "/v1/tasks",
+        {
+            "project_id": project["id"],
+            "title": "Converge concurrent starts",
+            "authority_ceiling": 1,
+            "input": {"delay_seconds": 4, "proof": f"concurrent-{suffix}"},
+        },
+    )
+    assert code == 201, (code, concurrent_task)
+
+    concurrent_path = f"/v1/tasks/{concurrent_task['id']}/run"
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(request, "POST", concurrent_path) for _ in range(2)]
+        concurrent_runs = [future.result(timeout=20) for future in futures]
+
+    assert all(code == 200 for code, _ in concurrent_runs), concurrent_runs
+    first_run = concurrent_runs[0][1]
+    second_run = concurrent_runs[1][1]
+    assert first_run["workflow_execution_id"] == second_run["workflow_execution_id"], concurrent_runs
+    assert first_run["workflow_id"] == second_run["workflow_id"], concurrent_runs
+    assert any(run[1]["already_started"] for run in concurrent_runs), concurrent_runs
+
+    wait_for(
+        f"/v1/tasks/{concurrent_task['id']}",
+        lambda payload: payload.get("status") == "completed",
+        60,
+        "concurrent task completion",
+    )
+    code, concurrent_artifacts = request(
+        "GET", f"/v1/tasks/{concurrent_task['id']}/artifacts"
+    )
+    assert code == 200, (code, concurrent_artifacts)
+    assert len(concurrent_artifacts) == 1, concurrent_artifacts
+    print("concurrent starts converged on one execution and one artifact")
 
     code, task = request(
         "POST",
@@ -141,13 +182,16 @@ def main() -> int:
 
     outbox = wait_for(
         "/v1/system/outbox",
-        lambda payload: payload.get("pending") == 0 and payload.get("published", 0) >= 8,
+        lambda payload: payload.get("pending") == 0 and payload.get("published", 0) >= 14,
         45,
         "transactional outbox drain",
     )
     assert outbox["relay_connected"] is True, outbox
     print("outbox:", outbox)
-    print("BLOCK 1 SMOKE PASS: durable workflow recovered with one canonical artifact")
+    print(
+        "BLOCK 1 SMOKE PASS: concurrent starts converged and durable workflow recovered with one "
+        "canonical artifact"
+    )
     return 0
 
 
