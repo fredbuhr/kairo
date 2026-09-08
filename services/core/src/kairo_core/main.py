@@ -17,6 +17,7 @@ from .components import load_component_registry
 from .config import settings
 from .db import get_session, ping_database
 from .events import append_audit, enqueue_domain_event
+from .memory import router as memory_router
 from .models import OutboxEvent, Project, RelationshipRecord, Task
 from .news import router as news_router
 from .openbao import openbao_client
@@ -58,6 +59,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(workflow_router)
+app.include_router(memory_router)
 app.include_router(news_router)
 app.include_router(assistant_router)
 app.include_router(resources_router)
