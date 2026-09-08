@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .command_models import CommandRecord
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Artifact, Task, WorkflowExecution
@@ -34,6 +35,76 @@ async def _lock_execution(session: AsyncSession, workflow_id: str) -> WorkflowEx
         .where(WorkflowExecution.workflow_id == workflow_id)
         .with_for_update()
         .execution_options(populate_existing=True)
+    )
+
+
+async def _propagate_semantic_route_failure(
+    session: AsyncSession,
+    *,
+    task: Task,
+    execution: WorkflowExecution,
+    error: str,
+) -> None:
+    """Make a failed semantic routing Task terminal in the canonical Command state too.
+
+    The routing Task is an implementation detail of the Command Kernel. If it reaches a terminal
+    failure before Core accepts or rejects a semantic proposal, clients must not poll `routing`
+    forever. A Command that has already been accepted/unsupported is deliberately left untouched:
+    a late infrastructure failure cannot revoke an authoritative route that Core already applied.
+    """
+
+    task_input = task.input or {}
+    if str(task_input.get("capability") or "") != "assistant.route.semantic":
+        return
+
+    raw_command_id = task_input.get("command_id")
+    if raw_command_id is None:
+        return
+    try:
+        command_id = uuid.UUID(str(raw_command_id))
+    except (TypeError, ValueError):
+        return
+
+    command = await session.scalar(
+        select(CommandRecord).where(CommandRecord.id == command_id).with_for_update()
+    )
+    if command is None or command.status != "routing":
+        return
+
+    command.status = "failed"
+    command.route_reason = "semantic.execution-failed"
+    command.result_json = {
+        **(command.result_json or {}),
+        "semantic_error": error[:4000],
+        "routing_status": "failed",
+        "routing_task_id": str(task.id),
+        "routing_workflow_execution_id": str(execution.id),
+        "routing_workflow_id": execution.workflow_id,
+    }
+    await enqueue_domain_event(
+        session,
+        event_type="command.failed",
+        aggregate_type="command",
+        aggregate_id=command.id,
+        correlation_id=command.correlation_id,
+        payload={
+            "command_id": str(command.id),
+            "route_reason": command.route_reason,
+            "routing_task_id": str(task.id),
+            "workflow_execution_id": str(execution.id),
+        },
+    )
+    await append_audit(
+        session,
+        actor_type="worker",
+        actor_id=execution.workflow_id,
+        action="command.semantic_route.fail",
+        resource_type="command",
+        resource_id=str(command.id),
+        authority_level=1,
+        correlation_id=command.correlation_id,
+        idempotency_key=f"command:{command.id}:semantic-route-fail",
+        result_json={"error": error[:4000], "routing_task_id": str(task.id)},
     )
 
 
@@ -324,29 +395,37 @@ async def internal_fail_execution(
     task = await session.get(Task, execution.task_id, with_for_update=True)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+
     if execution.status != "completed":
-        execution.status = "failed"
-        execution.last_error = body.error
-        task.status = "failed"
-        await enqueue_domain_event(
+        if execution.status != "failed":
+            execution.status = "failed"
+            execution.last_error = body.error
+            task.status = "failed"
+            await enqueue_domain_event(
+                session,
+                event_type="execution.failed",
+                aggregate_type="workflow_execution",
+                aggregate_id=execution.id,
+                correlation_id=execution.correlation_id,
+                payload={"execution_id": str(execution.id), "task_id": str(task.id)},
+            )
+            await append_audit(
+                session,
+                actor_type="worker",
+                actor_id=workflow_id,
+                action="task.execution.fail",
+                resource_type="task",
+                resource_id=str(task.id),
+                authority_level=min(task.authority_ceiling, 1),
+                correlation_id=execution.correlation_id,
+                idempotency_key=f"{workflow_id}:fail",
+                result_json={"error": body.error},
+            )
+        await _propagate_semantic_route_failure(
             session,
-            event_type="execution.failed",
-            aggregate_type="workflow_execution",
-            aggregate_id=execution.id,
-            correlation_id=execution.correlation_id,
-            payload={"execution_id": str(execution.id), "task_id": str(task.id)},
-        )
-        await append_audit(
-            session,
-            actor_type="worker",
-            actor_id=workflow_id,
-            action="task.execution.fail",
-            resource_type="task",
-            resource_id=str(task.id),
-            authority_level=min(task.authority_ceiling, 1),
-            correlation_id=execution.correlation_id,
-            idempotency_key=f"{workflow_id}:fail",
-            result_json={"error": body.error},
+            task=task,
+            execution=execution,
+            error=body.error,
         )
         await session.commit()
     return {"status": execution.status}
