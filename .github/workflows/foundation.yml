@@ -70,11 +70,43 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall services/core/src services/worker/src scripts/smoke
 
+      - name: Prove conversational capability routing
+        run: uv run --project services/core python scripts/smoke/assistant_router.py
+
       - name: Prove LiteLLM accounting contract
         run: uv run --project services/worker python scripts/smoke/model_gateway_contract.py
 
       - name: Prove News Intelligence contract
         run: uv run --project services/worker python scripts/smoke/news_contract.py
+
+  command-kernel-integration:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare command-kernel environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+
+      - name: Start canonical command and Temporal substrate
+        run: |
+          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+
+      - name: Prove canonical conversation and command handoff
+        run: python scripts/smoke/command_kernel.py
+
+      - name: Dump command-kernel state on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color --tail=350 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+
+      - name: Tear down command-kernel stack
+        if: always()
+        run: docker compose down -v --remove-orphans
 
   block1-integration:
     needs: validate
