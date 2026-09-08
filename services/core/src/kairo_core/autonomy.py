@@ -162,7 +162,7 @@ def _mint_policy_token(
         "scope": scope,
         "approval_request_id": str(approval_request_id) if approval_request_id else None,
     }
-    return jwt.encode(payload, settings.kairo_internal_token, algorithm="HS256")
+    return jwt.encode(payload, settings.kairo_policy_signing_key, algorithm="HS256")
 
 
 @router.post(
@@ -451,7 +451,7 @@ async def validate_policy_token(body: PolicyValidateRequest) -> PolicyValidateRe
     try:
         claims = jwt.decode(
             body.policy_token,
-            settings.kairo_internal_token,
+            settings.kairo_policy_signing_key,
             algorithms=["HS256"],
             issuer="kairo-core",
             options={"require": ["exp", "iat", "jti", "sub", "task_id", "action"]},
