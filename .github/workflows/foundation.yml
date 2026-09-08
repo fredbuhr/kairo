@@ -138,12 +138,15 @@ jobs:
       - name: Prove durable PydanticAI routing and replay-safe capability handoff
         run: python scripts/smoke/semantic_command.py
 
-      - name: Dump semantic-routing state on failure
+      - name: Prove rebuildable memory projection generations
+        run: python scripts/smoke/memory_projection.py
+
+      - name: Dump semantic-routing and memory state on failure
         if: failure()
         run: |
           docker compose ps -a
           docker logs kairo-fake-litellm || true
-          docker compose logs --no-color --tail=500 postgres nats temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+          docker compose logs --no-color --tail=650 postgres nats temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
 
       - name: Tear down semantic-routing stack
         if: always()
