@@ -42,7 +42,7 @@ function fakeApi(dataDir: string) {
   };
 }
 
-test("cron turn binds before Codex, preserves call identities, and uses final snapshot when available", async () => {
+test("cron turn binds before Codex, records requested route, preserves call identities, and uses final snapshot", async () => {
   const { dataDir, job } = await setup();
   try {
     const runtime = fakeApi(dataDir);
@@ -61,6 +61,8 @@ test("cron turn binds before Codex, preserves call identities, and uses final sn
         runId: "run-hook-1",
         jobId: "cron_hook_123",
         sessionId: "session-hook-1",
+        modelProviderId: "openai",
+        modelId: "gpt-5.6-luna",
       },
     );
 
@@ -141,26 +143,43 @@ test("cron turn binds before Codex, preserves call identities, and uses final sn
         turnUsd: 0.0042,
         durationMs: 200,
         fallbackUsed: false,
+        authMode: "oauth",
+        reasoningEffort: "low",
+        fastMode: false,
+        contextTokenBudget: 272000,
       },
     });
 
     const recorded = await new KairoJobUsageLedger({ dataDir }).getUsage("ztikix", job.id);
-    assert.equal(recorded.summary.schema_version, 2);
+    assert.equal(recorded.summary.schema_version, 3);
     assert.equal(recorded.summary.runs, 1);
     assert.equal(recorded.summary.model_calls, 1);
     assert.equal(recorded.summary.usage_observations, 1);
     assert.equal(recorded.summary.tool_calls, 1);
+    assert.deepEqual(recorded.summary.harnesses, ["codex"]);
     assert.deepEqual(recorded.summary.usage, { input: 12, output: 7, cacheRead: 30, total: 49 });
     assert.deepEqual(recorded.summary.usage_sources, ["final_snapshot"]);
     assert.equal(recorded.summary.usage_complete, true);
     assert.equal(recorded.summary.known_cost_usd, 0.0042);
     assert.equal(recorded.summary.cost_complete, true);
+    assert.equal(recorded.summary.routing_complete, true);
+    assert.equal(recorded.summary.routing[0].classification, "requested");
+    assert.equal(recorded.summary.routing[0].reason_code, "requested_equals_resolved");
+    assert.equal(recorded.summary.routing[0].requested_ref, "openai/gpt-5.6-luna");
+    assert.equal(recorded.summary.routing[0].resolved_ref, "openai/gpt-5.6-luna");
+    assert.deepEqual(recorded.summary.routing[0].harness_ids, ["codex"]);
+    assert.deepEqual(recorded.summary.routing[0].evidence_sources, [
+      "before_agent_reply",
+      "final_snapshot",
+      "llm_output",
+      "model_call",
+    ]);
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
 });
 
-test("embedded Cron usage still persists without delivery snapshot or model-call hooks", async () => {
+test("Codex Cron routing remains truthful but incomplete without delivery snapshot or model-call hooks", async () => {
   const { dataDir, job } = await setup();
   try {
     const runtime = fakeApi(dataDir);
@@ -173,6 +192,8 @@ test("embedded Cron usage still persists without delivery snapshot or model-call
         runId: "embedded-run",
         jobId: "cron_hook_123",
         sessionId: "embedded-session",
+        modelProviderId: "openai",
+        modelId: "gpt-5.6-luna",
       },
     );
 
@@ -220,6 +241,7 @@ test("embedded Cron usage still persists without delivery snapshot or model-call
     assert.equal(recorded.summary.model_calls, 0);
     assert.equal(recorded.summary.usage_observations, 1);
     assert.equal(recorded.summary.tool_calls, 2);
+    assert.deepEqual(recorded.summary.harnesses, ["codex"]);
     assert.deepEqual(recorded.summary.usage, {
       input: 18,
       output: 650,
@@ -230,6 +252,9 @@ test("embedded Cron usage still persists without delivery snapshot or model-call
     assert.deepEqual(recorded.summary.usage_sources, ["llm_output_observed"]);
     assert.equal(recorded.summary.usage_complete, false);
     assert.equal(recorded.summary.cost_complete, false);
+    assert.equal(recorded.summary.routing_complete, false);
+    assert.equal(recorded.summary.routing[0].classification, "observed_match");
+    assert.equal(recorded.summary.routing[0].reason_code, "final_snapshot_missing");
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
@@ -269,6 +294,8 @@ test("kairo_job_start remains a fallback correlation anchor if outer Cron hook i
     assert.equal(recorded.summary.runs, 1);
     assert.equal(recorded.summary.usage_observations, 1);
     assert.equal(recorded.summary.tool_calls, 1);
+    assert.equal(recorded.summary.routing[0].classification, "observed_only");
+    assert.equal(recorded.summary.routing_complete, false);
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
@@ -292,6 +319,8 @@ test("non-cron model output is ignored", async () => {
     );
     const usage = await new KairoJobUsageLedger({ dataDir }).getUsage("ztikix", job.id);
     assert.equal(usage.summary.runs, 0);
+    assert.equal(usage.summary.routing.length, 0);
+    assert.equal(usage.summary.routing_complete, false);
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
