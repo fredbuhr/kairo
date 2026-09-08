@@ -5,6 +5,7 @@ from temporalio.worker import Worker
 
 from .activities import begin_execution, complete_execution, fail_execution, perform_foundation_work
 from .config import settings
+from .document_ingestion import perform_document_ingestion
 from .memory_events import MemoryProjectionEventConsumer
 from .memory_projection import perform_memory_projection
 from .news_activity import perform_news_brief
@@ -29,6 +30,7 @@ async def serve() -> None:
             perform_news_brief,
             perform_semantic_route,
             perform_memory_projection,
+            perform_document_ingestion,
             complete_execution,
             fail_execution,
         ],
