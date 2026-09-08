@@ -35,6 +35,7 @@ from .schemas import (
     TaskRead,
 )
 from .temporal_gateway import temporal_gateway
+from .tools import router as tools_router
 from .workflows import router as workflow_router
 
 
@@ -62,6 +63,7 @@ app.add_middleware(
 app.include_router(workflow_router)
 app.include_router(memory_router)
 app.include_router(documents_router)
+app.include_router(tools_router)
 app.include_router(news_router)
 app.include_router(assistant_router)
 app.include_router(resources_router)
@@ -170,6 +172,9 @@ async def architecture() -> dict[str, object]:
         "canonical_documents": "postgresql-document-version-chunks",
         "document_parser": "docling",
         "capability_registry": "kairo-core",
+        "tool_registry": "kairo-core-postgresql",
+        "tool_transport": "mcp-streamable-http",
+        "tool_policy": "deny-by-default-explicit-enable",
         "command_routing": "deterministic-first-semantic-later",
         "derived_context_graph": "graphiti-neo4j",
         "derived_memory": "mem0",

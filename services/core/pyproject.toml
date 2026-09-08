@@ -20,6 +20,7 @@ dependencies = [
   "pyyaml>=6.0,<7",
   "PyJWT[crypto]>=2.10,<3",
   "python-multipart>=0.0.20,<1",
+  "jsonschema>=4.25,<5",
 ]
 
 [project.optional-dependencies]
