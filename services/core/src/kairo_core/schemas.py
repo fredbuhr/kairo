@@ -86,6 +86,83 @@ class ArtifactRead(BaseModel):
     created_at: datetime
 
 
+class AssetRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    project_id: uuid.UUID | None
+    bucket: str
+    object_key: str
+    mime_type: str | None
+    size_bytes: int | None
+    sha256: str | None
+    metadata_json: dict[str, Any]
+    created_at: datetime
+
+
+class DeviceRegistrationCreate(BaseModel):
+    device_key: str = Field(min_length=1, max_length=240)
+    name: str = Field(min_length=1, max_length=240)
+    platform: str = Field(min_length=1, max_length=80)
+    capabilities: dict[str, Any] = Field(default_factory=dict)
+    public_key: str | None = Field(default=None, max_length=16000)
+
+
+class DeviceRegistrationUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=240)
+    platform: str | None = Field(default=None, min_length=1, max_length=80)
+    capabilities: dict[str, Any] | None = None
+    public_key: str | None = Field(default=None, max_length=16000)
+
+
+class DeviceRegistrationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    keycloak_subject: str
+    device_key: str
+    name: str
+    platform: str
+    capabilities: dict[str, Any]
+    public_key: str | None
+    last_seen_at: datetime | None
+    created_at: datetime
+
+
+class SecretReferenceCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=240)
+    provider_path: str = Field(
+        min_length=1,
+        max_length=1024,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_./-]*$",
+    )
+    purpose: str = Field(min_length=1, max_length=320)
+
+
+class SecretReferenceUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=240)
+    purpose: str | None = Field(default=None, min_length=1, max_length=320)
+
+
+class SecretReferenceRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    provider_path: str
+    purpose: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class SecretReferenceStatusRead(BaseModel):
+    reference_id: uuid.UUID
+    provider: Literal["openbao"] = "openbao"
+    exists: bool
+    keys: list[str] = Field(default_factory=list)
+    version: int | None = None
+
+
 class TaskRunResponse(BaseModel):
     task_id: uuid.UUID
     workflow_execution_id: uuid.UUID

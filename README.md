@@ -96,11 +96,16 @@ config/
   components.yaml   complete component registry
 infrastructure/
   postgres/
+  keycloak/
   litellm/
   openbao/
   livekit/
   ...
-compose.yaml         integrated development topology
+compose.yaml                 integrated development topology
+compose.override.yaml        local-only bootstrap/development behavior
+compose.production.yaml      production trust-boundary overlay
+compose.ops.yaml             backup/restore operations overlay
+.env.production.example      production configuration template without secrets
 ```
 
 ## Architectural rule
@@ -114,6 +119,21 @@ The only exception is workflow execution state while a workflow is actively owne
 Technical capability is never equivalent to authority. Every external or sensitive action passes through the KAIRO policy/approval boundary. Private wallet keys and raw secrets never enter an LLM context.
 
 See [`docs/security-model.md`](docs/security-model.md).
+
+## Development and operations
+
+Local development keeps its reproducible Keycloak/OpenBao bootstrap in `compose.override.yaml`. Production trust-sensitive behavior is deliberately isolated in `compose.production.yaml`; it does not reuse the development Keycloak fixture or OpenBao dev mode.
+
+Useful validation and recovery commands:
+
+```bash
+make config       # validate local development topology
+make prod-config  # validate production overlay
+make ops-config   # validate production + Restic operations topology
+make backup       # quiesced Restic snapshot using the selected environment/overlay
+```
+
+Restore is destructive and requires `KAIRO_CONFIRM_RESTORE=YES`. See [`docs/operations.md`](docs/operations.md) before running it.
 
 ## Implementation
 

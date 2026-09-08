@@ -18,6 +18,8 @@ dependencies = [
   "httpx>=0.28,<1",
   "boto3>=1.40,<2",
   "pyyaml>=6.0,<7",
+  "PyJWT[crypto]>=2.10,<3",
+  "python-multipart>=0.0.20,<1",
 ]
 
 [project.optional-dependencies]

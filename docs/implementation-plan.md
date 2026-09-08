@@ -20,6 +20,8 @@ Deliverables:
 
 ## Block 1 — Platform substrate and system of record
 
+**Status: complete — 2026-09-08.**
+
 **Purpose:** make the foundation actually boot as one system.
 
 Deliverables:
@@ -36,7 +38,11 @@ Deliverables:
 
 **Exit:** KAIRO can create/read canonical entities, publish domain events, store assets, survive service restarts and restore from backup.
 
+The exit is enforced by four CI gates: general build/topology validation, Temporal/outbox crash recovery, authenticated Keycloak/OpenBao/SeaweedFS resource integration, and a destructive Restic restore drill covering PostgreSQL, NATS, SeaweedFS and OpenBao.
+
 ## Block 2 — Intelligence, memory and safe autonomy
+
+**Status: active.**
 
 **Purpose:** make KAIRO reason and work durably without coupling intelligence to one provider/runtime.
 

@@ -1,0 +1,57 @@
+services:
+  restic:
+    image: restic/restic:0.19.1
+    profiles: [ops]
+    hostname: kairo-backup
+    environment:
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-/repository}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-}
+      AWS_ACCESS_KEY_ID: ${RESTIC_AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${RESTIC_AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${RESTIC_AWS_DEFAULT_REGION:-}
+      B2_ACCOUNT_ID: ${RESTIC_B2_ACCOUNT_ID:-}
+      B2_ACCOUNT_KEY: ${RESTIC_B2_ACCOUNT_KEY:-}
+    volumes:
+      - ${RESTIC_LOCAL_PATH:-./backups/restic}:/repository
+      - ./.kairo-backup-staging:/staging
+      - postgres_data:/data/postgres:ro
+      - nats_data:/data/nats:ro
+      - seaweed_data:/data/seaweed:ro
+      - openbao_data:/data/openbao:ro
+
+  volume-restore:
+    image: alpine:3.22
+    profiles: [ops]
+    entrypoint: ["/bin/sh"]
+    command:
+      - -ec
+      - |
+        for volume in postgres nats seaweed openbao; do
+          source="/staging/restore/data/$${volume}"
+          target="/restore/$${volume}"
+          test -d "$${source}"
+          find "$${target}" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+          cp -a "$${source}/." "$${target}/"
+        done
+    volumes:
+      - ./.kairo-backup-staging:/staging
+      - postgres_data:/restore/postgres
+      - nats_data:/restore/nats
+      - seaweed_data:/restore/seaweed
+      - openbao_data:/restore/openbao
+
+  ops-cleanup:
+    image: alpine:3.22
+    profiles: [ops]
+    entrypoint: ["/bin/sh"]
+    command:
+      - -ec
+      - |
+        rm -rf /staging/* /staging/.[!.]* /staging/..?* 2>/dev/null || true
+        rm -rf /repository/* /repository/.[!.]* /repository/..?* 2>/dev/null || true
+    volumes:
+      - ./.kairo-backup-staging:/staging
+      - ${RESTIC_LOCAL_PATH:-./backups/restic}:/repository
+
+volumes:
+  openbao_data:

@@ -1,4 +1,4 @@
-.PHONY: bootstrap config up down all logs ps build check
+.PHONY: bootstrap config prod-config ops-config up down all logs ps build check backup restore
 
 bootstrap:
 	@test -f .env || cp .env.example .env
@@ -6,7 +6,15 @@ bootstrap:
 
 config: bootstrap
 	docker compose config >/dev/null
-	@echo "Compose configuration is valid."
+	@echo "Development Compose configuration is valid."
+
+prod-config:
+	docker compose --env-file .env.production.example -f compose.yaml -f compose.production.yaml config >/dev/null
+	@echo "Production Compose overlay is valid."
+
+ops-config:
+	docker compose --env-file .env.production.example -f compose.yaml -f compose.production.yaml -f compose.ops.yaml --profile ops config >/dev/null
+	@echo "Operations/Restic Compose overlay is valid."
 
 up: bootstrap
 	docker compose up -d
@@ -26,5 +34,11 @@ ps:
 build:
 	pnpm build
 
-check: config
+backup: bootstrap
+	bash scripts/ops/backup.sh
+
+restore:
+	bash scripts/ops/restore.sh $${SNAPSHOT:-latest}
+
+check: config prod-config ops-config
 	pnpm typecheck

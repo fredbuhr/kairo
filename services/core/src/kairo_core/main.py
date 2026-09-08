@@ -9,13 +9,16 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import __version__
+from .assets import router as assets_router
 from .components import load_component_registry
 from .config import settings
 from .db import get_session, ping_database
 from .events import append_audit, enqueue_domain_event
 from .models import OutboxEvent, Project, RelationshipRecord, Task
 from .news import router as news_router
+from .openbao import openbao_client
 from .outbox import OutboxRelay
+from .resources import router as resources_router
 from .schemas import (
     OutboxStats,
     ProjectCreate,
@@ -53,6 +56,8 @@ app.add_middleware(
 )
 app.include_router(workflow_router)
 app.include_router(news_router)
+app.include_router(resources_router)
+app.include_router(assets_router)
 
 
 @app.get("/health/live")
@@ -73,7 +78,7 @@ async def health_alias() -> dict[str, str]:
 async def _seaweed_ready() -> bool:
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
-            response = await client.get(f"{settings.seaweed_s3_endpoint}/")
+            response = await client.get(f"{settings.seaweed_filer_endpoint.rstrip('/')}/")
         return response.status_code < 500
     except Exception:
         return False
@@ -82,6 +87,18 @@ async def _seaweed_ready() -> bool:
 async def _temporal_ready() -> bool:
     try:
         return await temporal_gateway.health()
+    except Exception:
+        return False
+
+
+async def _keycloak_ready() -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.get(settings.keycloak_jwks_url)
+        if response.status_code != 200:
+            return False
+        payload = response.json()
+        return isinstance(payload.get("keys"), list) and bool(payload["keys"])
     except Exception:
         return False
 
@@ -106,6 +123,24 @@ async def readiness(request: Request) -> SystemReadiness:
     return SystemReadiness(status="ready", checks=checks)
 
 
+@app.get("/health/trust", response_model=SystemReadiness)
+async def trust_readiness() -> SystemReadiness:
+    keycloak_ok, openbao_ok, seaweed_ok = await asyncio.gather(
+        _keycloak_ready(), openbao_client.health(), _seaweed_ready(), return_exceptions=True
+    )
+    checks = {
+        "keycloak": keycloak_ok is True,
+        "openbao": openbao_ok is True,
+        "seaweedfs": seaweed_ok is True,
+    }
+    if not all(checks.values()):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"status": "trust-boundary-not-ready", "checks": checks},
+        )
+    return SystemReadiness(status="ready", checks=checks)
+
+
 @app.get("/v1/system/components")
 async def components() -> dict:
     return load_component_registry()
@@ -115,10 +150,12 @@ async def components() -> dict:
 async def architecture() -> dict[str, object]:
     return {
         "canonical_state": "postgresql",
-        "canonical_objects": "seaweedfs",
+        "canonical_objects": "seaweedfs-filer",
         "durable_execution": "temporal",
         "event_bus": "nats-jetstream",
         "event_delivery": "transactional-outbox-at-least-once",
+        "identity": "keycloak-jwt-jwks",
+        "secret_values": "openbao",
         "derived_context_graph": "graphiti-neo4j",
         "derived_memory": "mem0",
         "model_gateway": "litellm",

@@ -1,0 +1,39 @@
+services:
+  openbao:
+    command: ["server", "-config=/openbao/config/config.hcl"]
+    environment:
+      BAO_ADDR: http://127.0.0.1:8200
+      # Explicitly erase development-only values inherited from compose.yaml.
+      BAO_DEV_ROOT_TOKEN_ID: ""
+      BAO_DEV_LISTEN_ADDRESS: ""
+    volumes:
+      - ./infrastructure/openbao/config.hcl:/openbao/config/config.hcl:ro
+      - openbao_data:/openbao/file
+    healthcheck:
+      test: ["CMD-SHELL", "bao status >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  keycloak:
+    command: ["start"]
+    environment:
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL}
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+
+  kairo-core:
+    environment:
+      KAIRO_AUTH_ENABLED: "true"
+      ASSET_MAX_BYTES: ${ASSET_MAX_BYTES}
+      SEAWEED_FILER_ENDPOINT: http://seaweedfs:8888
+      OPENBAO_TOKEN: ${OPENBAO_TOKEN}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+
+volumes:
+  openbao_data:
