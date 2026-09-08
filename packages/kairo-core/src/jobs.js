@@ -15,6 +15,7 @@ const JOB_STATUSES = new Set([
 ]);
 const JOB_STEP_STATUSES = new Set(["started", "completed"]);
 const AUTHORITY_LEVELS = new Set(["A0", "A1", "A2", "A3", "A4", "A5"]);
+const ALLOWED_TOOL_SOURCES = new Set(["default", "explicit"]);
 
 function requireText(value, label) {
   const text = String(value ?? "").trim();
@@ -39,13 +40,67 @@ function nowIso(clock) {
   return clock().toISOString();
 }
 
-function optionalBudget(value) {
+function optionalBudgetUsd(value, label) {
   if (value === undefined || value === null) return undefined;
   const number = Number(value);
   if (!Number.isFinite(number) || number < 0) {
-    throw new TypeError("requestedBudget must be a non-negative number.");
+    throw new TypeError(`${label} must be a non-negative number of USD.`);
   }
   return number;
+}
+
+function requestedBudgetUsd({ requestedBudgetUsd, requestedBudget }) {
+  const explicit = optionalBudgetUsd(requestedBudgetUsd, "requestedBudgetUsd");
+  const legacy = optionalBudgetUsd(requestedBudget, "requestedBudget");
+  if (explicit !== undefined && legacy !== undefined && explicit !== legacy) {
+    throw new TypeError("requestedBudgetUsd and legacy requestedBudget must match when both are provided.");
+  }
+  return explicit ?? legacy;
+}
+
+function optionalAllowedTools(value) {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value)) throw new TypeError("allowedTools must be an array of exact tool names.");
+
+  const result = [];
+  const seen = new Set();
+  for (const raw of value) {
+    const name = requireText(raw, "allowedTools entry");
+    if (
+      !/^[a-z0-9][a-z0-9_.:-]{0,127}$/i.test(name) ||
+      name.toLowerCase().startsWith("group:") ||
+      /[*?\[\]{}]/.test(name)
+    ) {
+      throw new TypeError(
+        "allowedTools entries must be exact tool names, not groups or wildcard patterns.",
+      );
+    }
+    const identity = name.toLowerCase();
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    result.push(name);
+  }
+  return result;
+}
+
+function optionalAllowedToolsSource(value) {
+  if (value === undefined || value === null) return undefined;
+  const source = requireText(value, "allowedToolsSource");
+  if (!ALLOWED_TOOL_SOURCES.has(source)) {
+    throw new TypeError("allowedToolsSource must be 'default' or 'explicit'.");
+  }
+  return source;
+}
+
+function normalizeLegacyJobMetadata(metadata) {
+  const normalized = { ...metadata };
+  if (normalized.requested_budget_usd === undefined && normalized.requested_budget !== undefined) {
+    const legacy = Number(normalized.requested_budget);
+    if (Number.isFinite(legacy) && legacy >= 0) {
+      normalized.requested_budget_usd = legacy;
+    }
+  }
+  return normalized;
 }
 
 async function exists(filePath) {
@@ -152,7 +207,10 @@ export class KairoJobLedger {
     instructions,
     authorityCeiling = "A2",
     scheduledFor,
+    requestedBudgetUsd: requestedBudgetUsdInput,
     requestedBudget,
+    allowedTools,
+    allowedToolsSource,
     sourceSession,
     taskId,
   }) {
@@ -177,10 +235,21 @@ export class KairoJobLedger {
 
     const normalizedScheduledFor = optionalText(scheduledFor);
     if (normalizedScheduledFor) job.scheduled_for = normalizedScheduledFor;
-    const normalizedBudget = optionalBudget(requestedBudget);
-    if (normalizedBudget !== undefined) {
-      job.requested_budget = normalizedBudget;
+    const normalizedBudgetUsd = requestedBudgetUsd({
+      requestedBudgetUsd: requestedBudgetUsdInput,
+      requestedBudget,
+    });
+    if (normalizedBudgetUsd !== undefined) {
+      job.requested_budget_usd = normalizedBudgetUsd;
       job.budget_enforced = false;
+    }
+    const normalizedAllowedTools = optionalAllowedTools(allowedTools);
+    if (normalizedAllowedTools !== undefined) {
+      job.allowed_tools = normalizedAllowedTools;
+      const source = optionalAllowedToolsSource(allowedToolsSource) ?? "explicit";
+      job.allowed_tools_source = source;
+    } else if (allowedToolsSource !== undefined) {
+      throw new TypeError("allowedToolsSource requires allowedTools.");
     }
     const normalizedSession = optionalText(sourceSession);
     if (normalizedSession) job.source_session = normalizedSession;
@@ -340,7 +409,7 @@ export class KairoJobLedger {
       throw new KairoError("JOB_NOT_FOUND", `job '${safeId}' was not found in '${projectRecord.slug}'.`);
     }
     const { metadata, body } = parseMarkdown(await readFile(file, "utf8"));
-    return { ...metadata, body };
+    return { ...normalizeLegacyJobMetadata(metadata), body };
   }
 
   async listJobs(project) {
@@ -393,6 +462,7 @@ export class KairoJobLedger {
     });
     const metadata = { ...next };
     delete metadata.body;
+    delete metadata.requested_budget;
     await atomicWrite(jobFile(this.dataDir, projectRecord.slug, next.id), serializeMarkdown(metadata, content));
     return { ...metadata, body: content };
   }
