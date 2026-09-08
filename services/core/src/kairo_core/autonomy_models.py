@@ -62,6 +62,7 @@ class ModelUsageRecord(Base):
         PGUUID(as_uuid=True), ForeignKey("workflow_executions.id", ondelete="SET NULL")
     )
     correlation_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(String(160))
     provider: Mapped[str] = mapped_column(String(80), nullable=False)
     model_alias: Mapped[str] = mapped_column(String(120), nullable=False)
     model_name: Mapped[str | None] = mapped_column(String(240))
@@ -77,4 +78,5 @@ class ModelUsageRecord(Base):
     __table_args__ = (
         Index("ix_model_usage_task_created", "task_id", "created_at"),
         Index("ix_model_usage_correlation", "correlation_id", "created_at"),
+        Index("ux_model_usage_idempotency_key", "idempotency_key", unique=True),
     )

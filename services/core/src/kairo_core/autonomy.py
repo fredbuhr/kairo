@@ -102,6 +102,7 @@ class ModelUsageCreate(BaseModel):
     task_id: uuid.UUID
     workflow_execution_id: uuid.UUID | None = None
     correlation_id: uuid.UUID
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=160)
     provider: str = Field(min_length=1, max_length=80)
     model_alias: str = Field(min_length=1, max_length=120)
     model_name: str | None = Field(default=None, max_length=240)
@@ -133,6 +134,19 @@ def _remaining(task: Task, spent: Decimal) -> Decimal | None:
     if task.budget_usd is None:
         return None
     return max(Decimal("0"), Decimal(task.budget_usd) - spent)
+
+
+async def _budget_read(session: AsyncSession, task: Task) -> BudgetRead:
+    spent = await _spent_usd(session, task.id)
+    budget = Decimal(task.budget_usd) if task.budget_usd is not None else None
+    remaining = _remaining(task, spent)
+    return BudgetRead(
+        task_id=task.id,
+        budget_usd=budget,
+        spent_usd=spent,
+        remaining_usd=remaining,
+        exhausted=budget is not None and spent >= budget,
+    )
 
 
 def _mint_policy_token(
@@ -302,16 +316,7 @@ async def get_task_budget(
     task = await session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    spent = await _spent_usd(session, task.id)
-    budget = Decimal(task.budget_usd) if task.budget_usd is not None else None
-    remaining = _remaining(task, spent)
-    return BudgetRead(
-        task_id=task.id,
-        budget_usd=budget,
-        spent_usd=spent,
-        remaining_usd=remaining,
-        exhausted=budget is not None and spent >= budget,
-    )
+    return await _budget_read(session, task)
 
 
 @router.post(
@@ -477,6 +482,8 @@ async def record_model_usage(
     body: ModelUsageCreate,
     session: AsyncSession = Depends(get_session),
 ) -> BudgetRead:
+    # Locking the task serializes ledger writes for one durable task. Combined with the unique
+    # idempotency key, a Worker can safely retry a request after an ambiguous HTTP response.
     task = await session.get(Task, body.task_id, with_for_update=True)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -485,11 +492,26 @@ async def record_model_usage(
         if not execution or execution.task_id != task.id:
             raise HTTPException(status_code=404, detail="Workflow execution not found for task")
 
+    if body.idempotency_key:
+        existing = await session.scalar(
+            select(ModelUsageRecord).where(
+                ModelUsageRecord.idempotency_key == body.idempotency_key
+            )
+        )
+        if existing:
+            if existing.task_id != task.id or existing.model_alias != body.model_alias:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Model usage idempotency key is already bound to another invocation",
+                )
+            return await _budget_read(session, task)
+
     total_tokens = body.total_tokens or body.prompt_tokens + body.completion_tokens
     record = ModelUsageRecord(
         task_id=body.task_id,
         workflow_execution_id=body.workflow_execution_id,
         correlation_id=body.correlation_id,
+        idempotency_key=body.idempotency_key,
         provider=body.provider,
         model_alias=body.model_alias,
         model_name=body.model_name,
@@ -513,19 +535,10 @@ async def record_model_usage(
         result_json={
             "provider": body.provider,
             "model_alias": body.model_alias,
+            "idempotency_key": body.idempotency_key,
             "total_tokens": total_tokens,
             "cost_usd": str(body.cost_usd),
         },
     )
     await session.commit()
-
-    spent = await _spent_usd(session, task.id)
-    budget = Decimal(task.budget_usd) if task.budget_usd is not None else None
-    remaining = _remaining(task, spent)
-    return BudgetRead(
-        task_id=task.id,
-        budget_usd=budget,
-        spent_usd=spent,
-        remaining_usd=remaining,
-        exhausted=budget is not None and spent >= budget,
-    )
+    return await _budget_read(session, task)

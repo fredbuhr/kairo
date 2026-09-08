@@ -235,32 +235,46 @@ def main() -> int:
     )
     assert invalid["valid"] is False
 
-    # 4) Model spend is canonical and visible through the task budget contract.
+    # 4) Model spend is canonical, visible through the task budget contract and idempotent.
     correlation_id = str(uuid.uuid4())
+    idempotency_key = f"ci-model-{uuid.uuid4()}"
+    usage_payload = {
+        "task_id": direct_task,
+        "correlation_id": correlation_id,
+        "idempotency_key": idempotency_key,
+        "provider": "ci",
+        "model_alias": "smart",
+        "model_name": "deterministic-proof",
+        "prompt_tokens": 100,
+        "completion_tokens": 20,
+        "cost_usd": "0.25",
+        "metadata": {"proof": "block2", "idempotency_key": idempotency_key},
+    }
     _, budget = json_request(
         "POST",
         "/internal/v1/model-usage",
         internal=True,
-        payload={
-            "task_id": direct_task,
-            "correlation_id": correlation_id,
-            "provider": "ci",
-            "model_alias": "smart",
-            "model_name": "deterministic-proof",
-            "prompt_tokens": 100,
-            "completion_tokens": 20,
-            "cost_usd": "0.25",
-            "metadata": {"proof": "block2"},
-        },
+        payload=usage_payload,
     )
     assert budget["spent_usd"] == "0.250000"
+
+    # Replay the exact same accounting write, as would happen after a lost HTTP response. It must
+    # return success without inserting or charging a second time.
+    _, replay_budget = json_request(
+        "POST",
+        "/internal/v1/model-usage",
+        internal=True,
+        payload=usage_payload,
+    )
+    assert replay_budget["spent_usd"] == "0.250000"
+
     _, public_budget = json_request("GET", f"/v1/tasks/{direct_task}/budget", token=token)
     assert public_budget["spent_usd"] == "0.250000"
     assert public_budget["remaining_usd"] == "0.750000"
 
     print(
-        "BLOCK 2 POLICY SMOKE PASSED: Temporal approval suspension/resume, hard budgets, "
-        "signed policy capabilities and canonical model spend are proven."
+        "BLOCK 2 POLICY SMOKE PASSED: Temporal approval suspension/resume, hard budgets, signed "
+        "policy capabilities and idempotent canonical model spend are proven."
     )
     return 0
 
