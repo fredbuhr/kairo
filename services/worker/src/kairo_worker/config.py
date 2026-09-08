@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     kairo_core_url: str = "http://kairo-core:8000"
     kairo_internal_token: str = "development-only-change-me"
     database_url: str = "postgresql+asyncpg://kairo:kairo@postgres:5432/kairo"
+    mem0_database_url: str = "postgresql://kairo:kairo@postgres:5432/mem0"
     litellm_url: str = "http://litellm:4000"
     litellm_master_key: str = ""
     kairo_news_model: str = "smart"
