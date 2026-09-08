@@ -180,7 +180,15 @@ def main() -> None:
     assert len(artifacts) == 1, artifacts
     artifact = artifacts[0]
     assert artifact["kind"] == "autonomous-research", artifact
-    content = artifact["content"]
+
+    _, public_run = json_request("GET", f"/v1/research/runs/{task_id}")
+    assert public_run["task_id"] == task_id, public_run
+    assert public_run["project_id"] == project["id"], public_run
+    assert public_run["status"] == "completed", public_run
+    assert public_run["query"] == "What are Acme Fixture's revenue and employee count?", public_run
+    assert public_run["artifact"]["id"] == artifact["id"], public_run
+
+    content = public_run["artifact"]["content"]
     assert content["tool_call_count"] == 1, content
     assert content["model_call_slots"] == ["research-plan-v1", "research-synthesize-v1"], content
     assert content["plan"]["calls"][0]["tool_key"] == "fixture.company_facts", content
@@ -218,8 +226,8 @@ def main() -> None:
 
     print(
         "PASS: autonomous Research planned one read-only MCP child task, executed it through Temporal, "
-        "synthesized a provenance-checked report, persisted one canonical Artifact and accounted exactly "
-        "two distinct model-call slots"
+        "synthesized a provenance-checked report, exposed its canonical public read model, persisted one "
+        "Artifact and accounted exactly two distinct model-call slots"
     )
 
 
