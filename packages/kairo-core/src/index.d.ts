@@ -8,6 +8,18 @@ export type EpistemicStatus = "fact" | "hypothesis" | "deduction" | "opinion" | 
 export type AuthorityLevel = "A0" | "A1" | "A2" | "A3" | "A4" | "A5";
 export type SourceKind = "url" | "document" | "dataset" | "conversation" | "note" | "other";
 export type JobAllowedToolsSource = "default" | "explicit";
+export type JobRoutingClassification =
+  | "requested"
+  | "session_override"
+  | "fallback"
+  | "resolved_difference"
+  | "final_snapshot_partial"
+  | "observed_match"
+  | "observed_difference"
+  | "observed_only"
+  | "multiple_observed_routes"
+  | "requested_only"
+  | "unknown";
 
 export interface KairoRecord {
   id: string;
@@ -96,13 +108,30 @@ export interface JobUsageCounters {
   total?: number;
 }
 
+export interface JobRoutingSummary {
+  run_id: string;
+  classification: JobRoutingClassification;
+  reason_code: string;
+  reason: string;
+  complete: boolean;
+  requested_ref?: string;
+  resolved_ref?: string;
+  fallback_used?: boolean;
+  override_source?: string;
+  auth_mode?: string;
+  harness_ids: string[];
+  observed_refs: string[];
+  evidence_sources: string[];
+}
+
 export interface JobUsageSummary {
-  schema_version: 2;
+  schema_version: 3;
   runs: number;
   model_calls: number;
   usage_observations: number;
   tool_calls: number;
   provider_models: string[];
+  harnesses: string[];
   usage: JobUsageCounters;
   usage_sources: string[];
   usage_complete: boolean;
@@ -110,10 +139,12 @@ export interface JobUsageSummary {
   priced_runs: number;
   unpriced_runs: number;
   cost_complete: boolean;
+  routing: JobRoutingSummary[];
+  routing_complete: boolean;
 }
 
 export interface JobUsageState {
-  schema_version: 2;
+  schema_version: 3;
   type: "job_usage";
   job_id: string;
   project_slug: string;
@@ -291,6 +322,7 @@ export class KairoJobUsageLedger {
     scheduler_id: string;
   } | null>;
   recordRunBindingBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordRouteRequestBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
   recordModelCallStartedBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
   recordModelCallEndedBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
   recordUsageObservationBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
@@ -299,6 +331,7 @@ export class KairoJobUsageLedger {
   recordFinalSnapshotBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
   recordToolCallBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
   recordRunBinding(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordRouteRequest(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
   recordModelCallStarted(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
   recordModelCallEnded(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
   recordUsageObservation(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
