@@ -46,14 +46,14 @@ def checkpoint(stage: str) -> dict[str, Any]:
 
 async def main() -> None:
     authorized: list[dict[str, Any]] = []
-    recorded: list[dict[str, Any]] = []
+    accounting_attempts: list[dict[str, Any]] = []
     provider_posts: list[dict[str, Any]] = []
 
     async def fake_authorize(**kwargs: Any) -> None:
         authorized.append(dict(kwargs))
 
     async def fake_record(**kwargs: Any) -> None:
-        recorded.append(dict(kwargs))
+        accounting_attempts.append(dict(kwargs))
 
     class FakeClient:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -98,7 +98,7 @@ async def main() -> None:
         model_gateway._record_usage = fake_record
         model_gateway.httpx.AsyncClient = FakeClient
 
-        # 1) Normal invocation reaches the provider exactly once and records actual usage.
+        # 1) Normal invocation reaches the provider exactly once and hands off actual usage.
         result = await model_gateway.chat_completion(
             task_id=TASK_ID,
             workflow_execution_id=EXECUTION_ID,
@@ -118,10 +118,10 @@ async def main() -> None:
         assert result.usage.litellm_call_id == CALL_KEY, result.usage
         assert len(provider_posts) == 1, provider_posts
         assert len(authorized) == 1, authorized
-        assert len(recorded) == 1, recorded
-        assert recorded[0]["idempotency_key"] == CALL_KEY, recorded
+        assert len(accounting_attempts) == 1, accounting_attempts
+        assert accounting_attempts[0]["idempotency_key"] == CALL_KEY, accounting_attempts
 
-        # 2) An accounted heartbeat replays the known result without provider or ledger writes.
+        # 2) An accounted heartbeat replays the known result without provider or ledger traffic.
         replayed = await model_gateway.chat_completion(
             task_id=TASK_ID,
             workflow_execution_id=EXECUTION_ID,
@@ -136,9 +136,9 @@ async def main() -> None:
         assert replayed.raw["replayed_from_temporal_checkpoint"] is True, replayed.raw
         assert len(provider_posts) == 1, provider_posts
         assert len(authorized) == 1, authorized
-        assert len(recorded) == 1, recorded
+        assert len(accounting_attempts) == 1, accounting_attempts
 
-        # 3) A completed provider result can resume the accounting handoff without a new model call.
+        # 3) A completed provider result resumes only the idempotent accounting handoff.
         resumed = await model_gateway.chat_completion(
             task_id=TASK_ID,
             workflow_execution_id=EXECUTION_ID,
@@ -151,9 +151,24 @@ async def main() -> None:
         )
         assert resumed.content == "fixture completion", resumed
         assert len(provider_posts) == 1, provider_posts
-        assert len(recorded) == 2, recorded
+        assert len(accounting_attempts) == 2, accounting_attempts
 
-        # 4) If the prior attempt may have reached the provider, replay fails closed.
+        # 4) An ambiguous accounting HTTP outcome retries the same canonical idempotency key.
+        retried = await model_gateway.chat_completion(
+            task_id=TASK_ID,
+            workflow_execution_id=EXECUTION_ID,
+            correlation_id=CORRELATION_ID,
+            model_alias="smart",
+            idempotency_key=CALL_KEY,
+            resume_checkpoint=checkpoint("accounting"),
+            messages=[{"role": "user", "content": "fixture"}],
+        )
+        assert retried.content == "fixture completion", retried
+        assert len(provider_posts) == 1, provider_posts
+        assert len(accounting_attempts) == 3, accounting_attempts
+        assert {attempt["idempotency_key"] for attempt in accounting_attempts} == {CALL_KEY}
+
+        # 5) If the prior attempt may have reached the provider, replay fails closed.
         try:
             await model_gateway.chat_completion(
                 task_id=TASK_ID,
@@ -169,23 +184,6 @@ async def main() -> None:
         else:
             raise AssertionError("Ambiguous provider outcome must refuse blind replay")
         assert len(provider_posts) == 1, provider_posts
-
-        # 5) If accounting may already have committed, replay also fails closed rather than double-write.
-        try:
-            await model_gateway.chat_completion(
-                task_id=TASK_ID,
-                workflow_execution_id=EXECUTION_ID,
-                correlation_id=CORRELATION_ID,
-                model_alias="smart",
-                idempotency_key=CALL_KEY,
-                resume_checkpoint=checkpoint("accounting"),
-                messages=[{"role": "user", "content": "fixture"}],
-            )
-        except model_gateway.ModelCallAccountingUnknown:
-            pass
-        else:
-            raise AssertionError("Ambiguous accounting outcome must refuse a duplicate ledger write")
-        assert len(recorded) == 2, recorded
     finally:
         model_gateway._authorize_model_call = original_authorize
         model_gateway._record_usage = original_record
@@ -203,8 +201,8 @@ async def main() -> None:
     assert missing_cost.cost_reported is False, missing_cost
 
     print(
-        "MODEL GATEWAY CONTRACT PASS: logical alias authorization, stable call correlation, provider "
-        "usage parsing, LiteLLM cost capture and conservative Temporal replay safety behave deterministically"
+        "MODEL GATEWAY CONTRACT PASS: stable model-call identity, provider replay refusal, replayable "
+        "canonical accounting, usage parsing and LiteLLM cost capture behave deterministically"
     )
 
 
