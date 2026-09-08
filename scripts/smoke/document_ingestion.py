@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 import time
-import urllib.error
 import urllib.request
 import uuid
 
 BASE = "http://127.0.0.1:8000"
+DOCUMENTS_PROJECT_ID = "a8da482d-fb63-52b5-a687-0f65d64b10ad"
 
 
 def request(method: str, path: str, payload: object | None = None, *, headers: dict[str, str] | None = None, body: bytes | None = None):
@@ -32,18 +32,41 @@ def wait_ready() -> None:
     raise RuntimeError("KAIRO Core did not become ready")
 
 
-def multipart_file(filename: str, content: bytes, content_type: str, project_id: str) -> tuple[bytes, str]:
+def multipart_file(
+    filename: str,
+    content: bytes,
+    content_type: str,
+    project_id: str | None = None,
+) -> tuple[bytes, str]:
     boundary = "----kairo-doc-" + uuid.uuid4().hex
-    parts = [
-        f"--{boundary}\r\nContent-Disposition: form-data; name=\"project_id\"\r\n\r\n{project_id}\r\n".encode(),
-        (
-            f"--{boundary}\r\n"
-            f"Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n"
-            f"Content-Type: {content_type}\r\n\r\n"
-        ).encode() + content + b"\r\n",
-        f"--{boundary}--\r\n".encode(),
-    ]
+    parts: list[bytes] = []
+    if project_id is not None:
+        parts.append(
+            f"--{boundary}\r\nContent-Disposition: form-data; name=\"project_id\"\r\n\r\n{project_id}\r\n".encode()
+        )
+    parts.extend(
+        [
+            (
+                f"--{boundary}\r\n"
+                f"Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n"
+                f"Content-Type: {content_type}\r\n\r\n"
+            ).encode()
+            + content
+            + b"\r\n",
+            f"--{boundary}--\r\n".encode(),
+        ]
+    )
     return b"".join(parts), boundary
+
+
+def upload_text_asset(filename: str, source: bytes, project_id: str | None = None) -> dict:
+    body, boundary = multipart_file(filename, source, "text/plain", project_id)
+    return request(
+        "POST",
+        "/v1/assets",
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        body=body,
+    )
 
 
 def wait_version(document_id: str, generation: int) -> dict:
@@ -62,22 +85,18 @@ def wait_version(document_id: str, generation: int) -> dict:
 
 def main() -> None:
     wait_ready()
-    project = request("POST", "/v1/projects", {"name": "Document ingestion proof"})
     source = (
         "KAIRO document ingestion proof.\n\n"
         "This first paragraph establishes canonical provenance.\n\n"
         "This second paragraph proves deterministic chunk extraction without a model call."
     ).encode()
-    body, boundary = multipart_file("proof.txt", source, "text/plain", project["id"])
-    asset = request(
-        "POST",
-        "/v1/assets",
-        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
-        body=body,
-    )
+
+    project = request("POST", "/v1/projects", {"name": "Document ingestion proof"})
+    asset = upload_text_asset("proof.txt", source, project["id"])
     run = request("POST", "/v1/documents", {"asset_id": asset["id"], "title": "Proof document"})
     document = run["document"]
     assert document["asset_id"] == asset["id"], run
+    assert document["project_id"] == project["id"], run
     assert document["source_sha256"] == asset["sha256"], run
 
     version1 = wait_version(document["id"], 1)
@@ -98,6 +117,22 @@ def main() -> None:
     assert original["sha256"] == asset["sha256"], original
     versions = request("GET", f"/v1/documents/{document['id']}/versions")
     assert [item["generation"] for item in versions[:2]] == [2, 1], versions
+
+    # An uploaded asset is allowed to be unscoped, but document Tasks are not.
+    # Prove the canonical document explicitly falls back to KAIRO Documents and
+    # that the full Temporal ingestion still completes under that boundary.
+    unscoped_asset = upload_text_asset("unscoped.txt", b"Unscoped assets still need a durable document workspace.")
+    assert unscoped_asset["project_id"] is None, unscoped_asset
+    unscoped_run = request(
+        "POST",
+        "/v1/documents",
+        {"asset_id": unscoped_asset["id"], "title": "Unscoped proof"},
+    )
+    unscoped_document = unscoped_run["document"]
+    assert unscoped_document["project_id"] == DOCUMENTS_PROJECT_ID, unscoped_run
+    unscoped_version = wait_version(unscoped_document["id"], 1)
+    assert unscoped_version["status"] == "completed", unscoped_version
+
     print("document ingestion proof passed")
 
 
