@@ -57,6 +57,14 @@ class ResearchToolStarted(BaseModel):
     already_started: bool
 
 
+class ResearchToolResult(BaseModel):
+    invocation_id: uuid.UUID
+    task_id: uuid.UUID
+    status: str
+    result: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+
+
 def _research_task_input(task: Task) -> dict[str, Any]:
     value = task.input or {}
     if str(value.get("capability") or "") != "research.autonomous":
@@ -298,4 +306,28 @@ async def start_research_tool(
         workflow_id=run.workflow_id,
         status=run.status,
         already_started=run.already_started,
+    )
+
+
+@router.get(
+    "/internal/v1/research/tool-invocations/{invocation_id}",
+    response_model=ResearchToolResult,
+    dependencies=[Depends(require_internal_token)],
+)
+async def research_tool_result(
+    invocation_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> ResearchToolResult:
+    invocation = await session.get(ToolInvocation, invocation_id)
+    if invocation is None:
+        raise HTTPException(status_code=404, detail="Tool invocation not found")
+    task = await session.get(Task, invocation.task_id)
+    scope = (task.input or {}).get("policy_scope") if task else None
+    if not isinstance(scope, dict) or not scope.get("research_parent_task_id"):
+        raise HTTPException(status_code=409, detail="Invocation does not belong to a research agent")
+    return ResearchToolResult(
+        invocation_id=invocation.id,
+        task_id=invocation.task_id,
+        status=invocation.status,
+        result=invocation.result_json or {},
+        error=invocation.last_error,
     )
