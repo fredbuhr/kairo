@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .auth import Principal, require_kairo_user
 from .config import settings
 from .db import get_session
-from .document_models import Document, DocumentChunk, DocumentVersion
+from .document_models import DOCUMENTS_PROJECT_ID, Document, DocumentChunk, DocumentVersion
 from .events import append_audit, enqueue_domain_event
 from .models import Asset, Task
 from .security import require_internal_token
@@ -63,7 +63,7 @@ class DocumentRead(BaseModel):
 
     id: uuid.UUID
     asset_id: uuid.UUID
-    project_id: uuid.UUID | None
+    project_id: uuid.UUID
     title: str
     media_type: str | None
     source_sha256: str | None
@@ -202,7 +202,7 @@ async def create_document(
     title = (body.title or (asset.metadata_json or {}).get("filename") or "Document").strip()
     document = Document(
         asset_id=asset.id,
-        project_id=asset.project_id,
+        project_id=asset.project_id or DOCUMENTS_PROJECT_ID,
         title=title[:320],
         media_type=asset.mime_type,
         source_sha256=asset.sha256,
