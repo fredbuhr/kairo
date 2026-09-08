@@ -7,7 +7,12 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .command_models import CapabilityRecord
-from .schemas import NewsBriefCreate, NewsBriefRunResponse
+from .schemas import (
+    NewsBriefCreate,
+    NewsBriefRunResponse,
+    SemanticRouteInput,
+    SemanticRouteProposal,
+)
 
 
 @dataclass(frozen=True)
@@ -56,10 +61,39 @@ NEWS_BRIEF = CapabilitySpec(
         "side_effects": "canonical-artifact",
         "model_gateway": "litellm",
         "durable": True,
+        "routable": True,
+        "internal": False,
     },
 )
 
-CAPABILITIES: dict[str, CapabilitySpec] = {NEWS_BRIEF.key: NEWS_BRIEF}
+SEMANTIC_ROUTE = CapabilitySpec(
+    key="assistant.route.semantic",
+    version=1,
+    title="Semantic capability routing",
+    description=(
+        "Propose one registered KAIRO capability for an ambiguous conversational command. "
+        "This capability can propose a route but cannot execute specialist tools directly."
+    ),
+    authority_level=1,
+    cost_class="metered-model",
+    runtime="temporal",
+    input_model=SemanticRouteInput,
+    output_model=SemanticRouteProposal,
+    metadata={
+        "domain": "assistant",
+        "side_effects": "route-proposal-only",
+        "model_gateway": "litellm",
+        "agent_framework": "pydantic-ai",
+        "durable": True,
+        "routable": False,
+        "internal": True,
+    },
+)
+
+CAPABILITIES: dict[str, CapabilitySpec] = {
+    NEWS_BRIEF.key: NEWS_BRIEF,
+    SEMANTIC_ROUTE.key: SEMANTIC_ROUTE,
+}
 
 
 def get_capability(key: str) -> CapabilitySpec | None:
@@ -68,6 +102,15 @@ def get_capability(key: str) -> CapabilitySpec | None:
 
 def list_capabilities() -> list[CapabilitySpec]:
     return [CAPABILITIES[key] for key in sorted(CAPABILITIES)]
+
+
+def list_routable_capabilities() -> list[CapabilitySpec]:
+    return [spec for spec in list_capabilities() if spec.metadata.get("routable") is True]
+
+
+def is_routable_capability(key: str) -> bool:
+    spec = get_capability(key)
+    return spec is not None and spec.metadata.get("routable") is True
 
 
 async def synchronize_capabilities(session: AsyncSession) -> None:

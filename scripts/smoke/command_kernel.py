@@ -7,6 +7,7 @@ import json
 import time
 import urllib.error
 import urllib.request
+from decimal import Decimal
 from typing import Any
 
 CORE = "http://localhost:8000"
@@ -18,13 +19,15 @@ def json_request(
     *,
     payload: dict[str, Any] | None = None,
     expected: int = 200,
+    headers: dict[str, str] | None = None,
 ) -> tuple[int, Any]:
     data = None if payload is None else json.dumps(payload).encode("utf-8")
+    request_headers = {"Content-Type": "application/json", **(headers or {})}
     request = urllib.request.Request(
         CORE + path,
         data=data,
         method=method,
-        headers={"Content-Type": "application/json"},
+        headers=request_headers,
     )
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
@@ -57,8 +60,13 @@ def main() -> None:
 
     _, capabilities = json_request("GET", "/v1/capabilities")
     news = next(item for item in capabilities if item["key"] == "news.brief")
+    semantic = next(item for item in capabilities if item["key"] == "assistant.route.semantic")
     assert news["runtime"] == "temporal", news
     assert news["authority_level"] == 1, news
+    assert news["metadata"]["routable"] is True, news
+    assert semantic["runtime"] == "temporal", semantic
+    assert semantic["metadata"]["routable"] is False, semantic
+    assert semantic["metadata"]["agent_framework"] == "pydantic-ai", semantic
 
     _, routed = json_request(
         "POST",
@@ -70,6 +78,8 @@ def main() -> None:
             "output": "auto",
         },
     )
+    assert routed["routing"] == "deterministic", routed
+    assert routed["status"] == "accepted", routed
     assert routed["capability"] == "news.brief", routed
     assert routed["parameters"]["mode"] == "local", routed
     assert routed["parameters"]["location"] == "Paris", routed
@@ -98,10 +108,12 @@ def main() -> None:
     assert task["input"]["capability"] == "news.brief", task
     assert task["input"]["command_id"] == command_id, task
 
-    _, unsupported = json_request(
+    # With no Worker in this test, an ambiguous command must still be persisted and handed to a
+    # durable semantic-routing Task. The command must not be guessed or executed synchronously.
+    _, pending = json_request(
         "POST",
         "/v1/assistant/commands",
-        expected=422,
+        expected=202,
         payload={
             "text": "Ouvre mon agenda demain matin.",
             "conversation_id": conversation_id,
@@ -109,21 +121,44 @@ def main() -> None:
             "output": "auto",
         },
     )
-    detail = unsupported["detail"]
-    unsupported_id = detail["command_id"]
-    assert detail["conversation_id"] == conversation_id, unsupported
+    assert pending["routing"] == "semantic", pending
+    assert pending["status"] == "routing", pending
+    assert pending["capability"] is None, pending
+    assert pending["route_reason"] == "semantic.pending", pending
+    assert pending["routing_task_id"], pending
+    assert pending["routing_workflow_execution_id"], pending
 
-    _, rejected_command = json_request("GET", f"/v1/commands/{unsupported_id}")
-    assert rejected_command["status"] == "unsupported", rejected_command
-    assert rejected_command["capability_key"] is None, rejected_command
-    assert rejected_command["route_reason"] == "no_deterministic_capability_match", rejected_command
+    _, pending_command = json_request("GET", f"/v1/commands/{pending['command_id']}")
+    assert pending_command["status"] == "routing", pending_command
+    assert pending_command["capability_key"] is None, pending_command
+    assert pending_command["route_reason"] == "semantic.pending", pending_command
+
+    _, routing_task = json_request("GET", f"/v1/tasks/{pending['routing_task_id']}")
+    assert routing_task["input"]["capability"] == "assistant.route.semantic", routing_task
+    assert routing_task["input"]["command_id"] == pending["command_id"], routing_task
+    assert Decimal(str(routing_task["budget_usd"])) == Decimal("0.02"), routing_task
+    assert routing_task["authority_ceiling"] == 1, routing_task
+
+    # A terminal routing-workflow failure must also terminalize the canonical Command. Otherwise
+    # clients would poll a permanently stuck `routing` state even though Temporal already failed.
+    json_request(
+        "POST",
+        f"/internal/v1/executions/{pending['routing_workflow_id']}/fail",
+        payload={"error": "forced semantic routing failure for smoke proof"},
+        headers={"X-Kairo-Internal-Token": "CHANGE_ME_INTERNAL_TOKEN"},
+    )
+    _, failed_command = json_request("GET", f"/v1/commands/{pending['command_id']}")
+    assert failed_command["status"] == "failed", failed_command
+    assert failed_command["route_reason"] == "semantic.execution-failed", failed_command
+    assert "semantic_error" in failed_command["result_json"], failed_command
 
     _, messages = json_request("GET", f"/v1/conversations/{conversation_id}/messages")
     assert len(messages) == 2, messages
 
     print(
-        "COMMAND KERNEL INTEGRATION PASS: capability registry, canonical conversation/message/command "
-        "state, durable Task/Temporal handoff and conservative unsupported routing are proven."
+        "COMMAND KERNEL INTEGRATION PASS: registered capability boundaries, canonical conversation "
+        "state, deterministic Task handoff, durable semantic fallback and terminal failure propagation "
+        "are proven."
     )
 
 

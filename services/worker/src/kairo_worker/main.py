@@ -7,6 +7,7 @@ from .activities import begin_execution, complete_execution, fail_execution, per
 from .config import settings
 from .news_activity import perform_news_brief
 from .policy_activities import check_policy_gate
+from .semantic_router import perform_semantic_route
 from .workflows import FoundationWorkflow, TaskExecutionWorkflow
 
 
@@ -24,6 +25,7 @@ async def serve() -> None:
             check_policy_gate,
             perform_foundation_work,
             perform_news_brief,
+            perform_semantic_route,
             complete_execution,
             fail_execution,
         ],

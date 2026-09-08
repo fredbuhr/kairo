@@ -8,13 +8,22 @@ from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .capabilities import get_capability, list_capabilities, synchronize_capabilities
+from .capabilities import (
+    get_capability,
+    is_routable_capability,
+    list_capabilities,
+    list_routable_capabilities,
+    synchronize_capabilities,
+)
 from .command_models import CommandRecord, Conversation, ConversationMessage
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
+from .models import Project, Task
 from .news import start_news_brief
 from .schemas import (
     AssistantCommandCreate,
@@ -24,9 +33,18 @@ from .schemas import (
     ConversationMessageRead,
     ConversationRead,
     NewsBriefCreate,
+    SemanticRouteApplyResponse,
+    SemanticRouteInput,
+    SemanticRouteProposal,
 )
+from .security import require_internal_token
+from .workflows import run_task
 
 router = APIRouter()
+
+ASSISTANT_PROJECT_ID = uuid.UUID("91d51873-3aa5-4fbc-a6df-cf474239682f")
+SEMANTIC_ROUTE_BUDGET_USD = Decimal("0.02")
+SEMANTIC_ROUTE_CONFIDENCE_FLOOR = 0.80
 
 _NEWS_TERMS = (
     "actualite",
@@ -127,18 +145,13 @@ def _extract_location(value: str) -> str | None:
 
 
 def route_command(body: AssistantCommandCreate) -> CommandRoute | None:
-    """Route deterministic high-confidence intents without spending a model call.
-
-    Semantic routing will be added later as a second tier. Known KAIRO intents stay cheap,
-    inspectable and regression-testable, and ambiguous commands fail conservatively.
-    """
+    """Route known high-confidence intents without spending a model call."""
 
     text = _normalize(body.text)
     has_news = any(term in text for term in _NEWS_TERMS)
     has_market = any(term in text for term in _MARKET_TERMS)
     asks_market_impact = has_market and any(term in text for term in _MARKET_IMPACT_TERMS)
 
-    # A market-impact request is a News Intelligence intent even if the word "news" is omitted.
     if not has_news and not asks_market_impact:
         return None
 
@@ -207,6 +220,275 @@ async def _conversation_for_command(
     return conversation
 
 
+async def _ensure_assistant_project(session: AsyncSession) -> Project:
+    project = await session.get(Project, ASSISTANT_PROJECT_ID)
+    if project is not None:
+        return project
+
+    correlation_id = uuid.uuid4()
+    inserted_id = await session.scalar(
+        pg_insert(Project)
+        .values(
+            id=ASSISTANT_PROJECT_ID,
+            name="KAIRO Assistant",
+            status="active",
+            summary="System workspace for durable command routing and assistant orchestration.",
+            parent_id=None,
+        )
+        .on_conflict_do_nothing(index_elements=[Project.id])
+        .returning(Project.id)
+    )
+    project = await session.get(Project, ASSISTANT_PROJECT_ID)
+    if project is None:
+        raise RuntimeError("KAIRO Assistant workspace could not be initialized")
+    if inserted_id is not None:
+        await enqueue_domain_event(
+            session,
+            event_type="project.created",
+            aggregate_type="project",
+            aggregate_id=project.id,
+            correlation_id=correlation_id,
+            payload={"project_id": str(project.id), "name": project.name, "status": project.status},
+        )
+        await append_audit(
+            session,
+            actor_type="system",
+            actor_id="command-kernel",
+            action="project.create",
+            resource_type="project",
+            resource_id=str(project.id),
+            authority_level=0,
+            correlation_id=correlation_id,
+            request_json={"reason": "initialize assistant routing workspace"},
+        )
+    return project
+
+
+def _routable_contracts() -> list[dict[str, object]]:
+    return [
+        {
+            "key": spec.key,
+            "version": spec.version,
+            "title": spec.title,
+            "description": spec.description,
+            "input_schema": spec.input_model.model_json_schema(),
+        }
+        for spec in list_routable_capabilities()
+    ]
+
+
+async def _start_semantic_route(
+    command: CommandRecord,
+    body: AssistantCommandCreate,
+    conversation: Conversation,
+    session: AsyncSession,
+) -> AssistantCommandResponse:
+    project = await _ensure_assistant_project(session)
+    route_input = SemanticRouteInput(
+        command_id=command.id,
+        text=body.text,
+        locale=body.locale,
+        requested_output=body.output,
+        routable_capabilities=_routable_contracts(),
+    )
+    routing_task_id = uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:semantic-route:{command.id}:v1")
+    task = await session.get(Task, routing_task_id)
+    if task is None:
+        task = Task(
+            id=routing_task_id,
+            project_id=project.id,
+            title=f"Route command — {body.text}"[:320],
+            description="PydanticAI semantic proposal constrained to registered KAIRO capabilities.",
+            status="todo",
+            owner_type="system",
+            owner_ref="command-kernel",
+            authority_ceiling=1,
+            budget_usd=SEMANTIC_ROUTE_BUDGET_USD,
+            input={
+                "capability": "assistant.route.semantic",
+                **route_input.model_dump(mode="json"),
+            },
+        )
+        session.add(task)
+        await session.flush()
+        await enqueue_domain_event(
+            session,
+            event_type="command.semantic_route.requested",
+            aggregate_type="command",
+            aggregate_id=command.id,
+            correlation_id=command.correlation_id,
+            payload={
+                "command_id": str(command.id),
+                "routing_task_id": str(task.id),
+                "routable_capabilities": [item["key"] for item in route_input.routable_capabilities],
+            },
+        )
+        await append_audit(
+            session,
+            actor_type="system",
+            actor_id="command-kernel",
+            action="command.semantic_route.request",
+            resource_type="command",
+            resource_id=str(command.id),
+            authority_level=1,
+            correlation_id=command.correlation_id,
+            request_json={
+                "routing_task_id": str(task.id),
+                "budget_usd": str(SEMANTIC_ROUTE_BUDGET_USD),
+            },
+        )
+    command.status = "routing"
+    command.route_reason = "semantic.pending"
+    command.result_json = {"routing_task_id": str(routing_task_id)}
+    await session.commit()
+
+    execution = await run_task(routing_task_id, session)
+    command = await session.get(CommandRecord, command.id)
+    if command is not None:
+        command.result_json = {
+            **(command.result_json or {}),
+            "routing_workflow_execution_id": str(execution.workflow_execution_id),
+            "routing_workflow_id": execution.workflow_id,
+            "routing_status": execution.status,
+        }
+        await session.commit()
+
+    return AssistantCommandResponse(
+        command_id=route_input.command_id,
+        conversation_id=conversation.id,
+        status="routing",
+        routing="semantic",
+        route_reason="semantic.pending",
+        routing_task_id=routing_task_id,
+        routing_workflow_execution_id=execution.workflow_execution_id,
+        routing_workflow_id=execution.workflow_id,
+    )
+
+
+async def _mark_semantic_unsupported(
+    command: CommandRecord,
+    proposal: SemanticRouteProposal,
+    reason: str,
+    session: AsyncSession,
+) -> SemanticRouteApplyResponse:
+    if command.status == "unsupported":
+        return SemanticRouteApplyResponse(command_id=command.id, status="unsupported")
+    command.status = "unsupported"
+    command.capability_key = None
+    command.confidence = Decimal(str(proposal.confidence))
+    command.route_reason = reason
+    command.parameters_json = proposal.parameters
+    command.result_json = {
+        **(command.result_json or {}),
+        "semantic_rationale": proposal.rationale,
+        "semantic_outcome": proposal.outcome,
+    }
+    await enqueue_domain_event(
+        session,
+        event_type="command.unsupported",
+        aggregate_type="command",
+        aggregate_id=command.id,
+        correlation_id=command.correlation_id,
+        payload={"command_id": str(command.id), "route_reason": reason},
+    )
+    await append_audit(
+        session,
+        actor_type="worker",
+        actor_id="semantic-router",
+        action="command.semantic_route.unsupported",
+        resource_type="command",
+        resource_id=str(command.id),
+        authority_level=1,
+        correlation_id=command.correlation_id,
+        idempotency_key=f"command:{command.id}:semantic-unsupported",
+        result_json={"reason": reason, "confidence": proposal.confidence},
+    )
+    await session.commit()
+    return SemanticRouteApplyResponse(command_id=command.id, status="unsupported")
+
+
+async def _execute_route(
+    command: CommandRecord,
+    conversation: Conversation,
+    route: CommandRoute,
+    session: AsyncSession,
+    *,
+    semantic: bool,
+) -> tuple[str, uuid.UUID, uuid.UUID, str]:
+    capability = get_capability(route.capability)
+    if capability is None or not is_routable_capability(route.capability):
+        raise HTTPException(status_code=422, detail="Capability is not routable")
+    if capability.key != "news.brief":
+        raise HTTPException(status_code=501, detail="Capability adapter is not implemented")
+
+    news_request = NewsBriefCreate.model_validate(route.parameters)
+    deterministic_task_id = (
+        uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:command:{command.id}:{capability.key}:v1")
+        if semantic
+        else None
+    )
+    execution = await start_news_brief(
+        news_request,
+        session,
+        actor_type="user",
+        actor_id=conversation.subject_ref,
+        correlation_id=command.correlation_id,
+        command_id=command.id,
+        task_id=deterministic_task_id,
+    )
+
+    command = await session.get(CommandRecord, command.id)
+    if command is None:
+        raise HTTPException(status_code=404, detail="Command disappeared during routing")
+    command.capability_key = capability.key
+    command.confidence = Decimal(str(route.confidence))
+    command.route_reason = route.route_reason
+    command.parameters_json = route.parameters
+    command.status = "accepted"
+    command.task_id = execution.task_id
+    command.workflow_execution_id = execution.workflow_execution_id
+    command.result_json = {
+        **(command.result_json or {}),
+        "workflow_id": execution.workflow_id,
+        "status": execution.status,
+    }
+    await enqueue_domain_event(
+        session,
+        event_type="command.routed",
+        aggregate_type="command",
+        aggregate_id=command.id,
+        correlation_id=command.correlation_id,
+        payload={
+            "command_id": str(command.id),
+            "conversation_id": str(conversation.id),
+            "capability": capability.key,
+            "confidence": route.confidence,
+            "routing": "semantic" if semantic else "deterministic",
+            "task_id": str(execution.task_id),
+            "workflow_execution_id": str(execution.workflow_execution_id),
+        },
+    )
+    await append_audit(
+        session,
+        actor_type="worker" if semantic else "user",
+        actor_id="semantic-router" if semantic else conversation.subject_ref,
+        action="command.route",
+        resource_type="command",
+        resource_id=str(command.id),
+        authority_level=capability.authority_level,
+        correlation_id=command.correlation_id,
+        idempotency_key=(f"command:{command.id}:semantic-route" if semantic else None),
+        result_json={
+            "capability": capability.key,
+            "confidence": route.confidence,
+            "route_reason": route.route_reason,
+            "task_id": str(execution.task_id),
+        },
+    )
+    await session.commit()
+    return capability.key, execution.task_id, execution.workflow_execution_id, execution.workflow_id
+
+
 @router.get("/v1/capabilities", response_model=list[CapabilityContractRead])
 async def capability_contracts() -> list[CapabilityContractRead]:
     return [CapabilityContractRead(**spec.public_contract()) for spec in list_capabilities()]
@@ -245,121 +527,88 @@ async def assistant_command(
     await session.flush()
 
     if route is None:
-        command.status = "unsupported"
-        command.route_reason = "no_deterministic_capability_match"
-        await enqueue_domain_event(
-            session,
-            event_type="command.unsupported",
-            aggregate_type="command",
-            aggregate_id=command.id,
-            correlation_id=correlation_id,
-            payload={
-                "command_id": str(command.id),
-                "conversation_id": str(conversation.id),
-                "text": body.text,
-            },
-        )
-        await append_audit(
-            session,
-            actor_type="user",
-            actor_id=conversation.subject_ref,
-            action="command.route.unsupported",
-            resource_type="command",
-            resource_id=str(command.id),
-            authority_level=0,
-            correlation_id=correlation_id,
-            request_json=body.model_dump(mode="json"),
-        )
-        await session.commit()
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={
-                "message": "No deterministic KAIRO capability matched this command yet",
-                "command_id": str(command.id),
-                "conversation_id": str(conversation.id),
-            },
-        )
+        return await _start_semantic_route(command, body, conversation, session)
 
-    capability = get_capability(route.capability)
-    if capability is None:
-        # This should be unreachable because the deterministic router only emits registered keys.
-        command.status = "failed"
-        command.route_reason = "capability_registry_miss"
-        await session.commit()
-        raise HTTPException(status_code=503, detail="Routed capability is not registered")
-
-    command.capability_key = capability.key
-    command.confidence = Decimal(str(route.confidence))
-    command.route_reason = route.route_reason
-    command.parameters_json = route.parameters
-    command.status = "accepted"
-
-    if capability.key != "news.brief":
-        command.status = "failed"
-        await session.commit()
-        raise HTTPException(status_code=501, detail="Capability adapter is not implemented")
-
-    news_request = NewsBriefCreate.model_validate(route.parameters)
-    execution = await start_news_brief(
-        news_request,
-        session,
-        actor_type="user",
-        actor_id=conversation.subject_ref,
-        correlation_id=correlation_id,
-        command_id=command.id,
+    capability_key, task_id, execution_id, workflow_id = await _execute_route(
+        command, conversation, route, session, semantic=False
     )
-
-    command.task_id = execution.task_id
-    command.workflow_execution_id = execution.workflow_execution_id
-    command.result_json = {
-        "workflow_id": execution.workflow_id,
-        "status": execution.status,
-    }
-    await enqueue_domain_event(
-        session,
-        event_type="command.routed",
-        aggregate_type="command",
-        aggregate_id=command.id,
-        correlation_id=correlation_id,
-        payload={
-            "command_id": str(command.id),
-            "conversation_id": str(conversation.id),
-            "capability": capability.key,
-            "confidence": route.confidence,
-            "task_id": str(execution.task_id),
-            "workflow_execution_id": str(execution.workflow_execution_id),
-        },
-    )
-    await append_audit(
-        session,
-        actor_type="user",
-        actor_id=conversation.subject_ref,
-        action="command.route",
-        resource_type="command",
-        resource_id=str(command.id),
-        authority_level=capability.authority_level,
-        correlation_id=correlation_id,
-        request_json=body.model_dump(mode="json"),
-        result_json={
-            "capability": capability.key,
-            "confidence": route.confidence,
-            "route_reason": route.route_reason,
-            "task_id": str(execution.task_id),
-        },
-    )
-    await session.commit()
-
     return AssistantCommandResponse(
         command_id=command.id,
         conversation_id=conversation.id,
-        capability=capability.key,
+        status="accepted",
+        routing="deterministic",
+        capability=capability_key,
         confidence=route.confidence,
         route_reason=route.route_reason,
         parameters=route.parameters,
-        task_id=execution.task_id,
-        workflow_execution_id=execution.workflow_execution_id,
-        workflow_id=execution.workflow_id,
-        status=execution.status,
+        task_id=task_id,
+        workflow_execution_id=execution_id,
+        workflow_id=workflow_id,
+    )
+
+
+@router.post(
+    "/internal/v1/assistant/commands/{command_id}/semantic-route",
+    response_model=SemanticRouteApplyResponse,
+    dependencies=[Depends(require_internal_token)],
+)
+async def apply_semantic_route(
+    command_id: uuid.UUID,
+    proposal: SemanticRouteProposal,
+    session: AsyncSession = Depends(get_session),
+) -> SemanticRouteApplyResponse:
+    command = await session.scalar(
+        select(CommandRecord).where(CommandRecord.id == command_id).with_for_update()
+    )
+    if command is None:
+        raise HTTPException(status_code=404, detail="Command not found")
+    if command.status == "accepted" and command.task_id is not None:
+        return SemanticRouteApplyResponse(
+            command_id=command.id,
+            status="accepted",
+            capability=command.capability_key,
+            task_id=command.task_id,
+            workflow_execution_id=command.workflow_execution_id,
+            workflow_id=str((command.result_json or {}).get("workflow_id") or "") or None,
+        )
+    if command.status == "unsupported":
+        return SemanticRouteApplyResponse(command_id=command.id, status="unsupported")
+    if command.status != "routing":
+        raise HTTPException(status_code=409, detail="Command is not awaiting semantic routing")
+
+    if proposal.outcome != "route":
+        return await _mark_semantic_unsupported(command, proposal, "semantic.unsupported", session)
+    if proposal.confidence < SEMANTIC_ROUTE_CONFIDENCE_FLOOR:
+        return await _mark_semantic_unsupported(command, proposal, "semantic.low-confidence", session)
+    if proposal.capability is None or not is_routable_capability(proposal.capability):
+        return await _mark_semantic_unsupported(command, proposal, "semantic.invalid-capability", session)
+
+    capability = get_capability(proposal.capability)
+    assert capability is not None
+    try:
+        validated = capability.input_model.model_validate(proposal.parameters)
+    except ValidationError:
+        return await _mark_semantic_unsupported(command, proposal, "semantic.invalid-parameters", session)
+
+    conversation = await session.get(Conversation, command.conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    route = CommandRoute(
+        capability=proposal.capability,
+        confidence=proposal.confidence,
+        route_reason="semantic.model",
+        parameters=validated.model_dump(mode="json"),
+    )
+    capability_key, task_id, execution_id, workflow_id = await _execute_route(
+        command, conversation, route, session, semantic=True
+    )
+    return SemanticRouteApplyResponse(
+        command_id=command.id,
+        status="accepted",
+        capability=capability_key,
+        task_id=task_id,
+        workflow_execution_id=execution_id,
+        workflow_id=workflow_id,
     )
 
 

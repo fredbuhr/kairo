@@ -9,6 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
   "temporalio>=1.16,<2",
   "pydantic-settings>=2.10,<3",
+  "pydantic-ai-slim==2.41.0",
   "httpx>=0.28,<1",
   "nats-py>=2.11,<3",
   "boto3>=1.40,<2",
@@ -17,7 +18,6 @@ dependencies = [
 
 [project.optional-dependencies]
 intelligence = [
-  "pydantic-ai",
   "mem0ai",
   "graphiti-core",
   "docling",
