@@ -30,7 +30,7 @@ Only KAIRO policy state can enable a tool or change its authority/retry classifi
 
 Remote input and output schemas are validated as JSON Schema before catalog state is accepted. Invocation arguments are validated against the currently registered input schema before KAIRO creates a Task.
 
-A remote schema hash is part of the effective authorization contract. If the schema changes, KAIRO updates the catalog record but automatically disables the tool. An administrator must review and explicitly re-enable the new contract.
+A remote schema hash is part of the effective authorization contract. If the schema changes during catalog synchronization, KAIRO updates the catalog record but automatically disables the tool. An administrator must review and explicitly re-enable the new contract.
 
 Previously created Tasks keep the schema hash and policy snapshot they were created with. Re-enabling a drifted tool does not upgrade an old pending invocation: Core rejects the stale snapshot and requires a new invocation.
 
@@ -44,19 +44,24 @@ A requested invocation creates a canonical `ToolInvocation` and a normal KAIRO `
 
 The invocation ledger owns a stable idempotency key. Reusing a key for a different project, tool or input is rejected.
 
-### Authorization is checked twice
+### Authorization and contract are revalidated at the boundary
 
-The Temporal policy gate decides whether the Task may proceed. Immediately before the external MCP call, the Worker asks Core for the invocation context again. Core verifies that the server and tool are still enabled/available and that the live schema, authority, cost, risk and retry policy still match the Task snapshot.
+The Temporal policy gate decides whether the Task may proceed. Immediately before the external MCP call, the Worker asks Core for the invocation context again. Core verifies that the server and tool are still enabled/available and that the **registered** schema hash, authority, cost, risk and retry policy still match the immutable Task snapshot.
 
-This second check prevents an approval obtained under one contract from silently inheriting a later policy or schema change.
+The Worker then opens the MCP session and performs `list_tools()` before `call_tool()`. It requires the remote tool to still exist and computes the live name/input/output schema hash using the same canonical representation as Core. If that live hash differs from the Task's immutable `tool_schema_hash`, execution fails before the side-effect checkpoint.
+
+Fetching the live catalog also loads the MCP SDK's current output contract before `call_tool()`, so structured tool results are checked against the server-advertised output schema instead of being accepted blindly.
+
+Only after both the KAIRO registry/policy snapshot and the live MCP contract agree does the Worker persist `pre_call` and cross the actual tool-call boundary. This prevents an approval obtained under one contract from silently inheriting either a later KAIRO registry change or an unsynchronized remote server schema change.
 
 ### Replay policy is explicit
 
 The Worker checkpoints MCP calls with Temporal heartbeats:
 
-1. `pre_call` immediately before crossing the network boundary;
-2. `result` after a complete MCP response is known;
-3. `accounted` after Core has canonically persisted the result.
+1. live catalog refresh and schema comparison happen before the side-effect checkpoint;
+2. `pre_call` is persisted immediately before `call_tool()`;
+3. `result` is persisted after a complete MCP response is known;
+4. `accounted` is persisted after Core has canonically stored the result.
 
 A persisted result may be replayed into Core without calling the remote tool again.
 
@@ -72,13 +77,14 @@ The first production transport is Streamable HTTP via the official MCP Python SD
 
 ## Consequences
 
-- Agents can eventually use many MCP servers without learning provider-specific permission systems.
+- Agents can use many MCP servers without learning provider-specific permission systems.
 - Tool discovery can be broad while execution remains narrow and explicit.
-- Schema drift becomes a review event rather than an implicit permission upgrade.
+- Both synchronized catalog drift and last-moment live server drift fail closed.
+- Structured outputs are evaluated against the contract advertised by the server at execution time.
 - Side-effect ambiguity becomes visible instead of being hidden by retries.
 - Catalog and runtime adapters can change without invalidating canonical invocation history.
-- Future autonomous research workflows can reuse the same registry and call-specific policy gate rather than invent another tool abstraction.
+- Autonomous research reuses the same registry and call-specific policy gate rather than inventing another tool abstraction.
 
 ## Follow-up
 
-The next slice should build the first autonomous research capability on top of this registry. It should use PydanticAI only for planning/proposals, schedule model calls through the replay-safe model gateway, and execute each selected tool through this MCP boundary with per-call policy checks.
+The first bounded autonomous Research capability has now been built on this boundary. Future agents should reuse the same sequence — canonical Task snapshot, Core policy revalidation, live MCP contract refresh, side-effect checkpoint, canonical result — rather than introducing agent-specific tool execution paths.
