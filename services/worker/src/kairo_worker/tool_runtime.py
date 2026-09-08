@@ -5,6 +5,7 @@ from typing import Any
 import httpx
 from mcp import Client
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
 
 from .config import settings
 
@@ -12,8 +13,11 @@ TOOL_CHECKPOINT_KIND = "kairo.tool-call"
 TOOL_CHECKPOINT_VERSION = 1
 
 
-class ToolCallOutcomeUnknown(RuntimeError):
+class ToolCallOutcomeUnknown(ApplicationError):
     """A non-retryable external tool may already have executed, so replay must fail closed."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, non_retryable=True)
 
 
 def _headers() -> dict[str, str]:
@@ -73,6 +77,16 @@ async def _complete(invocation_id: str, result: dict[str, Any]) -> None:
         response.raise_for_status()
 
 
+async def _fail(invocation_id: str, error: str) -> None:
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.post(
+            f"{settings.kairo_core_url.rstrip('/')}/internal/v1/tool-invocations/{invocation_id}/fail",
+            headers=_headers(),
+            json={"error": error[:4000]},
+        )
+        response.raise_for_status()
+
+
 def _result_payload(result: Any) -> dict[str, Any]:
     if hasattr(result, "model_dump"):
         dumped = result.model_dump(mode="json")
@@ -81,6 +95,17 @@ def _result_payload(result: Any) -> dict[str, Any]:
     if isinstance(result, dict):
         return result
     return {"value": str(result)}
+
+
+@activity.defn(name="fail_tool_invocation")
+async def fail_tool_invocation(payload: dict[str, Any]) -> dict[str, Any]:
+    task_input = payload.get("task_input") or {}
+    invocation_id = str(task_input.get("tool_invocation_id") or "")
+    if not invocation_id:
+        raise RuntimeError("tool.invoke failure propagation requires tool_invocation_id")
+    error = str(payload.get("error") or "tool invocation failed")
+    await _fail(invocation_id, error)
+    return {"tool_invocation_id": invocation_id, "status": "failed"}
 
 
 @activity.defn(name="perform_tool_invocation")
@@ -110,18 +135,25 @@ async def perform_tool_invocation(payload: dict[str, Any]) -> dict[str, Any]:
             }
         if stage == "pre_call" and context.get("retry_policy") == "no_retry":
             raise ToolCallOutcomeUnknown(
-                "Previous MCP tool attempt crossed the pre-call checkpoint; outcome is unknown and policy forbids replay"
+                "Previous MCP tool attempt crossed the pre-call checkpoint; "
+                "outcome is unknown and policy forbids replay"
             )
 
     await _start(invocation_id, workflow_execution_id)
-    _heartbeat("pre_call", invocation_id)
 
+    # Re-fetch immediately before the external boundary. Core revalidates enablement,
+    # availability, schema hash, authority, cost, risk and retry policy against the
+    # immutable Task snapshot created for this invocation.
+    context = await _get_context(invocation_id)
     endpoint = str(context.get("endpoint_url") or "")
     remote_name = str(context.get("remote_name") or "")
     arguments = context.get("input") if isinstance(context.get("input"), dict) else {}
     if not endpoint or not remote_name:
         raise RuntimeError("Tool registry context is missing endpoint or remote tool name")
 
+    # Once this heartbeat is durable, a no-retry tool is treated as outcome-ambiguous
+    # after a crash even if the process died a microsecond before the network call.
+    _heartbeat("pre_call", invocation_id)
     async with Client(endpoint) as client:
         result = await client.call_tool(remote_name, arguments)
     result_payload = _result_payload(result)
