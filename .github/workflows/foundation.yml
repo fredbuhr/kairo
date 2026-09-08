@@ -114,7 +114,7 @@ jobs:
   semantic-command-integration:
     needs: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -138,21 +138,48 @@ jobs:
       - name: Prove durable PydanticAI routing and replay-safe capability handoff
         run: python scripts/smoke/semantic_command.py
 
-      - name: Prove rebuildable memory projection generations
-        run: python scripts/smoke/memory_projection.py
-
-      - name: Dump semantic-routing and memory state on failure
+      - name: Dump semantic-routing state on failure
         if: failure()
         run: |
           docker compose ps -a
           docker logs kairo-fake-litellm || true
-          docker compose logs --no-color --tail=650 postgres nats temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+          docker compose logs --no-color --tail=500 postgres nats temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
 
       - name: Tear down semantic-routing stack
         if: always()
         run: |
           docker rm -f kairo-fake-litellm || true
           docker compose down -v --remove-orphans
+
+  memory-projection-integration:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare memory-projection environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+          echo 'KAIRO_MEMORY_PROJECTOR_MODE=stub' >> .env
+
+      - name: Start canonical message, event and Worker substrate
+        run: |
+          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+
+      - name: Prove rebuildable memory projection generations
+        run: python scripts/smoke/memory_projection.py
+
+      - name: Dump memory-projection state on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color --tail=650 postgres nats temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+
+      - name: Tear down memory-projection stack
+        if: always()
+        run: docker compose down -v --remove-orphans
 
   block1-integration:
     needs: validate
