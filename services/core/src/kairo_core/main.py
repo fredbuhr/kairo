@@ -23,6 +23,7 @@ from .models import OutboxEvent, Project, RelationshipRecord, Task
 from .news import router as news_router
 from .openbao import openbao_client
 from .outbox import OutboxRelay
+from .research import router as research_router
 from .resources import router as resources_router
 from .schemas import (
     OutboxStats,
@@ -64,6 +65,7 @@ app.include_router(workflow_router)
 app.include_router(memory_router)
 app.include_router(documents_router)
 app.include_router(tools_router)
+app.include_router(research_router)
 app.include_router(news_router)
 app.include_router(assistant_router)
 app.include_router(resources_router)
@@ -175,6 +177,7 @@ async def architecture() -> dict[str, object]:
         "tool_registry": "kairo-core-postgresql",
         "tool_transport": "mcp-streamable-http",
         "tool_policy": "deny-by-default-explicit-enable",
+        "autonomous_research": "pydanticai-planner-policy-bound-mcp-child-tasks",
         "command_routing": "deterministic-first-semantic-later",
         "derived_context_graph": "graphiti-neo4j",
         "derived_memory": "mem0",
@@ -219,7 +222,7 @@ async def create_project(
         aggregate_type="project",
         aggregate_id=project.id,
         correlation_id=correlation_id,
-        payload={"project_id": str(project.id), "name": project.name, "status": project.status},
+        payload={"project_id": str(project.id), "name": project.name},
     )
     await append_audit(
         session,
@@ -239,23 +242,15 @@ async def create_project(
 
 @app.get("/v1/projects", response_model=list[ProjectRead])
 async def list_projects(session: AsyncSession = Depends(get_session)) -> list[Project]:
-    result = await session.execute(select(Project).order_by(Project.created_at))
-    return list(result.scalars())
-
-
-@app.get("/v1/projects/{project_id}", response_model=ProjectRead)
-async def get_project(project_id: uuid.UUID, session: AsyncSession = Depends(get_session)) -> Project:
-    project = await session.get(Project, project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return project
+    rows = await session.execute(select(Project).order_by(Project.created_at.desc()))
+    return list(rows.scalars())
 
 
 @app.post("/v1/tasks", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
 async def create_task(body: TaskCreate, session: AsyncSession = Depends(get_session)) -> Task:
-    correlation_id = uuid.uuid4()
     if not await session.get(Project, body.project_id):
         raise HTTPException(status_code=404, detail="Project not found")
+    correlation_id = uuid.uuid4()
     task = Task(**body.model_dump())
     session.add(task)
     await session.flush()
@@ -265,12 +260,7 @@ async def create_task(body: TaskCreate, session: AsyncSession = Depends(get_sess
         aggregate_type="task",
         aggregate_id=task.id,
         correlation_id=correlation_id,
-        payload={
-            "task_id": str(task.id),
-            "project_id": str(task.project_id),
-            "title": task.title,
-            "authority_ceiling": task.authority_ceiling,
-        },
+        payload={"task_id": str(task.id), "project_id": str(task.project_id), "title": task.title},
     )
     await append_audit(
         session,
@@ -279,7 +269,7 @@ async def create_task(body: TaskCreate, session: AsyncSession = Depends(get_sess
         action="task.create",
         resource_type="task",
         resource_id=str(task.id),
-        authority_level=1,
+        authority_level=min(task.authority_ceiling, 1),
         correlation_id=correlation_id,
         request_json=body.model_dump(mode="json"),
     )
@@ -289,14 +279,9 @@ async def create_task(body: TaskCreate, session: AsyncSession = Depends(get_sess
 
 
 @app.get("/v1/tasks", response_model=list[TaskRead])
-async def list_tasks(
-    project_id: uuid.UUID | None = None, session: AsyncSession = Depends(get_session)
-) -> list[Task]:
-    statement = select(Task).order_by(Task.created_at)
-    if project_id:
-        statement = statement.where(Task.project_id == project_id)
-    result = await session.execute(statement)
-    return list(result.scalars())
+async def list_tasks(session: AsyncSession = Depends(get_session)) -> list[Task]:
+    rows = await session.execute(select(Task).order_by(Task.created_at.desc()))
+    return list(rows.scalars())
 
 
 @app.get("/v1/tasks/{task_id}", response_model=TaskRead)
@@ -307,9 +292,7 @@ async def get_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
     return task
 
 
-@app.post(
-    "/v1/relationships", response_model=RelationshipRead, status_code=status.HTTP_201_CREATED
-)
+@app.post("/v1/relationships", response_model=RelationshipRead, status_code=status.HTTP_201_CREATED)
 async def create_relationship(
     body: RelationshipCreate, session: AsyncSession = Depends(get_session)
 ) -> RelationshipRecord:
@@ -353,11 +336,3 @@ async def create_relationship(
     await session.commit()
     await session.refresh(relationship)
     return relationship
-
-
-@app.get("/v1/relationships", response_model=list[RelationshipRead])
-async def list_relationships(
-    session: AsyncSession = Depends(get_session),
-) -> list[RelationshipRecord]:
-    result = await session.execute(select(RelationshipRecord).order_by(RelationshipRecord.created_at))
-    return list(result.scalars())
