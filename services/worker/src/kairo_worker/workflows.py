@@ -6,13 +6,8 @@ from temporalio.common import RetryPolicy
 from temporalio.exceptions import ApplicationError
 
 with workflow.unsafe.imports_passed_through():
-    from .activities import (
-        begin_execution,
-        complete_execution,
-        fail_execution,
-        perform_foundation_work,
-        perform_news_brief,
-    )
+    from .activities import begin_execution, complete_execution, fail_execution, perform_foundation_work
+    from .news_activity import perform_news_brief
     from .policy_activities import check_policy_gate
 
 ACTIVITY_RETRY = RetryPolicy(
@@ -55,8 +50,6 @@ class TaskExecutionWorkflow:
         if self._approval_decisions[approval_id] != "approved":
             raise ApplicationError("KAIRO approval was denied", non_retryable=True)
 
-        # Re-check immediately before execution. This catches budget changes, expiry and revocation-like
-        # state changes rather than trusting a stale approval signal.
         resumed = await workflow.execute_activity(
             check_policy_gate,
             gate_payload,
