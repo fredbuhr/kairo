@@ -17,6 +17,11 @@ router_settings:
   num_retries: 2
   timeout: 120
 
+litellm_settings:
+  # Observability only. KAIRO Core remains the authority for policy, audit and spend accounting.
+  # The OTEL exporter consumes correlation metadata already attached by KAIRO's model gateway.
+  callbacks: ["langfuse_otel"]
+
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
   database_url: os.environ/DATABASE_URL
