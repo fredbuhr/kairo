@@ -9,7 +9,11 @@ from temporalio import activity
 
 from . import activities as news
 from .config import settings
-from .model_gateway import chat_completion
+from .model_gateway import (
+    chat_completion,
+    deterministic_model_call_key,
+    read_activity_model_checkpoint,
+)
 
 
 def _estimated_model_cost(task_input: dict[str, Any]) -> Decimal:
@@ -25,6 +29,7 @@ async def _summarize_accounted(
     task_id: str,
     workflow_execution_id: str | None,
     correlation_id: str | None,
+    resume_model_checkpoint: dict[str, Any] | None,
     estimated_cost_usd: Decimal,
     query: str,
     mode: str,
@@ -55,11 +60,18 @@ async def _summarize_accounted(
         "score (0-100), level (low|medium|high|critical), direction "
         "(positive|negative|mixed|uncertain), rationale, affected_sectors, affected_assets."
     )
+    model_call_key = deterministic_model_call_key(
+        task_id=task_id,
+        workflow_execution_id=workflow_execution_id,
+        call_slot="news.summary.v1",
+    )
     result = await chat_completion(
         task_id=task_id,
         workflow_execution_id=workflow_execution_id,
         correlation_id=correlation_id,
         model_alias=settings.kairo_news_model,
+        idempotency_key=model_call_key,
+        resume_checkpoint=resume_model_checkpoint,
         estimated_cost_usd=estimated_cost_usd,
         temperature=0.15,
         messages=[
@@ -82,6 +94,8 @@ async def _summarize_accounted(
         "total_tokens": result.usage.total_tokens,
         "cost_usd": str(result.usage.cost_usd),
         "cost_reported": result.usage.cost_reported,
+        "idempotency_key": model_call_key,
+        "checkpoint_replay": bool(result.raw.get("replayed_from_temporal_checkpoint")),
     }
     if parsed is None:
         return None, metadata
@@ -95,7 +109,11 @@ async def _summarize_accounted(
 
 @activity.defn(name="perform_news_brief")
 async def perform_news_brief(payload: dict[str, Any]) -> dict[str, Any]:
-    """News Intelligence activity with policy-gated, canonically accounted model usage."""
+    """News Intelligence activity with policy-gated, replay-safe, canonically accounted model usage."""
+
+    # Heartbeat details from the previous attempt must be captured before this retry writes a new
+    # search/enrichment heartbeat. Otherwise the model-call replay checkpoint would be overwritten.
+    resume_model_checkpoint = read_activity_model_checkpoint()
 
     task_input = payload.get("task_input") or {}
     query = news._clean_text(task_input.get("query"), 500)
@@ -143,6 +161,7 @@ async def perform_news_brief(payload: dict[str, Any]) -> dict[str, Any]:
                     else None
                 ),
                 correlation_id=(str(payload["correlation_id"]) if payload.get("correlation_id") else None),
+                resume_model_checkpoint=resume_model_checkpoint,
                 estimated_cost_usd=_estimated_model_cost(task_input),
                 query=query,
                 mode=mode,
