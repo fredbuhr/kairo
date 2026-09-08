@@ -79,20 +79,35 @@ type NewsRun = {
   output: string
 }
 
+type RouteParameters = {
+  query?: string
+  mode?: 'general' | 'local' | 'market_impact'
+  location?: string | null
+  output?: 'text' | 'audio' | 'both'
+}
+
 type AssistantRun = {
   command_id: string
   conversation_id: string
-  capability: string
-  confidence: number
-  route_reason: string
-  parameters: {
-    query?: string
-    mode?: 'general' | 'local' | 'market_impact'
-    location?: string | null
-    output?: 'text' | 'audio' | 'both'
-  }
-  task_id: string
   status: string
+  routing: 'deterministic' | 'semantic'
+  capability?: string | null
+  confidence?: number | null
+  route_reason: string
+  parameters: RouteParameters
+  task_id?: string | null
+  routing_task_id?: string | null
+}
+
+type CommandState = {
+  id: string
+  conversation_id: string
+  capability_key?: string | null
+  status: string
+  confidence?: number | string | null
+  route_reason?: string | null
+  parameters_json: RouteParameters
+  task_id?: string | null
 }
 
 function impactLabel(level?: string) {
@@ -108,6 +123,7 @@ function impactLabel(level?: string) {
 export default function App() {
   const [command, setCommand] = useState('Quelles sont les nouvelles du jour sur la ville de Paris ?')
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const [pendingCommandId, setPendingCommandId] = useState<string | null>(null)
   const [lastRoute, setLastRoute] = useState<AssistantRun | null>(null)
   const [query, setQuery] = useState('Quelles sont les nouvelles du jour sur la ville de Paris ?')
   const [mode, setMode] = useState<'general' | 'local' | 'market_impact'>('local')
@@ -118,6 +134,66 @@ export default function App() {
   const [submitting, setSubmitting] = useState(false)
   const [routing, setRouting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!pendingCommandId) return
+    let cancelled = false
+    let timer: number | undefined
+
+    const poll = async () => {
+      try {
+        const response = await fetch(`${API_URL}/v1/commands/${pendingCommandId}`)
+        if (!response.ok) throw new Error(`KAIRO Core répond ${response.status}`)
+        const state = (await response.json()) as CommandState
+        if (cancelled) return
+
+        if (state.status === 'accepted' && state.task_id && state.capability_key) {
+          const parameters = state.parameters_json || {}
+          setLastRoute({
+            command_id: state.id,
+            conversation_id: state.conversation_id,
+            status: 'accepted',
+            routing: 'semantic',
+            capability: state.capability_key,
+            confidence: state.confidence == null ? null : Number(state.confidence),
+            route_reason: state.route_reason || 'semantic.model',
+            parameters,
+            task_id: state.task_id,
+          })
+          setTaskId(state.task_id)
+          setQuery(parameters.query || command)
+          if (parameters.mode) setMode(parameters.mode)
+          if (parameters.output) setOutput(parameters.output)
+          setLocation(parameters.location || '')
+          setPendingCommandId(null)
+          return
+        }
+
+        if (state.status === 'unsupported') {
+          setPendingCommandId(null)
+          setError('KAIRO n’a pas encore de capacité enregistrée capable de traiter cette demande en sécurité.')
+          return
+        }
+        if (state.status === 'failed') {
+          setPendingCommandId(null)
+          setError('Le routage sémantique KAIRO a échoué. La demande n’a pas été exécutée.')
+          return
+        }
+        timer = window.setTimeout(poll, 700)
+      } catch (pollError) {
+        if (!cancelled) {
+          setPendingCommandId(null)
+          setError(pollError instanceof Error ? pollError.message : 'Impossible de suivre le routage sémantique.')
+        }
+      }
+    }
+
+    void poll()
+    return () => {
+      cancelled = true
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [pendingCommandId, command])
 
   useEffect(() => {
     if (!taskId) return
@@ -155,6 +231,7 @@ export default function App() {
     event.preventDefault()
     if (!command.trim()) return
     setRouting(true)
+    setPendingCommandId(null)
     setError(null)
     setBrief(null)
     setTaskId(null)
@@ -180,6 +257,14 @@ export default function App() {
       const run = responseBody as AssistantRun
       setLastRoute(run)
       setConversationId(run.conversation_id)
+
+      if (run.status === 'routing' && run.routing === 'semantic') {
+        setPendingCommandId(run.command_id)
+        return
+      }
+      if (!run.task_id || !run.capability) {
+        throw new Error('KAIRO a accepté la commande sans fournir de capacité finale.')
+      }
       setTaskId(run.task_id)
       setQuery(run.parameters.query || command)
       if (run.parameters.mode) setMode(run.parameters.mode)
@@ -232,6 +317,8 @@ export default function App() {
     setError(null)
   }
 
+  const routeConfidence = lastRoute?.confidence == null ? null : Math.round(lastRoute.confidence * 100)
+
   return (
     <main className="shell">
       <header>
@@ -239,7 +326,7 @@ export default function App() {
           <span className="eyebrow">PERSONAL AI OPERATING SYSTEM</span>
           <h1>KAIRO</h1>
         </div>
-        <span className="status">foundation + command kernel</span>
+        <span className="status">foundation + semantic command kernel</span>
       </header>
 
       <section className="hero">
@@ -260,16 +347,19 @@ export default function App() {
             value={command}
             onChange={(event) => setCommand(event.target.value)}
             minLength={2}
-            placeholder="Ex. Lis-moi les nouvelles qui peuvent impacter la bourse aujourd'hui."
+            placeholder="Ex. Que s’est-il passé à Paris ce matin ?"
             aria-label="Commande KAIRO"
           />
-          <button type="submit" disabled={routing || !command.trim()}>
-            {routing ? 'Routage…' : 'Demander à KAIRO'}
+          <button type="submit" disabled={routing || pendingCommandId !== null || !command.trim()}>
+            {routing ? 'Routage…' : pendingCommandId ? 'Analyse sémantique…' : 'Demander à KAIRO'}
           </button>
         </form>
         <div className="command-examples" aria-label="Exemples de commandes">
           <button type="button" onClick={() => useExample('Quelles sont les nouvelles du jour sur la ville de Paris ?')}>
             Nouvelles de Paris
+          </button>
+          <button type="button" onClick={() => useExample("Que s'est-il passé à Paris ce matin ?")}>
+            Routage sémantique
           </button>
           <button type="button" onClick={() => useExample("Quelles sont les nouvelles qui risquent d'impacter la bourse aujourd'hui ?")}>
             Impact bourse
@@ -280,8 +370,11 @@ export default function App() {
         </div>
         {lastRoute && (
           <div className="route-chip">
-            <span>{lastRoute.capability}</span>
-            <small>{Math.round(lastRoute.confidence * 100)}% · {lastRoute.route_reason}</small>
+            <span>{lastRoute.capability || (lastRoute.routing === 'semantic' ? 'analyse sémantique' : 'routage')}</span>
+            <small>
+              {routeConfidence == null ? '' : `${routeConfidence}% · `}
+              {lastRoute.route_reason}
+            </small>
           </div>
         )}
         {conversationId && (
@@ -344,6 +437,13 @@ export default function App() {
         </form>
 
         {error && <div className="error-panel">{error}</div>}
+
+        {pendingCommandId && !error && (
+          <div className="progress-panel">
+            <strong>KAIRO interprète la demande via une capacité de routage durable.</strong>
+            <span>Le modèle ne peut proposer qu’une capacité enregistrée ; Core valide avant toute exécution.</span>
+          </div>
+        )}
 
         {taskId && !brief?.artifact && !error && (
           <div className="progress-panel">
@@ -426,7 +526,7 @@ export default function App() {
             <span>{space}</span>
             <small>
               {space === 'Command Center'
-                ? 'canonical command kernel'
+                ? 'deterministic + semantic routing'
                 : space === 'News Intelligence'
                   ? 'working capability'
                   : 'planned workspace'}
