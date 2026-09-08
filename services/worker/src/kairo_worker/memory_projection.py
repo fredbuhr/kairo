@@ -37,7 +37,7 @@ def memory_projector_mode() -> str:
 
 
 def _postgres_connection_string() -> str:
-    value = settings.database_url
+    value = settings.mem0_database_url
     if value.startswith("postgresql+asyncpg://"):
         return "postgresql://" + value.removeprefix("postgresql+asyncpg://")
     if value.startswith("postgresql+psycopg://"):
@@ -116,6 +116,7 @@ def _mem0_project_sync(source: dict[str, Any]) -> dict[str, Any]:
                 "infer": False,
                 "embedding_model": MEM0_EMBEDDING_MODEL,
                 "embedding_dims": MEM0_EMBEDDING_DIMS,
+                "database": "derived-mem0",
                 "reused": True,
             },
         }
@@ -145,6 +146,7 @@ def _mem0_project_sync(source: dict[str, Any]) -> dict[str, Any]:
             "infer": False,
             "embedding_model": MEM0_EMBEDDING_MODEL,
             "embedding_dims": MEM0_EMBEDDING_DIMS,
+            "database": "derived-mem0",
             "reused": False,
         },
     }
