@@ -10,6 +10,7 @@ from .memory_events import MemoryProjectionEventConsumer
 from .memory_projection import perform_memory_projection
 from .news_activity import perform_news_brief
 from .policy_activities import check_policy_gate
+from .research_agent import perform_autonomous_research
 from .semantic_router import perform_semantic_route
 from .tool_runtime import fail_tool_invocation, perform_tool_invocation
 from .workflows import FoundationWorkflow, TaskExecutionWorkflow
@@ -30,6 +31,7 @@ async def serve() -> None:
             perform_foundation_work,
             perform_news_brief,
             perform_semantic_route,
+            perform_autonomous_research,
             perform_memory_projection,
             perform_document_ingestion,
             perform_tool_invocation,
