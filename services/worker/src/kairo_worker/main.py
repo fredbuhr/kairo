@@ -5,6 +5,8 @@ from temporalio.worker import Worker
 
 from .activities import begin_execution, complete_execution, fail_execution, perform_foundation_work
 from .config import settings
+from .memory_events import MemoryProjectionEventConsumer
+from .memory_projection import perform_memory_projection
 from .news_activity import perform_news_brief
 from .policy_activities import check_policy_gate
 from .semantic_router import perform_semantic_route
@@ -26,11 +28,21 @@ async def serve() -> None:
             perform_foundation_work,
             perform_news_brief,
             perform_semantic_route,
+            perform_memory_projection,
             complete_execution,
             fail_execution,
         ],
     )
-    await worker.run()
+    memory_events = MemoryProjectionEventConsumer()
+    memory_consumer_task = asyncio.create_task(
+        memory_events.run(), name="kairo-memory-projection-events"
+    )
+    try:
+        await worker.run()
+    finally:
+        await memory_events.stop()
+        memory_consumer_task.cancel()
+        await asyncio.gather(memory_consumer_task, return_exceptions=True)
 
 
 if __name__ == "__main__":
