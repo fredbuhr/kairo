@@ -126,6 +126,22 @@ class NewsBriefRead(BaseModel):
     audio_available: bool = False
 
 
+class AssistantCommandCreate(BaseModel):
+    text: str = Field(min_length=2, max_length=1000)
+    locale: str = Field(default="fr-FR", min_length=2, max_length=24)
+    output: Literal["auto", "text", "audio", "both"] = "auto"
+
+
+class AssistantCommandResponse(BaseModel):
+    capability: str
+    confidence: float = Field(ge=0, le=1)
+    parameters: dict[str, Any]
+    task_id: uuid.UUID
+    workflow_execution_id: uuid.UUID
+    workflow_id: str
+    status: str
+
+
 class InternalStartResponse(BaseModel):
     task_id: uuid.UUID
     task_title: str
