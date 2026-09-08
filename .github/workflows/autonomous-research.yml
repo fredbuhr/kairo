@@ -16,7 +16,9 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Import Core with research router
         run: uv run --project services/core python -c "from kairo_core.main import app; assert app.title == 'KAIRO Core'"
-      - name: Prove bounded PydanticAI research planner
+      - name: Prove multi-slot model checkpoint ledger
+        run: uv run --project services/worker python scripts/smoke/model_checkpoint_ledger.py
+      - name: Prove bounded PydanticAI research planning and sourced synthesis
         run: uv run --project services/worker python scripts/smoke/research_agent_contract.py
 
   research-core-integration:
