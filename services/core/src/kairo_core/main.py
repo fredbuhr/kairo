@@ -16,6 +16,7 @@ from .autonomy import router as autonomy_router
 from .components import load_component_registry
 from .config import settings
 from .db import get_session, ping_database
+from .documents import router as documents_router
 from .events import append_audit, enqueue_domain_event
 from .memory import router as memory_router
 from .models import OutboxEvent, Project, RelationshipRecord, Task
@@ -60,6 +61,7 @@ app.add_middleware(
 )
 app.include_router(workflow_router)
 app.include_router(memory_router)
+app.include_router(documents_router)
 app.include_router(news_router)
 app.include_router(assistant_router)
 app.include_router(resources_router)
@@ -165,6 +167,8 @@ async def architecture() -> dict[str, object]:
         "identity": "keycloak-jwt-jwks",
         "secret_values": "openbao",
         "conversation_state": "postgresql",
+        "canonical_documents": "postgresql-document-version-chunks",
+        "document_parser": "docling",
         "capability_registry": "kairo-core",
         "command_routing": "deterministic-first-semantic-later",
         "derived_context_graph": "graphiti-neo4j",
