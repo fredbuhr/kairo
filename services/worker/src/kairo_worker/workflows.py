@@ -9,6 +9,7 @@ with workflow.unsafe.imports_passed_through():
     from .activities import begin_execution, complete_execution, fail_execution, perform_foundation_work
     from .news_activity import perform_news_brief
     from .policy_activities import check_policy_gate
+    from .semantic_router import perform_semantic_route
 
 ACTIVITY_RETRY = RetryPolicy(
     initial_interval=timedelta(seconds=1),
@@ -104,6 +105,14 @@ class TaskExecutionWorkflow:
                     work_payload,
                     start_to_close_timeout=timedelta(minutes=3),
                     heartbeat_timeout=timedelta(seconds=120),
+                    retry_policy=ACTIVITY_RETRY,
+                )
+            elif capability == "assistant.route.semantic":
+                result = await workflow.execute_activity(
+                    perform_semantic_route,
+                    work_payload,
+                    start_to_close_timeout=timedelta(seconds=90),
+                    heartbeat_timeout=timedelta(seconds=60),
                     retry_policy=ACTIVITY_RETRY,
                 )
             else:
