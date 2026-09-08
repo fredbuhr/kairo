@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -92,6 +92,38 @@ class TaskRunResponse(BaseModel):
     workflow_id: str
     status: str
     already_started: bool = False
+
+
+class NewsBriefCreate(BaseModel):
+    query: str = Field(min_length=2, max_length=500)
+    mode: Literal["general", "local", "market_impact"] = "general"
+    location: str | None = Field(default=None, max_length=160)
+    language: str = Field(default="fr", min_length=2, max_length=16)
+    time_range: Literal["day", "week", "month"] = "day"
+    max_sources: int = Field(default=10, ge=3, le=20)
+    output: Literal["text", "audio", "both"] = "text"
+    voice: str = Field(default="ff_siwis", min_length=2, max_length=120)
+
+
+class NewsBriefRunResponse(BaseModel):
+    task_id: uuid.UUID
+    workflow_execution_id: uuid.UUID
+    workflow_id: str
+    status: str
+    query: str
+    mode: str
+    output: str
+
+
+class NewsBriefRead(BaseModel):
+    task_id: uuid.UUID
+    status: str
+    query: str
+    mode: str
+    output: str
+    voice: str
+    artifact: ArtifactRead | None = None
+    audio_available: bool = False
 
 
 class InternalStartResponse(BaseModel):
