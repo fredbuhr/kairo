@@ -29,8 +29,8 @@ openbao_volume_command() {
   "${OPS_COMPOSE[@]}" run --rm --entrypoint sh volume-restore -ec "$1"
 }
 
-rm -rf backups/restic .kairo-backup-staging
 mkdir -p backups/restic .kairo-backup-staging
+"${OPS_COMPOSE[@]}" run --rm ops-cleanup
 
 docker compose up -d postgres nats seaweedfs
 wait_for_postgres
