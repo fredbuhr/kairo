@@ -59,21 +59,6 @@ async def _get_context(invocation_id: str) -> dict[str, Any]:
         return response.json()
 
 
-async def _get_task(task_id: str) -> dict[str, Any]:
-    """Read the immutable tool authorization snapshot stored on the canonical KAIRO Task."""
-
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        response = await client.get(
-            f"{settings.kairo_core_url.rstrip('/')}/v1/tasks/{task_id}",
-            headers=_headers(),
-        )
-        response.raise_for_status()
-        payload = response.json()
-    if not isinstance(payload, dict):
-        raise RuntimeError("KAIRO Core returned an invalid Task snapshot")
-    return payload
-
-
 async def _start(invocation_id: str, workflow_execution_id: str) -> None:
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.post(
@@ -180,8 +165,11 @@ async def perform_tool_invocation(payload: dict[str, Any]) -> dict[str, Any]:
     task_input = payload.get("task_input") or {}
     invocation_id = str(task_input.get("tool_invocation_id") or "")
     workflow_execution_id = str(payload.get("workflow_execution_id") or "")
-    if not invocation_id or not workflow_execution_id:
-        raise RuntimeError("tool.invoke requires tool_invocation_id and workflow_execution_id")
+    expected_schema_hash = str(task_input.get("tool_schema_hash") or "")
+    if not invocation_id or not workflow_execution_id or not expected_schema_hash:
+        raise RuntimeError(
+            "tool.invoke requires tool_invocation_id, workflow_execution_id and immutable tool_schema_hash"
+        )
 
     context = await _get_context(invocation_id)
     if context.get("status") == "completed":
@@ -210,20 +198,13 @@ async def perform_tool_invocation(payload: dict[str, Any]) -> dict[str, Any]:
 
     # Re-fetch immediately before the external boundary. Core revalidates enablement,
     # availability, schema hash, authority, cost, risk and retry policy against the
-    # immutable Task snapshot created for this invocation.
+    # same immutable Task snapshot already carried in this Temporal activity payload.
     context = await _get_context(invocation_id)
     endpoint = str(context.get("endpoint_url") or "")
     remote_name = str(context.get("remote_name") or "")
     arguments = context.get("input") if isinstance(context.get("input"), dict) else {}
-    task_id = str(context.get("task_id") or "")
-    if not endpoint or not remote_name or not task_id:
-        raise RuntimeError("Tool registry context is missing endpoint, remote tool name or task id")
-
-    task = await _get_task(task_id)
-    canonical_input = task.get("input") if isinstance(task.get("input"), dict) else {}
-    expected_schema_hash = str(canonical_input.get("tool_schema_hash") or "")
-    if not expected_schema_hash:
-        raise RuntimeError("Canonical tool Task snapshot is missing tool_schema_hash")
+    if not endpoint or not remote_name:
+        raise RuntimeError("Tool registry context is missing endpoint or remote tool name")
 
     async with Client(endpoint) as client:
         # Refresh the live catalog immediately before execution. Besides detecting disappearance or
