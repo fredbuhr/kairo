@@ -243,17 +243,46 @@ class AssistantCommandCreate(BaseModel):
     output: Literal["auto", "text", "audio", "both"] = "auto"
 
 
+class SemanticRouteInput(BaseModel):
+    command_id: uuid.UUID
+    text: str = Field(min_length=2, max_length=4000)
+    locale: str = Field(default="fr-FR", min_length=2, max_length=16)
+    requested_output: Literal["auto", "text", "audio", "both"] = "auto"
+    routable_capabilities: list[dict[str, Any]] = Field(min_length=1)
+
+
+class SemanticRouteProposal(BaseModel):
+    outcome: Literal["route", "unsupported"]
+    capability: str | None = Field(default=None, max_length=120)
+    confidence: float = Field(ge=0, le=1)
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    rationale: str = Field(min_length=1, max_length=1000)
+
+
+class SemanticRouteApplyResponse(BaseModel):
+    command_id: uuid.UUID
+    status: str
+    capability: str | None = None
+    task_id: uuid.UUID | None = None
+    workflow_execution_id: uuid.UUID | None = None
+    workflow_id: str | None = None
+
+
 class AssistantCommandResponse(BaseModel):
     command_id: uuid.UUID
     conversation_id: uuid.UUID
-    capability: str
-    confidence: float
-    route_reason: str
-    parameters: dict[str, Any]
-    task_id: uuid.UUID
-    workflow_execution_id: uuid.UUID
-    workflow_id: str
     status: str
+    routing: Literal["deterministic", "semantic"]
+    capability: str | None = None
+    confidence: float | None = None
+    route_reason: str
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    task_id: uuid.UUID | None = None
+    workflow_execution_id: uuid.UUID | None = None
+    workflow_id: str | None = None
+    routing_task_id: uuid.UUID | None = None
+    routing_workflow_execution_id: uuid.UUID | None = None
+    routing_workflow_id: str | None = None
 
 
 class CapabilityContractRead(BaseModel):
