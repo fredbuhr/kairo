@@ -1,0 +1,20 @@
+name: Autonomous research validation
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: autonomous-research-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  research-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Import Core with research router
+        run: uv run --project services/core python -c "from kairo_core.main import app; assert app.title == 'KAIRO Core'"
+      - name: Prove bounded PydanticAI research planner
+        run: uv run --project services/worker python scripts/smoke/research_agent_contract.py
