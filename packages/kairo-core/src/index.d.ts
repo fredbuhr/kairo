@@ -92,11 +92,15 @@ export interface JobUsageCounters {
 }
 
 export interface JobUsageSummary {
+  schema_version: 2;
   runs: number;
   model_calls: number;
+  usage_observations: number;
   tool_calls: number;
   provider_models: string[];
   usage: JobUsageCounters;
+  usage_sources: string[];
+  usage_complete: boolean;
   known_cost_usd: number;
   priced_runs: number;
   unpriced_runs: number;
@@ -104,6 +108,7 @@ export interface JobUsageSummary {
 }
 
 export interface JobUsageState {
+  schema_version: 2;
   type: "job_usage";
   job_id: string;
   project_slug: string;
@@ -262,9 +267,19 @@ export class KairoJobUsageLedger {
     job_id: string;
     scheduler_id: string;
   } | null>;
+  recordRunBindingBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordModelCallStartedBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordModelCallEndedBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordUsageObservationBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
+  /** @deprecated Use recordUsageObservationBySchedulerId. */
   recordLlmOutputBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
   recordFinalSnapshotBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
   recordToolCallBySchedulerId(schedulerId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordRunBinding(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordModelCallStarted(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordModelCallEnded(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
+  recordUsageObservation(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
+  /** @deprecated Use recordUsageObservation. */
   recordLlmOutput(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
   recordFinalSnapshot(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
   recordToolCall(project: string, jobId: string, input: Record<string, unknown>): Promise<unknown>;
