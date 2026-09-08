@@ -11,6 +11,7 @@ from .activities import (
     perform_news_brief,
 )
 from .config import settings
+from .policy_activities import check_policy_gate
 from .workflows import FoundationWorkflow, TaskExecutionWorkflow
 
 
@@ -25,6 +26,7 @@ async def serve() -> None:
         workflows=[TaskExecutionWorkflow, FoundationWorkflow],
         activities=[
             begin_execution,
+            check_policy_gate,
             perform_foundation_work,
             perform_news_brief,
             complete_execution,
