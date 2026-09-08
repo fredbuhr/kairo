@@ -32,8 +32,12 @@ ops() {
   docker compose "${OPS_ARGS[@]}" --profile ops "$@"
 }
 
+clean_restore_staging() {
+  ops run --rm --entrypoint /bin/sh volume-restore -ec 'rm -rf /staging/restore'
+}
+
 mkdir -p .kairo-backup-staging "${RESTIC_LOCAL_PATH:-./backups/restic}"
-rm -rf .kairo-backup-staging/restore
+clean_restore_staging
 mkdir -p .kairo-backup-staging/restore
 
 echo "Materializing Restic snapshot '$SNAPSHOT' into restore staging..."
@@ -101,7 +105,7 @@ if ((${#STOPPED_SERVICES[@]} > 0)); then
 fi
 
 trap - EXIT INT TERM
-rm -rf .kairo-backup-staging/restore
+clean_restore_staging
 
 echo "KAIRO restore completed from snapshot '$SNAPSHOT'."
 echo "Production OpenBao may require operator unseal before /health/trust becomes ready."
