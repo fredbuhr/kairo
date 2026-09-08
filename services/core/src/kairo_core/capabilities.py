@@ -7,11 +7,13 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .command_models import CapabilityRecord
+from .research import ResearchRunCreate
 from .schemas import (
     NewsBriefCreate,
     NewsBriefRunResponse,
     SemanticRouteInput,
     SemanticRouteProposal,
+    TaskRunResponse,
 )
 
 
@@ -90,9 +92,36 @@ SEMANTIC_ROUTE = CapabilitySpec(
     },
 )
 
+AUTONOMOUS_RESEARCH = CapabilitySpec(
+    key="research.autonomous",
+    version=1,
+    title="Autonomous read-only research",
+    description=(
+        "Plan and execute bounded research through explicitly enabled read-only A1 MCP tools. "
+        "Every selected tool becomes its own policy-gated durable child Task."
+    ),
+    authority_level=1,
+    cost_class="metered-model-and-tools",
+    runtime="temporal",
+    input_model=ResearchRunCreate,
+    output_model=TaskRunResponse,
+    metadata={
+        "domain": "research",
+        "side_effects": "read-only-child-tool-tasks",
+        "model_gateway": "litellm",
+        "agent_framework": "pydantic-ai",
+        "tool_transport": "mcp",
+        "tool_risk_ceiling": "read",
+        "durable": True,
+        "routable": True,
+        "internal": False,
+    },
+)
+
 CAPABILITIES: dict[str, CapabilitySpec] = {
     NEWS_BRIEF.key: NEWS_BRIEF,
     SEMANTIC_ROUTE.key: SEMANTIC_ROUTE,
+    AUTONOMOUS_RESEARCH.key: AUTONOMOUS_RESEARCH,
 }
 
 
