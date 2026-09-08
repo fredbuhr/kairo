@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic proof of KAIRO's logical model gateway accounting and replay contract."""
+"""Deterministic proof of KAIRO's logical model gateway accounting, replay and trace contract."""
 
 from __future__ import annotations
 
@@ -70,6 +70,20 @@ async def main() -> None:
             provider_posts.append(dict(kwargs))
             payload = kwargs["json"]
             assert payload["model"] == "smart", payload
+            metadata = payload["metadata"]
+            assert metadata == {
+                "generation_name": "kairo.model.invoke",
+                "trace_id": "00000000000000000000000000000003",
+                "session_id": EXECUTION_ID,
+                "tags": ["kairo", "model:smart"],
+                "kairoTaskId": TASK_ID,
+                "kairoWorkflowExecutionId": EXECUTION_ID,
+                "kairoModelCallKey": CALL_KEY,
+                "kairoModelAlias": "smart",
+            }, metadata
+            assert len(metadata["trace_id"]) == 32, metadata
+            assert metadata["trace_id"].isalnum() and metadata["trace_id"] == metadata["trace_id"].lower()
+            assert "messages" not in metadata and "content" not in metadata, metadata
             headers = kwargs["headers"]
             assert headers["x-litellm-call-id"] == CALL_KEY, headers
             return httpx.Response(
@@ -98,7 +112,8 @@ async def main() -> None:
         model_gateway._record_usage = fake_record
         model_gateway.httpx.AsyncClient = FakeClient
 
-        # 1) Normal invocation reaches the provider exactly once and hands off actual usage.
+        # 1) Normal invocation reaches the provider exactly once, carries stable trace metadata and
+        # hands off actual usage to the canonical ledger.
         result = await model_gateway.chat_completion(
             task_id=TASK_ID,
             workflow_execution_id=EXECUTION_ID,
@@ -189,6 +204,24 @@ async def main() -> None:
         model_gateway._record_usage = original_record
         model_gateway.httpx.AsyncClient = original_client
 
+    # Non-UUID correlations still produce a deterministic valid W3C trace id.
+    fallback_trace = model_gateway.deterministic_trace_id(
+        task_id=TASK_ID,
+        workflow_execution_id=EXECUTION_ID,
+        correlation_id="external-correlation",
+    )
+    assert len(fallback_trace) == 32, fallback_trace
+    assert fallback_trace == model_gateway.deterministic_trace_id(
+        task_id=TASK_ID,
+        workflow_execution_id=EXECUTION_ID,
+        correlation_id="external-correlation",
+    )
+    assert fallback_trace != model_gateway.deterministic_trace_id(
+        task_id=TASK_ID,
+        workflow_execution_id=EXECUTION_ID,
+        correlation_id="different-correlation",
+    )
+
     missing_cost = model_gateway.parse_usage(
         {
             "model": "ollama/qwen-fixture",
@@ -201,8 +234,8 @@ async def main() -> None:
     assert missing_cost.cost_reported is False, missing_cost
 
     print(
-        "MODEL GATEWAY CONTRACT PASS: stable model-call identity, provider replay refusal, replayable "
-        "canonical accounting, usage parsing and LiteLLM cost capture behave deterministically"
+        "MODEL GATEWAY CONTRACT PASS: stable model-call identity, W3C trace correlation, provider replay "
+        "refusal, replayable canonical accounting, usage parsing and LiteLLM cost capture behave deterministically"
     )
 
 
