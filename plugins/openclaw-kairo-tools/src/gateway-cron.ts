@@ -15,6 +15,7 @@ export type GatewayCronAgentTurnRequest = {
   tag: string;
   message: string;
   announce: boolean;
+  toolsAllow: string[];
 };
 
 export type GatewayCronAgentTurnHandle = {
@@ -36,6 +37,7 @@ type AgentTurnCronCreateInput = {
   payload: {
     kind: "agentTurn";
     message: string;
+    toolsAllow: string[];
   };
   delivery:
     | {
@@ -56,9 +58,9 @@ function readCronJobId(value: unknown): string | undefined {
 function cronCreateInput(input: AgentTurnCronCreateInput): Parameters<GatewayCron["add"]>[0] {
   // OpenClaw 2026.9.2 exposes a conservative public service-cron input type,
   // while the same pinned runtime normalizer accepts the full CronJobCreate
-  // shapes used by its own session-turn scheduler (one-shot `at`, agentTurn,
-  // deleteAfterRun, agentId, and delivery). Keep this compatibility cast in one
-  // place so a future OpenClaw upgrade has one boundary to revalidate.
+  // shapes used by its own isolated agent scheduler, including payload.toolsAllow.
+  // Keep this compatibility cast in one place so a future OpenClaw upgrade has
+  // one boundary to revalidate.
   return input as unknown as Parameters<GatewayCron["add"]>[0];
 }
 
@@ -117,6 +119,7 @@ export function createGatewayCronBridge(): {
           payload: {
             kind: "agentTurn",
             message: request.message,
+            toolsAllow: [...request.toolsAllow],
           },
           delivery: request.announce
             ? {
