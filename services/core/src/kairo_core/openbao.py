@@ -27,7 +27,8 @@ class OpenBaoClient:
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
                 response = await client.get(f"{self.base_url}/v1/sys/health")
-            return response.status_code in {200, 429, 472, 473, 501, 503}
+            # 200 is active; 429 is a healthy standby. Sealed/uninitialized nodes are not ready.
+            return response.status_code in {200, 429}
         except (httpx.HTTPError, OSError):
             return False
 
