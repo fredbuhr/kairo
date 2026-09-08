@@ -16,6 +16,7 @@ from .events import append_audit, enqueue_domain_event
 from .models import OutboxEvent, Project, RelationshipRecord, Task
 from .news import router as news_router
 from .outbox import OutboxRelay
+from .resources import router as resources_router
 from .schemas import (
     OutboxStats,
     ProjectCreate,
@@ -53,6 +54,7 @@ app.add_middleware(
 )
 app.include_router(workflow_router)
 app.include_router(news_router)
+app.include_router(resources_router)
 
 
 @app.get("/health/live")
