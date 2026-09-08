@@ -127,18 +127,36 @@ For a replay-sensitive internal mutation, the scheduled turn must use a stable t
 
 These checkpoints make uncertainty durable and visible. They do **not** prove that an arbitrary external side effect is idempotent; tool-specific deduplication or deterministic effect verification is still required before KAIRO can safely broaden autonomous mutation scope.
 
+### Job accounting contract
+
+KAIRO keeps model/tool accounting separate from the Job lifecycle. The accounting file is stored beside the Job under `job-usage/<job-id>.json` and carries a schema version.
+
+The adapter deliberately distinguishes OpenClaw event meanings instead of treating every model-related hook as the same thing:
+
+- `before_agent_reply` on a Cron turn binds the OpenClaw `runId` to the authoritative Cron scheduler ID **before** the Codex/OpenClaw model loop begins;
+- `model_call_started` / `model_call_ended`, when emitted by the active harness, identify real provider calls by stable `callId` and are deduplicated by that ID;
+- `llm_output` is stored as an **usage observation**, because it has no `callId` and may represent a harness attempt aggregate rather than one provider call;
+- `after_tool_call` telemetry is deduplicated when OpenClaw supplies `toolCallId`;
+- `reply_payload_sending.usageState`, when present, is the authoritative per-turn aggregate for reporting and may include `turnUsd` when OpenClaw has price data configured.
+
+`reply_payload_sending.usageState` is best-effort and can be absent on non-delivered, replayed, or otherwise uncorrelated result paths. In that case KAIRO preserves observed `llm_output` usage but marks `usage_complete: false`; it does not pretend a partial observation is a complete turn total. Likewise, missing price data is not treated as zero cost.
+
+The accounting implementation is **not** a hard budget limiter. `requestedBudget` remains advisory and `budget_enforced: false` until KAIRO can prove a pre-call enforcement seam that works for the active harness and survives retries/restarts.
+
 ### Known V0 limitations
 
-The durable wake/restart/crash path is now characterized, but important gaps remain before the full AT-04 contract is complete:
+The durable wake/restart/crash path is characterized, but important gaps remain before the full AT-04 contract is complete:
 
-1. **Hard model-cost enforcement:** a requested budget is recorded with `budget_enforced: false`; the future model router/accounting layer must enforce and record actual spend.
-2. **KAIRO-owned usage accounting:** provider/model/token/tool/cost metadata is not yet persisted on the KAIRO Job, even though OpenClaw run history exposes some usage data.
-3. **Replay-safe side effects:** generic KAIRO checkpoints expose unknown outcomes and prevent blind replay, but each non-idempotent tool/mutation still needs a deterministic or provider-supported deduplication contract.
-4. **Morning result surface:** there is no dedicated KAIRO morning-brief/result aggregation surface yet.
+1. **Hard model-cost enforcement:** a requested budget is recorded with `budget_enforced: false`; accounting must be live-proven before any hard-ceiling implementation is attempted.
+2. **Accounting completeness:** provider/model/token/tool observations are now represented explicitly, but live Cron/Codex persistence still requires a successful runtime proof before this capability is considered complete.
+3. **Routing reason:** AT-07 also requires task classification/routing reason, which is not yet persisted as KAIRO-owned state.
+4. **Allowed-tool enforcement:** A0-A2 prompt restrictions exist, but the durable Job contract does not yet carry and technically enforce an explicit allowed-tool set.
+5. **Replay-safe side effects:** generic KAIRO checkpoints expose unknown outcomes and prevent blind replay, but each non-idempotent tool/mutation still needs a deterministic or provider-supported deduplication contract.
+6. **Morning result surface:** there is no dedicated KAIRO morning-brief/result aggregation surface yet.
 
 Queued-job reconciliation is implemented after OpenClaw `cron_reconciled` for future queued Jobs whose linked scheduler disappeared. `running` Jobs are deliberately left to native interrupted-turn recovery rather than blanket-failed.
 
-KAIRO must not describe an advisory budget as guaranteed, an unknown mutation as successful, or a delivery-only Cron error as a KAIRO work failure.
+KAIRO must not describe an advisory budget as guaranteed, an unknown mutation as successful, an incomplete usage observation as a complete turn total, or a delivery-only Cron error as a KAIRO work failure.
 
 ## Research-memory rules
 
@@ -182,7 +200,7 @@ npm run plugin:pack
 5. Ask KAIRO to list/retrieve the idea.
 6. Confirm the original idea and provenance remain available from the same server-side KAIRO store.
 
-This path has been demonstrated on the isolated local runtime.
+This path has been demonstrated on the isolated local runtime, although session-level provenance still needs a small adapter fix before AT-01 is considered fully closed.
 
 ### Future background job
 
@@ -194,6 +212,7 @@ This path has been demonstrated on the isolated local runtime.
 6. Before any replay-sensitive KAIRO mutation, confirm the turn begins a stable execution checkpoint and completes that checkpoint only after confirmed success.
 7. Reconnect and confirm the Job record, checkpoints, evidence, findings, and outcome are durable.
 8. Confirm no A3+ external action was performed.
-9. Repeat with a controlled Gateway restart before the due time.
+9. Confirm the Job's accounting file reflects the observed provider/model/usage/tool events and explicitly states whether usage/cost are complete.
+10. Repeat with a controlled Gateway restart before the due time.
 
-The closed-client, controlled-restart, and harmless abrupt-crash runtime paths have been demonstrated. The next live checkpoint proof should verify that a deliberately unresolved `started` execution checkpoint survives restart and prevents blind replay/job completion.
+The closed-client, controlled-restart, and harmless abrupt-crash runtime paths have been demonstrated. The unresolved-checkpoint completion guard has also been demonstrated live. A separate restart proof must still confirm that a deliberately unresolved `started` checkpoint survives Gateway restart and returns `already_started` rather than permitting blind replay.
