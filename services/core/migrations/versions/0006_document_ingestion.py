@@ -17,15 +17,17 @@ DOCUMENTS_PROJECT_ID = "a8da482d-fb63-52b5-a687-0f65d64b10ad"
 
 
 def upgrade() -> None:
+    # This is a fixed, migration-owned system UUID. Keep the PostgreSQL type
+    # explicit so asyncpg cannot infer the literal as VARCHAR.
     op.execute(
         sa.text(
-            """
+            f"""
             INSERT INTO projects (id, name, status, summary, parent_id)
-            VALUES (:id, 'KAIRO Documents', 'active',
+            VALUES ('{DOCUMENTS_PROJECT_ID}'::uuid, 'KAIRO Documents', 'active',
                     'System workspace for canonical document ingestion and provenance.', NULL)
             ON CONFLICT (id) DO NOTHING
             """
-        ).bindparams(id=DOCUMENTS_PROJECT_ID)
+        )
     )
     op.create_table(
         "documents",
