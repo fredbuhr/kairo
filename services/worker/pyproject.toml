@@ -18,8 +18,9 @@ dependencies = [
 
 [project.optional-dependencies]
 intelligence = [
-  "mem0ai",
-  "graphiti-core",
+  "mem0ai[vector-stores]==2.0.20",
+  "fastembed>=0.3.1,<1",
+  "graphiti-core==0.29.3",
   "docling",
   "browser-use",
   "playwright>=1.55,<2",
