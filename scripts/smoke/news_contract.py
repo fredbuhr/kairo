@@ -2,8 +2,8 @@
 """Deterministic contract proof for the KAIRO News Intelligence activity.
 
 External search/model services are replaced with fixtures so CI validates capability routing,
-provenance retention, transient full-text handling and market fallback without depending on the
-public internet or paid model credentials.
+provenance retention, transient full-text handling, SSRF protection and market fallback without
+depending on the public internet or paid model credentials.
 """
 
 from __future__ import annotations
@@ -71,6 +71,10 @@ def no_heartbeat(_: Any) -> None:
 
 
 async def main() -> None:
+    assert await activities._is_public_http_url("http://127.0.0.1:8000/private") is False
+    assert await activities._is_public_http_url("http://localhost:4000/v1") is False
+    assert await activities._is_public_http_url("file:///etc/passwd") is False
+
     activities.activity.heartbeat = no_heartbeat
     activities._search_searxng = fake_search
     activities._enrich_sources = fake_enrich
@@ -123,8 +127,8 @@ async def main() -> None:
     assert "S2" in market["summary"], market
 
     print(
-        "NEWS CONTRACT PASS: sourced local briefing, transient article text and market fallback "
-        "behave deterministically"
+        "NEWS CONTRACT PASS: sourced local briefing, transient article text, SSRF protection and "
+        "market fallback behave deterministically"
     )
 
 
