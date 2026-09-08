@@ -8,6 +8,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from decimal import Decimal
 from typing import Any
 
 CORE = "http://localhost:8000"
@@ -101,7 +102,7 @@ def main() -> None:
     assert routing_task["input"]["capability"] == "assistant.route.semantic", routing_task
     assert routing_task["input"]["text"] == COMMAND_TEXT, routing_task
     assert routing_task["input"]["routable_capabilities"][0]["key"] == "news.brief", routing_task
-    assert routing_task["budget_usd"] == "0.020000", routing_task
+    assert Decimal(str(routing_task["budget_usd"])) == Decimal("0.02"), routing_task
 
     command = wait_command(command_id)
     assert command["status"] == "accepted", command
