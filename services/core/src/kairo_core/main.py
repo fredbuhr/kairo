@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import __version__
+from .assistant import router as assistant_router
 from .components import load_component_registry
 from .config import settings
 from .db import get_session, ping_database
@@ -53,6 +54,7 @@ app.add_middleware(
 )
 app.include_router(workflow_router)
 app.include_router(news_router)
+app.include_router(assistant_router)
 
 
 @app.get("/health/live")
@@ -124,6 +126,7 @@ async def architecture() -> dict[str, object]:
         "model_gateway": "litellm",
         "news_discovery": "searxng",
         "news_speech": "kokoro-fastapi",
+        "assistant_routing": "deterministic-capability-router",
         "policy_default": "deny",
     }
 
