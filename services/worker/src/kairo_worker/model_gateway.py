@@ -13,6 +13,8 @@ from .config import settings
 
 MODEL_CHECKPOINT_KIND = "kairo.model-call"
 MODEL_CHECKPOINT_VERSION = 1
+MODEL_CHECKPOINT_LEDGER_KIND = "kairo.model-call-ledger"
+MODEL_CHECKPOINT_LEDGER_VERSION = 1
 
 
 class ModelCallOutcomeUnknown(RuntimeError):
@@ -35,6 +37,71 @@ class ChatCompletionResult:
     content: str
     usage: ModelUsage
     raw: dict[str, Any]
+
+
+class ModelCheckpointLedger:
+    """Keep multiple logical model-call checkpoints in one Temporal heartbeat payload.
+
+    Temporal persists the latest heartbeat details for an activity retry. A plain model checkpoint is
+    therefore sufficient for a one-call activity but a second call would overwrite the first one.
+    This ledger keeps one checkpoint per stable idempotency key and rewrites the whole envelope on
+    every stage transition. The in-memory copy is authoritative only for the current activity
+    attempt; on retry it is reconstructed from Temporal's persisted heartbeat details.
+    """
+
+    def __init__(self, slots: dict[str, dict[str, Any]] | None = None) -> None:
+        self._slots: dict[str, dict[str, Any]] = {
+            str(key): dict(value)
+            for key, value in (slots or {}).items()
+            if isinstance(value, dict)
+        }
+
+    @classmethod
+    def from_activity(cls) -> "ModelCheckpointLedger":
+        if not activity.in_activity():
+            return cls()
+        for detail in reversed(tuple(activity.info().heartbeat_details)):
+            if not isinstance(detail, dict):
+                continue
+            if detail.get("kind") == MODEL_CHECKPOINT_LEDGER_KIND:
+                raw_slots = detail.get("slots") if isinstance(detail.get("slots"), dict) else {}
+                return cls(raw_slots)
+            if detail.get("kind") == MODEL_CHECKPOINT_KIND and detail.get("idempotency_key"):
+                # Backward compatibility for an activity retry that started before the ledger was
+                # introduced. Its single checkpoint becomes the first ledger slot.
+                key = str(detail["idempotency_key"])
+                return cls({key: dict(detail)})
+        return cls()
+
+    def checkpoint(self, idempotency_key: str) -> dict[str, Any] | None:
+        value = self._slots.get(idempotency_key)
+        return dict(value) if value is not None else None
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "kind": MODEL_CHECKPOINT_LEDGER_KIND,
+            "version": MODEL_CHECKPOINT_LEDGER_VERSION,
+            "slots": {key: dict(value) for key, value in self._slots.items()},
+        }
+
+    def heartbeat(
+        self,
+        *,
+        stage: str,
+        idempotency_key: str,
+        result: ChatCompletionResult | None = None,
+    ) -> None:
+        payload: dict[str, Any] = {
+            "kind": MODEL_CHECKPOINT_KIND,
+            "version": MODEL_CHECKPOINT_VERSION,
+            "stage": stage,
+            "idempotency_key": idempotency_key,
+        }
+        if result is not None:
+            payload["result"] = _result_snapshot(result)
+        self._slots[idempotency_key] = payload
+        if activity.in_activity():
+            activity.heartbeat(self.snapshot())
 
 
 def deterministic_model_call_key(
@@ -93,13 +160,24 @@ def langfuse_metadata(
 
 
 def read_activity_model_checkpoint() -> dict[str, Any] | None:
-    """Read the last persisted model-call heartbeat before the activity emits a new heartbeat."""
+    """Read the last persisted single model-call heartbeat.
+
+    This legacy helper remains for one-call activities. New multi-call activities should construct a
+    `ModelCheckpointLedger` once at activity start and pass it to every `chat_completion` call.
+    """
 
     if not activity.in_activity():
         return None
     for detail in reversed(tuple(activity.info().heartbeat_details)):
-        if isinstance(detail, dict) and detail.get("kind") == MODEL_CHECKPOINT_KIND:
+        if not isinstance(detail, dict):
+            continue
+        if detail.get("kind") == MODEL_CHECKPOINT_KIND:
             return dict(detail)
+        if detail.get("kind") == MODEL_CHECKPOINT_LEDGER_KIND:
+            slots = detail.get("slots") if isinstance(detail.get("slots"), dict) else {}
+            if len(slots) == 1:
+                only = next(iter(slots.values()))
+                return dict(only) if isinstance(only, dict) else None
     return None
 
 
@@ -204,8 +282,19 @@ def _result_from_snapshot(payload: dict[str, Any]) -> ChatCompletionResult:
 
 
 def _heartbeat_model_checkpoint(
-    *, stage: str, idempotency_key: str, result: ChatCompletionResult | None = None
+    *,
+    stage: str,
+    idempotency_key: str,
+    result: ChatCompletionResult | None = None,
+    checkpoint_ledger: ModelCheckpointLedger | None = None,
 ) -> None:
+    if checkpoint_ledger is not None:
+        checkpoint_ledger.heartbeat(
+            stage=stage,
+            idempotency_key=idempotency_key,
+            result=result,
+        )
+        return
     if not activity.in_activity():
         return
     payload: dict[str, Any] = {
@@ -304,6 +393,7 @@ async def _resume_accounting(
     model_alias: str,
     idempotency_key: str,
     result_payload: dict[str, Any],
+    checkpoint_ledger: ModelCheckpointLedger | None = None,
 ) -> ChatCompletionResult:
     replayed = _result_from_snapshot(result_payload)
     provider = (
@@ -311,7 +401,12 @@ async def _resume_accounting(
         if "/" in replayed.usage.provider_model
         else "litellm"
     )
-    _heartbeat_model_checkpoint(stage="accounting", idempotency_key=idempotency_key, result=replayed)
+    _heartbeat_model_checkpoint(
+        stage="accounting",
+        idempotency_key=idempotency_key,
+        result=replayed,
+        checkpoint_ledger=checkpoint_ledger,
+    )
     # Core owns a unique idempotency key, so an ambiguous HTTP response can be retried safely: an
     # already-committed row is returned without inserting or charging again.
     await _record_usage(
@@ -323,7 +418,12 @@ async def _resume_accounting(
         model_alias=model_alias,
         usage=replayed.usage,
     )
-    _heartbeat_model_checkpoint(stage="accounted", idempotency_key=idempotency_key, result=replayed)
+    _heartbeat_model_checkpoint(
+        stage="accounted",
+        idempotency_key=idempotency_key,
+        result=replayed,
+        checkpoint_ledger=checkpoint_ledger,
+    )
     return replayed
 
 
@@ -336,6 +436,7 @@ async def chat_completion(
     messages: list[dict[str, Any]],
     idempotency_key: str,
     resume_checkpoint: dict[str, Any] | None = None,
+    checkpoint_ledger: ModelCheckpointLedger | None = None,
     temperature: float = 0.2,
     estimated_cost_usd: Decimal = Decimal("0"),
     timeout_seconds: float = 90.0,
@@ -348,6 +449,10 @@ async def chat_completion(
     If only the pre-provider checkpoint survived, KAIRO fails closed rather than risk a second paid
     request whose first outcome is unknown.
 
+    A caller that performs multiple logical model calls in the same activity must pass one shared
+    `ModelCheckpointLedger`. This preserves every call slot in the latest Temporal heartbeat instead
+    of allowing a later model call to erase an earlier replay checkpoint.
+
     `x-litellm-call-id` is stable proxy correlation only. KAIRO does not assume LiteLLM or the upstream
     provider implements exactly-once execution. Observability metadata is derived from KAIRO IDs and
     has no role in authorization, canonical spend accounting or replay decisions.
@@ -356,7 +461,11 @@ async def chat_completion(
     if not idempotency_key.strip():
         raise ValueError("idempotency_key is required for durable model calls")
 
-    checkpoint = resume_checkpoint or {}
+    checkpoint = (
+        checkpoint_ledger.checkpoint(idempotency_key)
+        if checkpoint_ledger is not None
+        else (resume_checkpoint or {})
+    ) or {}
     if checkpoint.get("kind") == MODEL_CHECKPOINT_KIND and checkpoint.get("idempotency_key") == idempotency_key:
         stage = str(checkpoint.get("stage") or "")
         result_payload = checkpoint.get("result") if isinstance(checkpoint.get("result"), dict) else None
@@ -370,6 +479,7 @@ async def chat_completion(
                 model_alias=model_alias,
                 idempotency_key=idempotency_key,
                 result_payload=result_payload,
+                checkpoint_ledger=checkpoint_ledger,
             )
         if stage == "started":
             raise ModelCallOutcomeUnknown(
@@ -399,7 +509,11 @@ async def chat_completion(
             idempotency_key=idempotency_key,
         ),
     }
-    _heartbeat_model_checkpoint(stage="started", idempotency_key=idempotency_key)
+    _heartbeat_model_checkpoint(
+        stage="started",
+        idempotency_key=idempotency_key,
+        checkpoint_ledger=checkpoint_ledger,
+    )
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:
         response = await client.post(
             f"{settings.litellm_url.rstrip('/')}/v1/chat/completions",
@@ -419,10 +533,20 @@ async def chat_completion(
         raise RuntimeError("LiteLLM returned an empty completion")
 
     result = ChatCompletionResult(content=content, usage=usage, raw=data)
-    _heartbeat_model_checkpoint(stage="completed", idempotency_key=idempotency_key, result=result)
+    _heartbeat_model_checkpoint(
+        stage="completed",
+        idempotency_key=idempotency_key,
+        result=result,
+        checkpoint_ledger=checkpoint_ledger,
+    )
 
     provider = usage.provider_model.split("/", 1)[0] if "/" in usage.provider_model else "litellm"
-    _heartbeat_model_checkpoint(stage="accounting", idempotency_key=idempotency_key, result=result)
+    _heartbeat_model_checkpoint(
+        stage="accounting",
+        idempotency_key=idempotency_key,
+        result=result,
+        checkpoint_ledger=checkpoint_ledger,
+    )
     await _record_usage(
         task_id=task_id,
         workflow_execution_id=workflow_execution_id,
@@ -432,5 +556,10 @@ async def chat_completion(
         model_alias=model_alias,
         usage=usage,
     )
-    _heartbeat_model_checkpoint(stage="accounted", idempotency_key=idempotency_key, result=result)
+    _heartbeat_model_checkpoint(
+        stage="accounted",
+        idempotency_key=idempotency_key,
+        result=result,
+        checkpoint_ledger=checkpoint_ledger,
+    )
     return result
