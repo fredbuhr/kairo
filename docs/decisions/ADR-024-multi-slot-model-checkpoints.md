@@ -12,7 +12,7 @@ Autonomous research needs at least two distinct model operations in one durable 
 
 ## Decision
 
-A multi-call activity constructs one `ModelCheckpointLedger` at activity start. The ledger is restored from Temporal heartbeat details and stores one normal KAIRO model-call checkpoint per stable idempotency key.
+A multi-call activity constructs one `ModelCheckpointLedger` at activity start. The ledger is KAIRO-owned runtime state: it is restored from Temporal heartbeat details and stores one normal KAIRO model-call checkpoint per stable idempotency key. Neither LiteLLM nor the upstream provider owns this replay state.
 
 Every stage transition rewrites one heartbeat envelope containing all known slots. The first research version uses two deterministic logical slots:
 
