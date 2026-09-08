@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import __version__
 from .approval_signals import router as approval_signals_router
+from .assistant import router as assistant_router
 from .assets import router as assets_router
 from .autonomy import router as autonomy_router
 from .components import load_component_registry
@@ -58,6 +59,7 @@ app.add_middleware(
 )
 app.include_router(workflow_router)
 app.include_router(news_router)
+app.include_router(assistant_router)
 app.include_router(resources_router)
 app.include_router(assets_router)
 app.include_router(autonomy_router)
@@ -160,6 +162,9 @@ async def architecture() -> dict[str, object]:
         "event_delivery": "transactional-outbox-at-least-once",
         "identity": "keycloak-jwt-jwks",
         "secret_values": "openbao",
+        "conversation_state": "postgresql",
+        "capability_registry": "kairo-core",
+        "command_routing": "deterministic-first-semantic-later",
         "derived_context_graph": "graphiti-neo4j",
         "derived_memory": "mem0",
         "model_gateway": "litellm",

@@ -234,3 +234,79 @@ class OutboxStats(BaseModel):
     pending: int
     published: int
     relay_connected: bool
+
+
+class AssistantCommandCreate(BaseModel):
+    text: str = Field(min_length=2, max_length=4000)
+    conversation_id: uuid.UUID | None = None
+    locale: str = Field(default="fr-FR", min_length=2, max_length=16)
+    output: Literal["auto", "text", "audio", "both"] = "auto"
+
+
+class AssistantCommandResponse(BaseModel):
+    command_id: uuid.UUID
+    conversation_id: uuid.UUID
+    capability: str
+    confidence: float
+    route_reason: str
+    parameters: dict[str, Any]
+    task_id: uuid.UUID
+    workflow_execution_id: uuid.UUID
+    workflow_id: str
+    status: str
+
+
+class CapabilityContractRead(BaseModel):
+    key: str
+    version: int
+    title: str
+    description: str
+    authority_level: int
+    cost_class: str
+    runtime: str
+    input_schema: dict[str, Any]
+    output_schema: dict[str, Any]
+    metadata: dict[str, Any]
+    enabled: bool
+
+
+class ConversationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    subject_ref: str | None
+    locale: str
+    title: str | None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConversationMessageRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    conversation_id: uuid.UUID
+    role: str
+    content: str
+    metadata_json: dict[str, Any]
+    created_at: datetime
+
+
+class CommandRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    conversation_id: uuid.UUID
+    message_id: uuid.UUID
+    capability_key: str | None
+    status: str
+    confidence: Decimal | None
+    route_reason: str | None
+    parameters_json: dict[str, Any]
+    result_json: dict[str, Any]
+    task_id: uuid.UUID | None
+    workflow_execution_id: uuid.UUID | None
+    correlation_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime

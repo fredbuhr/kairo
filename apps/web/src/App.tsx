@@ -79,6 +79,22 @@ type NewsRun = {
   output: string
 }
 
+type AssistantRun = {
+  command_id: string
+  conversation_id: string
+  capability: string
+  confidence: number
+  route_reason: string
+  parameters: {
+    query?: string
+    mode?: 'general' | 'local' | 'market_impact'
+    location?: string | null
+    output?: 'text' | 'audio' | 'both'
+  }
+  task_id: string
+  status: string
+}
+
 function impactLabel(level?: string) {
   const labels: Record<string, string> = {
     low: 'Faible',
@@ -90,6 +106,9 @@ function impactLabel(level?: string) {
 }
 
 export default function App() {
+  const [command, setCommand] = useState('Quelles sont les nouvelles du jour sur la ville de Paris ?')
+  const [conversationId, setConversationId] = useState<string | null>(null)
+  const [lastRoute, setLastRoute] = useState<AssistantRun | null>(null)
   const [query, setQuery] = useState('Quelles sont les nouvelles du jour sur la ville de Paris ?')
   const [mode, setMode] = useState<'general' | 'local' | 'market_impact'>('local')
   const [location, setLocation] = useState('Paris')
@@ -97,6 +116,7 @@ export default function App() {
   const [taskId, setTaskId] = useState<string | null>(null)
   const [brief, setBrief] = useState<NewsBrief | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [routing, setRouting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -131,12 +151,54 @@ export default function App() {
   const sources = useMemo(() => brief?.artifact?.content.sources || [], [brief])
   const impact = brief?.artifact?.content.market_impact
 
+  async function submitCommand(event: FormEvent) {
+    event.preventDefault()
+    if (!command.trim()) return
+    setRouting(true)
+    setError(null)
+    setBrief(null)
+    setTaskId(null)
+    setLastRoute(null)
+    try {
+      const response = await fetch(`${API_URL}/v1/assistant/commands`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: command,
+          conversation_id: conversationId,
+          locale: 'fr-FR',
+          output: 'auto',
+        }),
+      })
+      const responseBody = await response.json().catch(() => null)
+      if (!response.ok) {
+        const detail = responseBody?.detail
+        if (detail?.conversation_id) setConversationId(detail.conversation_id)
+        const message = detail?.message || `KAIRO ne sait pas encore router cette demande (${response.status}).`
+        throw new Error(message)
+      }
+      const run = responseBody as AssistantRun
+      setLastRoute(run)
+      setConversationId(run.conversation_id)
+      setTaskId(run.task_id)
+      setQuery(run.parameters.query || command)
+      if (run.parameters.mode) setMode(run.parameters.mode)
+      if (run.parameters.output) setOutput(run.parameters.output)
+      setLocation(run.parameters.location || '')
+    } catch (routeError) {
+      setError(routeError instanceof Error ? routeError.message : 'Impossible de router la commande.')
+    } finally {
+      setRouting(false)
+    }
+  }
+
   async function submitNews(event: FormEvent) {
     event.preventDefault()
     setSubmitting(true)
     setError(null)
     setBrief(null)
     setTaskId(null)
+    setLastRoute(null)
     try {
       const response = await fetch(`${API_URL}/v1/news/briefs`, {
         method: 'POST',
@@ -165,6 +227,11 @@ export default function App() {
     }
   }
 
+  function useExample(value: string) {
+    setCommand(value)
+    setError(null)
+  }
+
   return (
     <main className="shell">
       <header>
@@ -172,22 +239,61 @@ export default function App() {
           <span className="eyebrow">PERSONAL AI OPERATING SYSTEM</span>
           <h1>KAIRO</h1>
         </div>
-        <span className="status">foundation + news intelligence</span>
+        <span className="status">foundation + command kernel</span>
       </header>
 
       <section className="hero">
         <h2>One interface. One world model. Replaceable engines.</h2>
         <p>
-          Canonical state, durable workflows, policy, events, memory projections, realtime
-          collaboration and specialist adapters — now including sourced, readable and spoken news.
+          Canonical state, durable workflows, policy, events and specialist capabilities behind one
+          persistent conversational command surface.
         </p>
+      </section>
+
+      <section className="command-center" aria-labelledby="command-heading">
+        <div>
+          <span className="eyebrow">KAIRO COMMAND</span>
+          <h2 id="command-heading">Demande directement. KAIRO choisit la capacité.</h2>
+        </div>
+        <form className="command-form" onSubmit={submitCommand}>
+          <input
+            value={command}
+            onChange={(event) => setCommand(event.target.value)}
+            minLength={2}
+            placeholder="Ex. Lis-moi les nouvelles qui peuvent impacter la bourse aujourd'hui."
+            aria-label="Commande KAIRO"
+          />
+          <button type="submit" disabled={routing || !command.trim()}>
+            {routing ? 'Routage…' : 'Demander à KAIRO'}
+          </button>
+        </form>
+        <div className="command-examples" aria-label="Exemples de commandes">
+          <button type="button" onClick={() => useExample('Quelles sont les nouvelles du jour sur la ville de Paris ?')}>
+            Nouvelles de Paris
+          </button>
+          <button type="button" onClick={() => useExample("Quelles sont les nouvelles qui risquent d'impacter la bourse aujourd'hui ?")}>
+            Impact bourse
+          </button>
+          <button type="button" onClick={() => useExample("Lis-moi les nouvelles qui risquent d'impacter les marchés aujourd'hui.")}>
+            Briefing oral
+          </button>
+        </div>
+        {lastRoute && (
+          <div className="route-chip">
+            <span>{lastRoute.capability}</span>
+            <small>{Math.round(lastRoute.confidence * 100)}% · {lastRoute.route_reason}</small>
+          </div>
+        )}
+        {conversationId && (
+          <small className="conversation-chip">conversation {conversationId.slice(0, 8)}… persistée côté serveur</small>
+        )}
       </section>
 
       <section className="news-workspace" aria-labelledby="news-heading">
         <div className="news-heading">
           <div>
             <span className="eyebrow">NEWS INTELLIGENCE</span>
-            <h2 id="news-heading">Demande à KAIRO ce qui compte aujourd'hui.</h2>
+            <h2 id="news-heading">Briefing sourcé, lisible ou oral.</h2>
           </div>
           {brief && <span className={`run-state run-state-${brief.status}`}>{brief.status}</span>}
         </div>
@@ -268,11 +374,11 @@ export default function App() {
               </div>
             )}
 
-            {output !== 'audio' && (
+            {brief.output !== 'audio' && (
               <div className="brief-summary">{brief.artifact.content.summary}</div>
             )}
 
-            {output !== 'text' && (
+            {brief.output !== 'text' && (
               <div className="audio-panel">
                 <div>
                   <strong>Lecture KAIRO</strong>
@@ -316,9 +422,15 @@ export default function App() {
 
       <section className="grid" aria-label="KAIRO spaces">
         {spaces.map((space) => (
-          <article key={space} className={`card ${space === 'News Intelligence' ? 'card-active' : ''}`}>
+          <article key={space} className={`card ${['Command Center', 'News Intelligence'].includes(space) ? 'card-active' : ''}`}>
             <span>{space}</span>
-            <small>{space === 'News Intelligence' ? 'first working workspace' : 'planned workspace'}</small>
+            <small>
+              {space === 'Command Center'
+                ? 'canonical command kernel'
+                : space === 'News Intelligence'
+                  ? 'working capability'
+                  : 'planned workspace'}
+            </small>
           </article>
         ))}
       </section>
