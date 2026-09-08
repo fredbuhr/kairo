@@ -107,18 +107,6 @@ async def _report_complete(version_id: str, payload: dict[str, Any]) -> dict[str
         return response.json()
 
 
-async def _report_failure(version_id: str, error: str) -> None:
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            await client.post(
-                f"{settings.kairo_core_url.rstrip('/')}/internal/v1/documents/versions/{version_id}/fail",
-                headers=_headers(),
-                json={"error": error[:4000]},
-            )
-    except Exception:
-        return
-
-
 @activity.defn
 async def perform_document_ingestion(payload: dict[str, Any]) -> dict[str, Any]:
     task_input = payload.get("task_input") or {}
@@ -126,60 +114,56 @@ async def perform_document_ingestion(payload: dict[str, Any]) -> dict[str, Any]:
     if not version_id:
         raise RuntimeError("document.ingest task is missing document_version_id")
 
-    try:
-        source = await _fetch_source(version_id)
-        activity.heartbeat({"stage": "source-resolved", "document_version_id": version_id})
-        async with httpx.AsyncClient(timeout=60.0, follow_redirects=False) as client:
-            response = await client.get(str(source["download_url"]))
-            response.raise_for_status()
-            content = response.content
+    source = await _fetch_source(version_id)
+    activity.heartbeat({"stage": "source-resolved", "document_version_id": version_id})
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=False) as client:
+        response = await client.get(str(source["download_url"]))
+        response.raise_for_status()
+        content = response.content
 
-        actual_sha256 = hashlib.sha256(content).hexdigest()
-        expected_sha256 = str(source.get("source_sha256") or "")
-        if expected_sha256 and actual_sha256 != expected_sha256:
-            raise RuntimeError("Source asset digest does not match canonical metadata")
+    actual_sha256 = hashlib.sha256(content).hexdigest()
+    expected_sha256 = str(source.get("source_sha256") or "")
+    if expected_sha256 and actual_sha256 != expected_sha256:
+        raise RuntimeError("Source asset digest does not match canonical metadata")
 
-        media_type = source.get("media_type")
-        if importlib.util.find_spec("docling") is not None:
-            text, parser, parser_version, parser_metadata = _parse_with_docling(
-                content, source.get("filename")
-            )
-        else:
-            text, parser, parser_version, parser_metadata = _plain_text_fallback(content, media_type)
-
-        chunks = _chunk_text(text)
-        if not chunks:
-            raise RuntimeError("Document parser produced no textual chunks")
-        activity.heartbeat({"stage": "parsed", "chunk_count": len(chunks)})
-
-        report = await _report_complete(
-            version_id,
-            {
-                "parser": parser,
-                "parser_version": parser_version,
-                "source_sha256": actual_sha256,
-                "chunks": chunks,
-                "metadata": {
-                    **parser_metadata,
-                    "source_media_type": media_type,
-                    "source_size_bytes": len(content),
-                    "chunking": {"strategy": "paragraph-pack", "max_chars": 4000},
-                },
-            },
+    media_type = source.get("media_type")
+    if importlib.util.find_spec("docling") is not None:
+        text, parser, parser_version, parser_metadata = _parse_with_docling(
+            content, source.get("filename")
         )
-        return {
-            "kind": "document-ingestion",
-            "title": f"Document ingestion — {source.get('title') or version_id}",
-            "content": {
-                "document_id": source["document_id"],
-                "document_version_id": version_id,
-                "generation": source["generation"],
-                "parser": parser,
-                "parser_version": parser_version,
-                "chunk_count": report["chunk_count"],
-                "source_sha256": actual_sha256,
+    else:
+        text, parser, parser_version, parser_metadata = _plain_text_fallback(content, media_type)
+
+    chunks = _chunk_text(text)
+    if not chunks:
+        raise RuntimeError("Document parser produced no textual chunks")
+    activity.heartbeat({"stage": "parsed", "chunk_count": len(chunks)})
+
+    report = await _report_complete(
+        version_id,
+        {
+            "parser": parser,
+            "parser_version": parser_version,
+            "source_sha256": actual_sha256,
+            "chunks": chunks,
+            "metadata": {
+                **parser_metadata,
+                "source_media_type": media_type,
+                "source_size_bytes": len(content),
+                "chunking": {"strategy": "paragraph-pack", "max_chars": 4000},
             },
-        }
-    except Exception as exc:
-        await _report_failure(version_id, str(exc))
-        raise
+        },
+    )
+    return {
+        "kind": "document-ingestion",
+        "title": f"Document ingestion — {source.get('title') or version_id}",
+        "content": {
+            "document_id": source["document_id"],
+            "document_version_id": version_id,
+            "generation": source["generation"],
+            "parser": parser,
+            "parser_version": parser_version,
+            "chunk_count": report["chunk_count"],
+            "source_sha256": actual_sha256,
+        },
+    }
