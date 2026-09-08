@@ -1,10 +1,12 @@
 import asyncio
 import html
+import ipaddress
 import json
 import re
+import socket
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
 from temporalio import activity
@@ -75,6 +77,62 @@ def _domain(value: str) -> str:
         return urlsplit(value).netloc.removeprefix("www.")
     except Exception:
         return ""
+
+
+async def _is_public_http_url(value: str) -> bool:
+    """Reject URLs that can reach KAIRO/private network services during article enrichment."""
+
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return False
+    if parts.scheme.lower() not in {"http", "https"} or not parts.hostname:
+        return False
+
+    hostname = parts.hostname.rstrip(".").lower()
+    if hostname == "localhost" or hostname.endswith((".localhost", ".local", ".internal")):
+        return False
+
+    try:
+        addresses = [ipaddress.ip_address(hostname)]
+    except ValueError:
+        port = parts.port or (443 if parts.scheme.lower() == "https" else 80)
+        try:
+            infos = await asyncio.to_thread(
+                socket.getaddrinfo,
+                hostname,
+                port,
+                0,
+                socket.SOCK_STREAM,
+            )
+        except OSError:
+            return False
+        addresses = []
+        for info in infos:
+            try:
+                addresses.append(ipaddress.ip_address(str(info[4][0]).split("%", 1)[0]))
+            except ValueError:
+                return False
+
+    return bool(addresses) and all(address.is_global for address in addresses)
+
+
+async def _fetch_public_html(client: httpx.AsyncClient, value: str) -> httpx.Response | None:
+    """Follow a small redirect chain, validating every destination before issuing the request."""
+
+    current = value
+    for _ in range(4):
+        if not await _is_public_http_url(current):
+            return None
+        response = await client.get(current, follow_redirects=False)
+        if response.status_code in {301, 302, 303, 307, 308}:
+            location = response.headers.get("location")
+            if not location:
+                return None
+            current = urljoin(current, location)
+            continue
+        return response
+    return None
 
 
 def _market_score(source: dict[str, Any]) -> int:
@@ -161,7 +219,7 @@ async def _enrich_sources(sources: list[dict[str, Any]]) -> list[dict[str, Any]]
 
     The extracted body is held only in activity memory and removed before the KAIRO Artifact is
     persisted. Paywalls, JavaScript-only pages and robots/network failures simply fall back to the
-    SearXNG snippet.
+    SearXNG snippet. Private/local destinations are rejected before every request and redirect.
     """
 
     semaphore = asyncio.Semaphore(4)
@@ -171,7 +229,7 @@ async def _enrich_sources(sources: list[dict[str, Any]]) -> list[dict[str, Any]]
     }
 
     async with httpx.AsyncClient(
-        timeout=httpx.Timeout(10.0, connect=5.0), follow_redirects=True, headers=headers
+        timeout=httpx.Timeout(10.0, connect=5.0), follow_redirects=False, headers=headers
     ) as client:
 
         async def enrich(source: dict[str, Any]) -> dict[str, Any]:
@@ -179,7 +237,9 @@ async def _enrich_sources(sources: list[dict[str, Any]]) -> list[dict[str, Any]]
             enriched["content_available"] = False
             try:
                 async with semaphore:
-                    response = await client.get(source["url"])
+                    response = await _fetch_public_html(client, source["url"])
+                if response is None:
+                    return enriched
                 response.raise_for_status()
                 content_type = response.headers.get("content-type", "").lower()
                 if "html" not in content_type or len(response.content) > 2_500_000:
