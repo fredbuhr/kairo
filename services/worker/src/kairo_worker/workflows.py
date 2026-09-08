@@ -39,15 +39,23 @@ class TaskExecutionWorkflow:
             "task_input": started["task_input"],
         }
         capability = str((started.get("task_input") or {}).get("capability") or "foundation")
-        activity_fn = perform_news_brief if capability == "news.brief" else perform_foundation_work
         try:
-            result = await workflow.execute_activity(
-                activity_fn,
-                work_payload,
-                start_to_close_timeout=timedelta(minutes=3),
-                heartbeat_timeout=timedelta(seconds=15),
-                retry_policy=ACTIVITY_RETRY,
-            )
+            if capability == "news.brief":
+                result = await workflow.execute_activity(
+                    perform_news_brief,
+                    work_payload,
+                    start_to_close_timeout=timedelta(minutes=3),
+                    heartbeat_timeout=timedelta(seconds=120),
+                    retry_policy=ACTIVITY_RETRY,
+                )
+            else:
+                result = await workflow.execute_activity(
+                    perform_foundation_work,
+                    work_payload,
+                    start_to_close_timeout=timedelta(seconds=60),
+                    heartbeat_timeout=timedelta(seconds=5),
+                    retry_policy=ACTIVITY_RETRY,
+                )
             completion = await workflow.execute_activity(
                 complete_execution,
                 {"workflow_id": workflow_id, "result": result},
