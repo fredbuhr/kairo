@@ -4,6 +4,7 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from .activities import begin_execution, complete_execution, fail_execution, perform_foundation_work
+from .automation_runtime import fail_automation_invocation, perform_automation_invocation
 from .config import settings
 from .document_ingestion import perform_document_ingestion
 from .memory_events import MemoryProjectionEventConsumer
@@ -36,6 +37,8 @@ async def serve() -> None:
             perform_document_ingestion,
             perform_tool_invocation,
             fail_tool_invocation,
+            perform_automation_invocation,
+            fail_automation_invocation,
             complete_execution,
             fail_execution,
         ],
