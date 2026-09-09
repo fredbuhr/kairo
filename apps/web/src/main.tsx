@@ -13,6 +13,7 @@ import './knowledge-workspace.css'
 import './task-planning.css'
 import './gantt-workspace.css'
 import './calendar-workspace.css'
+import './agents-workspace.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
