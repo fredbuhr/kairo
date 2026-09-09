@@ -6,8 +6,10 @@
   "packageManager": "pnpm@10.15.1",
   "scripts": {
     "dev:web": "pnpm --filter @kairo/web dev",
+    "dev:desktop": "pnpm --filter @kairo/desktop dev:desktop",
     "dev:realtime": "pnpm --filter @kairo/realtime dev",
     "build:web": "pnpm --filter @kairo/web build",
+    "build:desktop": "pnpm --filter @kairo/desktop build:desktop",
     "build:realtime": "pnpm --filter @kairo/realtime build",
     "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r --if-present typecheck"
