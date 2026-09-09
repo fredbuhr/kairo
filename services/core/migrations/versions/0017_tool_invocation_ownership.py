@@ -6,7 +6,8 @@ Create Date: 2026-09-09
 
 Tool definitions are deployment-global control-plane records, but invocations are user-world work tied
 to a Task/Project. A caller-selected idempotency key must therefore not remain a deployment-global
-namespace. Backfill ownership through Task -> Project, then make the uniqueness boundary subject-local.
+namespace. Backfill ownership through Task -> Project, make the uniqueness boundary subject-local and
+enforce the Task -> Project owner binding at the database boundary.
 """
 
 from __future__ import annotations
@@ -64,8 +65,47 @@ def upgrade() -> None:
         ["keycloak_subject", "status", "created_at"],
     )
 
+    # ToolInvocation cannot express its ownership invariant with a simple FK because Task ownership
+    # is inherited through Task -> Project. Keep the same defense-in-depth pattern used by the
+    # nullable Finance proposal binding: every insert/rebind must match the Project owner.
+    op.execute(
+        """
+        CREATE OR REPLACE FUNCTION kairo_enforce_tool_invocation_task_owner()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM tasks AS task
+                JOIN projects AS project ON project.id = task.project_id
+                WHERE task.id = NEW.task_id
+                  AND project.keycloak_subject = NEW.keycloak_subject
+            ) THEN
+                RAISE EXCEPTION 'tool invocation Task is outside the authenticated owner scope'
+                    USING ERRCODE = '23503';
+            END IF;
+            RETURN NEW;
+        END;
+        $$;
+        """
+    )
+    op.execute(
+        """
+        CREATE TRIGGER trg_tool_invocation_task_owner
+        BEFORE INSERT OR UPDATE OF task_id, keycloak_subject
+        ON tool_invocations
+        FOR EACH ROW
+        EXECUTE FUNCTION kairo_enforce_tool_invocation_task_owner();
+        """
+    )
+
 
 def downgrade() -> None:
+    op.execute(
+        "DROP TRIGGER IF EXISTS trg_tool_invocation_task_owner ON tool_invocations"
+    )
+    op.execute("DROP FUNCTION IF EXISTS kairo_enforce_tool_invocation_task_owner()")
     op.drop_index("ix_tool_invocations_subject_status", table_name="tool_invocations")
     op.drop_constraint(
         "uq_tool_invocation_subject_idempotency",
