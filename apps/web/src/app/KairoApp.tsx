@@ -1,0 +1,459 @@
+import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  MyceliumViewport,
+  graphEntityKey,
+  graphNodeKey,
+  type KairoGraphEntityRef,
+  type KairoGraphNode,
+  type KairoGraphQuality,
+  type KairoGraphTooltipPoint,
+} from '@kairo/graph'
+
+import { AssistantDrawer } from '../features/assistant/AssistantDrawer'
+import { useAssistant } from '../features/assistant/useAssistant'
+import { fetchGraphHome, fetchGraphNeighborhood, searchGraph } from '../lib/api'
+
+type ViewMode = 'home' | 'brain'
+
+type NavigationItem = {
+  key: string
+  label: string
+  glyph: string
+  available: boolean
+}
+
+const NAVIGATION: NavigationItem[] = [
+  { key: 'home', label: 'Accueil', glyph: '⌂', available: true },
+  { key: 'assistant', label: 'Assistant', glyph: '◌', available: true },
+  { key: 'projects', label: 'Projets', glyph: '◇', available: false },
+  { key: 'knowledge', label: 'Connaissances', glyph: '□', available: false },
+  { key: 'brain', label: 'Cerveau KAIRO', glyph: '◎', available: true },
+  { key: 'tasks', label: 'Tâches', glyph: '✓', available: false },
+  { key: 'calendar', label: 'Calendrier', glyph: '▦', available: false },
+  { key: 'agents', label: 'Agents', glyph: '⌘', available: false },
+  { key: 'automations', label: 'Automatisations', glyph: '↯', available: false },
+  { key: 'finance', label: 'Finance & Crypto', glyph: '◒', available: false },
+  { key: 'tools', label: 'Outils', glyph: '⊹', available: false },
+  { key: 'settings', label: 'Paramètres', glyph: '⚙', available: true },
+]
+
+function useReducedMotionPreference() {
+  const [reduced, setReduced] = useState(false)
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReduced(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+  return reduced
+}
+
+function entityLabel(type: string) {
+  const labels: Record<string, string> = {
+    project: 'Projet',
+    task: 'Tâche',
+    document: 'Document',
+    conversation: 'Conversation',
+    approval: 'Approbation',
+    artifact: 'Artefact',
+    asset: 'Fichier',
+    workflow_execution: 'Exécution',
+  }
+  return labels[type] || type.replaceAll('_', ' ')
+}
+
+function statusLabel(status?: string | null) {
+  const labels: Record<string, string> = {
+    active: 'Actif',
+    pending: 'En attente',
+    running: 'En cours',
+    in_progress: 'En cours',
+    queued: 'Planifié',
+    blocked: 'Bloqué',
+    waiting: 'En attente',
+    waiting_approval: 'Approbation requise',
+    completed: 'Terminé',
+    failed: 'Échec',
+  }
+  return status ? labels[status] || status : null
+}
+
+function KairoMark({ compact = false }: { compact?: boolean }) {
+  return (
+    <span className={`kairo-mark ${compact ? 'kairo-mark-compact' : ''}`} aria-hidden="true">
+      <i />
+      <i />
+      <i />
+      <i />
+    </span>
+  )
+}
+
+function ContextRail({
+  projection,
+  selected,
+  selectedKey,
+  collapsed,
+  onToggle,
+  onExplore,
+}: {
+  projection: Awaited<ReturnType<typeof fetchGraphHome>> | undefined
+  selected: KairoGraphNode | null
+  selectedKey: string | null
+  collapsed: boolean
+  onToggle: () => void
+  onExplore: (node: KairoGraphNode) => void
+}) {
+  const approvals = projection?.nodes.filter((node) => node.entity_type === 'approval' && node.status === 'pending').slice(0, 4) || []
+  const active = projection?.nodes
+    .filter((node) => ['task', 'workflow_execution'].includes(node.entity_type) && ['running', 'in_progress', 'queued', 'waiting'].includes(node.status || ''))
+    .slice(0, 5) || []
+  const relatedEdges = selectedKey
+    ? projection?.edges.filter((edge) => graphEntityKey(edge.source) === selectedKey || graphEntityKey(edge.target) === selectedKey).slice(0, 6) || []
+    : []
+
+  return (
+    <aside className={`context-rail ${collapsed ? 'context-rail-collapsed' : ''}`}>
+      <button type="button" className="context-toggle" onClick={onToggle} aria-label={collapsed ? 'Ouvrir le contexte' : 'Fermer le contexte'}>
+        {collapsed ? '‹' : '›'}
+      </button>
+      {!collapsed && (
+        <div className="context-scroll">
+          {selected && (
+            <section className="context-card context-selection">
+              <span className="context-eyebrow">{entityLabel(selected.entity_type)}</span>
+              <h2>{selected.label}</h2>
+              {selected.subtitle && <p>{selected.subtitle}</p>}
+              <div className="context-meta">
+                {selected.status && <span>{statusLabel(selected.status)}</span>}
+                <span>{selected.relationship_count} lien{selected.relationship_count === 1 ? '' : 's'}</span>
+              </div>
+              <button type="button" className="context-primary" onClick={() => onExplore(selected)}>Explorer</button>
+              {relatedEdges.length > 0 && (
+                <div className="context-relations">
+                  <strong>Relations visibles</strong>
+                  {relatedEdges.map((edge) => (
+                    <div key={edge.id}>
+                      <span>{edge.relation.replaceAll('_', ' ')}</span>
+                      <small>{edge.explanation || edge.provenance}</small>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          <section className="context-card">
+            <header className="context-card-heading">
+              <span>À votre attention</span>
+              {approvals.length > 0 && <b>{approvals.length}</b>}
+            </header>
+            {approvals.length === 0 ? (
+              <p className="context-empty">Aucune approbation en attente dans la projection actuelle.</p>
+            ) : (
+              <div className="context-list">
+                {approvals.map((node) => (
+                  <button type="button" key={graphNodeKey(node)} onClick={() => onExplore(node)}>
+                    <i className="attention-dot" />
+                    <span><strong>{node.label}</strong><small>{node.subtitle || 'Approbation'}</small></span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {active.length > 0 && (
+            <section className="context-card">
+              <header className="context-card-heading"><span>Activité KAIRO</span></header>
+              <div className="context-list">
+                {active.map((node) => (
+                  <button type="button" key={graphNodeKey(node)} onClick={() => onExplore(node)}>
+                    <i className="activity-dot" />
+                    <span><strong>{node.label}</strong><small>{statusLabel(node.status) || entityLabel(node.entity_type)}</small></span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+    </aside>
+  )
+}
+
+export default function KairoApp() {
+  const assistant = useAssistant()
+  const systemReducedMotion = useReducedMotionPreference()
+  const [assistantOpen, setAssistantOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>('home')
+  const [focus, setFocus] = useState<KairoGraphEntityRef | null>(null)
+  const [history, setHistory] = useState<Array<KairoGraphEntityRef | null>>([])
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [hovered, setHovered] = useState<{ node: KairoGraphNode; point: KairoGraphTooltipPoint } | null>(null)
+  const [contextCollapsed, setContextCollapsed] = useState(false)
+  const [quality, setQuality] = useState<KairoGraphQuality>('auto')
+  const [forceReducedMotion, setForceReducedMotion] = useState(false)
+  const [listView, setListView] = useState(false)
+  const [search, setSearch] = useState('')
+  const reducedMotion = systemReducedMotion || forceReducedMotion
+
+  const graphQuery = useQuery({
+    queryKey: ['kairo-graph', viewMode, focus?.entity_type || 'root', focus?.entity_id || 'root'],
+    queryFn: () => focus
+      ? fetchGraphNeighborhood(focus, viewMode === 'brain' ? 2 : 1, viewMode === 'brain' ? 150 : 96)
+      : fetchGraphHome(viewMode === 'brain' ? 140 : 72),
+    refetchInterval: focus ? false : 30000,
+    staleTime: 7000,
+  })
+
+  const searchQuery = useQuery({
+    queryKey: ['kairo-graph-search', search.trim()],
+    queryFn: () => searchGraph(search.trim()),
+    enabled: search.trim().length >= 2,
+    staleTime: 15000,
+  })
+
+  const projection = graphQuery.data
+  const selected = useMemo(
+    () => projection?.nodes.find((node) => graphNodeKey(node) === selectedKey) || null,
+    [projection, selectedKey],
+  )
+
+  useEffect(() => {
+    if (assistant.brief?.status === 'completed' || assistant.research?.status === 'completed') {
+      void graphQuery.refetch()
+    }
+  }, [assistant.brief?.status, assistant.research?.status])
+
+  function explore(node: KairoGraphNode) {
+    const next = { entity_type: node.entity_type, entity_id: node.id }
+    setHistory((current) => [...current, focus])
+    setFocus(next)
+    setSelectedKey(graphNodeKey(node))
+    setSearch('')
+  }
+
+  function goBack() {
+    setHistory((current) => {
+      if (current.length === 0) {
+        setFocus(null)
+        setSelectedKey(null)
+        return current
+      }
+      const copy = [...current]
+      const previous = copy.pop() ?? null
+      setFocus(previous)
+      setSelectedKey(previous ? graphEntityKey(previous) : null)
+      return copy
+    })
+  }
+
+  function recenter(mode: ViewMode = viewMode) {
+    setViewMode(mode)
+    setFocus(null)
+    setHistory([])
+    setSelectedKey(null)
+  }
+
+  function activateNavigation(item: NavigationItem) {
+    if (!item.available) return
+    if (item.key === 'home') recenter('home')
+    if (item.key === 'brain') recenter('brain')
+    if (item.key === 'assistant') setAssistantOpen(true)
+    if (item.key === 'settings') setSettingsOpen(true)
+  }
+
+  async function submitCommand(event: FormEvent) {
+    event.preventDefault()
+    if (!assistant.command.trim()) return
+    setAssistantOpen(true)
+    await assistant.sendCommand()
+  }
+
+  const searchResults = search.trim().length >= 2 ? searchQuery.data?.nodes || [] : []
+  const activeNavigation = viewMode === 'brain' ? 'brain' : 'home'
+
+  return (
+    <main className="kairo-app">
+      <aside className="primary-nav">
+        <div className="brand-lockup" title="Un esprit plus calme pour un demain plus lumineux.">
+          <KairoMark />
+          <div><strong>KAIRO</strong><span>PENSER · RELIER · AVANCER</span></div>
+        </div>
+
+        <nav aria-label="Navigation KAIRO">
+          {NAVIGATION.map((item, index) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => activateNavigation(item)}
+              disabled={!item.available}
+              className={`${activeNavigation === item.key ? 'nav-active' : ''} ${index === NAVIGATION.length - 3 ? 'nav-section-start' : ''}`}
+              title={item.available ? item.label : `${item.label} — module à venir`}
+            >
+              <span className="nav-glyph" aria-hidden="true">{item.glyph}</span>
+              <span>{item.label}</span>
+              {!item.available && <i className="nav-unavailable" />}
+            </button>
+          ))}
+        </nav>
+
+        <div className="nav-motto">
+          <i />
+          <p>Des liens plus clairs.<br />Un esprit plus calme.</p>
+        </div>
+      </aside>
+
+      <section className="spatial-shell">
+        <header className="top-bar">
+          <div className="spatial-breadcrumbs">
+            {history.length > 0 || focus ? (
+              <button type="button" onClick={goBack} className="ghost-button">← Retour</button>
+            ) : (
+              <span>{viewMode === 'brain' ? 'Cerveau KAIRO' : 'Accueil'}</span>
+            )}
+            {focus && selected && <strong>{selected.label}</strong>}
+          </div>
+
+          <div className="universal-search">
+            <span aria-hidden="true">⌕</span>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Rechercher dans KAIRO…"
+              aria-label="Rechercher dans KAIRO"
+            />
+            {search.trim().length >= 2 && (
+              <div className="search-results">
+                {searchQuery.isFetching && <small>Recherche…</small>}
+                {!searchQuery.isFetching && searchResults.length === 0 && <small>Aucun résultat canonique.</small>}
+                {searchResults.map((node) => (
+                  <button type="button" key={graphNodeKey(node)} onClick={() => explore(node)}>
+                    <span>{node.label}</span>
+                    <small>{entityLabel(node.entity_type)}{node.status ? ` · ${statusLabel(node.status)}` : ''}</small>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="top-actions">
+            <button type="button" className={`view-toggle ${listView ? 'view-toggle-active' : ''}`} onClick={() => setListView((value) => !value)}>
+              {listView ? '3D' : 'Liste'}
+            </button>
+            <button type="button" className="round-button" onClick={() => setSettingsOpen(true)} aria-label="Qualité et accessibilité">◐</button>
+            <button type="button" className="round-button kairo-avatar" onClick={() => setAssistantOpen(true)} aria-label="Ouvrir KAIRO"><KairoMark compact /></button>
+          </div>
+        </header>
+
+        <div className="spatial-stage">
+          {!listView && (
+            <MyceliumViewport
+              projection={projection || null}
+              selectedKey={selectedKey}
+              quality={quality}
+              reducedMotion={reducedMotion}
+              className="mycelium-viewport"
+              onSelect={(node) => setSelectedKey(node ? graphNodeKey(node) : null)}
+              onExplore={explore}
+              onHover={(node, point) => setHovered(node && point ? { node, point } : null)}
+            />
+          )}
+
+          {listView && (
+            <div className="accessible-graph" aria-label="Vue accessible du graphe KAIRO">
+              <header>
+                <span className="kairo-kicker">PROJECTION CANONIQUE</span>
+                <h1>{focus && selected ? selected.label : viewMode === 'brain' ? 'Cerveau KAIRO' : 'Votre univers KAIRO'}</h1>
+                <p>Mêmes entités et mêmes relations que la vue spatiale, présentées sans dépendre du mouvement ou de la profondeur.</p>
+              </header>
+              <div className="accessible-node-list">
+                {projection?.nodes.map((node) => (
+                  <button key={graphNodeKey(node)} type="button" onClick={() => setSelectedKey(graphNodeKey(node))} onDoubleClick={() => explore(node)}>
+                    <span className="node-type-dot" />
+                    <div><strong>{node.label}</strong><small>{entityLabel(node.entity_type)}{node.status ? ` · ${statusLabel(node.status)}` : ''} · {node.relationship_count} liens</small></div>
+                    <span>›</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {graphQuery.isLoading && (
+            <div className="stage-state"><KairoMark /><span>Construction de votre contexte…</span></div>
+          )}
+          {graphQuery.isError && (
+            <div className="stage-state stage-error"><strong>Le cerveau KAIRO n’est pas disponible.</strong><span>{graphQuery.error instanceof Error ? graphQuery.error.message : 'Erreur de projection.'}</span><button type="button" onClick={() => void graphQuery.refetch()}>Réessayer</button></div>
+          )}
+          {!graphQuery.isLoading && !graphQuery.isError && projection?.nodes.length === 0 && (
+            <div className="stage-state stage-empty"><KairoMark /><strong>Votre univers KAIRO est encore calme.</strong><span>Les projets, tâches, documents et relations réels apparaîtront ici à mesure qu’ils sont créés.</span></div>
+          )}
+
+          {hovered && !listView && (
+            <div className="node-tooltip" style={{ left: hovered.point.x + 16, top: hovered.point.y + 14 }}>
+              <small>{entityLabel(hovered.node.entity_type)}</small>
+              <strong>{hovered.node.label}</strong>
+              <span>{hovered.node.relationship_count} lien{hovered.node.relationship_count === 1 ? '' : 's'}</span>
+            </div>
+          )}
+
+          <div className="stage-caption">
+            <span>{projection?.nodes.length || 0} entités · {projection?.edges.length || 0} relations</span>
+            {projection?.truncated && <span>Projection contextuelle · réseau plus vaste</span>}
+          </div>
+        </div>
+
+        <ContextRail
+          projection={projection}
+          selected={selected}
+          selectedKey={selectedKey}
+          collapsed={contextCollapsed}
+          onToggle={() => setContextCollapsed((value) => !value)}
+          onExplore={explore}
+        />
+
+        <form className="command-dock" onSubmit={submitCommand}>
+          <button type="button" className="dock-kairo" onClick={() => setAssistantOpen(true)} aria-label="Ouvrir la conversation KAIRO"><KairoMark compact /></button>
+          <div className="dock-input">
+            <span aria-hidden="true">◌</span>
+            <input
+              value={assistant.command}
+              onChange={(event) => assistant.setCommand(event.target.value)}
+              placeholder="Demandez à KAIRO…"
+              aria-label="Demander à KAIRO"
+            />
+          </div>
+          <button type="submit" className="dock-send" disabled={assistant.busy || !assistant.command.trim()}>{assistant.busy ? '···' : '↑'}</button>
+          <button type="button" className="dock-thread" onClick={() => setAssistantOpen(true)}>Conversation</button>
+        </form>
+
+        <AssistantDrawer assistant={assistant} open={assistantOpen} onClose={() => setAssistantOpen(false)} />
+
+        {settingsOpen && (
+          <div className="settings-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}>
+            <section className="settings-panel" role="dialog" aria-modal="true" aria-label="Affichage KAIRO" onMouseDown={(event) => event.stopPropagation()}>
+              <header><div><span className="kairo-kicker">AFFICHAGE</span><h2>Qualité et mouvement</h2></div><button type="button" className="icon-button" onClick={() => setSettingsOpen(false)}>×</button></header>
+              <label>
+                <span>Qualité graphique</span>
+                <select value={quality} onChange={(event) => setQuality(event.target.value as KairoGraphQuality)}>
+                  <option value="auto">Automatique</option>
+                  <option value="high">Haute</option>
+                  <option value="balanced">Équilibrée</option>
+                  <option value="eco">Économie</option>
+                </select>
+              </label>
+              <label className="settings-check">
+                <input type="checkbox" checked={forceReducedMotion} onChange={(event) => setForceReducedMotion(event.target.checked)} />
+                <span><strong>Réduire les animations</strong><small>Les respirations et impulsions non essentielles sont fortement limitées.</small></span>
+              </label>
+              {systemReducedMotion && <p className="settings-note">Votre système demande déjà une réduction des mouvements. KAIRO respecte cette préférence.</p>}
+            </section>
+          </div>
+        )}
+      </section>
+    </main>
+  )
+}

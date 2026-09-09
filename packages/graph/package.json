@@ -4,6 +4,16 @@
   "version": "0.1.0",
   "type": "module",
   "exports": "./src/index.ts",
-  "scripts": {"typecheck": "tsc -p tsconfig.json --noEmit"},
-  "devDependencies": {"typescript": "^6.0.2"}
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@react-three/fiber": "^9.7.0",
+    "react": "^19.1.1",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "typescript": "^6.0.2"
+  }
 }
