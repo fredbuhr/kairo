@@ -3,6 +3,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
+import { BatchedFilamentField } from './BatchedFilamentField'
+import { ClusterField } from './ClusterField'
 import { InstancedNodeField } from './InstancedNodeField'
 import type {
   KairoGraphEdge,
@@ -34,7 +36,7 @@ type QualitySettings = {
   dpr: number
   nodeSegments: number
   filamentSegments: number
-  radialSegments: number
+  filamentStrands: number
   pulseLimit: number
   antialias: boolean
 }
@@ -73,12 +75,33 @@ function qualitySettings(quality: KairoGraphQuality): QualitySettings {
     : quality
   const deviceDpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
   if (requested === 'eco') {
-    return { dpr: 1, nodeSegments: 16, filamentSegments: 10, radialSegments: 3, pulseLimit: 8, antialias: false }
+    return {
+      dpr: 1,
+      nodeSegments: 14,
+      filamentSegments: 7,
+      filamentStrands: 1,
+      pulseLimit: 6,
+      antialias: false,
+    }
   }
   if (requested === 'balanced') {
-    return { dpr: Math.min(deviceDpr, 1.35), nodeSegments: 22, filamentSegments: 14, radialSegments: 4, pulseLimit: 18, antialias: true }
+    return {
+      dpr: Math.min(deviceDpr, 1.35),
+      nodeSegments: 18,
+      filamentSegments: 10,
+      filamentStrands: 2,
+      pulseLimit: 14,
+      antialias: true,
+    }
   }
-  return { dpr: Math.min(deviceDpr, 1.75), nodeSegments: 28, filamentSegments: 18, radialSegments: 5, pulseLimit: 30, antialias: true }
+  return {
+    dpr: Math.min(deviceDpr, 1.75),
+    nodeSegments: 22,
+    filamentSegments: 14,
+    filamentStrands: 3,
+    pulseLimit: 24,
+    antialias: true,
+  }
 }
 
 function semanticBandForDistance(distance: number): SemanticBand {
@@ -138,7 +161,11 @@ function KairoAnchor({ reducedMotion }: { reducedMotion: boolean }) {
       {[0, 1, 2, 3].map((index) => (
         <mesh key={index} rotation={[index * 0.57, index * 0.71, index * 0.38]}>
           <torusGeometry args={[1.05 + index * 0.045, 0.022, 8, 96]} />
-          <meshBasicMaterial color={index % 2 ? '#75f0d2' : '#4be7ef'} transparent opacity={0.72} />
+          <meshBasicMaterial
+            color={index % 2 ? '#75f0d2' : '#4be7ef'}
+            transparent
+            opacity={0.72}
+          />
         </mesh>
       ))}
       <mesh>
@@ -190,53 +217,13 @@ function edgeCurve(edge: KairoGraphEdge, source: KairoGraphPose, target: KairoGr
   const end = new THREE.Vector3(target.x, target.y, target.z)
   const midpoint = start.clone().add(end).multiplyScalar(0.5)
   const direction = end.clone().sub(start)
-  const tangent = new THREE.Vector3(-direction.z, direction.x * 0.27, direction.x).normalize()
+  const tangent = new THREE.Vector3(-direction.z, direction.x * 0.27, direction.x)
+  if (tangent.lengthSq() < 0.0001) tangent.set(1, 0, 0)
+  tangent.normalize()
   const curveOffset = (0.45 + direction.length() * 0.05) * signed(edge.id, 31)
   midpoint.add(tangent.multiplyScalar(curveOffset))
   midpoint.y += signed(edge.id, 32) * 0.48
   return new THREE.CatmullRomCurve3([start, midpoint, end], false, 'centripetal', 0.35)
-}
-
-function Filament({
-  edge,
-  source,
-  target,
-  settings,
-  visible,
-  highlighted,
-  dimmed,
-}: {
-  edge: KairoGraphEdge
-  source: KairoGraphPose
-  target: KairoGraphPose
-  settings: QualitySettings
-  visible: boolean
-  highlighted: boolean
-  dimmed: boolean
-}) {
-  const curve = useMemo(() => edgeCurve(edge, source, target), [edge, source, target])
-  const geometry = useMemo(
-    () => new THREE.TubeGeometry(
-      curve,
-      settings.filamentSegments,
-      0.012 + edge.strength * 0.018,
-      settings.radialSegments,
-      false,
-    ),
-    [curve, edge.strength, settings.filamentSegments, settings.radialSegments],
-  )
-  useEffect(() => () => geometry.dispose(), [geometry])
-
-  return (
-    <mesh geometry={geometry} visible={visible}>
-      <meshBasicMaterial
-        color={edge.provenance === 'canonical_relationship' ? '#53e7e8' : '#78eecf'}
-        transparent
-        opacity={dimmed ? 0.045 : highlighted ? 0.74 : 0.18 + edge.strength * 0.22}
-        depthWrite={false}
-      />
-    </mesh>
-  )
 }
 
 function ActivityPulse({
@@ -364,28 +351,22 @@ function GraphScene({
 
       {!focusKey && <KairoAnchor reducedMotion={reducedMotion} />}
 
-      {projection.edges.map((edge) => {
-        const sourceKey = graphEntityKey(edge.source)
-        const targetKey = graphEntityKey(edge.target)
-        const source = poses.get(sourceKey)
-        const target = poses.get(targetKey)
-        if (!source || !target) return null
-        const visible = visibleKeys.has(sourceKey) && visibleKeys.has(targetKey)
-        const highlighted = Boolean(emphasisKey && (sourceKey === emphasisKey || targetKey === emphasisKey))
-        const dimmed = Boolean(emphasisKey && !highlighted)
-        return (
-          <Filament
-            key={edge.id}
-            edge={edge}
-            source={source}
-            target={target}
-            settings={settings}
-            visible={visible}
-            highlighted={highlighted}
-            dimmed={dimmed}
-          />
-        )
-      })}
+      <ClusterField
+        nodes={projection.nodes}
+        poses={poses}
+        visibleKeys={visibleKeys}
+        detailLevel={semanticBand}
+        reducedMotion={reducedMotion}
+      />
+
+      <BatchedFilamentField
+        edges={projection.edges}
+        poses={poses}
+        visibleKeys={visibleKeys}
+        emphasisKey={emphasisKey}
+        segments={settings.filamentSegments}
+        strands={settings.filamentStrands}
+      />
 
       {pulseEdges.map((edge, index) => {
         const source = poses.get(graphEntityKey(edge.source))
