@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     Index,
@@ -147,4 +148,51 @@ class FinanceTransactionProposal(Base):
     __table_args__ = (
         Index("ix_finance_proposals_subject_status", "keycloak_subject", "status", "created_at"),
         Index("ix_finance_proposals_account", "from_account_id", "created_at"),
+    )
+
+
+class FinanceConnector(Base):
+    """KAIRO-owned configuration for a replaceable external finance adapter.
+
+    No provider credential value is stored here. A connector points at a SecretReference and at a
+    deployment-owned provider endpoint. The first concrete provider is Rotki.
+    """
+
+    __tablename__ = "finance_connectors"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    keycloak_subject: Mapped[str] = mapped_column(String(240), nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    key: Mapped[str] = mapped_column(String(160), nullable=False)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False, default="rotki")
+    display_name: Mapped[str] = mapped_column(String(240), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    secret_reference_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("secret_references.id", ondelete="RESTRICT"), nullable=False
+    )
+    username_secret_key: Mapped[str] = mapped_column(String(120), nullable=False, default="username")
+    password_secret_key: Mapped[str] = mapped_column(String(120), nullable=False, default="password")
+    source_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    refresh_remote: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("keycloak_subject", "key", name="uq_finance_connector_subject_key"),
+        UniqueConstraint(
+            "keycloak_subject",
+            "source_key",
+            name="uq_finance_connector_subject_source_key",
+        ),
+        Index("ix_finance_connectors_subject_enabled", "keycloak_subject", "enabled"),
+        Index("ix_finance_connectors_project", "project_id"),
     )
