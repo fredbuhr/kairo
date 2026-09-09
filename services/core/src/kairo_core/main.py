@@ -20,6 +20,7 @@ from .config import settings
 from .db import get_session, ping_database
 from .documents import router as documents_router
 from .events import append_audit, enqueue_domain_event
+from .finance import router as finance_router
 from .graph import router as graph_router
 from .graph_activity import router as graph_activity_router
 from .graph_directives import router as graph_directives_router
@@ -80,6 +81,7 @@ app.include_router(calendar_external_router)
 app.include_router(project_management_router)
 app.include_router(operations_router)
 app.include_router(automations_router)
+app.include_router(finance_router)
 app.include_router(graph_router)
 app.include_router(graph_activity_router)
 app.include_router(graph_directives_router)
@@ -201,6 +203,8 @@ async def architecture() -> dict[str, object]:
         "agent_operations": "kairo-core-capability-task-workflow-approval-usage-read-model",
         "automation_registry": "kairo-core-postgresql-activepieces-webhook-boundary",
         "automation_execution": "temporal-no-retry-after-webhook-side-effect-boundary",
+        "finance_portfolio": "kairo-core-provenance-preserving-source-account-position-snapshots",
+        "finance_signing": "external-isolated-signer-never-ai-private-key-custody",
         "capability_registry": "kairo-core",
         "tool_registry": "kairo-core-postgresql",
         "tool_transport": "mcp-streamable-http",
