@@ -30,8 +30,8 @@ type Particle = {
 
 function hash(value: string): number {
   let h = 2166136261
-  for (let i = 0; i < value.length; i += 1) {
-    h ^= value.charCodeAt(i)
+  for (let index = 0; index < value.length; index += 1) {
+    h ^= value.charCodeAt(index)
     h = Math.imul(h, 16777619)
   }
   return h >>> 0
@@ -42,24 +42,39 @@ function signed(seed: string, salt: number): number {
   return value * 2 - 1
 }
 
-function clusterCenter(cluster: string): [number, number, number] {
-  if (!cluster) return [0, 0, 0]
+function clusterForNode(node: KairoGraphNode): string {
+  return node.cluster_hint || node.project_id || node.entity_type
+}
+
+function clusterCenter(cluster: string, anchoredCluster?: string | null): [number, number, number] {
+  if (!cluster || cluster === anchoredCluster) return [0, 0, 0]
   const angle = ((hash(cluster) % 10000) / 10000) * Math.PI * 2
   const radius = 7 + (hash(`${cluster}:r`) % 5000) / 1000
   return [Math.cos(angle) * radius, signed(cluster, 7) * 3.5, Math.sin(angle) * radius]
 }
 
-function buildParticles(nodes: KairoGraphNode[], focusKey?: string | null): Particle[] {
+function focusedCluster(nodes: KairoGraphNode[], focusKey?: string | null): string | null {
+  if (!focusKey) return null
+  const focused = nodes.find((node) => graphNodeKey(node) === focusKey)
+  return focused ? clusterForNode(focused) : null
+}
+
+function buildParticles(
+  nodes: KairoGraphNode[],
+  focusKey?: string | null,
+  anchoredCluster?: string | null,
+): Particle[] {
   return nodes.map((node) => {
     const key = graphNodeKey(node)
-    const cluster = node.cluster_hint || node.project_id || node.entity_type
-    const [cx, cy, cz] = clusterCenter(cluster)
+    const cluster = clusterForNode(node)
+    const [cx, cy, cz] = clusterCenter(cluster, anchoredCluster)
     const pinned = key === focusKey
+    const localSpread = cluster === anchoredCluster ? 3.25 : 4.2
     return {
       key,
-      x: pinned ? 0 : cx + signed(key, 1) * 4.2,
-      y: pinned ? 0 : cy + signed(key, 2) * 3.4,
-      z: pinned ? 0 : cz + signed(key, 3) * 4.2,
+      x: pinned ? 0 : cx + signed(key, 1) * localSpread,
+      y: pinned ? 0 : cy + signed(key, 2) * (cluster === anchoredCluster ? 2.6 : 3.4),
+      z: pinned ? 0 : cz + signed(key, 3) * localSpread,
       vx: 0,
       vy: 0,
       vz: 0,
@@ -71,7 +86,8 @@ function buildParticles(nodes: KairoGraphNode[], focusKey?: string | null): Part
 }
 
 function solve(request: LayoutRequest): LayoutResponse {
-  const particles = buildParticles(request.nodes, request.focusKey)
+  const anchoredCluster = focusedCluster(request.nodes, request.focusKey)
+  const particles = buildParticles(request.nodes, request.focusKey, anchoredCluster)
   const byKey = new Map(particles.map((particle) => [particle.key, particle]))
   const springs = request.edges
     .map((edge) => {
@@ -85,10 +101,10 @@ function solve(request: LayoutRequest): LayoutResponse {
   for (let step = 0; step < steps; step += 1) {
     const cooling = 1 - step / steps
 
-    for (let i = 0; i < particles.length; i += 1) {
-      const a = particles[i]
-      for (let j = i + 1; j < particles.length; j += 1) {
-        const b = particles[j]
+    for (let index = 0; index < particles.length; index += 1) {
+      const a = particles[index]
+      for (let otherIndex = index + 1; otherIndex < particles.length; otherIndex += 1) {
+        const b = particles[otherIndex]
         let dx = a.x - b.x
         let dy = a.y - b.y
         let dz = a.z - b.z
@@ -100,7 +116,10 @@ function solve(request: LayoutRequest): LayoutResponse {
           d2 = dx * dx + dy * dy + dz * dz
         }
         const distance = Math.sqrt(d2)
-        const repel = (0.18 + a.importance * 0.12 + b.importance * 0.12) / Math.max(d2, 0.12)
+        const clusterFactor = a.cluster === b.cluster ? 0.82 : 1.22
+        const repel = (
+          (0.18 + a.importance * 0.12 + b.importance * 0.12) * clusterFactor
+        ) / Math.max(d2, 0.12)
         const fx = (dx / distance) * repel
         const fy = (dy / distance) * repel
         const fz = (dz / distance) * repel
@@ -148,19 +167,23 @@ function solve(request: LayoutRequest): LayoutResponse {
         continue
       }
 
-      const [cx, cy, cz] = clusterCenter(particle.cluster)
-      const clusterPull = 0.0038 + cooling * 0.003
+      const [cx, cy, cz] = clusterCenter(particle.cluster, anchoredCluster)
+      const isFocusedCluster = Boolean(anchoredCluster && particle.cluster === anchoredCluster)
+      const clusterPull = (isFocusedCluster ? 0.0052 : 0.0038) + cooling * 0.003
       particle.vx += (cx - particle.x) * clusterPull
       particle.vy += (cy - particle.y) * clusterPull
       particle.vz += (cz - particle.z) * clusterPull
 
-      const distanceFromOrigin = Math.max(0.001, Math.sqrt(particle.x ** 2 + particle.y ** 2 + particle.z ** 2))
+      const distanceFromOrigin = Math.max(
+        0.001,
+        Math.sqrt(particle.x ** 2 + particle.y ** 2 + particle.z ** 2),
+      )
       if (!request.focusKey && distanceFromOrigin < 3.4) {
         const push = (3.4 - distanceFromOrigin) * 0.025
         particle.vx += (particle.x / distanceFromOrigin) * push
         particle.vy += (particle.y / distanceFromOrigin) * push
         particle.vz += (particle.z / distanceFromOrigin) * push
-      } else {
+      } else if (!isFocusedCluster) {
         particle.vx += -particle.x * 0.0009
         particle.vy += -particle.y * 0.0009
         particle.vz += -particle.z * 0.0009
