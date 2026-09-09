@@ -99,12 +99,12 @@ function AutomationCreateForm({
       <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nom affiché" maxLength={240} />
       <input value={key} onChange={(event) => setKey(event.target.value.toLowerCase())} placeholder="clé-automation" maxLength={160} />
       <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description optionnelle" rows={2} />
-      <label><span>Référence OpenBao</span><select value={secretReferenceId} onChange={(event) => setSecretReferenceId(event.target.value)}><option value="">Choisir une référence</option>{secretReferences.map((reference) => <option key={reference.id} value={reference.id}>{reference.name} · {reference.purpose}</option>)}</select></label>
+      <label><span>Référence du coffre personnel</span><select value={secretReferenceId} onChange={(event) => setSecretReferenceId(event.target.value)}><option value="">Choisir une référence</option>{secretReferences.map((reference) => <option key={reference.id} value={reference.id}>{reference.name} · {reference.purpose}</option>)}</select></label>
       <label><span>Champ secret contenant le chemin webhook</span><input value={secretKey} onChange={(event) => setSecretKey(event.target.value)} placeholder="path" maxLength={120} /></label>
       <label><span>Autorité</span><select value={authorityLevel} onChange={(event) => setAuthorityLevel(Number(event.target.value))}><option value={1}>A1 · faible</option><option value={2}>A2 · écriture externe</option><option value={3}>A3 · sensible</option></select></label>
       <label><span>Timeout</span><select value={timeoutSeconds} onChange={(event) => setTimeoutSeconds(Number(event.target.value))}><option value={30}>30 s</option><option value={60}>60 s</option><option value={120}>120 s</option><option value={300}>300 s</option></select></label>
-      <small className="automation-secret-note">La référence stocke seulement un pointeur OpenBao. La valeur secrète doit contenir le chemin du webhook Activepieces, jamais l’URL d’un autre hôte. Une automation neuve reste désactivée.</small>
-      {secretReferences.length === 0 && <small className="workspace-error">Aucune référence OpenBao n’est disponible. Créez/provisionnez d’abord une SecretReference.</small>}
+      <small className="automation-secret-note">KAIRO ne révèle pas l’emplacement OpenBao du secret. La référence logique choisie doit contenir un champ `path` vers le webhook Activepieces ; une automation neuve reste désactivée.</small>
+      {secretReferences.length === 0 && <small className="workspace-error">Aucune référence de coffre n’est disponible. Créez/provisionnez d’abord un secret dans Paramètres → Connexions & secrets.</small>}
       {mutation.isError && <small className="workspace-error">{mutation.error instanceof Error ? mutation.error.message : 'Création impossible.'}</small>}
     </form>
   )
@@ -230,7 +230,7 @@ export function AutomationsWorkspace({
         </header>
 
         {automations.length === 0 ? (
-          <div className="workspace-empty"><strong>Aucune automation enregistrée.</strong><span>Créez une définition KAIRO reliée à un webhook Activepieces déjà provisionné dans OpenBao.</span></div>
+          <div className="workspace-empty"><strong>Aucune automation enregistrée.</strong><span>Créez une définition KAIRO reliée à un webhook Activepieces déjà provisionné dans le coffre personnel.</span></div>
         ) : (
           <div className="automation-grid">
             {automations.map((automation) => (
@@ -258,7 +258,6 @@ export function AutomationsWorkspace({
       <aside className="automations-side">
         {selected && <RunComposer automation={selected} />}
         <AutomationCreateForm projects={projects} secretReferences={secretReferences} />
-        {secretsQuery.isError && <small className="workspace-error">Les références OpenBao ne peuvent pas être lues avec l’identité actuelle.</small>}
       </aside>
     </div>
   )
