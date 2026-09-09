@@ -7,12 +7,14 @@ on:
       - 'packages/graph/**'
       - 'packages/gantt/**'
       - 'services/core/**'
+      - 'compose.graph-ci.yaml'
       - 'scripts/smoke/graph_projection.py'
       - 'scripts/smoke/knowledge_workspace.py'
       - 'scripts/smoke/task_planning.py'
       - 'scripts/smoke/agent_operations.py'
       - 'scripts/smoke/project_lifecycle.py'
       - 'scripts/smoke/tool_management.py'
+      - 'scripts/smoke/calendar_provenance.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
@@ -21,6 +23,7 @@ on:
       - 'docs/decisions/ADR-031-human-work-and-capability-executions-share-task-table-not-workspace.md'
       - 'docs/decisions/ADR-032-fail-closed-mcp-server-registration.md'
       - 'docs/decisions/ADR-033-2d-mind-map-is-a-canonical-graph-projection.md'
+      - 'docs/decisions/ADR-034-external-calendar-events-remain-sourced-snapshots.md'
       - '.github/workflows/graph-interface.yml'
   pull_request:
     paths:
@@ -28,12 +31,14 @@ on:
       - 'packages/graph/**'
       - 'packages/gantt/**'
       - 'services/core/**'
+      - 'compose.graph-ci.yaml'
       - 'scripts/smoke/graph_projection.py'
       - 'scripts/smoke/knowledge_workspace.py'
       - 'scripts/smoke/task_planning.py'
       - 'scripts/smoke/agent_operations.py'
       - 'scripts/smoke/project_lifecycle.py'
       - 'scripts/smoke/tool_management.py'
+      - 'scripts/smoke/calendar_provenance.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
@@ -42,6 +47,7 @@ on:
       - 'docs/decisions/ADR-031-human-work-and-capability-executions-share-task-table-not-workspace.md'
       - 'docs/decisions/ADR-032-fail-closed-mcp-server-registration.md'
       - 'docs/decisions/ADR-033-2d-mind-map-is-a-canonical-graph-projection.md'
+      - 'docs/decisions/ADR-034-external-calendar-events-remain-sourced-snapshots.md'
       - '.github/workflows/graph-interface.yml'
 
 concurrency:
@@ -82,7 +88,7 @@ jobs:
       - name: Validate Core cockpit sources
         run: |
           uv build --package kairo-core
-          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py scripts/smoke/task_planning.py scripts/smoke/agent_operations.py scripts/smoke/project_lifecycle.py scripts/smoke/tool_management.py
+          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py scripts/smoke/task_planning.py scripts/smoke/agent_operations.py scripts/smoke/project_lifecycle.py scripts/smoke/tool_management.py scripts/smoke/calendar_provenance.py
 
   graph-projection-integration:
     needs: validate
@@ -96,9 +102,9 @@ jobs:
           cp .env.example .env
           echo 'KAIRO_WORKER_EXTRAS=' >> .env
 
-      - name: Start canonical substrate
+      - name: Start canonical substrate without Keycloak for isolated cockpit proofs
         run: |
-          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+          docker compose -f compose.yaml -f compose.graph-ci.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
 
       - name: Prove canonical spatial graph projection
         run: python scripts/smoke/graph_projection.py
@@ -118,12 +124,15 @@ jobs:
       - name: Prove fail-closed MCP management
         run: python scripts/smoke/tool_management.py
 
+      - name: Prove external Calendar provenance snapshots
+        run: python scripts/smoke/calendar_provenance.py
+
       - name: Dump graph state on failure
         if: failure()
         run: |
-          docker compose ps -a
-          docker compose logs --no-color --tail=350 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+          docker compose -f compose.yaml -f compose.graph-ci.yaml ps -a
+          docker compose -f compose.yaml -f compose.graph-ci.yaml logs --no-color --tail=350 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
 
       - name: Tear down graph stack
         if: always()
-        run: docker compose down -v --remove-orphans
+        run: docker compose -f compose.yaml -f compose.graph-ci.yaml down -v --remove-orphans
