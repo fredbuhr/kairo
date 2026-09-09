@@ -13,16 +13,26 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
   align-items: end;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 .calendar-workspace-header h1 { margin: 5px 0 6px; color: #edf9f8; font-size: clamp(24px, 3vw, 38px); font-weight: 350; letter-spacing: -.035em; }
 .calendar-workspace-header p { max-width: 760px; margin: 0; color: #708c91; font-size: 9.5px; line-height: 1.55; }
-.calendar-controls { display: grid; gap: 7px; min-width: 220px; }
+.calendar-controls { display: grid; gap: 7px; min-width: 240px; }
 .calendar-controls > div { display: grid; grid-template-columns: 34px 1fr 34px; gap: 5px; }
 .calendar-controls button,
 .calendar-controls select { min-height: 34px; border: 1px solid rgba(87, 219, 215, .13); border-radius: 9px; background: rgba(4, 19, 25, .63); color: #789499; font-size: 8.5px; cursor: pointer; }
 .calendar-controls button:hover { border-color: rgba(90, 229, 219, .29); color: #d2f0eb; }
 .calendar-controls select { width: 100%; padding: 0 9px; }
+.calendar-controls select:disabled { opacity: .42; cursor: default; }
+
+.calendar-source-strip { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin: 0 0 10px; }
+.calendar-source-strip > span { display: flex; align-items: center; gap: 4px; min-height: 23px; padding: 0 7px; border: 1px solid rgba(84, 211, 208, .08); border-radius: 999px; background: rgba(3, 17, 22, .39); color: #658286; font-size: 7px; }
+.calendar-source-strip > span > i { width: 5px; height: 5px; border-radius: 50%; }
+.calendar-source-kairo { background: #70decf; box-shadow: 0 0 6px rgba(112, 222, 207, .28); }
+.calendar-source-external { border: 1px solid #7f9fa5; background: transparent; }
+.calendar-source-muted { opacity: .48; }
+.calendar-source-strip > small { color: #5b787d; font-size: 7px; }
+.calendar-source-strip > small.calendar-source-error { color: #a57b82; }
 
 .calendar-week {
   min-width: 920px;
@@ -77,7 +87,37 @@
 .calendar-event-priority-3 { border-color: rgba(115, 235, 203, .28); background: linear-gradient(155deg, rgba(43, 131, 119, .48), rgba(64, 163, 132, .31)); }
 .calendar-event-priority-4 { border-color: rgba(183, 247, 210, .42); background: linear-gradient(155deg, rgba(62, 151, 122, .58), rgba(91, 185, 144, .35)); }
 
-.calendar-deadlines { position: absolute; left: 4px; right: 4px; bottom: 5px; z-index: 6; display: grid; gap: 3px; }
+.calendar-external-event {
+  position: absolute;
+  left: 13px;
+  right: 13px;
+  z-index: 3;
+  min-height: 22px;
+  overflow: hidden;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 5px 6px;
+  border: 1px dashed rgba(139, 170, 177, .31);
+  border-radius: 8px;
+  background:
+    repeating-linear-gradient(135deg, rgba(65, 83, 93, .31) 0 6px, rgba(47, 67, 76, .25) 6px 12px),
+    rgba(24, 44, 53, .80);
+  color: #ccd9db;
+  text-align: left;
+  text-decoration: none;
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .11);
+}
+.calendar-external-event:hover { border-color: rgba(170, 204, 210, .55); z-index: 7; }
+.calendar-external-event strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; font-weight: 520; }
+.calendar-external-event small { color: #93a6aa; font-size: 6.8px; }
+.calendar-external-event span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #758b90; font-size: 6.4px; }
+.calendar-external-all-day { position: absolute; top: 4px; left: 4px; right: 4px; z-index: 8; display: grid; gap: 2px; pointer-events: none; }
+.calendar-external-all-day > div { min-width: 0; display: grid; grid-template-columns: 5px minmax(0, 1fr); gap: 4px; align-items: center; min-height: 18px; padding: 0 5px; border: 1px dashed rgba(139, 170, 177, .24); border-radius: 6px; background: rgba(29, 47, 56, .88); color: #91a5a9; }
+.calendar-external-all-day i { width: 4px; height: 4px; border: 1px solid #879fa4; border-radius: 50%; }
+.calendar-external-all-day span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 6.5px; }
+
+.calendar-deadlines { position: absolute; left: 4px; right: 4px; bottom: 5px; z-index: 9; display: grid; gap: 3px; }
 .calendar-deadlines button { width: 100%; display: grid; grid-template-columns: 6px minmax(0, 1fr); gap: 5px; align-items: center; padding: 4px 5px; border: 1px solid rgba(170, 233, 207, .13); border-radius: 7px; background: rgba(15, 44, 43, .86); color: #94b8b0; text-align: left; cursor: pointer; }
 .calendar-deadlines button i { width: 4px; height: 4px; border-radius: 50%; background: #a8e8ca; box-shadow: 0 0 6px rgba(168, 232, 202, .36); }
 .calendar-deadlines button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 6.8px; }
