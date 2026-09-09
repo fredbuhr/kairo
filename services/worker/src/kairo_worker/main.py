@@ -7,6 +7,7 @@ from .activities import begin_execution, complete_execution, fail_execution, per
 from .automation_runtime import fail_automation_invocation, perform_automation_invocation
 from .config import settings
 from .document_ingestion import perform_document_ingestion
+from .finance_connector_runtime import perform_finance_rotki_sync
 from .memory_events import MemoryProjectionEventConsumer
 from .memory_projection import perform_memory_projection
 from .news_activity import perform_news_brief
@@ -39,6 +40,7 @@ async def serve() -> None:
             fail_tool_invocation,
             perform_automation_invocation,
             fail_automation_invocation,
+            perform_finance_rotki_sync,
             complete_execution,
             fail_execution,
         ],
