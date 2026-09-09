@@ -23,10 +23,9 @@ All three remain intentionally unmerged while GitHub Actions issue **#38** preve
 - Temporal: durable workflow execution/replay.
 - NATS JetStream: event bus fed by a transactional PostgreSQL outbox.
 - Keycloak: authenticated Web/Desktop identity boundary.
-- OpenBao: secret-value custody; public KAIRO state stores vault handles only.
+- OpenBao: secret-value custody; public KAIRO state stores logical vault handles only.
 - Conversation / Message / Command: canonical conversational continuity.
 - KAIRO Capability contracts: policy/authority boundary above replaceable engines.
-- deterministic routing first; constrained PydanticAI semantic routing second.
 - LiteLLM: model gateway with canonical PostgreSQL budget/usage accounting.
 - Mem0 + Graphiti/Neo4j: rebuildable projections, never canonical state.
 - Docling: preferred parser into canonical Documents / Versions / Chunks.
@@ -39,7 +38,7 @@ All three remain intentionally unmerged while GitHub Actions issue **#38** preve
 
 **Implementation: complete.**
 
-Canonical Projects, Tasks, Relationships, WorkflowExecutions, Artifacts, Assets, Devices, SecretReferences, Audit and Outbox state are in place together with deterministic Temporal identity, transactional event delivery, authenticated resources, object digest verification and backup/restore substrate.
+Projects, Tasks, Relationships, WorkflowExecutions, Artifacts, Assets, Devices, SecretReferences, Audit and Outbox state are in place together with deterministic Temporal identity, transactional event delivery, authenticated resources, object digest verification and backup/restore substrate.
 
 Earlier Foundation proofs established the baseline invariants. Current stacked heads still need fresh real-runner validation after issue #38 is resolved.
 
@@ -53,83 +52,44 @@ Earlier Foundation proofs established the baseline invariants. Current stacked h
 
 **Implemented on the stacked Block 2 head.** `POST /v1/assistant/commands` is the conversational entry point. Deterministic routing is first-tier; durable constrained semantic routing is second-tier. Conversation state remains canonical.
 
-### News Intelligence
+### News / Research / Memory
 
-**Implemented.** SearXNG discovery, transient extraction, sourced synthesis, market-impact mode, optional local speech and durable execution are integrated.
+**Implemented in stacked layers; current heads await real CI.** News Intelligence is operational, Research synthesis/handoff lives on #36/#37, and Mem0/Graphiti remain rebuildable memory projections. Generative Graphiti entity/fact extraction stays deferred until it can use KAIRO's accounted/replay-safe model boundary.
 
-### Memory / temporal context
+### Documents / Knowledge / MCP
 
-**Implemented as rebuildable projections.** Mem0 and Graphiti consume canonical events. Generative Graphiti fact/entity extraction remains deferred until it can use the accounted/replay-safe model boundary.
-
-### Documents / Knowledge
-
-**Implemented.** Asset → Document → DocumentVersion → DocumentChunk is canonical, durable and provenance-preserving. Knowledge retrieval uses the latest completed document generation.
-
-### MCP / Autonomous Research
-
-**Implemented in stacked layers; current heads await real CI.** MCP registry/policy/schema snapshots, Worker live-contract revalidation and child invocation Tasks are present. PR #36 adds replay-safe Research synthesis/evidence citations; #37 routes Research through Command and projects terminal results/failures back into Conversation.
+**Implemented.** Asset → Document → Version → Chunk is canonical and provenance-preserving. Knowledge reads only the latest completed generation. MCP registry/policy/schema snapshots, Worker live-contract revalidation and child invocation Tasks are present.
 
 ## Block 3 — permanent KAIRO Test Interface v1
 
 **Active implementation: PR #39.**
 
-### Permanent Cockpit
+### Permanent Cockpit / spatial Brain
 
 Implemented:
 
-- stable left navigation;
-- central spatial/specialist working surface;
-- contextual right rail;
-- compact Command Dock and Assistant drawer;
-- universal graph search;
+- stable left navigation, central working surface, contextual right rail and compact Command Dock;
 - same shell in Web and Tauri Desktop;
-- specialist workspaces as views/controls over canonical APIs or sourced projections, not frontend-owned mini-apps.
+- bounded Home/neighborhood/search Graph projections;
+- custom R3F/Three.js mycelium with deterministic Worker layout, instanced nodes, batched filaments and real activity pulses;
+- semantic LOD, adaptive quality and reduced motion;
+- deterministic natural-language focus/isolate directives;
+- KAIRO Brain **3D / Carte 2D / Liste** from the same canonical projection.
 
-Active workspaces: **Projects, Knowledge, KAIRO Brain, Tasks/Gantt, Calendar, Agents, Automations, Finance & Crypto, Tools**.
+### Active specialist workspaces
 
-### Canonical graph / 3D Mycelium / 2D Brain
+Implemented inside the same Cockpit:
 
-Implemented:
+- Projects lifecycle/hierarchy;
+- Tasks / Today / Gantt;
+- weekly Calendar plus sourced external-event overlay substrate;
+- Knowledge/Documents;
+- Agents / Approvals;
+- Automations / Activepieces boundary;
+- Finance & Crypto / read-only Rotki connector;
+- Tools / MCP registry + policy.
 
-- bounded Home/neighborhood/search projections;
-- explicit Relationships + FK-derived structural edges with distinct provenance;
-- custom R3F/Three.js mycelium;
-- deterministic Worker layout and spatial continuity;
-- instanced nodes, batched curved filaments, organic cluster atmosphere;
-- real Outbox-derived activity pulses;
-- semantic LOD, adaptive quality, reduced motion;
-- hover/selection/focus/isolation/type+relation filters;
-- deterministic natural-language `focus_entity` / `isolate_entity` directives;
-- 3D / Carte 2D / Liste accessible from the same `KairoGraphProjection`.
-
-ADR-027/028/033 define graph provenance, stable spatial rendering and presentation-only 2D layout state.
-
-### Projects / Tasks / Today / Gantt / Calendar
-
-Implemented:
-
-- Project lifecycle/hierarchy editing with cycle refusal;
-- canonical Task priority/start/end/due planning facts;
-- deterministic Today ordering: overdue → due today → planned today → high priority;
-- capability execution Tasks excluded from human planning;
-- Gantt and weekly Calendar projected from the same Task facts;
-- owner-scoped external Calendar source/event snapshot substrate with provider provenance.
-
-Actual Google/Microsoft OAuth/polling/free-busy adapters remain to be connected.
-
-### Agents / Approvals
-
-Implemented. Capability-backed Tasks/WorkflowExecutions are projected separately from human work with authority, budget/spend, failures and pending ApprovalRequest controls.
-
-### Automations / Activepieces
-
-Implemented KAIRO-owned AutomationDefinition/AutomationInvocation state. Definitions are owner/Project scoped and created disabled. Activepieces remains an execution adapter behind a SecretReference. The webhook side-effect boundary uses one Temporal attempt; uncertain outcomes become `outcome_ambiguous` instead of blind replay. Controlled full-stack proof code crosses Core → Temporal → Worker → OpenBao → webhook fixture. A real provisioned Activepieces flow still needs provider validation.
-
-### Finance & Crypto / Rotki
-
-Implemented sourced FinanceSource/Account/Position read model, unsigned transaction proposals and a concrete read-only Rotki connector. Rotki credentials stay behind OpenBao and never enter browser or Temporal payloads. Controlled full-stack provider-fixture proof code covers normalization, stable identities, credential non-disclosure and last-good-snapshot preservation. A real Rotki release still needs provider validation.
-
-There is intentionally no sign/send/broadcast API. Future signing must remain behind explicit user/policy approval and an isolated signer/wallet/hardware-wallet boundary.
+Actual Google/Microsoft Calendar adapters, a real provisioned Rotki release and a real Activepieces flow still need provider validation.
 
 ### Desktop / Tauri
 
@@ -141,7 +101,7 @@ Implemented first native slice using the same Cockpit:
 - user-selected WebView file input;
 - fixed `CmdOrCtrl+Shift+Space` summon shortcut that only restores/shows/focuses KAIRO.
 
-Screenshot, microphone/VAD/wake-word/voice, selected-directory scopes and configurable native shortcut registration remain unavailable until their bounded contracts exist.
+Screenshot, microphone/VAD/wake-word/voice and selected-directory scopes remain unavailable until their bounded contracts exist.
 
 ## Authentication and multi-user hardening
 
@@ -150,9 +110,8 @@ Screenshot, microphone/VAD/wake-word/voice, selected-directory scopes and config
 Implemented:
 
 - Keycloak Authorization Code + PKCE S256 before React mounts;
-- bearer-authenticated Core requests;
+- bearer-authenticated Core requests and streamed Graph activity;
 - tokens remain in adapter memory rather than LocalStorage/IndexedDB;
-- bearer-authenticated streamed Graph activity;
 - fail-closed public `/v1/*` auth perimeter;
 - explicit Web/Tauri CORS origins;
 - identity/logout surface in Settings.
@@ -165,41 +124,48 @@ Current branch contains:
 - `0014_project_scoped_control_plane_ownership` — Project/subject DB consistency for Automations, FinanceConnectors and optional Finance proposal Project bindings;
 - `0015_secret_reference_ownership` — personal SecretReference ownership + same-owner connector bindings;
 - `0016_automation_idempotency_scope` — Automation idempotency scoped to one AutomationDefinition;
-- `0017_tool_invocation_ownership` — ToolInvocation owner + subject-local idempotency + Task/Project owner trigger.
+- `0017_tool_invocation_ownership` — ToolInvocation owner + subject-local idempotency + Task/Project owner trigger;
+- `0018_asset_document_ownership` — first-class indexed Asset/Document owners + Project/Asset/Document owner triggers.
 
-ADR-040/041/042 record canonical-world ownership, personal vault semantics and ToolInvocation ownership.
+ADR-040 through ADR-043 record canonical-world ownership, personal vault semantics, ToolInvocation ownership and first-class Asset/Document ownership.
 
-### Personal vault / SecretReference
+### Personal vault / OpenBao
 
 Implemented:
 
 - authenticated users manage only their own SecretReferences;
 - authenticated clients cannot choose arbitrary OpenBao paths;
-- Core allocates a subject-scoped managed KV-v2 path;
-- public SecretReference responses expose only logical handle metadata and **do not expose `provider_path`**;
+- public responses do not expose `provider_path`;
 - write-only value provisioning returns key names/version, never values;
-- explicit irreversible `DELETE /v1/secret-references/{id}/values` destroys KV-v2 versions/metadata;
-- another subject receives 404 for reads/writes/destruction;
-- KAIRO reference deletion is refused while Automations/Finance connectors still use it or OpenBao still contains values;
-- if OpenBao is unavailable, KAIRO refuses metadata deletion rather than pretending the vault is empty;
-- Settings exposes provisioning, explicit destruction and reference deletion as separate actions.
+- explicit irreversible value destruction is distinct from deleting the logical KAIRO reference;
+- reference deletion is refused while connectors still use it, OpenBao still contains values, or OpenBao is unavailable;
+- production policy `infrastructure/openbao/policies/kairo-core-user-secrets.hcl` grants only the managed user-secret data/metadata operations required by KAIRO.
 
 ### MCP control-plane vs user execution
 
 Implemented distinction:
 
 - ToolServer/ToolDefinition remain shared deployment/admin control-plane records;
-- normal `GET /v1/tool-servers` is sanitized and omits endpoint URLs/arbitrary server metadata;
-- ordinary `kairo-user` sessions can inspect shared tool contracts/policy state but do not receive server/policy mutation controls in the Cockpit;
-- `kairo-admin` (and auth-disabled local development) retains registration/policy controls;
+- ordinary ToolServer listings omit endpoint URLs/arbitrary deployment metadata;
+- ordinary users inspect contracts/policy state but do not receive admin mutation controls;
 - ToolInvocation is user-world execution state with explicit subject ownership;
-- direct and Research-generated ToolInvocations preserve the Task→Project owner;
-- PostgreSQL rejects a ToolInvocation bound to a Task owned by another subject;
+- direct and Research-generated ToolInvocations preserve Task→Project ownership;
+- PostgreSQL rejects a ToolInvocation bound to a foreign Task;
 - caller idempotency is subject-local rather than installation-global.
+
+### Assets / Documents
+
+Implemented first-class ownership:
+
+- Asset and Document authorization no longer depends on `metadata_json.owner_subject`;
+- list/detail/content/delete/search paths filter first-class subject columns;
+- Knowledge and Graph consume the same owner fact;
+- PostgreSQL triggers reject future cross-owner Project/Asset/Document bindings;
+- internal document source resolution verifies Document/Asset owner consistency before returning a Worker source.
 
 ### Deployment diagnostics
 
-Installation-wide diagnostics are now explicit admin surfaces:
+Installation-wide diagnostics are admin-only:
 
 - `/v1/system/components`;
 - `/v1/system/architecture`;
@@ -207,31 +173,46 @@ Installation-wide diagnostics are now explicit admin surfaces:
 
 Normal users receive 403; `kairo-admin` retains access. Health/readiness remain orchestrator probes.
 
-### Ownership validation code committed
+## Account data lifecycle
 
-The dedicated Ownership workflow now compiles/runs proof code for:
+ADR-044 defines account erasure as a **cross-store state machine**, not a Project/database cascade.
+
+Implemented first slice:
+
+- `GET /v1/account/data-inventory` — subject-scoped aggregate canonical counts, tracked Asset object count/bytes, projection-ledger count and explicit retention boundaries;
+- `GET /v1/account/export/manifest` — versioned `kairo.account-export-manifest.v1`, currently truthful `manifest_only` with `bundle_export_available=false`;
+- `GET /v1/account/erasure/preflight` — canonical blockers vs complete-erasure blockers;
+- Settings surface showing the same inventory/preflight and allowing local JSON manifest download;
+- no destructive account endpoint is advertised while complete cross-store erasure cannot be guaranteed.
+
+Canonical deletion is blocked while Tasks, Workflows, Approvals, AutomationInvocations or ToolInvocations remain active.
+
+Complete erasure is still blocked by some combination of:
+
+- remaining personal SecretReferences/credential material;
+- missing subject-wide Mem0/Graphiti purge adapter;
+- audit/outbox retention not yet fully subject-addressable;
+- Keycloak identity deletion contract not yet implemented through KAIRO;
+- backup expiry/restore-after-erasure semantics not yet formally verified.
+
+Secret values are deliberately excluded from export; export must never become a secret-readback path.
+
+## Validation code committed
+
+The dedicated Ownership workflow now compiles/schedules proof code for:
 
 - canonical Project/Task/Graph two-user isolation;
 - Assistant/News/Memory/Research two-user isolation;
+- Asset/Document two-user isolation;
 - SecretReference/Automation/Finance connector ownership + credential-retention lifecycle;
-- ToolInvocation source/migration invariants;
-- **ToolInvocation two-user runtime idempotency/read isolation** using one shared logical MCP contract;
-- admin-only deployment diagnostics.
+- ToolInvocation source/migration invariants + two-user idempotency/read isolation;
+- least-privilege OpenBao policy;
+- admin-only deployment diagnostics;
+- account inventory/export/preflight two-user isolation.
 
-The MCP management proof also checks that ordinary shared server listings omit endpoint/metadata topology.
+Graph Interface, Desktop, Research, MCP, Document, Automation and Finance validation suites remain committed as well.
 
-These proofs are **committed but not claimed as passed on the current head** because GitHub still does not assign a runner under issue #38.
-
-## What is implemented but not yet current-head validated
-
-Because of issue #38, the following status is “implemented, awaiting actual execution”, not “production working”:
-
-- migrations 0013–0017 and current ownership changes;
-- current Foundation/Graph/Desktop validation suites;
-- all new two-user/control-plane proofs;
-- current Research #36/#37 stack;
-- current MCP/Document/Automation/Finance controlled integration proofs;
-- current Web + Rust/Tauri build on the latest branch head.
+These proofs are **implemented but not claimed as passed on the current head** because GitHub still does not assign a runner under issue #38.
 
 ## Major work still remaining
 
@@ -240,12 +221,21 @@ Because of issue #38, the following status is “implemented, awaiting actual ex
 1. Resolve GitHub Actions runner allocation issue #38.
 2. Execute #36 → #37 → #39 in order on real runners.
 3. Fix only real executed failures and rerun until green.
-4. Complete the final route/data-lifecycle audit and freeze this stack as one coherent Test Interface baseline.
+4. Finish the remaining cross-store lifecycle/retention contracts and freeze this stack as one coherent Test Interface baseline.
+
+### Account lifecycle / commercial multi-user
+
+- subject-wide idempotent Mem0/Graphiti purge with evidence;
+- formal audit/outbox subject indexing, retention/redaction or justified bounded retention;
+- Keycloak account deletion/disable contract;
+- verified backup expiry and restore-after-erasure semantics;
+- full portable canonical export bundle beyond the current manifest;
+- eventual replay-safe destructive deletion ledger spanning PostgreSQL, SeaweedFS and OpenBao.
 
 ### Provider work
 
 - Google/Microsoft Calendar OAuth, polling and free/busy adapters;
-- validate Rotki adapter against a provisioned real release/version;
+- validate Rotki against a real provisioned release/version;
 - validate an actual Activepieces flow;
 - add exchange/wallet Finance adapters only where useful.
 
@@ -256,40 +246,26 @@ Because of issue #38, the following status is “implemented, awaiting actual ex
 - microphone/VAD/transcription/voice + visible recording state;
 - selected-directory/watched-folder access with bounded scopes.
 
-### Brain / collaboration
+### Brain / collaboration / Developer
 
-- audited canonical relationship/domain editing;
-- richer collaborative authoring on top of canonical mutations rather than presentation-only graph moves.
-
-### Finance signing
-
-- explicit isolated signer / hardware-wallet / user-wallet handoff UX;
-- still no agent-accessible private-key custody or generic sign/send/broadcast path.
-
-### Developer / computer use
-
+- audited canonical relationship/domain editing and richer collaboration;
 - browser/computer-use specialist capabilities;
 - production-grade isolation for untrusted code/actions.
 
-### Production operations / commercial multi-user
+### Finance signing / production operations
 
-- finish route-by-route ownership/control-plane classification;
-- define full account export/deletion lifecycle across PostgreSQL, SeaweedFS, OpenBao and rebuildable projections;
-- least-privilege production OpenBao policy for only the managed KAIRO user-secret data/metadata paths/actions;
+- isolated signer / hardware-wallet / explicit wallet handoff; still no agent private-key custody or generic sign/send/broadcast path;
 - TLS/reverse proxy/private-network policy;
-- real workload identities instead of development tokens;
-- untrusted execution isolation;
-- verified encrypted off-host recovery;
-- provider-specific rate limits/retries/credential lifecycle;
-- current-head validation on supported OS/runtime combinations.
+- production workload identities rather than development tokens;
+- verified encrypted off-host recovery and provider-specific rate-limit/retry/credential lifecycle.
 
 ## Current implementation order
 
-1. **Finish the narrow remaining route/data-lifecycle audit.**
+1. **Finish cross-store lifecycle/retention boundaries without changing the Cockpit architecture.**
 2. **Restore real CI execution and validate the entire stacked baseline.**
-3. **Freeze Test Interface v1 as the coherent daily-use test baseline; do not replace its UI architecture.**
-4. Connect real Calendar / Rotki / Activepieces providers to the already-defined boundaries.
+3. **Freeze Test Interface v1 as the coherent daily-use test baseline.**
+4. Connect real Calendar / Rotki / Activepieces providers.
 5. Continue Tauri with screenshot → microphone/voice as separate permissioned capabilities.
 6. Add isolated signing and Developer/computer-use only behind explicit policy/audit boundaries.
 
-The Block 3 goal is not “a pretty graph”. It is one stable KAIRO environment in which every visible object, relationship, activity pulse, external observation and specialist workspace remains traceable to KAIRO-owned canonical state, provenance, identity and policy boundaries.
+The Block 3 goal is one stable KAIRO environment in which every visible object, relationship, activity pulse, external observation and specialist workspace remains traceable to KAIRO-owned canonical state, provenance, identity, retention and policy boundaries.
