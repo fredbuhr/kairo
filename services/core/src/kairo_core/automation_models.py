@@ -8,6 +8,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -51,6 +52,12 @@ class AutomationDefinition(Base):
 
     __table_args__ = (
         UniqueConstraint("keycloak_subject", "key", name="uq_automation_definition_subject_key"),
+        ForeignKeyConstraint(
+            ["webhook_secret_reference_id", "keycloak_subject"],
+            ["secret_references.id", "secret_references.keycloak_subject"],
+            name="fk_automation_definitions_secret_subject",
+            ondelete="RESTRICT",
+        ),
         Index("ix_automation_definitions_subject_enabled", "keycloak_subject", "enabled"),
         Index("ix_automation_definitions_project", "project_id", "created_at"),
     )
