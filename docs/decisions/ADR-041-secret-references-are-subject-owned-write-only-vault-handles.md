@@ -19,8 +19,8 @@ introduced in ADR-040:
 - a globally unique caller-selected Automation idempotency key created an unnecessary cross-tenant
   collision namespace.
 
-Secret values themselves were already kept out of PostgreSQL, but metadata isolation and provisioning
-also need an explicit ownership contract.
+Secret values themselves were already kept out of PostgreSQL, but metadata isolation, provisioning
+and retention also need an explicit ownership contract.
 
 ## Decision
 
@@ -59,6 +59,34 @@ The web form clears its local value fields after a successful write. There is de
 API that reads secret values back into the browser. Internal connector adapters may resolve one named
 value at execution time through the existing Core-owned OpenBao client.
 
+### Explicit destruction and reference deletion
+
+Removing a PostgreSQL reference and destroying vault material are **two distinct actions**.
+
+`DELETE /v1/secret-references/{id}/values` is the explicit irreversible revocation operation. Core:
+
+- verifies the reference belongs to the authenticated subject;
+- reads only status metadata (existence, key names and current version);
+- permanently deletes the KV-v2 metadata/all versions through the corresponding OpenBao metadata path;
+- records only the previous key names/version/existence in audit and domain events;
+- never reads a secret value into the browser, audit, NATS or PostgreSQL.
+
+This operation is allowed even if a connector still references the handle. That is intentional: a user
+must be able to revoke credentials immediately. Future executions then fail closed when the provider
+value cannot be resolved.
+
+`DELETE /v1/secret-references/{id}` removes only the KAIRO reference record and is stricter. Core
+refuses deletion while:
+
+- any AutomationDefinition or FinanceConnector still references the handle; or
+- OpenBao still reports values for the path.
+
+If OpenBao is unavailable, Core refuses to delete the reference because it cannot prove the provider
+material is absent. This prevents the UI from claiming a credential was removed while leaving orphaned
+secret material behind.
+
+The Settings UI exposes these actions separately and requires explicit confirmation for destruction.
+
 ### Same-owner connector binding
 
 Database constraints bind both Automation definitions and Finance connectors to a SecretReference
@@ -84,14 +112,21 @@ therefore choose the same human-readable key without learning about or blocking 
 - Secret values remain absent from PostgreSQL, Temporal payloads, NATS domain events and API reads.
 - Connector ownership is enforced both in handlers and in PostgreSQL.
 - Caller-selected idempotency strings no longer form a cross-tenant namespace.
+- Credential revocation is explicit and can occur even before a connector definition is removed.
+- Deleting a KAIRO reference cannot silently orphan still-existing vault material.
 
 ### Trade-offs
 
 - KAIRO Core still holds a workload credential capable of reaching the managed OpenBao hierarchy;
-  production OpenBao policy must constrain that workload to the KAIRO-managed prefix.
+  production OpenBao policy must constrain that workload to the KAIRO-managed prefix, including the
+  minimum KV-v2 data/metadata operations needed for write/status/destruction.
 - The first provisioning operation replaces the submitted KV-v2 data set. Partial/merge semantics,
   if needed, require an explicit future contract rather than implicit read-modify-write in the UI.
-- Deleting a SecretReference that is still used by a connector fails closed with a conflict.
+- Destruction is intentionally irreversible and may make an enabled connector fail until new values
+  are provisioned.
+- Cross-system PostgreSQL/OpenBao operations cannot be one atomic transaction. The design therefore
+  makes provider destruction explicit and requires provider absence before reference deletion rather
+  than pretending the two stores can commit atomically.
 - Migration 0015 refuses to guess ownership if a legacy SecretReference is already shared by more
   than one authenticated subject; such data must be separated intentionally.
 
@@ -109,6 +144,12 @@ Rejected because a reference API must not become a path-selection oracle into de
 ### Return secret values so users can verify them
 
 Rejected. Status is represented by existence, key names and version. Rotation is write-only.
+
+### Silently destroy OpenBao values when deleting the database reference
+
+Rejected because a database delete could fail after the irreversible provider-side action, and because
+removing metadata from KAIRO should not disguise a credential-destruction decision. Revocation and
+reference deletion are explicit separate operations.
 
 ### Store encrypted values in PostgreSQL
 
