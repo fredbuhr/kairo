@@ -10,8 +10,9 @@ import {
   type ProjectRecord,
   type TaskRecord,
 } from '../../lib/api'
+import { KnowledgeWorkspace } from './KnowledgeWorkspace'
 
-export type CoreWorkspaceMode = 'projects' | 'tasks'
+export type CoreWorkspaceMode = 'projects' | 'tasks' | 'knowledge'
 
 function shortDate(value: string) {
   try {
@@ -251,11 +252,16 @@ export function CoreWorkspace({
   onExploreEntity: (entity: KairoGraphEntityRef) => void
 }) {
   const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects, staleTime: 8000 })
-  const tasksQuery = useQuery({ queryKey: ['tasks'], queryFn: fetchTasks, staleTime: 6000 })
+  const tasksQuery = useQuery({
+    queryKey: ['tasks'],
+    queryFn: fetchTasks,
+    staleTime: 6000,
+    enabled: mode !== 'knowledge',
+  })
   const projects = projectsQuery.data || []
   const tasks = tasksQuery.data || []
-  const loading = projectsQuery.isLoading || tasksQuery.isLoading
-  const error = projectsQuery.error || tasksQuery.error
+  const loading = projectsQuery.isLoading || (mode !== 'knowledge' && tasksQuery.isLoading)
+  const error = projectsQuery.error || (mode !== 'knowledge' ? tasksQuery.error : null)
 
   if (loading) {
     return <div className="workspace-state"><span className="kairo-kicker">KAIRO</span><strong>Chargement du cockpit…</strong></div>
@@ -264,6 +270,9 @@ export function CoreWorkspace({
     return <div className="workspace-state workspace-state-error"><strong>Impossible de charger cet espace.</strong><span>{error instanceof Error ? error.message : 'Erreur KAIRO Core.'}</span></div>
   }
 
+  if (mode === 'knowledge') {
+    return <KnowledgeWorkspace projects={projects} onExploreEntity={onExploreEntity} />
+  }
   return mode === 'projects'
     ? <ProjectsWorkspace projects={projects} tasks={tasks} onExploreEntity={onExploreEntity} />
     : <TasksWorkspace projects={projects} tasks={tasks} onExploreEntity={onExploreEntity} />
