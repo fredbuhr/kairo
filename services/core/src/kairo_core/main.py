@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +13,12 @@ from . import __version__
 from .approval_signals import router as approval_signals_router
 from .assistant import router as assistant_router
 from .assets import router as assets_router
+from .auth import (
+    Principal,
+    authenticate_authorization_header,
+    principal_is_kairo_user,
+    require_kairo_user,
+)
 from .automations import router as automations_router
 from .autonomy import router as autonomy_router
 from .calendar_external import router as calendar_external_router
@@ -66,6 +73,38 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="KAIRO Core", version=__version__, lifespan=lifespan)
+
+
+@app.middleware("http")
+async def authenticated_public_api_perimeter(request: Request, call_next):
+    """Fail closed for every public `/v1` route, including newly added routers.
+
+    Internal Worker/connector routes live under `/internal/v1` and keep their separate internal-token
+    boundary. Health endpoints remain unauthenticated for orchestrator readiness. CORS preflights are
+    allowed through to CORSMiddleware without requiring a bearer token.
+    """
+
+    if request.method == "OPTIONS" or not request.url.path.startswith("/v1/"):
+        return await call_next(request)
+
+    try:
+        principal = await authenticate_authorization_header(request.headers.get("authorization"))
+    except HTTPException as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=exc.headers or {},
+        )
+
+    if not principal_is_kairo_user(principal):
+        return JSONResponse(status_code=403, content={"detail": "KAIRO user role required"})
+
+    request.state.principal = principal
+    return await call_next(request)
+
+
+# Keep CORS outside the auth perimeter so even 401/403 responses carry the browser-visible CORS
+# headers for explicitly allowed KAIRO Web/Desktop origins.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in settings.kairo_cors_origins.split(",") if origin.strip()],
@@ -193,6 +232,7 @@ async def architecture() -> dict[str, object]:
         "event_bus": "nats-jetstream",
         "event_delivery": "transactional-outbox-at-least-once",
         "identity": "keycloak-jwt-jwks",
+        "public_api_authentication": "fail-closed-v1-bearer-perimeter",
         "secret_values": "openbao",
         "conversation_state": "postgresql",
         "canonical_documents": "postgresql-document-version-chunks",
@@ -249,7 +289,9 @@ async def outbox_stats(
 
 @app.post("/v1/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 async def create_project(
-    body: ProjectCreate, session: AsyncSession = Depends(get_session)
+    body: ProjectCreate,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> Project:
     correlation_id = uuid.uuid4()
     if body.parent_id and not await session.get(Project, body.parent_id):
@@ -268,7 +310,7 @@ async def create_project(
     await append_audit(
         session,
         actor_type="user",
-        actor_id=None,
+        actor_id=principal.subject,
         action="project.create",
         resource_type="project",
         resource_id=str(project.id),
@@ -282,13 +324,20 @@ async def create_project(
 
 
 @app.get("/v1/projects", response_model=list[ProjectRead])
-async def list_projects(session: AsyncSession = Depends(get_session)) -> list[Project]:
+async def list_projects(
+    _: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[Project]:
     rows = await session.execute(select(Project).order_by(Project.created_at.desc()))
     return list(rows.scalars())
 
 
 @app.post("/v1/tasks", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
-async def create_task(body: TaskCreate, session: AsyncSession = Depends(get_session)) -> Task:
+async def create_task(
+    body: TaskCreate,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> Task:
     if not await session.get(Project, body.project_id):
         raise HTTPException(status_code=404, detail="Project not found")
     correlation_id = uuid.uuid4()
@@ -306,7 +355,7 @@ async def create_task(body: TaskCreate, session: AsyncSession = Depends(get_sess
     await append_audit(
         session,
         actor_type="user",
-        actor_id=None,
+        actor_id=principal.subject,
         action="task.create",
         resource_type="task",
         resource_id=str(task.id),
@@ -320,13 +369,20 @@ async def create_task(body: TaskCreate, session: AsyncSession = Depends(get_sess
 
 
 @app.get("/v1/tasks", response_model=list[TaskRead])
-async def list_tasks(session: AsyncSession = Depends(get_session)) -> list[Task]:
+async def list_tasks(
+    _: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[Task]:
     rows = await session.execute(select(Task).order_by(Task.created_at.desc()))
     return list(rows.scalars())
 
 
 @app.get("/v1/tasks/{task_id}", response_model=TaskRead)
-async def get_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_session)) -> Task:
+async def get_task(
+    task_id: uuid.UUID,
+    _: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> Task:
     task = await session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -335,7 +391,9 @@ async def get_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
 
 @app.post("/v1/relationships", response_model=RelationshipRead, status_code=status.HTTP_201_CREATED)
 async def create_relationship(
-    body: RelationshipCreate, session: AsyncSession = Depends(get_session)
+    body: RelationshipCreate,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> RelationshipRecord:
     correlation_id = uuid.uuid4()
     relationship = RelationshipRecord(
@@ -366,7 +424,7 @@ async def create_relationship(
     await append_audit(
         session,
         actor_type="user",
-        actor_id=None,
+        actor_id=principal.subject,
         action="relationship.create",
         resource_type="relationship",
         resource_id=str(relationship.id),
