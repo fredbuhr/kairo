@@ -94,13 +94,15 @@ Assistant, News, Documents and Memory use stable per-subject system Projects. `e
 
 Migration `0014_project_scoped_control_plane_ownership` adds database ownership invariants for AutomationDefinition and FinanceConnector `(project_id, keycloak_subject)` bindings plus the nullable Finance transaction-proposal Project invariant.
 
-The corresponding public Finance proposal handler is now also owner-scoped: an optional `project_id` must pass `require_owned_project(...)` before the draft is created. The API therefore returns the intended 404 for a foreign Project rather than depending on PostgreSQL as the final product-level guard.
+The public Finance proposal handler is now also owner-scoped: an optional `project_id` must pass `require_owned_project(...)` before the draft is created. The API therefore returns the intended 404 for a foreign Project rather than depending on PostgreSQL as the final product-level guard.
 
-### Personal secret vault handles and retention
+### Personal secret vault handles, disclosure and retention
 
 Migration `0015_secret_reference_ownership` and ADR-041 establish subject-owned SecretReferences, generated KAIRO-managed OpenBao paths, bounded write-only provisioning, same-owner Automation/Finance connector bindings and normal-user management of personal connector credentials without global admin rights.
 
-The retention boundary is now explicit as well:
+The public `SecretReferenceRead` contract no longer exposes `provider_path`. Browser surfaces receive the logical handle (`id`, name, purpose, timestamps) and status metadata only; the managed OpenBao namespace stays inside Core. Finance/Automation selectors use the logical name/purpose rather than vault topology.
+
+The retention boundary is explicit:
 
 - `DELETE /v1/secret-references/{id}/values` is the deliberate irreversible KV-v2 destruction action;
 - it removes OpenBao metadata/all versions and records only previous key names/version/existence;
@@ -112,7 +114,7 @@ The retention boundary is now explicit as well:
 
 The permanent Settings `Connexions & secrets` surface exposes value destruction and reference deletion as separate confirmed actions. It never offers secret-value readback.
 
-The two-user SecretReference proof now includes a dedicated unused credential lifecycle: provision → foreign-destruction refusal → reference-delete refusal while populated → explicit value destruction → empty status → reference deletion.
+The two-user SecretReference proof now checks vault-path non-disclosure and includes a dedicated unused credential lifecycle: provision → foreign-destruction refusal → reference-delete refusal while populated → explicit value destruction → empty status → reference deletion.
 
 ### Automation idempotency tenant boundary
 
@@ -120,24 +122,27 @@ Migration `0016_automation_idempotency_scope` changes Automation invocation uniq
 
 ### ToolInvocation execution ownership
 
-A further audit pass found the same class of problem in MCP invocation history: ToolServer/ToolDefinition are intentionally shared control-plane records, but a ToolInvocation is user-world execution state tied to a Task → Project.
+Migration `0017_tool_invocation_ownership` and ADR-042 establish that ToolServer/ToolDefinition are shared control-plane state while ToolInvocation is user-world execution state:
 
-Migration `0017_tool_invocation_ownership` and ADR-042 now establish:
+- `ToolInvocation.keycloak_subject` is backfilled from Task → Project;
+- migration fails closed if an owner cannot be derived;
+- idempotency uniqueness is `(keycloak_subject, idempotency_key)`, not global;
+- a PostgreSQL trigger rejects ToolInvocation ↔ Task bindings whose Project owner differs;
+- public creation/replay/detail reads are owner scoped;
+- Worker execution verifies ToolInvocation owner == Task Project owner;
+- Research child ToolInvocations derive/preserve the parent Research Project owner;
+- Research evidence lookup rejects stale/cross-owner child bindings.
 
-- `ToolInvocation.keycloak_subject` backfilled from Task → Project;
-- fail-closed migration if an existing invocation has no derivable owner;
-- subject-local `(keycloak_subject, idempotency_key)` uniqueness instead of a deployment-global caller namespace;
-- a PostgreSQL trigger that rejects ToolInvocation ↔ Task bindings whose Project owner differs;
-- owner-scoped public creation/replay lookup and detail reads;
-- an internal Worker binding check requiring ToolInvocation owner == Task Project owner;
-- Research child ToolInvocations deriving and preserving the parent Research Project owner;
-- Research result inspection rejecting stale/cross-owner child invocation bindings.
+Two complementary proofs are committed:
 
-A lightweight source/migration proof, `scripts/smoke/tool_invocation_ownership_contract.py`, checks every current ToolInvocation constructor, the subject-local uniqueness contract and the database trigger. A true two-user runtime proof for the shared-tool/same-idempotency scenario is still required once the hosted CI environment is executable.
+- `tool_invocation_ownership_contract.py` checks current constructors, migration uniqueness and DB trigger statically;
+- `multi_user_tool_invocation_ownership.py` creates one shared read-only MCP contract and verifies two real Keycloak subjects can reuse the same caller idempotency key without collision, same-subject replay remains stable, changed-input rebinding fails and foreign invocation IDs return 404.
+
+These are proof **implementations**; current hosted CI has not executed them yet because of issue #38.
 
 ### MCP shared control-plane disclosure
 
-ToolServer/ToolDefinition remain intentionally deployment-global/admin-managed, but ordinary users no longer receive the full deployment transport record from `GET /v1/tool-servers`. The user-facing response is now a sanitized summary containing logical identity, namespace, transport kind, enabled state and catalog generation while omitting `endpoint_url` and arbitrary `metadata_json`.
+ToolServer/ToolDefinition remain intentionally deployment-global/admin-managed, but ordinary users no longer receive the full deployment transport record from `GET /v1/tool-servers`. The user-facing response is a sanitized summary containing logical identity, namespace, transport kind, enabled state and catalog generation while omitting `endpoint_url` and arbitrary `metadata_json`.
 
 The MCP management smoke proof checks that split explicitly: admin creation returns the full record, while the shared registry list omits endpoint/metadata details.
 
@@ -145,15 +150,13 @@ The Tools Cockpit follows the same boundary. Ordinary `kairo-user` sessions may 
 
 ### Deployment diagnostics are admin-only
 
-A route review found three installation-wide diagnostics that were authenticated but still visible to every `kairo-user`:
+The route review found installation-wide diagnostics that were authenticated but still visible to every `kairo-user`:
 
 - `/v1/system/components`;
 - `/v1/system/architecture`;
 - `/v1/system/outbox`.
 
-These endpoints describe global deployment components, trust-boundary architecture or installation-wide event-delivery counts rather than one user's world. They now require `kairo-admin` explicitly. Health/readiness probes remain separate orchestrator endpoints rather than becoming a user-world data surface.
-
-`scripts/smoke/control_plane_visibility.py` uses the two development Keycloak identities to require 200 for the admin identity and 403 for the ordinary user on all three deployment diagnostics.
+They now require `kairo-admin` explicitly. `control_plane_visibility.py` uses the two development identities to require admin 200 / normal-user 403 on all three. Health/readiness remain orchestrator probes.
 
 ### Two-user validation fixtures
 
@@ -162,7 +165,7 @@ The local Keycloak realm contains two deterministic development identities:
 - `kairo-dev` (user/admin);
 - `kairo-alt` (user only).
 
-Committed runtime proofs use both identities against the same services for canonical Project/Task/Graph isolation, Assistant/News/Memory/Research isolation, SecretReference/Automation/Finance connector isolation and deployment-diagnostic visibility. The Ownership workflow also runs the ToolInvocation static ownership contract before starting the integration stack.
+The dedicated Ownership workflow now compiles and schedules runtime proofs for canonical Project/Task/Graph isolation, Assistant/News/Memory/Research isolation, SecretReference/Automation/Finance connector isolation+retention, ToolInvocation two-user idempotency/read isolation and deployment-diagnostic visibility. It also runs the ToolInvocation source/migration contract before starting the integration stack.
 
 ## Implemented but not yet proven on the current head
 
@@ -171,10 +174,10 @@ All of the following have proof/build code committed, but current hosted CI has 
 - current Foundation substrate and ownership changes;
 - migrations `0013`–`0017`;
 - Graph Interface build/integration jobs;
-- existing two-user isolation proofs;
+- all current two-user ownership proofs;
 - explicit OpenBao value destruction/reference-retention proof;
 - admin-only deployment diagnostics proof;
-- ToolInvocation source/migration contract on a hosted runner and a future two-user runtime ToolInvocation proof;
+- ToolInvocation source/migration and two-user runtime proofs;
 - sanitized MCP shared registry response;
 - Desktop Rust/Tauri build;
 - current Research synthesis/handoff stack;
@@ -190,17 +193,16 @@ The correct status is therefore **implemented, awaiting real-runner validation**
 - the stacked #36 → #37 → #39 chain remains unmerged;
 - current-head implementation must not be called validated until jobs actually execute.
 
-### Ownership/control-plane audit still open
+### Final ownership / data-lifecycle audit
 
-The broad user-world ownership paths, personal connector secrets/retention, shared MCP disclosure, deployment diagnostics and two concrete idempotency namespaces are now covered. The final commercial multi-user audit is narrower:
+The broad user-world ownership paths, personal connector secrets/retention, shared MCP disclosure, deployment diagnostics and caller-controlled idempotency namespaces are now covered. The final commercial multi-user audit is narrower:
 
 - finish route-by-route classification of every remaining public object as subject-owned, Project-root-owned or intentionally shared control-plane state;
-- add a real two-user ToolInvocation idempotency/read-isolation proof once the integration environment can execute it;
-- keep handler-level 404 behavior aligned with database constraints for every newly added Project-bound route;
+- keep handler-level 404 behavior aligned with database constraints for future Project-bound routes;
 - confirm the production OpenBao workload policy grants only the KAIRO-managed data/metadata operations required by provisioning/status/destruction;
-- define account-deletion/export retention semantics across PostgreSQL, SeaweedFS, OpenBao and rebuildable projections rather than treating per-secret deletion as the whole data-lifecycle policy.
+- define account export/deletion retention across PostgreSQL, SeaweedFS, OpenBao and rebuildable projections rather than treating per-secret deletion as the whole user-data lifecycle.
 
-Centrally managed MCP ToolServer/ToolDefinition records remain intentionally deployment-global/admin-controlled; they must remain shared control-plane state rather than personal graph entities unless a future personal-MCP ownership model is explicitly introduced.
+Centrally managed MCP ToolServer/ToolDefinition records remain intentionally deployment-global/admin-controlled; they must remain shared control-plane state unless a future personal-MCP ownership model is explicitly introduced.
 
 ### Provider integrations
 
@@ -242,9 +244,9 @@ Centrally managed MCP ToolServer/ToolDefinition records remain intentionally dep
 
 Still required before commercial multi-user deployment:
 
-- close the remaining ownership/data-lifecycle audit and add regression proofs;
+- close the remaining route/data-lifecycle audit and add regression proofs;
 - TLS/reverse proxy and private-network policy;
-- least-privilege production OpenBao workload policy for the managed KAIRO user-secret prefix;
+- least-privilege production OpenBao workload policy;
 - untrusted execution isolation;
 - real workload identities rather than development tokens;
 - verified encrypted off-host recovery;
