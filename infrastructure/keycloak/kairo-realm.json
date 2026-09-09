@@ -44,6 +44,18 @@
       "credentials": [
         {"type": "password", "value": "kairo-dev", "temporary": false}
       ]
+    },
+    {
+      "username": "kairo-alt",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "KAIRO",
+      "lastName": "Isolation Fixture",
+      "email": "kairo-alt@localhost",
+      "realmRoles": ["kairo-user"],
+      "credentials": [
+        {"type": "password", "value": "kairo-alt", "temporary": false}
+      ]
     }
   ]
 }
