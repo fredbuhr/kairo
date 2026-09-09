@@ -78,6 +78,9 @@ def main() -> None:
     assert "DROP CONSTRAINT IF EXISTS tool_invocations_idempotency_key_key" in migration_text
     assert "uq_tool_invocation_subject_idempotency" in migration_text
     assert "ToolInvocation ownership could not be derived from Task -> Project" in migration_text
+    assert "kairo_enforce_tool_invocation_task_owner" in migration_text
+    assert "trg_tool_invocation_task_owner" in migration_text
+    assert "project.keycloak_subject = NEW.keycloak_subject" in migration_text
 
     print(
         "KAIRO ToolInvocation ownership contract proof passed: "
