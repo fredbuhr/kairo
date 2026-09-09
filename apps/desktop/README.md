@@ -11,7 +11,10 @@ Implemented now:
 - Tauri v2 shell loading `apps/web` in development and bundling the same web build for desktop;
 - a small KAIRO-owned IPC bridge that reports local capabilities;
 - explicit clipboard read/write commands;
-- explicit local notification command with permission requested only when the user actually invokes it;
+- explicit local notification command with permission requested only when notification delivery is actually invoked;
+- an opt-in **background attention notification** preference in Settings;
+- realtime KAIRO activity may produce native notifications only for a bounded set of approval/completion/failure events, only when the desktop window is not active, and only after the user enabled that preference;
+- duplicate realtime event ids are suppressed locally so reconnect/replay does not create duplicate native attention notifications;
 - fixed native summon shortcut `CmdOrCtrl+Shift+Space`, registered in Rust and limited to restoring/showing/focusing the KAIRO window;
 - browser/WebView file input remains the only file-import path, so broad filesystem permissions are **not** granted;
 - Settings displays the actual runtime and capability state.
@@ -46,5 +49,7 @@ pnpm build:desktop
 ## Trust model
 
 The browser-compatible React application owns UI interaction state only. Native capabilities are invoked through typed, bounded Tauri commands. The frontend does not receive a generic Rust command channel, shell execution authority, unrestricted filesystem scopes, shortcut-registration authority or signing material.
+
+Realtime attention notifications are also deliberately bounded. Enabling them does not grant arbitrary notification generation to an agent: the current bridge reacts only to KAIRO's sanitized canonical activity stream and a fixed allow-list of event classes. Foreground activity remains visible in the Cockpit without generating redundant OS notifications.
 
 The desktop shell is therefore an extension of the permanent Cockpit, not a place to bypass KAIRO Core policy. Future device actions that can affect external state must still cross the appropriate KAIRO policy/approval boundary.
