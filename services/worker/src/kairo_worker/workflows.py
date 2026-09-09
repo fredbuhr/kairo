@@ -10,7 +10,7 @@ with workflow.unsafe.imports_passed_through():
     from .automation_runtime import fail_automation_invocation, perform_automation_invocation
     from .document_ingestion import perform_document_ingestion
     from .finance_connector_runtime import perform_finance_rotki_sync
-    from .memory_projection import perform_memory_projection
+    from .memory_projection import perform_memory_projection, perform_memory_purge
     from .news_activity import perform_news_brief
     from .policy_activities import check_policy_gate
     from .research_agent import perform_autonomous_research
@@ -173,6 +173,17 @@ class TaskExecutionWorkflow:
             elif capability == "memory.project":
                 result = await workflow.execute_activity(
                     perform_memory_projection,
+                    work_payload,
+                    start_to_close_timeout=timedelta(minutes=5),
+                    heartbeat_timeout=timedelta(seconds=120),
+                    retry_policy=ACTIVITY_RETRY,
+                )
+            elif capability == "memory.purge":
+                # Derived memory deletion is intentionally retryable/idempotent: both Mem0's
+                # subject-scoped delete_all and Graphiti's group deletion can be repeated safely.
+                # Canonical conversations are never deleted by this capability.
+                result = await workflow.execute_activity(
+                    perform_memory_purge,
                     work_payload,
                     start_to_close_timeout=timedelta(minutes=5),
                     heartbeat_timeout=timedelta(seconds=120),
