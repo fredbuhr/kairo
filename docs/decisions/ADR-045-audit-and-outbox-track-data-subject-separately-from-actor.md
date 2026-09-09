@@ -27,7 +27,7 @@ Deployment-scoped records such as ToolServer, ToolDefinition, capability metadat
 
 This distinction is intentional. Deleting an administrator's personal KAIRO world must not silently delete the installation's shared MCP policy history merely because that administrator changed it.
 
-The administrator identity may still appear as `AuditRecord.actor_id`; account lifecycle counts those shared audit actor references separately because they require a retention/redaction decision rather than user-world cascade semantics.
+The administrator identity may still appear as `AuditRecord.actor_id`; account lifecycle counts those shared audit actor references separately because they require redaction rather than user-world cascade semantics.
 
 ### Central canonical owner resolver
 
@@ -61,7 +61,7 @@ Shared/non-UUID/system records remain NULL rather than being guessed from an act
 
 ### Graph activity uses ownership at the first query boundary
 
-`GET /v1/graph/activity/stream` now queries only Outbox rows where `keycloak_subject == Principal.subject`.
+`GET /v1/graph/activity/stream` queries only Outbox rows where `keycloak_subject == Principal.subject`.
 
 `Last-Event-ID` cursor lookup uses the same owner predicate so a foreign event UUID cannot influence another user's stream cursor.
 
@@ -69,7 +69,7 @@ Entity-level graph ownership validation remains after this SQL filter as defense
 
 ### Account lifecycle inventory
 
-`GET /v1/account/data-inventory` now reports a separate evidence section:
+`GET /v1/account/data-inventory` reports a separate evidence section:
 
 - subject-owned Audit rows;
 - shared Audit rows that still reference the user as actor;
@@ -78,21 +78,19 @@ Entity-level graph ownership validation remains after this SQL filter as defense
 
 This is evidence inventory, not part of the canonical domain-row total.
 
-`GET /v1/account/erasure/preflight` no longer claims Audit/Outbox are unaddressable. Instead it reports `audit_outbox_retention_policy_not_applied`: the rows can now be addressed by subject, but the final commercial delete/redact/retain behavior is deliberately not implemented yet.
+ADR-047 now defines the explicit account-evidence retention action that consumes this ownership information. Consequently `GET /v1/account/erasure/preflight` reports `audit_outbox_retention_required` only while subject-addressable evidence remains; the blocker is marked user-resolvable through the bounded retention operation.
 
-## Retention rule still outstanding
+## Retention follow-up implemented by ADR-047
 
-Subject addressability does **not** itself authorize deletion.
+Subject addressability does **not** itself authorize arbitrary deletion. ADR-047 defines the concrete erasure-preparation behavior:
 
-Before KAIRO can claim complete account erasure, a separate retention policy/action must define at least:
+- exact JetStream transport copies are reconciled before their PostgreSQL Outbox rows are removed;
+- historical published rows without a receipt must age beyond verified bounded transport retention rather than guessing a sequence;
+- subject-owned Audit rows are irreversibly minimized to coarse non-personal operational facts;
+- shared administrative Audit rows keep shared resource history but remove/redact the erased user's actor identity;
+- a neutral aggregate retention receipt must not introduce a stable hash/HMAC of the erased subject.
 
-- what happens to subject-owned Audit evidence;
-- whether published Outbox rows are deleted, minimized or retained for a bounded period;
-- how shared administrative Audit rows pseudonymize/redact `actor_id` when the actor's account is erased;
-- whether any legally/financially required evidence has a distinct retention class;
-- how restored backups reapply an erasure/tombstone so deleted personal data is not resurrected.
-
-Until then, the account-erasure preflight remains blocked and `retention_action_available=false`.
+This closes the Audit/Outbox **product retention action** while leaving complete account erasure blocked on independent Keycloak and backup/restore boundaries.
 
 ## Validation
 
@@ -104,11 +102,13 @@ Until then, the account-erasure preflight remains blocked and `retention_action_
 - the direct ConversationMessage listener owner binding;
 - migration 0019 backfill structure;
 - subject-first Graph SSE and Last-Event-ID queries;
-- account lifecycle evidence accounting and the truthful retention blocker.
+- account lifecycle evidence accounting.
 
-`scripts/smoke/multi_user_account_lifecycle.py` verifies at runtime that creating one Project and one Task for user A increments only A's subject-owned Audit/Outbox evidence counts while user B remains unchanged.
+`scripts/smoke/evidence_retention_contract.py` separately checks the ADR-047 retention boundary: transport-first reconciliation, active-work refusal, bounded batches, historical expiry fallback, Audit minimization and neutral receipt behavior.
 
-Both proofs are scheduled in the dedicated Ownership workflow. Current GitHub-hosted CI remains blocked before runner assignment by issue #38, so this contract is implemented but not yet current-head validated.
+`scripts/smoke/multi_user_account_lifecycle.py` verifies at runtime that creating one Project and one Task for user A increments only A's subject-owned Audit/Outbox evidence counts while user B remains unchanged, and that the resulting retention blocker is user-resolvable.
+
+These proofs are scheduled in the dedicated Ownership workflow. Current GitHub-hosted CI remains blocked before runner assignment by issue #38, so the contracts are implemented but not yet current-head validated.
 
 ## Consequences
 
@@ -119,14 +119,15 @@ Both proofs are scheduled in the dedicated Ownership workflow. Current GitHub-ho
 - shared deployment policy history stays shared;
 - live Graph activity begins with a subject-scoped SQL query instead of an installation-wide scan;
 - foreign Outbox cursor IDs cannot influence another user's SSE stream;
-- historical resolvable evidence gains ownership without guessing ambiguous records.
+- historical resolvable evidence gains ownership without guessing ambiguous records;
+- ADR-047 can now operate on an explicit data-subject boundary rather than late payload inference.
 
 ### Trade-offs
 
 - the owner resolver adds one canonical ownership query when event/audit callers do not already supply the owner;
 - nullable ownership remains necessary for shared/system evidence;
-- shared Audit actor references still require a later redaction/retention action;
-- adding new user-world aggregate types requires adding them to the central resolver and regression proof.
+- adding new user-world aggregate types requires adding them to the central resolver and regression proof;
+- retention semantics remain deliberately separate from ownership semantics so future regulated retention classes do not weaken tenant isolation.
 
 ## Rejected alternatives
 
@@ -142,6 +143,6 @@ Rejected because late parsing of arbitrary resource/payload conventions is fragi
 
 Rejected because it would allow personal account deletion to erase shared installation control-plane history.
 
-### Delete all Audit/Outbox evidence immediately once it is addressable
+### Make ownership imply immediate row deletion
 
-Rejected because retention is a separate policy decision and may include security, legal, financial or restore-consistency constraints.
+Rejected because ownership, transport reconciliation and evidence-retention policy are distinct concerns. ADR-047 supplies the explicit retention operation after this ADR establishes addressability.
