@@ -38,6 +38,14 @@ function toIso(value: string) {
   return value ? new Date(value).toISOString() : null
 }
 
+function toLocalInput(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 16)
+}
+
 function taskStatusLabel(value: string) {
   const labels: Record<string, string> = {
     todo: 'À faire',
@@ -84,9 +92,9 @@ function PlanningTaskCard({
   const mutation = usePlanningMutation()
   const [editing, setEditing] = useState(false)
   const [priority, setPriority] = useState(task.priority ?? 2)
-  const [dueAt, setDueAt] = useState(task.due_at ? new Date(task.due_at).toISOString().slice(0, 16) : '')
-  const [startAt, setStartAt] = useState(task.planned_start_at ? new Date(task.planned_start_at).toISOString().slice(0, 16) : '')
-  const [endAt, setEndAt] = useState(task.planned_end_at ? new Date(task.planned_end_at).toISOString().slice(0, 16) : '')
+  const [dueAt, setDueAt] = useState(toLocalInput(task.due_at))
+  const [startAt, setStartAt] = useState(toLocalInput(task.planned_start_at))
+  const [endAt, setEndAt] = useState(toLocalInput(task.planned_end_at))
 
   const dueLabel = formatDateTime(task.due_at)
   const planLabel = formatDateTime(task.planned_start_at)
@@ -292,7 +300,7 @@ export function TaskPlanningWorkspace({
           <div className="today-groups">
             {todayCount === 0 && <div className="workspace-empty"><strong>Rien d’explicite pour aujourd’hui.</strong><span>Ajoutez une échéance, un créneau ou une priorité haute à une tâche pour la faire apparaître ici.</span></div>}
             <TodayGroup title="En retard" hint="échéance dépassée" tasks={today?.overdue || []} projects={projectById} onExplore={onExploreEntity} />
-            <TodayGroup title="À échéance aujourd’hui" hint="due aujourd’hui" tasks={today?.due_today || []} projects={projectById} onExplore={onExploreEntity} />
+            <TodayGroup title="À échéance aujourd’hui" hint="échéance aujourd’hui" tasks={today?.due_today || []} projects={projectById} onExplore={onExploreEntity} />
             <TodayGroup title="Prévu aujourd’hui" hint="créneau planifié" tasks={today?.planned_today || []} projects={projectById} onExplore={onExploreEntity} />
             <TodayGroup title="Important" hint="priorité haute sans créneau aujourd’hui" tasks={today?.important || []} projects={projectById} onExplore={onExploreEntity} />
           </div>
