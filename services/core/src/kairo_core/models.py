@@ -31,7 +31,11 @@ class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    keycloak_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    # User-created Projects always set the authenticated subject explicitly. The default exists only
+    # for legacy/system workspace constructors while they are being moved to per-subject identities.
+    keycloak_subject: Mapped[str] = mapped_column(
+        String(255), nullable=False, default="__kairo_system__"
+    )
     name: Mapped[str] = mapped_column(String(240), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     summary: Mapped[str | None] = mapped_column(Text)
@@ -89,7 +93,11 @@ class RelationshipRecord(Base):
     __tablename__ = "relationships"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    keycloak_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Explicit user relationships set this to the principal subject. System-generated edges must
+    # opt into a concrete owner before they can surface in a user graph.
+    keycloak_subject: Mapped[str] = mapped_column(
+        String(255), nullable=False, default="__kairo_system__"
+    )
     source_type: Mapped[str] = mapped_column(String(64), nullable=False)
     source_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     relation_type: Mapped[str] = mapped_column(String(96), nullable=False)
