@@ -8,9 +8,9 @@ This review distinguishes **implemented in code** from **executed and validated 
 
 KAIRO is no longer primarily a backend prototype. The active branch contains the intended daily-use Test Interface architecture and most of the first operational Cockpit: spatial Home/Brain, Projects, Knowledge, Tasks/Today/Gantt, Calendar, Agents/Approvals, Automations, Tools, Finance/Crypto, the Assistant surface and an initial Tauri desktop boundary.
 
-The dominant risk discovered by the Block 3 review has been **trust-boundary completion rather than missing UI**. Authentication existed, but user-world data, control-plane bindings and connector metadata still had several paths that could remain global or depend only on database fallback constraints. The current hardening tranche therefore prioritizes authenticated subject ownership before adding more large specialist modules.
+The dominant Block 3 risk is now **trust-boundary completion rather than missing UI**. Authentication existed before every user-world/read-model/control-plane path had explicit tenant semantics, so the current tranche is deliberately closing ownership, idempotency and connector-boundary gaps before adding more large specialist modules.
 
-Migrations 0013–0016 plus ADR-040/041 now define Project/Relationship ownership, project-scoped control-plane consistency, personal SecretReference ownership and per-Automation idempotency scope.
+Migrations `0013`–`0017` plus ADR-040/041/042 now cover Project/Relationship ownership, project-scoped control-plane consistency, personal SecretReference ownership, Automation idempotency scope and ToolInvocation execution ownership.
 
 ## Implemented in code
 
@@ -84,56 +84,49 @@ Migrations 0013–0016 plus ADR-040/041 now define Project/Relationship ownershi
 
 Migration `0013_canonical_project_relationship_ownership` adds `Project.keycloak_subject` and `RelationshipRecord.keycloak_subject`.
 
-Current endpoint/read-model changes enforce the authenticated subject across:
-
-- Project create/list/update/hierarchy;
-- Task create/list/detail/run-path guard;
-- Task planning and Today;
-- Agents read model;
-- Approval create/list/decision and Task budget reads;
-- Asset upload into Project scopes;
-- explicit Relationship creation;
-- Graph Home/neighborhood/search;
-- graph UI directives;
-- Graph live activity SSE;
-- Assistant Conversation/Message/Command reads and continuation;
-- News tasks/results/audio;
-- Research public runs and semantic-router owner preservation;
-- public Memory projection inspection;
-- Document creation/reingestion and owner-scoped Documents system workspace.
-
-Foreign and absent user-world UUIDs intentionally collapse to the same 404 behavior on covered public APIs.
+Current endpoint/read-model changes enforce the authenticated subject across Project/Task planning, Agents/Approvals, Documents/Assets, Assistant/News/Research/Memory and Graph Home/neighborhood/search/directives/SSE. Foreign and absent user-world UUIDs intentionally collapse to the same 404 behavior on covered public APIs.
 
 ### Per-user system workspaces
 
-Assistant, News, Documents and Memory no longer need a globally shared user-data Project. `ensure_system_project` creates stable per-subject system Projects and refuses to seize historical migration-owned `__kairo_system__` rows.
+Assistant, News, Documents and Memory use stable per-subject system Projects. `ensure_system_project` refuses to seize historical migration-owned `__kairo_system__` rows.
 
 ### Database-level consistency for project-scoped control-plane records
 
-Migration `0014_project_scoped_control_plane_ownership` adds database ownership invariants for AutomationDefinition and FinanceConnector `(project_id, keycloak_subject)` bindings and a trigger for nullable Finance transaction-proposal Project bindings.
+Migration `0014_project_scoped_control_plane_ownership` adds database ownership invariants for AutomationDefinition and FinanceConnector `(project_id, keycloak_subject)` bindings plus the nullable Finance transaction-proposal Project invariant.
 
-This prevents an endpoint bug from persisting a user-owned control-plane row attached to another user's Project even while the handler-level audit continues.
+The corresponding public Finance proposal handler is now also owner-scoped: an optional `project_id` must pass `require_owned_project(...)` before the draft is created. The API therefore returns the intended 404 for a foreign Project rather than depending on PostgreSQL as the final product-level guard.
 
 ### Personal secret vault handles
 
-A second concrete gap found during this review was `SecretReference`: the old API was global/admin-only. That prevented ordinary users from safely configuring their own Rotki/Activepieces integrations and would have exposed cross-user secret metadata if it were simply opened to `kairo-user`.
+Migration `0015_secret_reference_ownership` and ADR-041 establish subject-owned SecretReferences, generated KAIRO-managed OpenBao paths, bounded write-only provisioning, same-owner Automation/Finance connector bindings and normal-user management of personal connector credentials without global admin rights.
 
-Migration `0015_secret_reference_ownership` and ADR-041 now establish:
-
-- `SecretReference.keycloak_subject`;
-- owner-scoped list/get/status/update/delete/provision routes;
-- generated authenticated OpenBao paths under a KAIRO-managed subject namespace rather than caller-supplied paths;
-- a bounded write-only value provisioning API whose response/audit/events expose key names/version, never secret values;
-- same-owner composite SecretReference bindings for AutomationDefinition and FinanceConnector;
-- normal `kairo-user` configuration of their own Automation/Finance connectors without granting global admin control.
-
-The permanent Settings panel now includes a personal secret-vault surface. Secret values are held only in the form while being written and are cleared after successful provisioning.
+The permanent Settings panel includes the personal `Connexions & secrets` surface. Secret values are held only while being submitted and are cleared after successful provisioning.
 
 ### Automation idempotency tenant boundary
 
-Migration `0016_automation_idempotency_scope` changes Automation invocation uniqueness from a deployment-global caller-controlled `idempotency_key` to `(automation_id, idempotency_key)`. The public invocation query uses the same scope.
+Migration `0016_automation_idempotency_scope` changes Automation invocation uniqueness from a deployment-global caller-controlled `idempotency_key` to `(automation_id, idempotency_key)`.
 
-This removes an unnecessary cross-tenant collision/oracle surface while preserving replay/idempotency semantics for one AutomationDefinition.
+### ToolInvocation execution ownership
+
+A further audit pass found the same class of problem in MCP invocation history: ToolServer/ToolDefinition are intentionally shared control-plane records, but a ToolInvocation is user-world execution state tied to a Task → Project.
+
+Migration `0017_tool_invocation_ownership` and ADR-042 now establish:
+
+- `ToolInvocation.keycloak_subject` backfilled from Task → Project;
+- fail-closed migration if an existing invocation has no derivable owner;
+- subject-local `(keycloak_subject, idempotency_key)` uniqueness instead of a deployment-global caller namespace;
+- owner-scoped public creation/replay lookup and detail reads;
+- an internal Worker binding check requiring ToolInvocation owner == Task Project owner;
+- Research child ToolInvocations deriving and preserving the parent Research Project owner;
+- Research result inspection rejecting stale/cross-owner child invocation bindings.
+
+A lightweight static contract proof, `scripts/smoke/tool_invocation_ownership_contract.py`, checks all current ToolInvocation constructors and the migration/model idempotency contract. A true two-user runtime proof for the shared-tool/same-idempotency scenario is still required once the hosted CI environment is executable.
+
+### MCP admin UX boundary
+
+The Tools workspace now respects the existing backend distinction between shared MCP control-plane policy and ordinary use. A normal `kairo-user` can inspect shared available contracts but is no longer presented with server registration or policy mutation controls that would only fail with an admin 403. Auth-disabled local development retains management controls.
+
+The backend still returns the full ToolServer representation on the current shared registry read, including transport endpoint metadata. Whether ordinary users need that deployment-level detail remains an explicit control-plane disclosure item in the final audit; the Cockpit no longer displays the endpoint to non-admin usage paths.
 
 ### Two-user validation fixtures
 
@@ -142,22 +135,17 @@ The local Keycloak realm contains two deterministic development identities:
 - `kairo-dev` (user/admin);
 - `kairo-alt` (user only).
 
-Committed proofs use both identities against the same services:
-
-- `scripts/smoke/multi_user_ownership.py` — Projects, Tasks, Planning/Today, Agents, Approvals/Budgets, Relationships and Graph isolation;
-- `scripts/smoke/multi_user_conversation_ownership.py` — Task run guard, Assistant conversations/commands, News, Memory and Research project isolation;
-- `scripts/smoke/multi_user_secret_ownership.py` — SecretReference list/read/write isolation, write-only OpenBao provisioning, Automation/Finance foreign binding rejection and per-Automation idempotency scope.
-
-`Ownership isolation validation` now starts one Core/PostgreSQL/OpenBao/Keycloak stack and schedules all three proofs.
+Committed runtime proofs use both identities against the same services for canonical Project/Task/Graph isolation, Assistant/News/Memory/Research isolation, and SecretReference/Automation/Finance connector isolation. The Ownership workflow also runs the ToolInvocation static ownership contract before starting the integration stack.
 
 ## Implemented but not yet proven on the current head
 
 All of the following have proof/build code committed, but current hosted CI has not actually executed them because of issue #38:
 
 - current Foundation substrate and ownership changes;
-- migrations 0013–0016;
+- migrations `0013`–`0017`;
 - Graph Interface build/integration jobs;
-- all three two-user isolation proofs;
+- existing two-user isolation proofs;
+- ToolInvocation static ownership contract on a hosted runner and a future two-user runtime ToolInvocation proof;
 - personal OpenBao provisioning boundary;
 - Desktop Rust/Tauri build;
 - current Research synthesis/handoff stack;
@@ -173,17 +161,23 @@ The correct status is therefore **implemented, awaiting real-runner validation**
 - the stacked #36 → #37 → #39 chain remains unmerged;
 - current-head implementation must not be called validated until jobs actually execute.
 
-### Ownership audit still open
+### Ownership/control-plane audit still open
 
-The broadest ownership surfaces are now covered, but commercial multi-user readiness still requires a final endpoint/control-plane audit. One known example is the optional `FinanceTransactionProposal.project_id` handler path: PostgreSQL already prevents a persisted cross-owner binding through migration 0014, but the public handler still needs the same ideal owner-scoped 404 check rather than relying on the database as the last guard. Similar new/less-used control-plane routes must be reviewed before declaring the tenant audit closed.
+The broad user-world ownership paths and two concrete idempotency namespaces are now covered, but commercial multi-user readiness still requires a final route-by-route classification:
 
-Centrally managed MCP ToolServer/ToolDefinition records remain intentionally deployment-global/admin-controlled; that is valid only while they are treated as shared control-plane state rather than personal world entities.
+- confirm every public object is either subject-owned, Project-root-owned or explicitly shared control-plane state;
+- review shared operational endpoints such as global outbox/component status for the minimum information a normal user should receive;
+- decide whether `/v1/tool-servers` should expose full deployment transport metadata to normal users or return a sanitized server summary;
+- add a real two-user ToolInvocation idempotency/read-isolation proof;
+- keep handler-level 404 behavior aligned with database constraints for every newly added Project-bound route.
+
+Centrally managed MCP ToolServer/ToolDefinition records remain intentionally deployment-global/admin-controlled; that is valid only while they remain shared control-plane state rather than personal graph entities.
 
 ### Provider integrations
 
-- Google/Microsoft Calendar OAuth, polling and free/busy adapters are not yet implemented against the normalized Calendar snapshot boundary.
-- Rotki has a controlled API-contract fixture and full KAIRO path, but still needs validation against a separately provisioned real Rotki release/version.
-- Exchange/wallet Finance adapters beyond Rotki are not implemented.
+- Google/Microsoft Calendar OAuth, polling and free/busy adapters are not yet implemented against the normalized Calendar snapshot boundary;
+- Rotki has a controlled API-contract fixture and full KAIRO path, but still needs validation against a separately provisioned real Rotki release/version;
+- Exchange/wallet Finance adapters beyond Rotki are not implemented;
 - Activepieces is validated through a controlled webhook-contract fixture; a separately provisioned actual Activepieces flow remains to validate.
 
 ### Desktop / voice
@@ -219,7 +213,7 @@ Centrally managed MCP ToolServer/ToolDefinition records remain intentionally dep
 
 Still required before commercial multi-user deployment:
 
-- close the remaining ownership audit and add regression proofs for newly covered endpoints;
+- close the remaining ownership/control-plane disclosure audit and add regression proofs;
 - TLS/reverse proxy and private-network policy;
 - least-privilege production OpenBao workload policy for the managed KAIRO user-secret prefix;
 - untrusted execution isolation;
@@ -230,7 +224,7 @@ Still required before commercial multi-user deployment:
 
 ## Current implementation order
 
-1. Finish the remaining ownership/control-plane audit without changing the Cockpit architecture.
+1. Finish the remaining ownership/control-plane disclosure audit without changing the Cockpit architecture.
 2. Obtain real GitHub-hosted CI execution and fix only actual executed failures.
 3. Validate the current Test Interface stack as one coherent baseline before adding another large module.
 4. Connect real external providers to boundaries that already exist: Calendar, Rotki and Activepieces.
