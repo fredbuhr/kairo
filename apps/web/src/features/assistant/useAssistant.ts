@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { API_URL, apiJson } from '../../lib/api'
+import { authenticatedFetch } from '../../lib/authSession'
 
 export type RouteParameters = {
   query?: string
@@ -115,6 +116,7 @@ export function useAssistant() {
   const [research, setResearch] = useState<ResearchRun | null>(null)
   const [routing, setRouting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
 
   function clearResult() {
     setBrief(null)
@@ -267,6 +269,42 @@ export function useAssistant() {
     }
   }, [brief?.status, conversationId, pendingCommandId, research?.status, taskId])
 
+  useEffect(() => {
+    if (!brief?.audio_available || !brief.task_id) {
+      setAudioUrl(null)
+      return
+    }
+
+    let cancelled = false
+    let objectUrl: string | null = null
+    const load = async () => {
+      try {
+        const response = await authenticatedFetch(
+          `${API_URL}/v1/news/briefs/${brief.task_id}/audio?voice=${encodeURIComponent(brief.voice)}`,
+          { headers: { Accept: 'audio/*' } },
+        )
+        if (!response.ok) return
+        const blob = await response.blob()
+        objectUrl = URL.createObjectURL(blob)
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl)
+          objectUrl = null
+          return
+        }
+        setAudioUrl(objectUrl)
+      } catch {
+        if (!cancelled) setAudioUrl(null)
+      }
+    }
+
+    setAudioUrl(null)
+    void load()
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [brief?.audio_available, brief?.task_id, brief?.voice])
+
   const status = brief?.status || research?.status || (pendingCommandId ? 'routing' : taskId ? 'running' : 'idle')
   const busy = routing || pendingCommandId !== null || (status !== 'idle' && !TERMINAL.has(status))
   const sources = useMemo(() => brief?.artifact?.content.sources || [], [brief])
@@ -288,10 +326,7 @@ export function useAssistant() {
     busy,
     error,
     clearError: () => setError(null),
-    audioUrl:
-      brief?.audio_available && brief.task_id
-        ? `${API_URL}/v1/news/briefs/${brief.task_id}/audio?voice=${encodeURIComponent(brief.voice)}`
-        : null,
+    audioUrl,
   }
 }
 
