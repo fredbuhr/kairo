@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   MyceliumViewport,
+  filterGraphProjection,
   graphEntityKey,
   graphNodeKey,
   isolateGraphProjection,
@@ -202,11 +203,14 @@ export default function KairoApp() {
   const systemReducedMotion = useReducedMotionPreference()
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('home')
   const [focus, setFocus] = useState<KairoGraphEntityRef | null>(null)
   const [history, setHistory] = useState<Array<KairoGraphEntityRef | null>>([])
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [isolatedKey, setIsolatedKey] = useState<string | null>(null)
+  const [hiddenEntityTypes, setHiddenEntityTypes] = useState<string[]>([])
+  const [hiddenRelations, setHiddenRelations] = useState<string[]>([])
   const [hovered, setHovered] = useState<{ node: KairoGraphNode; point: KairoGraphTooltipPoint } | null>(null)
   const [contextCollapsed, setContextCollapsed] = useState(false)
   const [quality, setQuality] = useState<KairoGraphQuality>('auto')
@@ -232,10 +236,24 @@ export default function KairoApp() {
   })
 
   const projection = graphQuery.data
-  const displayProjection = useMemo(
-    () => projection ? isolateGraphProjection(projection, isolatedKey, 1) : undefined,
-    [isolatedKey, projection],
+  const availableEntityTypes = useMemo(
+    () => Array.from(new Set(projection?.nodes.map((node) => node.entity_type) || [])).sort(),
+    [projection],
   )
+  const availableRelations = useMemo(
+    () => Array.from(new Set(projection?.edges.map((edge) => edge.relation) || [])).sort(),
+    [projection],
+  )
+  const displayProjection = useMemo(() => {
+    if (!projection) return undefined
+    const isolated = isolateGraphProjection(projection, isolatedKey, 1)
+    const preserved = [selectedKey, focus ? graphEntityKey(focus) : null].filter((value): value is string => Boolean(value))
+    return filterGraphProjection(isolated, {
+      hiddenEntityTypes,
+      hiddenRelations,
+      preserveKeys: preserved,
+    })
+  }, [focus, hiddenEntityTypes, hiddenRelations, isolatedKey, projection, selectedKey])
   const selected = useMemo(
     () => projection?.nodes.find((node) => graphNodeKey(node) === selectedKey) || null,
     [projection, selectedKey],
@@ -246,6 +264,15 @@ export default function KairoApp() {
       void graphQuery.refetch()
     }
   }, [assistant.brief?.status, assistant.research?.status])
+
+  function toggleHidden(value: string, setter: React.Dispatch<React.SetStateAction<string[]>>) {
+    setter((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value])
+  }
+
+  function clearFilters() {
+    setHiddenEntityTypes([])
+    setHiddenRelations([])
+  }
 
   function explore(node: KairoGraphNode) {
     const next = { entity_type: node.entity_type, entity_id: node.id }
@@ -297,6 +324,7 @@ export default function KairoApp() {
 
   const searchResults = search.trim().length >= 2 ? searchQuery.data?.nodes || [] : []
   const activeNavigation = viewMode === 'brain' ? 'brain' : 'home'
+  const activeFilterCount = hiddenEntityTypes.length + hiddenRelations.length
 
   return (
     <main className="kairo-app">
@@ -363,11 +391,62 @@ export default function KairoApp() {
           </div>
 
           <div className="top-actions">
+            <button
+              type="button"
+              className={`view-toggle ${filtersOpen || activeFilterCount > 0 ? 'view-toggle-active' : ''}`}
+              onClick={() => setFiltersOpen((value) => !value)}
+              aria-expanded={filtersOpen}
+            >
+              Filtres{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
+            </button>
             <button type="button" className={`view-toggle ${listView ? 'view-toggle-active' : ''}`} onClick={() => setListView((value) => !value)}>
               {listView ? '3D' : 'Liste'}
             </button>
             <button type="button" className="round-button" onClick={() => setSettingsOpen(true)} aria-label="Qualité et accessibilité">◐</button>
             <button type="button" className="round-button kairo-avatar" onClick={() => setAssistantOpen(true)} aria-label="Ouvrir KAIRO"><KairoMark compact /></button>
+
+            {filtersOpen && (
+              <section className="graph-filter-panel" aria-label="Filtres du cerveau KAIRO">
+                <header>
+                  <div><span className="kairo-kicker">VISIBILITÉ</span><strong>Filtrer temporairement</strong></div>
+                  <button type="button" onClick={clearFilters} disabled={activeFilterCount === 0}>Réinitialiser</button>
+                </header>
+                {availableEntityTypes.length > 0 && (
+                  <div className="graph-filter-group">
+                    <span>Entités</span>
+                    <div className="graph-filter-chips">
+                      {availableEntityTypes.map((type) => (
+                        <label key={type} className={hiddenEntityTypes.includes(type) ? 'graph-filter-muted' : ''}>
+                          <input
+                            type="checkbox"
+                            checked={!hiddenEntityTypes.includes(type)}
+                            onChange={() => toggleHidden(type, setHiddenEntityTypes)}
+                          />
+                          <span>{entityLabel(type)}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {availableRelations.length > 0 && (
+                  <div className="graph-filter-group">
+                    <span>Relations</span>
+                    <div className="graph-filter-chips">
+                      {availableRelations.map((relation) => (
+                        <label key={relation} className={hiddenRelations.includes(relation) ? 'graph-filter-muted' : ''}>
+                          <input
+                            type="checkbox"
+                            checked={!hiddenRelations.includes(relation)}
+                            onChange={() => toggleHidden(relation, setHiddenRelations)}
+                          />
+                          <span>{relation.replaceAll('_', ' ')}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
           </div>
         </header>
 
@@ -425,6 +504,7 @@ export default function KairoApp() {
           <div className="stage-caption">
             <span>{displayProjection?.nodes.length || 0} entités · {displayProjection?.edges.length || 0} relations</span>
             {isolatedKey && <span>Branche isolée · profondeur 1</span>}
+            {activeFilterCount > 0 && <span>{activeFilterCount} filtre{activeFilterCount === 1 ? '' : 's'} actif{activeFilterCount === 1 ? '' : 's'}</span>}
             {displayProjection?.truncated && <span>Projection contextuelle · réseau plus vaste</span>}
           </div>
         </div>
