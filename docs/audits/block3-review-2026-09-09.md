@@ -115,18 +115,21 @@ Migration `0017_tool_invocation_ownership` and ADR-042 now establish:
 - `ToolInvocation.keycloak_subject` backfilled from Task → Project;
 - fail-closed migration if an existing invocation has no derivable owner;
 - subject-local `(keycloak_subject, idempotency_key)` uniqueness instead of a deployment-global caller namespace;
+- a PostgreSQL trigger that rejects ToolInvocation ↔ Task bindings whose Project owner differs;
 - owner-scoped public creation/replay lookup and detail reads;
 - an internal Worker binding check requiring ToolInvocation owner == Task Project owner;
 - Research child ToolInvocations deriving and preserving the parent Research Project owner;
 - Research result inspection rejecting stale/cross-owner child invocation bindings.
 
-A lightweight static contract proof, `scripts/smoke/tool_invocation_ownership_contract.py`, checks all current ToolInvocation constructors and the migration/model idempotency contract. A true two-user runtime proof for the shared-tool/same-idempotency scenario is still required once the hosted CI environment is executable.
+A lightweight source/migration proof, `scripts/smoke/tool_invocation_ownership_contract.py`, checks every current ToolInvocation constructor, the subject-local uniqueness contract and the database trigger. A true two-user runtime proof for the shared-tool/same-idempotency scenario is still required once the hosted CI environment is executable.
 
-### MCP admin UX boundary
+### MCP shared control-plane disclosure
 
-The Tools workspace now respects the existing backend distinction between shared MCP control-plane policy and ordinary use. A normal `kairo-user` can inspect shared available contracts but is no longer presented with server registration or policy mutation controls that would only fail with an admin 403. Auth-disabled local development retains management controls.
+ToolServer/ToolDefinition remain intentionally deployment-global/admin-managed, but ordinary users no longer receive the full deployment transport record from `GET /v1/tool-servers`. The user-facing response is now a sanitized summary containing logical identity, namespace, transport kind, enabled state and catalog generation while omitting `endpoint_url` and arbitrary `metadata_json`.
 
-The backend still returns the full ToolServer representation on the current shared registry read, including transport endpoint metadata. Whether ordinary users need that deployment-level detail remains an explicit control-plane disclosure item in the final audit; the Cockpit no longer displays the endpoint to non-admin usage paths.
+The MCP management smoke proof checks that split explicitly: admin creation returns the full record, while the shared registry list omits endpoint/metadata details.
+
+The Tools Cockpit follows the same boundary. Ordinary `kairo-user` sessions may inspect shared contracts and current authorization state but are no longer shown server-registration or policy-mutation controls that would only fail with 403. Auth-disabled development and `kairo-admin` sessions retain management controls.
 
 ### Two-user validation fixtures
 
@@ -145,7 +148,8 @@ All of the following have proof/build code committed, but current hosted CI has 
 - migrations `0013`–`0017`;
 - Graph Interface build/integration jobs;
 - existing two-user isolation proofs;
-- ToolInvocation static ownership contract on a hosted runner and a future two-user runtime ToolInvocation proof;
+- ToolInvocation source/migration contract on a hosted runner and a future two-user runtime ToolInvocation proof;
+- sanitized MCP shared registry response;
 - personal OpenBao provisioning boundary;
 - Desktop Rust/Tauri build;
 - current Research synthesis/handoff stack;
@@ -163,15 +167,15 @@ The correct status is therefore **implemented, awaiting real-runner validation**
 
 ### Ownership/control-plane audit still open
 
-The broad user-world ownership paths and two concrete idempotency namespaces are now covered, but commercial multi-user readiness still requires a final route-by-route classification:
+The broad user-world ownership paths, personal connector secrets, shared MCP disclosure and two concrete idempotency namespaces are now covered, but commercial multi-user readiness still requires a final route-by-route classification:
 
 - confirm every public object is either subject-owned, Project-root-owned or explicitly shared control-plane state;
-- review shared operational endpoints such as global outbox/component status for the minimum information a normal user should receive;
-- decide whether `/v1/tool-servers` should expose full deployment transport metadata to normal users or return a sanitized server summary;
+- review global operational endpoints such as outbox/component status for the minimum information a normal user should receive;
 - add a real two-user ToolInvocation idempotency/read-isolation proof;
-- keep handler-level 404 behavior aligned with database constraints for every newly added Project-bound route.
+- keep handler-level 404 behavior aligned with database constraints for every newly added Project-bound route;
+- review deletion/retention semantics for personal OpenBao values when a SecretReference is removed.
 
-Centrally managed MCP ToolServer/ToolDefinition records remain intentionally deployment-global/admin-controlled; that is valid only while they remain shared control-plane state rather than personal graph entities.
+Centrally managed MCP ToolServer/ToolDefinition records remain intentionally deployment-global/admin-controlled; they must remain shared control-plane state rather than personal graph entities unless a future personal-MCP ownership model is explicitly introduced.
 
 ### Provider integrations
 
@@ -213,7 +217,7 @@ Centrally managed MCP ToolServer/ToolDefinition records remain intentionally dep
 
 Still required before commercial multi-user deployment:
 
-- close the remaining ownership/control-plane disclosure audit and add regression proofs;
+- close the remaining ownership/control-plane/retention audit and add regression proofs;
 - TLS/reverse proxy and private-network policy;
 - least-privilege production OpenBao workload policy for the managed KAIRO user-secret prefix;
 - untrusted execution isolation;
@@ -224,7 +228,7 @@ Still required before commercial multi-user deployment:
 
 ## Current implementation order
 
-1. Finish the remaining ownership/control-plane disclosure audit without changing the Cockpit architecture.
+1. Finish the remaining ownership/control-plane/retention audit without changing the Cockpit architecture.
 2. Obtain real GitHub-hosted CI execution and fix only actual executed failures.
 3. Validate the current Test Interface stack as one coherent baseline before adding another large module.
 4. Connect real external providers to boundaries that already exist: Calendar, Rotki and Activepieces.
