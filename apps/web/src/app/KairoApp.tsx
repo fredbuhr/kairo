@@ -4,6 +4,7 @@ import {
   MyceliumViewport,
   graphEntityKey,
   graphNodeKey,
+  isolateGraphProjection,
   type KairoGraphEntityRef,
   type KairoGraphNode,
   type KairoGraphQuality,
@@ -95,16 +96,20 @@ function ContextRail({
   projection,
   selected,
   selectedKey,
+  isolatedKey,
   collapsed,
   onToggle,
   onExplore,
+  onToggleIsolation,
 }: {
   projection: Awaited<ReturnType<typeof fetchGraphHome>> | undefined
   selected: KairoGraphNode | null
   selectedKey: string | null
+  isolatedKey: string | null
   collapsed: boolean
   onToggle: () => void
   onExplore: (node: KairoGraphNode) => void
+  onToggleIsolation: (key: string) => void
 }) {
   const approvals = projection?.nodes.filter((node) => node.entity_type === 'approval' && node.status === 'pending').slice(0, 4) || []
   const active = projection?.nodes
@@ -121,7 +126,7 @@ function ContextRail({
       </button>
       {!collapsed && (
         <div className="context-scroll">
-          {selected && (
+          {selected && selectedKey && (
             <section className="context-card context-selection">
               <span className="context-eyebrow">{entityLabel(selected.entity_type)}</span>
               <h2>{selected.label}</h2>
@@ -130,7 +135,16 @@ function ContextRail({
                 {selected.status && <span>{statusLabel(selected.status)}</span>}
                 <span>{selected.relationship_count} lien{selected.relationship_count === 1 ? '' : 's'}</span>
               </div>
-              <button type="button" className="context-primary" onClick={() => onExplore(selected)}>Explorer</button>
+              <div className="context-actions">
+                <button type="button" className="context-primary" onClick={() => onExplore(selected)}>Explorer</button>
+                <button
+                  type="button"
+                  className={`context-secondary ${isolatedKey === selectedKey ? 'context-secondary-active' : ''}`}
+                  onClick={() => onToggleIsolation(selectedKey)}
+                >
+                  {isolatedKey === selectedKey ? 'Afficher tout' : 'Isoler la branche'}
+                </button>
+              </div>
               {relatedEdges.length > 0 && (
                 <div className="context-relations">
                   <strong>Relations visibles</strong>
@@ -192,6 +206,7 @@ export default function KairoApp() {
   const [focus, setFocus] = useState<KairoGraphEntityRef | null>(null)
   const [history, setHistory] = useState<Array<KairoGraphEntityRef | null>>([])
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [isolatedKey, setIsolatedKey] = useState<string | null>(null)
   const [hovered, setHovered] = useState<{ node: KairoGraphNode; point: KairoGraphTooltipPoint } | null>(null)
   const [contextCollapsed, setContextCollapsed] = useState(false)
   const [quality, setQuality] = useState<KairoGraphQuality>('auto')
@@ -217,6 +232,10 @@ export default function KairoApp() {
   })
 
   const projection = graphQuery.data
+  const displayProjection = useMemo(
+    () => projection ? isolateGraphProjection(projection, isolatedKey, 1) : undefined,
+    [isolatedKey, projection],
+  )
   const selected = useMemo(
     () => projection?.nodes.find((node) => graphNodeKey(node) === selectedKey) || null,
     [projection, selectedKey],
@@ -233,10 +252,12 @@ export default function KairoApp() {
     setHistory((current) => [...current, focus])
     setFocus(next)
     setSelectedKey(graphNodeKey(node))
+    setIsolatedKey(null)
     setSearch('')
   }
 
   function goBack() {
+    setIsolatedKey(null)
     setHistory((current) => {
       if (current.length === 0) {
         setFocus(null)
@@ -256,6 +277,7 @@ export default function KairoApp() {
     setFocus(null)
     setHistory([])
     setSelectedKey(null)
+    setIsolatedKey(null)
   }
 
   function activateNavigation(item: NavigationItem) {
@@ -352,7 +374,7 @@ export default function KairoApp() {
         <div className="spatial-stage">
           {!listView && (
             <MyceliumViewport
-              projection={projection || null}
+              projection={displayProjection || null}
               selectedKey={selectedKey}
               quality={quality}
               reducedMotion={reducedMotion}
@@ -371,7 +393,7 @@ export default function KairoApp() {
                 <p>Mêmes entités et mêmes relations que la vue spatiale, présentées sans dépendre du mouvement ou de la profondeur.</p>
               </header>
               <div className="accessible-node-list">
-                {projection?.nodes.map((node) => (
+                {displayProjection?.nodes.map((node) => (
                   <button key={graphNodeKey(node)} type="button" onClick={() => setSelectedKey(graphNodeKey(node))} onDoubleClick={() => explore(node)}>
                     <span className="node-type-dot" />
                     <div><strong>{node.label}</strong><small>{entityLabel(node.entity_type)}{node.status ? ` · ${statusLabel(node.status)}` : ''} · {node.relationship_count} liens</small></div>
@@ -388,7 +410,7 @@ export default function KairoApp() {
           {graphQuery.isError && (
             <div className="stage-state stage-error"><strong>Le cerveau KAIRO n’est pas disponible.</strong><span>{graphQuery.error instanceof Error ? graphQuery.error.message : 'Erreur de projection.'}</span><button type="button" onClick={() => void graphQuery.refetch()}>Réessayer</button></div>
           )}
-          {!graphQuery.isLoading && !graphQuery.isError && projection?.nodes.length === 0 && (
+          {!graphQuery.isLoading && !graphQuery.isError && displayProjection?.nodes.length === 0 && (
             <div className="stage-state stage-empty"><KairoMark /><strong>Votre univers KAIRO est encore calme.</strong><span>Les projets, tâches, documents et relations réels apparaîtront ici à mesure qu’ils sont créés.</span></div>
           )}
 
@@ -401,18 +423,21 @@ export default function KairoApp() {
           )}
 
           <div className="stage-caption">
-            <span>{projection?.nodes.length || 0} entités · {projection?.edges.length || 0} relations</span>
-            {projection?.truncated && <span>Projection contextuelle · réseau plus vaste</span>}
+            <span>{displayProjection?.nodes.length || 0} entités · {displayProjection?.edges.length || 0} relations</span>
+            {isolatedKey && <span>Branche isolée · profondeur 1</span>}
+            {displayProjection?.truncated && <span>Projection contextuelle · réseau plus vaste</span>}
           </div>
         </div>
 
         <ContextRail
-          projection={projection}
+          projection={displayProjection}
           selected={selected}
           selectedKey={selectedKey}
+          isolatedKey={isolatedKey}
           collapsed={contextCollapsed}
           onToggle={() => setContextCollapsed((value) => !value)}
           onExplore={explore}
+          onToggleIsolation={(key) => setIsolatedKey((current) => current === key ? null : key)}
         />
 
         <form className="command-dock" onSubmit={submitCommand}>
