@@ -1,5 +1,9 @@
 import { useEffect, useMemo } from 'react'
+import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
 
 import type { KairoGraphEdge, KairoGraphPose } from './types'
 import { graphEntityKey } from './types'
@@ -11,6 +15,11 @@ export interface BatchedFilamentFieldProps {
   emphasisKey?: string | null
   segments: number
   strands: number
+}
+
+type SegmentBatch = {
+  positions: number[]
+  colors: number[]
 }
 
 function hash(value: string): number {
@@ -59,22 +68,44 @@ function colorFor(edge: KairoGraphEdge, highlighted: boolean, dimmed: boolean): 
   const color = new THREE.Color(
     edge.provenance === 'canonical_relationship' ? '#53e7e8' : '#78eecf',
   )
-  if (highlighted) color.lerp(new THREE.Color('#d9fff7'), 0.42)
-  const strength = 0.66 + edge.strength * 0.34
-  color.multiplyScalar(dimmed ? 0.14 : strength)
+  if (highlighted) color.lerp(new THREE.Color('#d9fff7'), 0.48)
+  const strength = 0.64 + edge.strength * 0.36
+  color.multiplyScalar(dimmed ? 0.13 : strength)
   return color
 }
 
-function buildGeometry({
+function appendCurveSegments(
+  batch: SegmentBatch,
+  curve: THREE.CatmullRomCurve3,
+  color: THREE.Color,
+  sampleSegments: number,
+) {
+  let previous = curve.getPointAt(0)
+  for (let step = 1; step <= sampleSegments; step += 1) {
+    const current = curve.getPointAt(step / sampleSegments)
+    batch.positions.push(
+      previous.x,
+      previous.y,
+      previous.z,
+      current.x,
+      current.y,
+      current.z,
+    )
+    batch.colors.push(color.r, color.g, color.b, color.r, color.g, color.b)
+    previous = current
+  }
+}
+
+function buildBatches({
   edges,
   poses,
   visibleKeys,
   emphasisKey,
   segments,
   strands,
-}: BatchedFilamentFieldProps): THREE.BufferGeometry {
-  const positions: number[] = []
-  const colors: number[] = []
+}: BatchedFilamentFieldProps) {
+  const base: SegmentBatch = { positions: [], colors: [] }
+  const highlighted: SegmentBatch = { positions: [], colors: [] }
   const sampleSegments = Math.max(4, segments)
   const strandCount = Math.max(1, strands)
 
@@ -87,41 +118,48 @@ function buildGeometry({
     const target = poses.get(targetKey)
     if (!source || !target) continue
 
-    const highlighted = Boolean(
+    const isHighlighted = Boolean(
       emphasisKey && (sourceKey === emphasisKey || targetKey === emphasisKey),
     )
-    const dimmed = Boolean(emphasisKey && !highlighted)
-    const color = colorFor(edge, highlighted, dimmed)
+    const dimmed = Boolean(emphasisKey && !isHighlighted)
+    const color = colorFor(edge, isHighlighted, dimmed)
 
     for (let strand = 0; strand < strandCount; strand += 1) {
       const curve = edgeCurve(edge, source, target, strand)
-      let previous = curve.getPointAt(0)
-      for (let step = 1; step <= sampleSegments; step += 1) {
-        const current = curve.getPointAt(step / sampleSegments)
-        positions.push(
-          previous.x,
-          previous.y,
-          previous.z,
-          current.x,
-          current.y,
-          current.z,
-        )
-        colors.push(color.r, color.g, color.b, color.r, color.g, color.b)
-        previous = current
+      appendCurveSegments(base, curve, color, sampleSegments)
+      if (isHighlighted && strand === 0) {
+        appendCurveSegments(highlighted, curve, color, sampleSegments)
       }
     }
   }
 
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
-  if (positions.length > 0) geometry.computeBoundingSphere()
+  return { base, highlighted }
+}
+
+function createGeometry(batch: SegmentBatch) {
+  const geometry = new LineSegmentsGeometry()
+  if (batch.positions.length > 0) {
+    geometry.setPositions(batch.positions)
+    geometry.setColors(batch.colors)
+    geometry.computeBoundingSphere()
+  }
   return geometry
 }
 
+function createLine(
+  geometry: LineSegmentsGeometry,
+  material: LineMaterial,
+) {
+  const line = new LineSegments2(geometry, material)
+  line.computeLineDistances()
+  line.frustumCulled = true
+  return line
+}
+
 export function BatchedFilamentField(props: BatchedFilamentFieldProps) {
-  const geometry = useMemo(
-    () => buildGeometry(props),
+  const { size, gl } = useThree()
+  const batches = useMemo(
+    () => buildBatches(props),
     [
       props.edges,
       props.emphasisKey,
@@ -132,29 +170,84 @@ export function BatchedFilamentField(props: BatchedFilamentFieldProps) {
     ],
   )
 
-  useEffect(() => () => geometry.dispose(), [geometry])
+  const baseGeometry = useMemo(() => createGeometry(batches.base), [batches.base])
+  const highlightGeometry = useMemo(
+    () => createGeometry(batches.highlighted),
+    [batches.highlighted],
+  )
+
+  const coreMaterial = useMemo(() => new LineMaterial({
+    color: 0xffffff,
+    vertexColors: true,
+    linewidth: 0.82,
+    transparent: true,
+    opacity: 0.62,
+    depthWrite: false,
+    toneMapped: false,
+  }), [])
+  const glowMaterial = useMemo(() => new LineMaterial({
+    color: 0xffffff,
+    vertexColors: true,
+    linewidth: 2.35,
+    transparent: true,
+    opacity: 0.10,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  }), [])
+  const highlightMaterial = useMemo(() => new LineMaterial({
+    color: 0xffffff,
+    vertexColors: true,
+    linewidth: 1.55,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  }), [])
+
+  const coreLine = useMemo(
+    () => createLine(baseGeometry, coreMaterial),
+    [baseGeometry, coreMaterial],
+  )
+  const glowLine = useMemo(
+    () => createLine(baseGeometry, glowMaterial),
+    [baseGeometry, glowMaterial],
+  )
+  const highlightLine = useMemo(
+    () => createLine(highlightGeometry, highlightMaterial),
+    [highlightGeometry, highlightMaterial],
+  )
+
+  useEffect(() => {
+    const pixelRatio = gl.getPixelRatio()
+    const width = Math.max(1, size.width * pixelRatio)
+    const height = Math.max(1, size.height * pixelRatio)
+    coreMaterial.resolution.set(width, height)
+    glowMaterial.resolution.set(width, height)
+    highlightMaterial.resolution.set(width, height)
+  }, [coreMaterial, glowMaterial, gl, highlightMaterial, size.height, size.width])
+
+  useEffect(() => () => {
+    baseGeometry.dispose()
+    highlightGeometry.dispose()
+  }, [baseGeometry, highlightGeometry])
+
+  useEffect(() => () => {
+    coreMaterial.dispose()
+    glowMaterial.dispose()
+    highlightMaterial.dispose()
+  }, [coreMaterial, glowMaterial, highlightMaterial])
+
+  if (batches.base.positions.length === 0) return null
 
   return (
     <group>
-      <lineSegments geometry={geometry} renderOrder={1}>
-        <lineBasicMaterial
-          vertexColors
-          transparent
-          opacity={0.58}
-          depthWrite={false}
-          toneMapped={false}
-        />
-      </lineSegments>
-      <lineSegments geometry={geometry} renderOrder={0}>
-        <lineBasicMaterial
-          vertexColors
-          transparent
-          opacity={0.19}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          toneMapped={false}
-        />
-      </lineSegments>
+      <primitive object={glowLine} renderOrder={0} />
+      <primitive object={coreLine} renderOrder={1} />
+      {batches.highlighted.positions.length > 0 && (
+        <primitive object={highlightLine} renderOrder={2} />
+      )}
     </group>
   )
 }
