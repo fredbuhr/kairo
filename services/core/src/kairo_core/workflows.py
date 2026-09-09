@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .command_models import CommandRecord
+from .command_models import CommandRecord, ConversationMessage
 from .db import get_session
 from .document_models import Document, DocumentVersion
 from .events import append_audit, enqueue_domain_event
@@ -37,6 +37,208 @@ async def _lock_execution(session: AsyncSession, workflow_id: str) -> WorkflowEx
         .with_for_update()
         .execution_options(populate_existing=True)
     )
+
+
+def _task_command_id(task: Task) -> uuid.UUID | None:
+    raw = (task.input or {}).get("command_id")
+    if raw is None:
+        return None
+    try:
+        return uuid.UUID(str(raw))
+    except (TypeError, ValueError):
+        return None
+
+
+def _assistant_result_content(task: Task, artifact: Artifact) -> str | None:
+    """Render the small canonical chat projection; the full Artifact remains authoritative."""
+
+    capability = str((task.input or {}).get("capability") or "")
+    content = artifact.content if isinstance(artifact.content, dict) else {}
+    value: object | None = None
+    if capability == "news.brief":
+        value = content.get("summary") or content.get("spoken_summary")
+    elif capability == "research.autonomous":
+        report = content.get("report") if isinstance(content.get("report"), dict) else {}
+        value = report.get("answer")
+    if value is None:
+        return None
+    rendered = str(value).strip()
+    return rendered or None
+
+
+async def _project_command_success(
+    session: AsyncSession,
+    *,
+    task: Task,
+    execution: WorkflowExecution,
+    artifact: Artifact,
+) -> None:
+    """Append one idempotent assistant message for a Command-owned capability result."""
+
+    command_id = _task_command_id(task)
+    if command_id is None:
+        return
+    command = await session.scalar(
+        select(CommandRecord).where(CommandRecord.id == command_id).with_for_update()
+    )
+    if command is None or command.task_id != task.id:
+        return
+
+    content = _assistant_result_content(task, artifact)
+    if content is None:
+        return
+
+    message_id = uuid.uuid5(
+        uuid.NAMESPACE_URL, f"kairo:command:{command.id}:assistant-result:v1"
+    )
+    message = await session.get(ConversationMessage, message_id)
+    if message is None:
+        message = ConversationMessage(
+            id=message_id,
+            conversation_id=command.conversation_id,
+            role="assistant",
+            content=content,
+            metadata_json={
+                "kind": "capability-result",
+                "command_id": str(command.id),
+                "capability": str(command.capability_key or (task.input or {}).get("capability") or ""),
+                "task_id": str(task.id),
+                "workflow_execution_id": str(execution.id),
+                "artifact_id": str(artifact.id),
+                "artifact_kind": artifact.kind,
+                "execution_status": "completed",
+            },
+        )
+        session.add(message)
+        await session.flush()
+        await enqueue_domain_event(
+            session,
+            event_type="command.result.available",
+            aggregate_type="command",
+            aggregate_id=command.id,
+            correlation_id=command.correlation_id,
+            payload={
+                "command_id": str(command.id),
+                "conversation_id": str(command.conversation_id),
+                "assistant_message_id": str(message.id),
+                "artifact_id": str(artifact.id),
+                "task_id": str(task.id),
+            },
+        )
+        await append_audit(
+            session,
+            actor_type="worker",
+            actor_id=execution.workflow_id,
+            action="command.result.project",
+            resource_type="command",
+            resource_id=str(command.id),
+            authority_level=min(task.authority_ceiling, 1),
+            correlation_id=command.correlation_id,
+            idempotency_key=f"command:{command.id}:assistant-result",
+            result_json={
+                "assistant_message_id": str(message.id),
+                "artifact_id": str(artifact.id),
+                "task_id": str(task.id),
+            },
+        )
+    else:
+        if message.conversation_id != command.conversation_id or message.content != content:
+            raise HTTPException(
+                status_code=409,
+                detail="Canonical assistant result is already bound to different content",
+            )
+
+    command.result_json = {
+        **(command.result_json or {}),
+        "execution_status": "completed",
+        "artifact_id": str(artifact.id),
+        "assistant_message_id": str(message_id),
+    }
+
+
+async def _propagate_command_task_failure(
+    session: AsyncSession,
+    *,
+    task: Task,
+    execution: WorkflowExecution,
+    error: str,
+) -> None:
+    """Make a failed final capability visible in both Command and canonical Conversation state."""
+
+    command_id = _task_command_id(task)
+    if command_id is None:
+        return
+    command = await session.scalar(
+        select(CommandRecord).where(CommandRecord.id == command_id).with_for_update()
+    )
+    # Semantic routing Tasks also carry command_id but are not the Command's final capability Task.
+    if command is None or command.task_id != task.id or command.status == "unsupported":
+        return
+
+    transitioned = command.status != "failed"
+    command.status = "failed"
+    command.result_json = {
+        **(command.result_json or {}),
+        "execution_status": "failed",
+        "execution_error": error[:4000],
+        "task_id": str(task.id),
+        "workflow_execution_id": str(execution.id),
+    }
+
+    message_id = uuid.uuid5(
+        uuid.NAMESPACE_URL, f"kairo:command:{command.id}:assistant-failure:v1"
+    )
+    message = await session.get(ConversationMessage, message_id)
+    if message is None:
+        session.add(
+            ConversationMessage(
+                id=message_id,
+                conversation_id=command.conversation_id,
+                role="assistant",
+                content="KAIRO n’a pas pu terminer cette demande.",
+                metadata_json={
+                    "kind": "capability-failure",
+                    "command_id": str(command.id),
+                    "capability": str(command.capability_key or (task.input or {}).get("capability") or ""),
+                    "task_id": str(task.id),
+                    "workflow_execution_id": str(execution.id),
+                    "execution_status": "failed",
+                },
+            )
+        )
+        await session.flush()
+
+    if transitioned:
+        await enqueue_domain_event(
+            session,
+            event_type="command.failed",
+            aggregate_type="command",
+            aggregate_id=command.id,
+            correlation_id=command.correlation_id,
+            payload={
+                "command_id": str(command.id),
+                "task_id": str(task.id),
+                "workflow_execution_id": str(execution.id),
+                "assistant_message_id": str(message_id),
+                "failure_kind": "capability.execution-failed",
+            },
+        )
+        await append_audit(
+            session,
+            actor_type="worker",
+            actor_id=execution.workflow_id,
+            action="command.capability.fail",
+            resource_type="command",
+            resource_id=str(command.id),
+            authority_level=min(task.authority_ceiling, 1),
+            correlation_id=command.correlation_id,
+            idempotency_key=f"command:{command.id}:capability-fail",
+            result_json={
+                "error": error[:4000],
+                "task_id": str(task.id),
+                "assistant_message_id": str(message_id),
+            },
+        )
 
 
 async def _propagate_semantic_route_failure(
@@ -403,6 +605,14 @@ async def internal_complete_execution(
         select(Artifact).where(Artifact.workflow_execution_id == execution.id)
     )
     if execution.status == "completed" and artifact:
+        await _project_command_success(
+            session,
+            task=task,
+            execution=execution,
+            artifact=artifact,
+        )
+        await session.commit()
+        await session.refresh(artifact)
         return InternalCompleteResponse(execution_status="completed", artifact=artifact)
 
     if artifact is None:
@@ -455,6 +665,12 @@ async def internal_complete_execution(
         correlation_id=execution.correlation_id,
         idempotency_key=f"{workflow_id}:complete",
         result_json={"artifact_id": str(artifact.id)},
+    )
+    await _project_command_success(
+        session,
+        task=task,
+        execution=execution,
+        artifact=artifact,
     )
     await session.commit()
     await session.refresh(artifact)
@@ -513,6 +729,12 @@ async def internal_fail_execution(
             error=body.error,
         )
         await _propagate_document_ingestion_failure(
+            session,
+            task=task,
+            execution=execution,
+            error=body.error,
+        )
+        await _propagate_command_task_failure(
             session,
             task=task,
             execution=execution,
