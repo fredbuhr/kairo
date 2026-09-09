@@ -74,7 +74,11 @@ class OutboxRelay:
                         ack = await self._js.publish(
                             event.subject,
                             json.dumps(event.payload, separators=(",", ":"), default=str).encode(),
-                            headers={"Nats-Msg-Id": str(event.id)},
+                            headers={
+                                "Nats-Msg-Id": str(event.id),
+                                "Kairo-Event-Type": event.event_type,
+                                "Kairo-Correlation-Id": str(event.correlation_id),
+                            },
                         )
                     except Exception as exc:
                         event.last_error = str(exc)[:2000]
