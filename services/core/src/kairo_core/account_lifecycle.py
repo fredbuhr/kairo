@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import Principal, require_kairo_user
@@ -26,7 +26,9 @@ from .memory_models import MemoryProjectionRecord
 from .models import (
     Artifact,
     Asset,
+    AuditRecord,
     DeviceRegistration,
+    OutboxEvent,
     Project,
     RelationshipRecord,
     SecretReference,
@@ -58,6 +60,15 @@ class DerivedProjectionInventory(BaseModel):
     purge_current: bool = False
 
 
+class EvidenceInventory(BaseModel):
+    subject_owned_audit_records: int = 0
+    shared_audit_actor_references: int = 0
+    subject_owned_outbox_events: int = 0
+    unpublished_subject_outbox_events: int = 0
+    data_subject_addressable: bool = True
+    retention_action_available: bool = False
+
+
 class RetentionBoundaryRead(BaseModel):
     key: str
     state: Literal["canonical", "derived", "shared_retention", "external"]
@@ -70,6 +81,7 @@ class AccountDataInventoryRead(BaseModel):
     canonical_rows_total: int
     object_storage: ObjectStorageInventory
     derived_projections: DerivedProjectionInventory
+    evidence: EvidenceInventory
     boundaries: list[RetentionBoundaryRead]
 
 
@@ -154,6 +166,49 @@ async def _derived_projection_state(
         latest_canonical_message_at=latest_message_at,
         latest_completed_purge_cutoff_at=purge_cutoff,
         purge_current=purge_current,
+    )
+
+
+async def _evidence_inventory(session: AsyncSession, subject: str) -> EvidenceInventory:
+    subject_owned_audit = await _scalar_int(
+        session,
+        select(func.count())
+        .select_from(AuditRecord)
+        .where(AuditRecord.keycloak_subject == subject),
+    )
+    shared_actor_refs = await _scalar_int(
+        session,
+        select(func.count())
+        .select_from(AuditRecord)
+        .where(
+            AuditRecord.actor_type == "user",
+            AuditRecord.actor_id == subject,
+            or_(
+                AuditRecord.keycloak_subject.is_(None),
+                AuditRecord.keycloak_subject != subject,
+            ),
+        ),
+    )
+    subject_outbox = await _scalar_int(
+        session,
+        select(func.count())
+        .select_from(OutboxEvent)
+        .where(OutboxEvent.keycloak_subject == subject),
+    )
+    unpublished_subject_outbox = await _scalar_int(
+        session,
+        select(func.count())
+        .select_from(OutboxEvent)
+        .where(
+            OutboxEvent.keycloak_subject == subject,
+            OutboxEvent.published_at.is_(None),
+        ),
+    )
+    return EvidenceInventory(
+        subject_owned_audit_records=subject_owned_audit,
+        shared_audit_actor_references=shared_actor_refs,
+        subject_owned_outbox_events=subject_outbox,
+        unpublished_subject_outbox_events=unpublished_subject_outbox,
     )
 
 
@@ -396,13 +451,15 @@ async def _inventory(session: AsyncSession, subject: str) -> AccountDataInventor
             tracked_bytes=asset_bytes,
         ),
         derived_projections=derived_projection_state,
+        evidence=await _evidence_inventory(session, subject),
         boundaries=[
             RetentionBoundaryRead(
                 key="audit_outbox",
                 state="shared_retention",
                 detail=(
-                    "Audit/outbox rows are installation-wide evidence streams and are not yet "
-                    "fully subject-addressable for account erasure."
+                    "User-world Audit/Outbox rows now carry an indexed data-subject owner. Shared "
+                    "administrative audit rows can still reference a user as actor, so a formal "
+                    "retention/redaction action is required before complete erasure."
                 ),
             ),
             RetentionBoundaryRead(
@@ -452,13 +509,14 @@ async def account_export_manifest(
             "subject-scoped canonical record inventory",
             "tracked SeaweedFS Asset object count and bytes",
             "rebuildable memory projection ledger count and purge freshness",
+            "subject-addressable audit/outbox evidence counts (not raw retained payloads)",
             "retention-boundary declarations",
         ],
         excludes=[
             "secret values (write-only OpenBao material is never exported)",
             "shared deployment MCP server endpoint topology",
             "Mem0/Graphiti derived payloads",
-            "installation-wide audit/outbox streams",
+            "raw retained audit/outbox payloads until the retention/export policy is finalized",
             "Keycloak credentials/tokens",
         ],
     )
@@ -586,11 +644,16 @@ async def account_erasure_preflight(
     blockers.extend(
         [
             ErasureBlockerRead(
-                code="audit_outbox_retention_not_subject_addressable",
+                code="audit_outbox_retention_policy_not_applied",
                 scope="complete",
+                count=(
+                    inventory.evidence.subject_owned_audit_records
+                    + inventory.evidence.shared_audit_actor_references
+                    + inventory.evidence.subject_owned_outbox_events
+                ),
                 detail=(
-                    "Audit/outbox retention is not yet fully subject-addressable and requires a "
-                    "formal retention/redaction policy."
+                    "Audit/Outbox evidence is now data-subject addressable, but KAIRO has not yet "
+                    "applied the final delete/redact/retain policy for account erasure."
                 ),
             ),
             ErasureBlockerRead(
