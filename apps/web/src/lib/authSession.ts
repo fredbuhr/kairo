@@ -108,7 +108,9 @@ export function getAuthSnapshot(): KairoAuthSnapshot {
 
 export function subscribeAuthSession(listener: () => void) {
   listeners.add(listener)
-  return () => listeners.delete(listener)
+  return () => {
+    listeners.delete(listener)
+  }
 }
 
 async function refreshAccessToken(): Promise<string> {
