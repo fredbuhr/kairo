@@ -43,7 +43,7 @@ Availability is capability-driven. Unimplemented or disabled specialist areas sh
 
 ### Specialist workspaces
 
-Specialist workspaces do not create a second application shell. Projects, Tasks, Knowledge, Calendar, Gantt, Agents, Tools, Finance and later areas occupy the same central product while preserving primary navigation, universal search, command dock, assistant access and KAIRO identity.
+Specialist workspaces do not create a second application shell. Projects, Tasks, Knowledge, Calendar, Gantt, Agents, Automations, Tools, Finance and later areas occupy the same central product while preserving primary navigation, universal search, command dock, assistant access and KAIRO identity.
 
 A specialist workspace must use canonical KAIRO APIs or explicitly identified derived/sourced read models. It must not introduce its own authoritative project/task/document state merely because a tabular, timeline or form-oriented view is more convenient than the mycelium.
 
@@ -204,6 +204,42 @@ Rules:
 
 ADR-034 defines this boundary.
 
+## Automations and external workflow execution
+
+KAIRO owns Automation definitions, authority and invocation history. Activepieces is an execution adapter, not a second authoritative product surface.
+
+Rules:
+
+- new Automation definitions start disabled;
+- webhook endpoints remain behind OpenBao SecretReferences rather than frontend/domain rows;
+- KAIRO constructs the fixed internal Activepieces origin and does not accept arbitrary secret-supplied destination URLs;
+- each invocation creates a canonical capability Task/WorkflowExecution and passes through the normal policy/approval boundary;
+- webhook execution is not blindly retried after a possible side-effect boundary;
+- a lost/ambiguous response is recorded explicitly for reconciliation instead of being silently replayed;
+- response evidence is bounded by default rather than importing arbitrary downstream response bodies into canonical state.
+
+ADR-035 defines this boundary.
+
+## Finance and Crypto provenance / custody boundary
+
+Finance & Crypto is an operational view over sourced financial observations, not a wallet custody surface.
+
+KAIRO Core owns normalized `FinanceSource`, `FinanceAccount` and `FinancePosition` observations. Replaceable connectors such as Rotki, exchanges, wallets or future banking adapters feed a trusted snapshot boundary. Provider identity and observation time remain explicit.
+
+Rules:
+
+- no fake holdings are shown when no source has provided a position;
+- a sourced position is an observation, not a current spend-authority guarantee;
+- public wallet addresses may be stored as provenance; private keys, seeds, mnemonics and provider credentials may not enter Finance snapshot/proposal JSON;
+- source keys cannot silently rebind to another external account;
+- full source snapshots may remove stale observations without creating transactions;
+- KAIRO may prepare an unsigned transaction proposal only for an asset observed on the selected account;
+- Test Interface v1 exposes no sign/send/broadcast action;
+- any future signing requires the policy/approval boundary plus an isolated signer, hardware wallet or explicit user-wallet interaction;
+- LLM/agent processes never receive private keys or seed phrases.
+
+ADR-015 and ADR-036 define the signing/provenance boundary.
+
 ## Tools and external capabilities
 
 The Tools workspace is a policy/control surface over KAIRO's canonical MCP registry. It must not treat discovery as authorization.
@@ -256,6 +292,8 @@ Test Interface v1 is structurally complete when:
 7. the same graph package powers 3D, 2D and accessible KAIRO Brain views;
 8. performance/reduced-motion modes are implemented in the same renderer family;
 9. desktop/Tauri can reuse the same web application rather than requiring a second UI;
-10. later feature work can fill Automations, Finance, Desktop/Voice and other areas without replacing the shell;
+10. later feature work can extend Desktop/Voice and other areas without replacing the shell;
 11. specialist workspaces that create or inspect canonical objects remain synchronized with the same graph projection and can navigate back to exact canonical entities;
-12. external Calendar and future external-source overlays preserve explicit provenance rather than silently rewriting KAIRO-owned state.
+12. external Calendar, Finance and future external-source overlays preserve explicit provenance rather than silently rewriting KAIRO-owned state;
+13. Automations remain KAIRO-owned policy/audit state even when execution is delegated to Activepieces;
+14. Finance/Crypto never exposes private signing material or a direct agent-signing path through the Cockpit.
