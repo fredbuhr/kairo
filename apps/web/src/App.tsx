@@ -151,6 +151,15 @@ type CommandState = {
   task_id?: string | null
 }
 
+type ConversationEntry = {
+  id: string
+  conversation_id: string
+  role: string
+  content: string
+  metadata_json: Record<string, unknown>
+  created_at: string
+}
+
 function impactLabel(level?: string) {
   const labels: Record<string, string> = {
     low: 'Faible',
@@ -166,9 +175,17 @@ function shortId(value?: string) {
   return `${value.slice(0, 8)}…`
 }
 
+function entryLabel(entry: ConversationEntry) {
+  if (entry.role === 'user') return 'Vous'
+  if (entry.metadata_json.kind === 'capability-failure') return 'KAIRO · échec'
+  const capability = entry.metadata_json.capability
+  return typeof capability === 'string' && capability ? `KAIRO · ${capability}` : 'KAIRO'
+}
+
 export default function App() {
   const [command, setCommand] = useState('Quelles sont les nouvelles du jour sur la ville de Paris ?')
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const [conversationMessages, setConversationMessages] = useState<ConversationEntry[]>([])
   const [pendingCommandId, setPendingCommandId] = useState<string | null>(null)
   const [lastRoute, setLastRoute] = useState<AssistantRun | null>(null)
   const [activeCapability, setActiveCapability] = useState<string | null>(null)
@@ -289,6 +306,36 @@ export default function App() {
       if (timer) window.clearTimeout(timer)
     }
   }, [taskId, activeCapability])
+
+  useEffect(() => {
+    if (!conversationId) {
+      setConversationMessages([])
+      return
+    }
+    let cancelled = false
+
+    const refreshConversation = async () => {
+      try {
+        const response = await fetch(`${API_URL}/v1/conversations/${conversationId}/messages`)
+        if (!response.ok) throw new Error(`KAIRO Core répond ${response.status}`)
+        const entries = (await response.json()) as ConversationEntry[]
+        if (!cancelled) setConversationMessages(entries)
+      } catch (conversationError) {
+        if (!cancelled) {
+          setError(
+            conversationError instanceof Error
+              ? conversationError.message
+              : 'Impossible de relire la conversation canonique.',
+          )
+        }
+      }
+    }
+
+    void refreshConversation()
+    return () => {
+      cancelled = true
+    }
+  }, [conversationId, pendingCommandId, taskId, brief?.status, research?.status])
 
   const sources = useMemo(() => brief?.artifact?.content.sources || [], [brief])
   const impact = brief?.artifact?.content.market_impact
@@ -466,6 +513,30 @@ export default function App() {
             <span>Le modèle ne peut proposer qu’une capacité enregistrée ; Core valide son contrat avant toute exécution.</span>
           </div>
         )}
+        {error && <div className="error-panel">{error}</div>}
+
+        {conversationMessages.length > 0 && (
+          <section className="conversation-thread" aria-label="Conversation KAIRO persistée">
+            <div className="conversation-thread-heading">
+              <strong>Conversation canonique</strong>
+              <span>{conversationMessages.length} message(s) · PostgreSQL + projection mémoire</span>
+            </div>
+            <div className="conversation-messages">
+              {conversationMessages.map((entry) => (
+                <article
+                  key={entry.id}
+                  className={`conversation-message conversation-message-${entry.role === 'assistant' ? 'assistant' : 'user'}`}
+                >
+                  <small>{entryLabel(entry)}</small>
+                  <p>{entry.content}</p>
+                  {entry.role === 'assistant' && typeof entry.metadata_json.artifact_id === 'string' && (
+                    <span>artifact · {shortId(entry.metadata_json.artifact_id)}</span>
+                  )}
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
       </section>
 
       <section className="research-workspace" aria-labelledby="research-heading">
@@ -602,8 +673,6 @@ export default function App() {
             </button>
           </div>
         </form>
-
-        {error && <div className="error-panel">{error}</div>}
 
         {taskId && activeCapability === 'news.brief' && !brief?.artifact && !error && (
           <div className="progress-panel">
