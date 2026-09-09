@@ -6,6 +6,7 @@ import unicodedata
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import Principal, require_kairo_user
 from .db import get_session
 from .graph import graph_search
 from .graph_schemas import (
@@ -69,6 +70,7 @@ def _parse_navigation(text: str) -> tuple[str, str, str | None] | None:
 @router.post("/resolve", response_model=GraphUIDirectiveResolveRead)
 async def resolve_graph_ui_directive(
     body: GraphUIDirectiveResolveRequest,
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> GraphUIDirectiveResolveRead:
     parsed = _parse_navigation(body.text)
@@ -76,7 +78,7 @@ async def resolve_graph_ui_directive(
         return GraphUIDirectiveResolveRead(outcome="not_navigation")
 
     kind, query, entity_type = parsed
-    search = await graph_search(q=query, limit=12, session=session)
+    search = await graph_search(q=query, limit=12, principal=principal, session=session)
     candidates = [
         node for node in search.nodes if entity_type is None or node.entity_type == entity_type
     ]
