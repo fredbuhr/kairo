@@ -1,11 +1,5 @@
-import KairoApp from './app/KairoApp'
-import { LiveGraphBridge } from './features/graph/LiveGraphBridge'
+import KairoCockpit from './app/KairoCockpit'
 
 export default function App() {
-  return (
-    <>
-      <LiveGraphBridge />
-      <KairoApp />
-    </>
-  )
+  return <KairoCockpit />
 }
