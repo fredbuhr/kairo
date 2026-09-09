@@ -62,6 +62,12 @@ export type DerivedMemoryPurgeRun = {
   already_running: boolean
 }
 
+export type AccountLifecycleTask = {
+  id: string
+  status: string
+  completed_at?: string | null
+}
+
 export function fetchAccountDataInventory(): Promise<AccountDataInventory> {
   return apiJson('/v1/account/data-inventory')
 }
@@ -76,4 +82,8 @@ export function fetchAccountErasurePreflight(): Promise<AccountErasurePreflight>
 
 export function purgeDerivedMemory(): Promise<DerivedMemoryPurgeRun> {
   return apiJson('/v1/account/derived-memory/purge', { method: 'POST' })
+}
+
+export function fetchAccountLifecycleTask(taskId: string): Promise<AccountLifecycleTask> {
+  return apiJson(`/v1/tasks/${encodeURIComponent(taskId)}`)
 }
