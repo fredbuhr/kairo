@@ -10,6 +10,7 @@ on:
       - 'scripts/smoke/multi_user_conversation_ownership.py'
       - 'scripts/smoke/multi_user_secret_ownership.py'
       - 'scripts/smoke/multi_user_tool_invocation_ownership.py'
+      - 'scripts/smoke/multi_user_asset_document_ownership.py'
       - 'scripts/smoke/tool_invocation_ownership_contract.py'
       - 'scripts/smoke/asset_document_ownership_contract.py'
       - 'scripts/smoke/openbao_policy_contract.py'
@@ -30,6 +31,7 @@ on:
       - 'scripts/smoke/multi_user_conversation_ownership.py'
       - 'scripts/smoke/multi_user_secret_ownership.py'
       - 'scripts/smoke/multi_user_tool_invocation_ownership.py'
+      - 'scripts/smoke/multi_user_asset_document_ownership.py'
       - 'scripts/smoke/tool_invocation_ownership_contract.py'
       - 'scripts/smoke/asset_document_ownership_contract.py'
       - 'scripts/smoke/openbao_policy_contract.py'
@@ -60,7 +62,7 @@ jobs:
 
       - name: Compile ownership-sensitive Core and proofs
         run: |
-          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py scripts/smoke/multi_user_tool_invocation_ownership.py scripts/smoke/tool_invocation_ownership_contract.py scripts/smoke/asset_document_ownership_contract.py scripts/smoke/openbao_policy_contract.py scripts/smoke/control_plane_visibility.py
+          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py scripts/smoke/multi_user_tool_invocation_ownership.py scripts/smoke/multi_user_asset_document_ownership.py scripts/smoke/tool_invocation_ownership_contract.py scripts/smoke/asset_document_ownership_contract.py scripts/smoke/openbao_policy_contract.py scripts/smoke/control_plane_visibility.py
 
       - name: Prove least-privilege OpenBao workload policy
         run: python scripts/smoke/openbao_policy_contract.py
@@ -83,6 +85,9 @@ jobs:
 
       - name: Prove Assistant/News/Memory ownership isolation
         run: python scripts/smoke/multi_user_conversation_ownership.py
+
+      - name: Prove Asset/Document ownership isolation
+        run: python scripts/smoke/multi_user_asset_document_ownership.py
 
       - name: Prove SecretReference/Automation/Finance ownership isolation
         run: python scripts/smoke/multi_user_secret_ownership.py
