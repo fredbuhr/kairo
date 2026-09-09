@@ -52,7 +52,10 @@ class DerivedProjectionInventory(BaseModel):
     memory_projection_records: int = 0
     projectors: list[str] = Field(default_factory=lambda: ["mem0", "graphiti"])
     canonical: Literal[False] = False
-    purge_adapter_available: bool = False
+    purge_adapter_available: bool = True
+    latest_canonical_message_at: datetime | None = None
+    latest_completed_purge_cutoff_at: datetime | None = None
+    purge_current: bool = False
 
 
 class RetentionBoundaryRead(BaseModel):
@@ -100,6 +103,58 @@ class AccountErasurePreflightRead(BaseModel):
 async def _scalar_int(session: AsyncSession, statement) -> int:
     value = await session.scalar(statement)
     return int(value or 0)
+
+
+def _parse_iso_datetime(value: object) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+async def _derived_projection_state(
+    session: AsyncSession,
+    subject: str,
+    *,
+    memory_projection_count: int,
+) -> DerivedProjectionInventory:
+    latest_message_at = await session.scalar(
+        select(func.max(ConversationMessage.created_at))
+        .join(Conversation, Conversation.id == ConversationMessage.conversation_id)
+        .where(Conversation.subject_ref == subject)
+    )
+    latest_purge_task = await session.scalar(
+        select(Task)
+        .join(Project, Project.id == Task.project_id)
+        .where(
+            Project.keycloak_subject == subject,
+            Task.input["capability"].astext == "memory.purge",
+            Task.status.in_(["completed", "done"]),
+        )
+        .order_by(Task.completed_at.desc().nullslast(), Task.updated_at.desc())
+        .limit(1)
+    )
+    purge_cutoff = (
+        _parse_iso_datetime((latest_purge_task.input or {}).get("purge_cutoff_at"))
+        if latest_purge_task is not None
+        else None
+    )
+    purge_current = latest_message_at is None or (
+        purge_cutoff is not None
+        and purge_cutoff >= latest_message_at
+        and memory_projection_count == 0
+    )
+    return DerivedProjectionInventory(
+        memory_projection_records=memory_projection_count,
+        latest_canonical_message_at=latest_message_at,
+        latest_completed_purge_cutoff_at=purge_cutoff,
+        purge_current=purge_current,
+    )
 
 
 async def _inventory(session: AsyncSession, subject: str) -> AccountDataInventoryRead:
@@ -215,6 +270,11 @@ async def _inventory(session: AsyncSession, subject: str) -> AccountDataInventor
             MemoryProjectionRecord.source_type == "conversation_message",
             MemoryProjectionRecord.source_id.in_(owned_message_ids),
         ),
+    )
+    derived_projection_state = await _derived_projection_state(
+        session,
+        subject,
+        memory_projection_count=memory_projection_count,
     )
 
     device_count = await _scalar_int(
@@ -335,9 +395,7 @@ async def _inventory(session: AsyncSession, subject: str) -> AccountDataInventor
             tracked_objects=asset_count,
             tracked_bytes=asset_bytes,
         ),
-        derived_projections=DerivedProjectionInventory(
-            memory_projection_records=memory_projection_count,
-        ),
+        derived_projections=derived_projection_state,
         boundaries=[
             RetentionBoundaryRead(
                 key="audit_outbox",
@@ -351,8 +409,9 @@ async def _inventory(session: AsyncSession, subject: str) -> AccountDataInventor
                 key="mem0_graphiti",
                 state="derived",
                 detail=(
-                    "Mem0/Graphiti are rebuildable projections, but subject-wide purge adapters "
-                    "are not yet implemented."
+                    "Mem0/Graphiti are rebuildable projections. A subject-scoped purge adapter is "
+                    "available; a purge is current only when its completed cutoff covers the latest "
+                    "canonical conversation message."
                 ),
             ),
             RetentionBoundaryRead(
@@ -392,7 +451,7 @@ async def account_export_manifest(
         includes=[
             "subject-scoped canonical record inventory",
             "tracked SeaweedFS Asset object count and bytes",
-            "rebuildable memory projection ledger count",
+            "rebuildable memory projection ledger count and purge freshness",
             "retention-boundary declarations",
         ],
         excludes=[
@@ -510,17 +569,22 @@ async def account_erasure_preflight(
             )
         )
 
-    blockers.extend(
-        [
+    if not inventory.derived_projections.purge_current:
+        blockers.append(
             ErasureBlockerRead(
-                code="derived_projection_purge_not_implemented",
+                code="derived_projection_purge_required",
                 scope="complete",
                 count=inventory.derived_projections.memory_projection_records,
+                resolvable_by_user=True,
                 detail=(
-                    "Subject-wide Mem0/Graphiti purge is not implemented; KAIRO will not claim "
-                    "complete erasure while derived projection material may remain."
+                    "Mem0/Graphiti derived memory must be purged after the latest canonical "
+                    "conversation message. Canonical conversations are preserved by this action."
                 ),
-            ),
+            )
+        )
+
+    blockers.extend(
+        [
             ErasureBlockerRead(
                 code="audit_outbox_retention_not_subject_addressable",
                 scope="complete",
