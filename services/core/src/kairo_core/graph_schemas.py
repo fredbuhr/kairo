@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 
 GraphProjectionMode = Literal["home", "neighborhood"]
 GraphEdgeProvenance = Literal["canonical_relationship", "canonical_fk"]
+GraphUIDirectiveKind = Literal["focus_entity", "isolate_entity"]
+GraphUIDirectiveOutcome = Literal["directive", "not_navigation", "ambiguous", "not_found"]
 
 
 class GraphEntityRef(BaseModel):
@@ -81,3 +83,22 @@ class GraphActivityEventRead(BaseModel):
     related: list[GraphEntityRef] = Field(default_factory=list)
     correlation_id: uuid.UUID
     occurred_at: datetime
+
+
+class GraphUIDirectiveResolveRequest(BaseModel):
+    text: str = Field(min_length=2, max_length=1000)
+
+
+class GraphUIDirectiveRead(BaseModel):
+    kind: GraphUIDirectiveKind
+    entity: GraphEntityRef
+    label: str = Field(min_length=1, max_length=320)
+    depth: int = Field(default=1, ge=1, le=2)
+    reason: str = Field(min_length=1, max_length=160)
+
+
+class GraphUIDirectiveResolveRead(BaseModel):
+    outcome: GraphUIDirectiveOutcome
+    query: str = ""
+    directive: GraphUIDirectiveRead | None = None
+    candidates: list[GraphNodeRead] = Field(default_factory=list)
