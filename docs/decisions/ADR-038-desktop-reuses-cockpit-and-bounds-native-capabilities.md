@@ -29,13 +29,31 @@ The first desktop slice exposes:
 
 - runtime/capability introspection;
 - clipboard text read/write;
-- local notifications, requesting OS permission only when the user actually invokes notification use;
+- local notifications, requesting OS permission only when notification delivery is actually invoked;
+- opt-in background attention notifications derived only from KAIRO's sanitized canonical activity stream;
 - ordinary user-selected WebView file input;
 - one fixed native summon shortcut, `CmdOrCtrl+Shift+Space`, whose Rust handler may only restore/show/focus the main KAIRO window.
 
 The frontend receives **no global-shortcut registration API**. It cannot claim arbitrary operating-system shortcuts merely because the native plugin is present.
 
 Screenshot capture, microphone, wake word/VAD, user-configurable global shortcuts and privileged local commands remain explicitly unavailable until their individual contracts exist.
+
+## Background attention notification boundary
+
+Native notifications are useful only if they reduce the need to keep KAIRO visible constantly. They must not become a general-purpose channel that any agent or arbitrary frontend code can spam.
+
+The current Cockpit therefore applies these rules:
+
+- background attention notifications are disabled by default;
+- the user explicitly enables the preference in Desktop Settings;
+- notification delivery is attempted only in Tauri Desktop;
+- the Cockpit does not issue the notification when the KAIRO window is visible and focused;
+- only a fixed allow-list of canonical activity classes is eligible, currently approvals plus selected completion/failure events;
+- the browser reacts to the sanitized graph activity event, not arbitrary downstream provider text;
+- realtime event ids are deduplicated locally so reconnect/replay does not generate duplicate OS notifications;
+- notification permission refusal or OS delivery failure remains a progressive-enhancement failure and never breaks realtime state or graph invalidation.
+
+This preference is local presentation state. It grants no new execution authority to the agent, Worker or Core.
 
 ## Why file import remains WebView-selected initially
 
@@ -58,6 +76,7 @@ Its action is intentionally local and reversible: unminimize, show and focus the
 - Native permissions stay visible and reviewable.
 - Browser users receive truthful unsupported states instead of broken calls.
 - The initial summon behavior exists without granting shortcut-registration authority to the frontend.
+- Important background approvals/completions can reach the user without making every realtime event an OS notification.
 - Future Tauri capabilities can be tested without granting agents generic operating-system authority.
 
 ### Trade-offs
@@ -66,6 +85,7 @@ Its action is intentionally local and reversible: unminimize, show and focus the
 - A production remote-server configuration and authenticated desktop session still need explicit hardening.
 - Clipboard, notification and global-shortcut plugins add native build dependencies that must be validated on supported operating systems.
 - The first shortcut is fixed rather than user-configurable; configurability requires a dedicated settings/permission contract.
+- The first attention-notification allow-list is intentionally conservative and may need product tuning.
 
 ## Rejected alternatives
 
@@ -80,6 +100,10 @@ Rejected because arbitrary command execution would collapse the security boundar
 ### Frontend-managed global shortcut plugin
 
 Rejected for the first slice because it would give the WebView a broader OS-level registration capability than the product currently needs.
+
+### Notify every realtime event
+
+Rejected because it would turn the operating system notification center into another noisy activity feed and make model/connector chatter visible as user attention demands.
 
 ### Broad filesystem permission from day one
 
