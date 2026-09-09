@@ -31,6 +31,7 @@ class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[uuid.UUID] = uuid_pk()
+    keycloak_subject: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(240), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     summary: Mapped[str | None] = mapped_column(Text)
@@ -42,6 +43,10 @@ class Project(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_projects_subject_status_updated", "keycloak_subject", "status", "updated_at"),
     )
 
 
@@ -84,6 +89,7 @@ class RelationshipRecord(Base):
     __tablename__ = "relationships"
 
     id: Mapped[uuid.UUID] = uuid_pk()
+    keycloak_subject: Mapped[str] = mapped_column(String(255), nullable=False)
     source_type: Mapped[str] = mapped_column(String(64), nullable=False)
     source_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     relation_type: Mapped[str] = mapped_column(String(96), nullable=False)
@@ -97,6 +103,8 @@ class RelationshipRecord(Base):
     __table_args__ = (
         Index("ix_relationships_source", "source_type", "source_id"),
         Index("ix_relationships_target", "target_type", "target_id"),
+        Index("ix_relationships_subject_source", "keycloak_subject", "source_type", "source_id"),
+        Index("ix_relationships_subject_target", "keycloak_subject", "target_type", "target_id"),
     )
 
 
