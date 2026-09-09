@@ -43,7 +43,11 @@ function signed(seed: string, salt: number): number {
 }
 
 function clusterForNode(node: KairoGraphNode): string {
-  return node.cluster_hint || node.project_id || node.entity_type
+  // Only canonical/contextual cluster hints may create a shared gravity well. Falling back to
+  // entity type would turn the spatial model into a disguised category menu (all tasks together,
+  // all conversations together, etc.). Unscoped entities therefore receive a stable private well
+  // and are grouped by their real relationships instead.
+  return node.cluster_hint || node.project_id || graphNodeKey(node)
 }
 
 function clusterCenter(cluster: string, anchoredCluster?: string | null): [number, number, number] {
