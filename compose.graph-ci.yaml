@@ -1,0 +1,6 @@
+services:
+  kairo-core:
+    environment:
+      # The Graph cockpit integration job starts only the canonical substrate, not Keycloak.
+      # Disable user auth only in this CI overlay; production explicitly forces auth on.
+      KAIRO_AUTH_ENABLED: "false"
