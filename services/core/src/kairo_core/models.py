@@ -205,6 +205,7 @@ class SecretReference(Base):
     __tablename__ = "secret_references"
 
     id: Mapped[uuid.UUID] = uuid_pk()
+    keycloak_subject: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(240), nullable=False)
     provider_path: Mapped[str] = mapped_column(String(1024), nullable=False, unique=True)
     purpose: Mapped[str] = mapped_column(String(320), nullable=False)
@@ -213,6 +214,13 @@ class SecretReference(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "id", "keycloak_subject", name="uq_secret_references_id_keycloak_subject"
+        ),
+        Index("ix_secret_references_subject_created", "keycloak_subject", "created_at"),
     )
 
 
