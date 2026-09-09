@@ -16,21 +16,26 @@ from .models import Artifact, Asset, Project, Task, WorkflowExecution
 DEVELOPMENT_SUBJECT = "development-user"
 
 
+def _derived_system_project_id(subject: str, key: str) -> uuid.UUID:
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:project:{key}:subject:{subject}")
+
+
 def scoped_system_project_id(
     subject: str,
     key: str,
     *,
     legacy_development_id: uuid.UUID | None = None,
 ) -> uuid.UUID:
-    """Return a stable per-subject system Project identity.
+    """Return the preferred stable per-subject system Project identity.
 
-    The auth-disabled development subject may retain an existing historical system-project UUID so
-    old deterministic smoke identities continue to work. Authenticated users never share that row.
+    Auth-disabled development may reuse a historical ID only when that row is not already reserved
+    as a system-owned migration workspace. `ensure_system_project` detects that collision and falls
+    back to the derived per-subject UUID, so authenticated and legacy/system rows never alias.
     """
 
     if subject == DEVELOPMENT_SUBJECT and legacy_development_id is not None:
         return legacy_development_id
-    return uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:project:{key}:subject:{subject}")
+    return _derived_system_project_id(subject, key)
 
 
 async def ensure_system_project(
@@ -47,6 +52,12 @@ async def ensure_system_project(
         key,
         legacy_development_id=legacy_development_id,
     )
+    existing = await session.get(Project, project_id)
+    if existing is not None and existing.keycloak_subject != subject:
+        # Migrations deliberately preserve certain historical workspace IDs as __kairo_system__.
+        # Never seize such a row for a user just because auth-disabled development once used it.
+        project_id = _derived_system_project_id(subject, key)
+
     inserted_id = await session.scalar(
         pg_insert(Project)
         .values(
