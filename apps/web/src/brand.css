@@ -1,0 +1,75 @@
+.kairo-mark {
+  filter: drop-shadow(0 0 10px rgba(74, 231, 227, .30));
+}
+
+.kairo-mark i {
+  left: 9%;
+  top: 14%;
+  width: 82%;
+  height: 70%;
+  border-width: 1.1px;
+  border-radius: 46% 54% 49% 51% / 55% 45% 57% 43%;
+  opacity: .82;
+}
+
+.kairo-mark i:nth-child(1) {
+  transform: rotate(8deg) scaleX(.92) scaleY(1.04);
+}
+
+.kairo-mark i:nth-child(2) {
+  transform: rotate(55deg) scaleX(1.04) scaleY(.90);
+  border-color: rgba(61, 215, 236, .86);
+}
+
+.kairo-mark i:nth-child(3) {
+  transform: rotate(101deg) scaleX(.88) scaleY(1.06);
+  border-color: rgba(117, 243, 200, .80);
+}
+
+.kairo-mark i:nth-child(4) {
+  transform: rotate(147deg) scaleX(1.03) scaleY(.91);
+  opacity: .58;
+}
+
+.kairo-mark::before,
+.kairo-mark::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #c6fff4;
+  box-shadow: 0 0 7px rgba(110, 241, 222, .85);
+}
+
+.kairo-mark::before {
+  left: 7px;
+  top: 10px;
+  box-shadow:
+    0 0 7px rgba(110, 241, 222, .85),
+    27px 3px 0 -0.2px #79eaf0,
+    27px 3px 7px rgba(86, 222, 235, .55),
+    19px 25px 0 -0.2px #9cf5d9,
+    19px 25px 7px rgba(106, 233, 198, .50);
+}
+
+.kairo-mark::after {
+  left: 4px;
+  top: 27px;
+  background: #73e7ec;
+  box-shadow:
+    0 0 7px rgba(86, 222, 235, .65),
+    29px -3px 0 -0.2px #b2fae5,
+    29px -3px 7px rgba(104, 236, 207, .50);
+}
+
+.kairo-mark-compact::before,
+.kairo-mark-compact::after {
+  transform: scale(.70);
+  transform-origin: 0 0;
+}
+
+.kairo-mark-compact i {
+  border-width: 1px;
+}
