@@ -18,6 +18,7 @@ from .auth import Principal, require_kairo_admin, require_kairo_user
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project, Task, WorkflowExecution
+from .ownership import owned_task, require_owned_project
 from .security import require_internal_token
 from .tool_models import ToolDefinition, ToolInvocation, ToolServer
 
@@ -503,9 +504,7 @@ async def create_tool_invocation(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> ToolInvocationCreated:
-    project = await session.get(Project, body.project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await require_owned_project(session, body.project_id, principal.subject)
     tool = await session.scalar(select(ToolDefinition).where(ToolDefinition.key == body.tool_key))
     if not tool:
         raise HTTPException(status_code=404, detail="Tool not found")
@@ -518,7 +517,7 @@ async def create_tool_invocation(
         select(ToolInvocation).where(ToolInvocation.idempotency_key == idempotency_key)
     )
     if existing:
-        existing_task = await session.get(Task, existing.task_id)
+        existing_task = await owned_task(session, existing.task_id, principal.subject)
         if (
             existing.tool_definition_id != tool.id
             or existing.input_json != body.input
@@ -605,11 +604,11 @@ async def create_tool_invocation(
 @router.get("/v1/tool-invocations/{invocation_id}", response_model=ToolInvocationRead)
 async def get_tool_invocation(
     invocation_id: uuid.UUID,
-    _: Principal = Depends(require_kairo_user),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> ToolInvocation:
     invocation = await session.get(ToolInvocation, invocation_id)
-    if not invocation:
+    if not invocation or await owned_task(session, invocation.task_id, principal.subject) is None:
         raise HTTPException(status_code=404, detail="Tool invocation not found")
     return invocation
 
