@@ -144,3 +144,15 @@ export function provisionSecretReference(
     body: JSON.stringify({ values }),
   })
 }
+
+export function destroySecretReferenceValues(referenceId: string): Promise<void> {
+  return apiJson(`/v1/secret-references/${encodeURIComponent(referenceId)}/values`, {
+    method: 'DELETE',
+  })
+}
+
+export function deleteSecretReference(referenceId: string): Promise<void> {
+  return apiJson(`/v1/secret-references/${encodeURIComponent(referenceId)}`, {
+    method: 'DELETE',
+  })
+}
