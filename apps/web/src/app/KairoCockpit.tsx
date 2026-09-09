@@ -43,7 +43,7 @@ const NAVIGATION: NavigationItem[] = [
   { key: 'tasks', label: 'Tâches', glyph: '✓', available: true },
   { key: 'calendar', label: 'Calendrier', glyph: '▦', available: true },
   { key: 'agents', label: 'Agents', glyph: '⌘', available: true },
-  { key: 'automations', label: 'Automatisations', glyph: '↯', available: false },
+  { key: 'automations', label: 'Automatisations', glyph: '↯', available: true },
   { key: 'finance', label: 'Finance & Crypto', glyph: '◒', available: false },
   { key: 'tools', label: 'Outils', glyph: '⊹', available: true },
   { key: 'settings', label: 'Paramètres', glyph: '⚙', available: true },
@@ -109,6 +109,7 @@ function workspaceLabel(mode: CoreWorkspaceMode | null) {
     knowledge: 'Connaissances',
     calendar: 'Calendrier',
     agents: 'Agents',
+    automations: 'Automatisations',
     tools: 'Outils',
   }
   return mode ? labels[mode] : null
@@ -246,7 +247,7 @@ export default function KairoCockpit() {
     if (!item.available) return
     if (item.key === 'home') recenter('home')
     if (item.key === 'brain') recenter('brain')
-    if (['projects', 'tasks', 'knowledge', 'calendar', 'agents', 'tools'].includes(item.key)) {
+    if (['projects', 'tasks', 'knowledge', 'calendar', 'agents', 'automations', 'tools'].includes(item.key)) {
       openWorkspace(item.key as CoreWorkspaceMode)
     }
     if (item.key === 'assistant') setAssistantOpen(true)
