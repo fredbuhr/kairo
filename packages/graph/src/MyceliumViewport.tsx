@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
+import { InstancedNodeField } from './InstancedNodeField'
 import type {
   KairoGraphEdge,
   KairoGraphNode,
@@ -42,8 +43,8 @@ type SemanticBand = 1 | 2 | 3
 
 function hash(value: string): number {
   let h = 2166136261
-  for (let i = 0; i < value.length; i += 1) {
-    h ^= value.charCodeAt(i)
+  for (let index = 0; index < value.length; index += 1) {
+    h ^= value.charCodeAt(index)
     h = Math.imul(h, 16777619)
   }
   return h >>> 0
@@ -67,7 +68,9 @@ function fallbackPose(node: KairoGraphNode, index: number, focusKey?: string | n
 
 function qualitySettings(quality: KairoGraphQuality): QualitySettings {
   const hardwareConcurrency = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 8 : 8
-  const requested = quality === 'auto' ? (hardwareConcurrency <= 4 ? 'eco' : hardwareConcurrency <= 8 ? 'balanced' : 'high') : quality
+  const requested = quality === 'auto'
+    ? (hardwareConcurrency <= 4 ? 'eco' : hardwareConcurrency <= 8 ? 'balanced' : 'high')
+    : quality
   const deviceDpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
   if (requested === 'eco') {
     return { dpr: 1, nodeSegments: 16, filamentSegments: 10, radialSegments: 3, pulseLimit: 8, antialias: false }
@@ -118,16 +121,6 @@ function useGraphLayout(projection: KairoGraphProjection | null) {
   }, [projection])
 
   return poses
-}
-
-function nodeColor(node: KairoGraphNode): string {
-  if (node.entity_type === 'approval') return '#b7f8d2'
-  if (node.entity_type === 'project') return '#49e8ef'
-  if (node.entity_type === 'task') return '#76f4cf'
-  if (node.entity_type === 'document') return '#78cff8'
-  if (node.entity_type === 'artifact') return '#8ce9d6'
-  if (node.entity_type === 'conversation') return '#83d9ef'
-  return '#65dce1'
 }
 
 function KairoAnchor({ reducedMotion }: { reducedMotion: boolean }) {
@@ -192,99 +185,6 @@ function CameraRig({ focusPose }: { focusPose?: KairoGraphPose | null }) {
   return null
 }
 
-function MyceliumNode({
-  node,
-  pose,
-  selected,
-  focused,
-  visible,
-  dimmed,
-  reducedMotion,
-  settings,
-  onSelect,
-  onExplore,
-  onHover,
-}: {
-  node: KairoGraphNode
-  pose: KairoGraphPose
-  selected: boolean
-  focused: boolean
-  visible: boolean
-  dimmed: boolean
-  reducedMotion: boolean
-  settings: QualitySettings
-  onSelect?: (node: KairoGraphNode) => void
-  onExplore?: (node: KairoGraphNode) => void
-  onHover?: (node: KairoGraphNode | null, point: KairoGraphTooltipPoint | null) => void
-}) {
-  const group = useRef<THREE.Group>(null)
-  const mesh = useRef<THREE.Mesh>(null)
-  const birthStartedAt = useRef<number | null>(null)
-  const color = nodeColor(node)
-  const baseRadius = 0.22 + node.importance * 0.48
-  const key = graphNodeKey(node)
-  const phase = ((hash(key) % 1000) / 1000) * Math.PI * 2
-
-  useFrame(({ clock }) => {
-    if (!mesh.current || !group.current) return
-    if (birthStartedAt.current === null) birthStartedAt.current = clock.elapsedTime
-    const age = Math.max(0, clock.elapsedTime - birthStartedAt.current)
-    const birthProgress = reducedMotion ? 1 : Math.min(1, age / 0.82)
-    const emergence = 1 - (1 - birthProgress) ** 3
-    group.current.scale.setScalar(emergence)
-
-    const breathing = reducedMotion ? 1 : 1 + Math.sin(clock.elapsedTime * 0.52 + phase) * (0.018 + node.activity * 0.018)
-    const emphasis = selected ? 1.18 : focused ? 1.11 : 1
-    mesh.current.scale.setScalar(breathing * emphasis)
-    mesh.current.position.y = reducedMotion ? 0 : Math.sin(clock.elapsedTime * 0.18 + phase) * 0.055
-  })
-
-  function pointerPoint(event: ThreeEvent<PointerEvent>): KairoGraphTooltipPoint {
-    return { x: event.nativeEvent.clientX, y: event.nativeEvent.clientY }
-  }
-
-  return (
-    <group ref={group} position={[pose.x, pose.y, pose.z]} visible={visible}>
-      <mesh
-        ref={mesh}
-        onClick={(event) => {
-          event.stopPropagation()
-          onSelect?.(node)
-        }}
-        onDoubleClick={(event) => {
-          event.stopPropagation()
-          onExplore?.(node)
-        }}
-        onPointerOver={(event) => {
-          event.stopPropagation()
-          document.body.style.cursor = 'pointer'
-          onHover?.(node, pointerPoint(event))
-        }}
-        onPointerMove={(event) => onHover?.(node, pointerPoint(event))}
-        onPointerOut={() => {
-          document.body.style.cursor = ''
-          onHover?.(null, null)
-        }}
-      >
-        <sphereGeometry args={[baseRadius, settings.nodeSegments, settings.nodeSegments]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={dimmed ? 0.18 : selected ? 1.55 : 0.82 + node.activity * 0.55}
-          roughness={0.34}
-          metalness={0.08}
-          transparent
-          opacity={dimmed ? 0.20 : 0.74 + node.importance * 0.22}
-        />
-      </mesh>
-      <mesh scale={selected ? 1.56 : 1.36}>
-        <sphereGeometry args={[baseRadius, 12, 12]} />
-        <meshBasicMaterial color={color} transparent opacity={dimmed ? 0.018 : selected ? 0.11 : 0.055} depthWrite={false} />
-      </mesh>
-    </group>
-  )
-}
-
 function edgeCurve(edge: KairoGraphEdge, source: KairoGraphPose, target: KairoGraphPose) {
   const start = new THREE.Vector3(source.x, source.y, source.z)
   const end = new THREE.Vector3(target.x, target.y, target.z)
@@ -316,7 +216,13 @@ function Filament({
 }) {
   const curve = useMemo(() => edgeCurve(edge, source, target), [edge, source, target])
   const geometry = useMemo(
-    () => new THREE.TubeGeometry(curve, settings.filamentSegments, 0.012 + edge.strength * 0.018, settings.radialSegments, false),
+    () => new THREE.TubeGeometry(
+      curve,
+      settings.filamentSegments,
+      0.012 + edge.strength * 0.018,
+      settings.radialSegments,
+      false,
+    ),
     [curve, edge.strength, settings.filamentSegments, settings.radialSegments],
   )
   useEffect(() => () => geometry.dispose(), [geometry])
@@ -351,7 +257,9 @@ function ActivityPulse({
   const phase = ((hash(edge.id) % 1000) / 1000 + index * 0.17) % 1
   useFrame(({ clock }) => {
     if (!mesh.current) return
-    const progress = reducedMotion ? phase : (phase + clock.elapsedTime * (0.035 + edge.strength * 0.025)) % 1
+    const progress = reducedMotion
+      ? phase
+      : (phase + clock.elapsedTime * (0.035 + edge.strength * 0.025)) % 1
     const point = curve.getPointAt(progress)
     mesh.current.position.copy(point)
   })
@@ -393,7 +301,10 @@ function GraphScene({
   )
   const semanticBandRef = useRef<SemanticBand>(1)
   const [semanticBand, setSemanticBand] = useState<SemanticBand>(1)
-  const nodeMap = useMemo(() => new Map(projection.nodes.map((node) => [graphNodeKey(node), node])), [projection.nodes])
+  const nodeMap = useMemo(
+    () => new Map(projection.nodes.map((node) => [graphNodeKey(node), node])),
+    [projection.nodes],
+  )
   const emphasisKey = selectedKey || hoveredKey || null
 
   useFrame(() => {
@@ -492,28 +403,20 @@ function GraphScene({
         )
       })}
 
-      {projection.nodes.map((node) => {
-        const key = graphNodeKey(node)
-        const pose = poses.get(key)
-        if (!pose) return null
-        const dimmed = Boolean(emphasisKey && !neighborKeys.has(key))
-        return (
-          <MyceliumNode
-            key={key}
-            node={node}
-            pose={pose}
-            selected={key === selectedKey}
-            focused={key === focusKey}
-            visible={visibleKeys.has(key)}
-            dimmed={dimmed}
-            reducedMotion={reducedMotion}
-            settings={settings}
-            onSelect={onSelect ? (value) => onSelect(value) : undefined}
-            onExplore={onExplore}
-            onHover={onHover}
-          />
-        )
-      })}
+      <InstancedNodeField
+        nodes={projection.nodes}
+        poses={poses}
+        selectedKey={selectedKey}
+        focusKey={focusKey}
+        emphasisKey={emphasisKey}
+        neighborKeys={neighborKeys}
+        visibleKeys={visibleKeys}
+        reducedMotion={reducedMotion}
+        nodeSegments={settings.nodeSegments}
+        onSelect={onSelect ? (node) => onSelect(node) : undefined}
+        onExplore={onExplore}
+        onHover={onHover}
+      />
     </>
   )
 }
@@ -546,7 +449,11 @@ export function MyceliumViewport({
       <Canvas
         camera={{ position: [0, 4.5, 20], fov: 50, near: 0.1, far: 90 }}
         dpr={settings.dpr}
-        gl={{ antialias: settings.antialias, alpha: false, powerPreference: quality === 'eco' ? 'low-power' : 'high-performance' }}
+        gl={{
+          antialias: settings.antialias,
+          alpha: false,
+          powerPreference: quality === 'eco' ? 'low-power' : 'high-performance',
+        }}
         onPointerMissed={() => onSelect?.(null)}
       >
         <GraphScene
