@@ -13,8 +13,9 @@ import { AgentsWorkspace } from './AgentsWorkspace'
 import { CalendarWorkspace } from './CalendarWorkspace'
 import { KnowledgeWorkspace } from './KnowledgeWorkspace'
 import { TaskPlanningWorkspace } from './TaskPlanningWorkspace'
+import { ToolsWorkspace } from './ToolsWorkspace'
 
-export type CoreWorkspaceMode = 'projects' | 'tasks' | 'knowledge' | 'calendar' | 'agents'
+export type CoreWorkspaceMode = 'projects' | 'tasks' | 'knowledge' | 'calendar' | 'agents' | 'tools'
 
 function shortDate(value: string) {
   try {
@@ -128,13 +129,24 @@ export function CoreWorkspace({
   mode: CoreWorkspaceMode
   onExploreEntity: (entity: KairoGraphEntityRef) => void
 }) {
-  const projectsQuery = useQuery({ queryKey: ['projects'], queryFn: fetchProjects, staleTime: 8000 })
+  const requiresProjects = mode !== 'tools'
+  const projectsQuery = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
+    staleTime: 8000,
+    enabled: requiresProjects,
+  })
   const projectTasksQuery = useQuery({
     queryKey: ['planning-tasks', true],
     queryFn: () => fetchPlanningTasks(true),
     staleTime: 6000,
     enabled: mode === 'projects',
   })
+
+  if (mode === 'tools') {
+    return <ToolsWorkspace />
+  }
+
   const projects = projectsQuery.data || []
   const tasks = projectTasksQuery.data || []
   const loading = projectsQuery.isLoading || (mode === 'projects' && projectTasksQuery.isLoading)
