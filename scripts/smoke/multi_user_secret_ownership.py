@@ -167,6 +167,12 @@ def main() -> None:
         expected=404,
         payload={"values": {"path": "must-not-write"}},
     )
+    request_json(
+        "DELETE",
+        f"/v1/secret-references/{ap_b['id']}/values",
+        token=token_a,
+        expected=404,
+    )
 
     status_a = provision(token_a, ap_a["id"], {"path": f"ownership-a-{nonce}"})
     status_b = provision(token_b, ap_b["id"], {"path": f"ownership-b-{nonce}"})
@@ -187,6 +193,43 @@ def main() -> None:
     read_status_a = request_json("GET", f"/v1/secret-references/{rotki_a['id']}/status", token=token_a)
     assert read_status_a["exists"] is True and read_status_a["keys"] == ["password", "username"], read_status_a
     assert "password-a" not in json.dumps(read_status_a), read_status_a
+
+    # Provider values and the canonical reference have intentionally separate retention semantics.
+    # A populated reference cannot be removed as metadata-only, another user cannot revoke it, and
+    # explicit value destruction removes all KV-v2 versions before the now-empty handle can be deleted.
+    retention = secret(token_a, f"Retention A {nonce}", "Retention proof")
+    provision(token_a, retention["id"], {"token": f"retention-{nonce}"})
+    request_json(
+        "DELETE",
+        f"/v1/secret-references/{retention['id']}",
+        token=token_a,
+        expected=409,
+    )
+    request_json(
+        "DELETE",
+        f"/v1/secret-references/{retention['id']}/values",
+        token=token_b,
+        expected=404,
+    )
+    request_json(
+        "DELETE",
+        f"/v1/secret-references/{retention['id']}/values",
+        token=token_a,
+        expected=204,
+    )
+    emptied = request_json(
+        "GET",
+        f"/v1/secret-references/{retention['id']}/status",
+        token=token_a,
+    )
+    assert emptied["exists"] is False and emptied["keys"] == [], emptied
+    request_json(
+        "DELETE",
+        f"/v1/secret-references/{retention['id']}",
+        token=token_a,
+        expected=204,
+    )
+    request_json("GET", f"/v1/secret-references/{retention['id']}", token=token_a, expected=404)
 
     # Foreign Projects and SecretReferences are refused before database constraint fallback.
     request_json(
@@ -225,6 +268,12 @@ def main() -> None:
         token=token_a,
         expected=404,
         payload={"name": "must not mutate"},
+    )
+    request_json(
+        "DELETE",
+        f"/v1/secret-references/{ap_a['id']}",
+        token=token_a,
+        expected=409,
     )
 
     # Idempotency is scoped to one AutomationDefinition, not globally across tenants.
@@ -299,7 +348,7 @@ def main() -> None:
     assert finance_a["id"] in ids(connectors_a) and finance_b["id"] not in ids(connectors_a), connectors_a
     assert finance_b["id"] in ids(connectors_b) and finance_a["id"] not in ids(connectors_b), connectors_b
 
-    print("KAIRO SecretReference/Automation/Finance two-user ownership proof passed")
+    print("KAIRO SecretReference/Automation/Finance two-user ownership + retention proof passed")
 
 
 if __name__ == "__main__":
