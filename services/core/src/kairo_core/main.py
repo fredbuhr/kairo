@@ -27,6 +27,7 @@ from .models import OutboxEvent, Project, RelationshipRecord, Task
 from .news import router as news_router
 from .openbao import openbao_client
 from .outbox import OutboxRelay
+from .planning import router as planning_router
 from .research import router as research_router
 from .resources import router as resources_router
 from .schemas import (
@@ -69,6 +70,7 @@ app.include_router(workflow_router)
 app.include_router(memory_router)
 app.include_router(documents_router)
 app.include_router(knowledge_router)
+app.include_router(planning_router)
 app.include_router(graph_router)
 app.include_router(graph_activity_router)
 app.include_router(graph_directives_router)
@@ -182,6 +184,8 @@ async def architecture() -> dict[str, object]:
         "canonical_documents": "postgresql-document-version-chunks",
         "document_parser": "docling",
         "knowledge_retrieval": "kairo-core-latest-canonical-document-chunks",
+        "task_planning": "kairo-core-canonical-priority-schedule-due-fields",
+        "today_projection": "kairo-core-explicit-task-planning-read-model",
         "capability_registry": "kairo-core",
         "tool_registry": "kairo-core-postgresql",
         "tool_transport": "mcp-streamable-http",
