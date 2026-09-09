@@ -49,6 +49,17 @@ Auth-disabled isolated smoke stacks may still provide an explicit deterministic 
 fixtures can pre-provision OpenBao without inventing a second testing API. The path still does not
 appear in the resulting public read model.
 
+The repository now carries a production workload-policy template at
+`infrastructure/openbao/policies/kairo-core-user-secrets.hcl`. It grants only:
+
+- `create`, `update`, `read` on `secret/data/kairo/users/*`;
+- `read`, `delete` on `secret/metadata/kairo/users/*`.
+
+It deliberately grants no mount-wide `list`, no `sudo`, no `sys/*` or `auth/*` capability and no
+legacy/test namespace access. `scripts/smoke/openbao_policy_contract.py` checks this source contract.
+A production deployment must still bind KAIRO Core to a workload identity/token carrying this policy
+rather than the root/dev token used by local fixtures.
+
 ### Write-only value provisioning
 
 KAIRO exposes a bounded `PUT /v1/secret-references/{id}/values` operation. The endpoint:
@@ -120,12 +131,13 @@ therefore choose the same human-readable key without learning about or blocking 
 - Caller-selected idempotency strings no longer form a cross-tenant namespace.
 - Credential revocation is explicit and can occur even before a connector definition is removed.
 - Deleting a KAIRO reference cannot silently orphan still-existing vault material.
+- A concrete least-privilege production OpenBao policy is versioned and checked with the codebase.
 
 ### Trade-offs
 
-- KAIRO Core still holds a workload credential capable of reaching the managed OpenBao hierarchy;
-  production OpenBao policy must constrain that workload to the KAIRO-managed prefix, including the
-  minimum KV-v2 data/metadata operations needed for write/status/destruction.
+- Production still needs a real workload identity/token bound to the versioned least-privilege policy;
+  local compose intentionally continues to use development credentials and is not proof of that
+  deployment binding.
 - The first provisioning operation replaces the submitted KV-v2 data set. Partial/merge semantics,
   if needed, require an explicit future contract rather than implicit read-modify-write in the UI.
 - Destruction is intentionally irreversible and may make an enabled connector fail until new values
