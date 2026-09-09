@@ -7,8 +7,11 @@ on:
       - 'packages/graph/**'
       - 'services/core/**'
       - 'scripts/smoke/graph_projection.py'
+      - 'scripts/smoke/knowledge_workspace.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
+      - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
+      - 'docs/decisions/ADR-029-specialist-workspaces-share-canonical-state.md'
       - '.github/workflows/graph-interface.yml'
   pull_request:
     paths:
@@ -16,8 +19,11 @@ on:
       - 'packages/graph/**'
       - 'services/core/**'
       - 'scripts/smoke/graph_projection.py'
+      - 'scripts/smoke/knowledge_workspace.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
+      - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
+      - 'docs/decisions/ADR-029-specialist-workspaces-share-canonical-state.md'
       - '.github/workflows/graph-interface.yml'
 
 concurrency:
@@ -52,10 +58,10 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
-      - name: Validate Core graph sources
+      - name: Validate Core cockpit sources
         run: |
           uv build --package kairo-core
-          python -m compileall services/core/src scripts/smoke/graph_projection.py
+          python -m compileall services/core/src scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py
 
   graph-projection-integration:
     needs: validate
@@ -75,6 +81,9 @@ jobs:
 
       - name: Prove canonical spatial graph projection
         run: python scripts/smoke/graph_projection.py
+
+      - name: Prove canonical Knowledge workspace
+        run: python scripts/smoke/knowledge_workspace.py
 
       - name: Dump graph state on failure
         if: failure()
