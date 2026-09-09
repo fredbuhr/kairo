@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Literal
+from typing import Iterable, Literal
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -14,10 +14,30 @@ from .document_models import Document
 from .models import Artifact, Asset, Project, Task, WorkflowExecution
 
 DEVELOPMENT_SUBJECT = "development-user"
+OWNER_SYSTEM_PROJECT_KEYS = frozenset({"assistant", "news", "documents", "memory"})
 
 
 def _derived_system_project_id(subject: str, key: str) -> uuid.UUID:
     return uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:project:{key}:subject:{subject}")
+
+
+def owner_system_project_ids(
+    subject: str,
+    keys: Iterable[str] = OWNER_SYSTEM_PROJECT_KEYS,
+) -> frozenset[uuid.UUID]:
+    """Return the per-user system Project IDs that are product internals, not user Projects.
+
+    Authenticated production subjects always use these derived IDs. Historical auth-disabled
+    development IDs remain migration compatibility details and are intentionally not inferred here:
+    product read models use this helper to keep KAIRO's own plumbing out of normal Project/Home views
+    without relying on editable display names.
+    """
+
+    return frozenset(_derived_system_project_id(subject, key) for key in keys)
+
+
+def is_owner_system_project(project_id: uuid.UUID, subject: str) -> bool:
+    return project_id in owner_system_project_ids(subject)
 
 
 def scoped_system_project_id(
@@ -47,6 +67,9 @@ async def ensure_system_project(
     summary: str,
     legacy_development_id: uuid.UUID | None = None,
 ) -> tuple[Project, bool]:
+    if key not in OWNER_SYSTEM_PROJECT_KEYS:
+        raise ValueError(f"Unknown owner-scoped KAIRO system project key: {key}")
+
     project_id = scoped_system_project_id(
         subject,
         key,
