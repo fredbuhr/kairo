@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke proof for KAIRO's canonical spatial graph read model."""
+"""Smoke proof for KAIRO's canonical spatial graph read model and activity stream."""
 
 from __future__ import annotations
 
@@ -36,6 +36,29 @@ def json_request(
     if status != expected:
         raise AssertionError(f"{method} {path}: expected {expected}, got {status}: {body}")
     return status, body
+
+
+def read_activity_event(event_type: str, *, timeout: float = 8.0) -> dict[str, Any]:
+    request = urllib.request.Request(
+        CORE + "/v1/graph/activity/stream",
+        method="GET",
+        headers={"Accept": "text/event-stream"},
+    )
+    deadline = time.time() + timeout
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        if response.status != 200:
+            raise AssertionError(f"Graph activity stream returned {response.status}")
+        while time.time() < deadline:
+            raw = response.readline()
+            if not raw:
+                continue
+            line = raw.decode("utf-8").strip()
+            if not line.startswith("data: "):
+                continue
+            payload = json.loads(line[6:])
+            if payload.get("event_type") == event_type:
+                return payload
+    raise AssertionError(f"Did not observe {event_type!r} on graph activity stream")
 
 
 def wait_ready() -> None:
@@ -99,6 +122,12 @@ def main() -> None:
         },
     )
 
+    activity = read_activity_event("relationship.created")
+    assert activity["entity"] == {"entity_type": "project", "entity_id": project["id"]}, activity
+    assert {"entity_type": "task", "entity_id": task["id"]} in activity["related"], activity
+    assert "relationship_id" not in activity, activity
+    assert "payload" not in activity, activity
+
     _, home = json_request("GET", "/v1/graph/home?max_nodes=120")
     home_nodes = {entity_key(node["entity_type"], node["id"]): node for node in home["nodes"]}
     assert entity_key("project", project["id"]) in home_nodes, home
@@ -132,7 +161,7 @@ def main() -> None:
     _, search = json_request("GET", "/v1/graph/search?q=Spatial%20Graph%20Smoke&limit=10")
     assert any(node["id"] == project["id"] and node["entity_type"] == "project" for node in search["nodes"]), search
 
-    print("KAIRO canonical spatial graph projection smoke proof passed")
+    print("KAIRO canonical spatial graph projection + activity stream smoke proof passed")
 
 
 if __name__ == "__main__":
