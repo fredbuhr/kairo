@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 
 import {
+  desktopAttentionNotificationsEnabled,
   fetchDesktopCapabilities,
   sendDesktopNotification,
+  setDesktopAttentionNotificationsEnabled,
   writeDesktopClipboard,
 } from '../../lib/desktopBridge'
 import { AuthIdentitySettings } from '../auth/AuthIdentitySettings'
@@ -19,6 +22,7 @@ export function DesktopRuntimeSettings() {
     retry: false,
   })
   const capabilities = capabilitiesQuery.data
+  const [attentionNotifications, setAttentionNotifications] = useState(() => desktopAttentionNotificationsEnabled())
   const notify = useMutation({
     mutationFn: () => sendDesktopNotification(
       'KAIRO Desktop',
@@ -34,6 +38,7 @@ export function DesktopRuntimeSettings() {
         capabilities.platform ? `${capabilities.platform}/${capabilities.arch || 'unknown'}` : null,
         `clipboard=${capabilities.clipboard_write ? 'yes' : 'no'}`,
         `notifications=${capabilities.notifications ? 'yes' : 'no'}`,
+        `attention_notifications=${attentionNotifications ? 'yes' : 'no'}`,
         `summon=${capabilities.summon_shortcut_label || 'no'}`,
         `microphone=${capabilities.microphone ? 'yes' : 'no'}`,
         `screenshots=${capabilities.screenshots ? 'yes' : 'no'}`,
@@ -41,6 +46,11 @@ export function DesktopRuntimeSettings() {
       await writeDesktopClipboard(diagnostic)
     },
   })
+
+  function toggleAttentionNotifications(enabled: boolean) {
+    setAttentionNotifications(enabled)
+    setDesktopAttentionNotificationsEnabled(enabled)
+  }
 
   let runtimePanel
   if (capabilitiesQuery.isLoading) {
@@ -77,6 +87,19 @@ export function DesktopRuntimeSettings() {
           <div><dt>Microphone</dt><dd>{availability(capabilities.microphone)}</dd></div>
           <div><dt>Raccourci d’invocation</dt><dd>{capabilities.summon_shortcut ? capabilities.summon_shortcut_label || 'Disponible' : 'Non activé'}</dd></div>
         </dl>
+        {desktop && capabilities.notifications && (
+          <label className="desktop-runtime-check">
+            <input
+              type="checkbox"
+              checked={attentionNotifications}
+              onChange={(event) => toggleAttentionNotifications(event.target.checked)}
+            />
+            <span>
+              <strong>Notifications d’attention en arrière-plan</strong>
+              <small>Notifier uniquement les approbations, fins d’exécution et échecs importants quand la fenêtre KAIRO n’est pas active.</small>
+            </span>
+          </label>
+        )}
         {desktop && (
           <div className="desktop-runtime-actions">
             <button type="button" disabled={!capabilities.notifications || notify.isPending} onClick={() => notify.mutate()}>
