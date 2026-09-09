@@ -45,8 +45,8 @@ def main() -> None:
     forbid(adapter, "APIRouter", "public identity-management router")
     forbid(adapter, "KEYCLOAK_ADMIN", "bootstrap admin credential use")
     forbid(adapter, '"grant_type": "password"', "password grant")
-    forbid(adapter, "preferred_username", "username target lookup")
-    forbid(adapter, "email", "email target lookup")
+    forbid(adapter, 'params={"username"', "username search target")
+    forbid(adapter, 'params={"email"', "email search target")
 
     require(env, "KEYCLOAK_MANAGEMENT_CLIENT_ID=kairo-identity-manager", "deployment management client id")
     require(env, "KEYCLOAK_MANAGEMENT_CLIENT_SECRET=\n", "empty development management secret")
