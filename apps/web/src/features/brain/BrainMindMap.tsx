@@ -65,8 +65,8 @@ export function BrainMindMap({
   onExplore: (node: KairoGraphNode) => void
 }) {
   const mindMap = useMemo(
-    () => buildMindMapProjection(projection, { rootKey: projection.context.focus ? undefined : selectedKey }),
-    [projection, selectedKey],
+    () => buildMindMapProjection(projection),
+    [projection],
   )
   const nodeByKey = useMemo(
     () => new Map(projection.nodes.map((node) => [graphNodeKey(node), node])),
