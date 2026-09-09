@@ -5,12 +5,13 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import Principal, require_kairo_user
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project
+from .ownership import owned_project, require_owned_project
 from .schemas import ProjectRead
 
 
@@ -35,47 +36,56 @@ async def _validate_parent(
     *,
     project_id: uuid.UUID,
     parent_id: uuid.UUID | None,
+    subject: str,
 ) -> None:
     if parent_id is None:
         return
     if parent_id == project_id:
         raise HTTPException(status_code=409, detail="A project cannot be its own parent")
 
-    current = await session.get(Project, parent_id)
+    current = await owned_project(session, parent_id, subject)
     if current is None:
         raise HTTPException(status_code=404, detail="Parent project not found")
 
-    # Follow the canonical parent chain. If the project itself appears, the new link would create a
-    # cycle and is rejected rather than repaired in the UI.
+    # Follow only the authenticated owner's canonical parent chain. A foreign parent is treated as
+    # absent, preventing hierarchy edits from becoming a cross-tenant existence oracle.
     visited: set[uuid.UUID] = set()
     while current is not None:
         if current.id == project_id:
             raise HTTPException(status_code=409, detail="Project hierarchy cannot contain a cycle")
         if current.id in visited:
-            # Defensive fail-closed behavior if pre-existing corrupt hierarchy data is encountered.
             raise HTTPException(status_code=409, detail="Existing project hierarchy contains a cycle")
         visited.add(current.id)
         if current.parent_id is None:
             break
-        current = await session.get(Project, current.parent_id)
+        next_parent = await owned_project(session, current.parent_id, subject)
+        if next_parent is None:
+            raise HTTPException(status_code=409, detail="Project hierarchy leaves the owner scope")
+        current = next_parent
 
 
 @router.patch("/v1/projects/{project_id}", response_model=ProjectRead)
 async def update_project(
     project_id: uuid.UUID,
     body: ProjectUpdate,
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> Project:
-    project = await session.scalar(select(Project).where(Project.id == project_id).with_for_update())
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await require_owned_project(
+        session, project_id, principal.subject, lock=True
+    )
 
     fields = body.model_fields_set
     if not fields:
         return project
 
     if "parent_id" in fields:
-        await _validate_parent(session, project_id=project.id, parent_id=body.parent_id)
+        await _validate_parent(
+            session,
+            project_id=project.id,
+            parent_id=body.parent_id,
+            subject=principal.subject,
+        )
 
     before: dict[str, Any] = {
         "name": project.name,
@@ -116,7 +126,7 @@ async def update_project(
     await append_audit(
         session,
         actor_type="user",
-        actor_id=None,
+        actor_id=principal.subject,
         action="project.update",
         resource_type="project",
         resource_id=str(project.id),
