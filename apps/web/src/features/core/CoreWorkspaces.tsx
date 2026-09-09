@@ -11,12 +11,13 @@ import {
   type TaskRecord,
 } from '../../lib/api'
 import { AgentsWorkspace } from './AgentsWorkspace'
+import { AutomationsWorkspace } from './AutomationsWorkspace'
 import { CalendarWorkspace } from './CalendarWorkspace'
 import { KnowledgeWorkspace } from './KnowledgeWorkspace'
 import { TaskPlanningWorkspace } from './TaskPlanningWorkspace'
 import { ToolsWorkspace } from './ToolsWorkspace'
 
-export type CoreWorkspaceMode = 'projects' | 'tasks' | 'knowledge' | 'calendar' | 'agents' | 'tools'
+export type CoreWorkspaceMode = 'projects' | 'tasks' | 'knowledge' | 'calendar' | 'agents' | 'automations' | 'tools'
 
 function shortDate(value: string) {
   try {
@@ -266,6 +267,9 @@ export function CoreWorkspace({
   }
   if (mode === 'agents') {
     return <AgentsWorkspace projects={projects} onExploreEntity={onExploreEntity} />
+  }
+  if (mode === 'automations') {
+    return <AutomationsWorkspace projects={projects} onExploreEntity={onExploreEntity} />
   }
   return <ProjectsWorkspace projects={projects} tasks={tasks} onExploreEntity={onExploreEntity} />
 }
