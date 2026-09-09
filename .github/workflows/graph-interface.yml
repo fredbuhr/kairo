@@ -1,0 +1,87 @@
+name: Graph interface validation
+
+on:
+  push:
+    paths:
+      - 'apps/web/**'
+      - 'packages/graph/**'
+      - 'services/core/**'
+      - 'scripts/smoke/graph_projection.py'
+      - 'docs/interface-v1.md'
+      - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
+      - '.github/workflows/graph-interface.yml'
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'packages/graph/**'
+      - 'services/core/**'
+      - 'scripts/smoke/graph_projection.py'
+      - 'docs/interface-v1.md'
+      - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
+      - '.github/workflows/graph-interface.yml'
+
+concurrency:
+  group: graph-interface-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install JS dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Typecheck graph package
+        run: pnpm --filter @kairo/graph typecheck
+
+      - name: Typecheck KAIRO Web
+        run: pnpm --filter @kairo/web typecheck
+
+      - name: Build KAIRO Web
+        run: pnpm build:web
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Validate Core graph sources
+        run: |
+          uv build --package kairo-core
+          python -m compileall services/core/src scripts/smoke/graph_projection.py
+
+  graph-projection-integration:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare graph integration environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+
+      - name: Start canonical substrate
+        run: |
+          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+
+      - name: Prove canonical spatial graph projection
+        run: python scripts/smoke/graph_projection.py
+
+      - name: Dump graph state on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color --tail=350 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+
+      - name: Tear down graph stack
+        if: always()
+        run: docker compose down -v --remove-orphans
