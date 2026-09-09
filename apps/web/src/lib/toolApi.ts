@@ -5,11 +5,11 @@ export type ToolServerRecord = {
   key: string
   namespace: string
   title: string
-  endpoint_url: string
+  endpoint_url?: string
   transport: 'mcp_streamable_http' | string
   enabled: boolean
   catalog_generation: number
-  metadata_json: Record<string, unknown>
+  metadata_json?: Record<string, unknown>
   created_at: string
   updated_at: string
 }
