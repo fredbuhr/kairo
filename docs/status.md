@@ -6,7 +6,7 @@ Last updated: 2026-09-09
 
 KAIRO is transitioning from **Block 2 — intelligence, memory and safe autonomy** into the permanent **Block 3 — Cockpit / Test Interface v1**.
 
-The active Block 3 branch no longer treats the frontend as a disposable dashboard prototype. The shell, spatial world model and operational workspaces being built now are intended to remain the daily-use test interface while later capabilities fill the same structure.
+The active Block 3 branch no longer treats the frontend as a disposable dashboard prototype. `KairoCockpit` is now the actual product entrypoint and the spatial world model plus specialist workspaces are intended to remain the daily-use test interface while later capabilities fill the same structure.
 
 Three stacked pull requests must remain in order:
 
@@ -31,7 +31,7 @@ All three remain intentionally unmerged while GitHub Actions issue **#38** preve
 - Mem0 and Graphiti/Neo4j remain rebuildable projections, never canonical state.
 - Docling-backed ingestion produces canonical Documents / Versions / Chunks with provenance.
 - MCP tools are registered and executed through KAIRO-owned policy/contract boundaries.
-- specialist workspaces are views/controls over canonical APIs, not parallel frontend-owned applications.
+- specialist workspaces are views/controls over canonical APIs or explicit sourced read models, not parallel frontend-owned applications.
 
 ## Block 1 — platform substrate
 
@@ -91,20 +91,22 @@ PR #36 adds replay-safe multi-slot synthesis with canonical MCP evidence citatio
 
 `docs/interface-v1.md` is the structural interface contract. The goal is one permanent test shell, not successive throwaway frontend generations.
 
-### Product shell
+### Permanent Cockpit shell
 
 Implemented:
 
+- `App.tsx` now mounts `KairoCockpit` as the actual product entrypoint;
+- `LiveGraphBridge` is mounted once at the application root rather than duplicated;
 - stable left primary navigation;
-- central spatial workspace where the mycelium is the workspace rather than a card;
+- central spatial/specialist working surface;
 - collapsible contextual right rail;
 - compact always-available KAIRO command dock;
 - assistant drawer preserving Command / News / Research;
 - universal canonical graph search;
-- accessible non-3D graph projection;
-- explicit unavailable states for genuinely unimplemented areas.
+- explicit unavailable states for genuinely unimplemented areas;
+- all active workspace styles are wired from the same app entrypoint.
 
-### Canonical spatial graph
+### Canonical graph
 
 Implemented:
 
@@ -115,9 +117,9 @@ Implemented:
 - presentation-only importance/activity/recency/degree/cluster hints/LOD;
 - no Graphiti/Mem0 relationship silently promoted to canonical truth.
 
-### Mycelium product renderer
+### 3D Mycelium
 
-Implemented as the one engine for Home and KAIRO Brain:
+Implemented as the spatial engine for Home and KAIRO Brain:
 
 - custom React Three Fiber / Three.js renderer;
 - deterministic Web Worker layout;
@@ -134,6 +136,27 @@ Implemented as the one engine for Home and KAIRO Brain:
 - Auto/High/Balanced/Eco quality, including measured frame-budget adaptation.
 
 ADR-027 defines canonical graph provenance. ADR-028 defines stable/batched spatial rendering.
+
+### 2D KAIRO Brain mind map
+
+**Active.**
+
+KAIRO Brain can now switch between **3D**, **Carte 2D** and **Liste** without creating another graph model.
+
+`@kairo/graph` contains a pure deterministic radial mind-map projection that consumes the same `KairoGraphProjection` as the 3D renderer. The layout builds a temporary spanning tree only for positioning while still drawing all canonical graph edges with their original provenance.
+
+The 2D workspace provides:
+
+- deterministic focus/root selection;
+- stable radial branch placement;
+- visual distinction between explicit canonical Relationship rows and canonical FK structure;
+- shared selection/context rail;
+- double-click → canonical neighborhood focus;
+- local drag state that never mutates KAIRO domain relationships;
+- shared entity/relation filters and branch isolation;
+- MiniMap/zoom/pan plus accessible list fallback.
+
+ADR-033 records that tree parents, radial depth and dragged coordinates are presentation state only.
 
 ### Live graph activity
 
@@ -153,17 +176,21 @@ Implemented deterministically/read-only:
 - typed entity hints;
 - ambiguity falls back to search;
 - non-navigation language continues through the normal Command Kernel;
-- models never receive direct Three.js authority.
+- models never receive direct Three.js/React Flow authority.
 
 ### Projects workspace
 
-**Active.**
+**Active with lifecycle editing.**
 
-- canonical project list/create;
-- parent-project selection;
+- canonical list/create;
+- rename and summary mutation;
+- active / paused / archived status mutation;
+- parent-project reassignment;
+- Core hierarchy-cycle refusal;
 - real human-work Task counts;
+- archived projects recede from the Home graph candidate set;
 - direct navigation to the same Project node in KAIRO Brain;
-- project creation invalidates both operational and graph read models.
+- workspace/graph query invalidation after mutation.
 
 ### Tasks / Today workspace
 
@@ -185,9 +212,7 @@ Migration `0008_task_planning_fields` adds canonical Task:
 3. planned today;
 4. explicit high priority.
 
-No LLM/frontend heuristic invents urgency. The Tasks workspace supports Today, all-task filtering, completion/reopen/start and explicit planning edits.
-
-ADR-030 records this planning contract.
+No LLM/frontend heuristic invents urgency. Capability execution Tasks are excluded from human planning and fail closed on the human planning mutation endpoint.
 
 ### Gantt
 
@@ -195,11 +220,43 @@ ADR-030 records this planning contract.
 
 `@kairo/gantt` projects the same canonical Task planning fields into renderer-independent timeline geometry. The UI offers 14/30/90 day ranges, project filtering, interval bars, due-only milestones, deadline markers and unscheduled work. No separate Gantt plan database is introduced.
 
-### Calendar
+ADR-030 records the Task planning/Today/Gantt contract.
+
+### Calendar — KAIRO planning
 
 **Active.**
 
-The Calendar workspace projects the same Task planning intervals into a weekly 06:00–22:00 view, with due-only deadlines, project filtering and direct graph navigation. External calendars are not yet integrated; when they are, they must retain explicit source/provenance rather than replacing KAIRO planning facts.
+The Calendar workspace projects the same Task planning intervals into a weekly 06:00–22:00 view, with due-only deadlines, project filtering and direct graph navigation.
+
+### Calendar — external sourced snapshots
+
+**Canonical substrate and UI projection implemented; provider OAuth adapters are still to be connected.**
+
+Migration `0009_external_calendar_snapshots` adds:
+
+- `CalendarSource` scoped to a KAIRO user and bound to provider/external-account identity;
+- `ExternalCalendarEvent` keyed by source + provider event identity with start/end/all-day/status/location/source URL/provider update time and KAIRO observation time.
+
+Core now exposes:
+
+- `GET /v1/calendar/sources`;
+- `GET /v1/calendar/external-events` with owner + interval scoping;
+- trusted internal `POST /internal/v1/calendar/snapshot` for normalized connector snapshots.
+
+The ingestion boundary:
+
+- requires timezone-aware intervals;
+- rejects duplicate event identities in one snapshot;
+- prevents source keys from being rebound to another external account;
+- deterministically updates the same event observation on replay;
+- may remove externally deleted events from a full source snapshot;
+- never reschedules/deletes/completes a KAIRO Task as a side effect;
+- emits a canonical synchronization event and audit record;
+- stores no OAuth secrets in event/source rows.
+
+The Calendar UI overlays external events distinctly from KAIRO planning, shows source/provider/sync provenance, keeps KAIRO planning visible when the external read model fails, and never pretends an external event is a graph Task.
+
+ADR-034 records this provenance boundary. Actual Google/Microsoft credential exchange and polling adapters remain a later connector layer.
 
 ### Knowledge workspace
 
@@ -221,42 +278,57 @@ The Knowledge smoke proof explicitly verifies that text from a superseded genera
 
 Capability-backed durable execution Tasks are intentionally excluded from the human Tasks/Today/Gantt surfaces and projected instead through `GET /v1/operations/agents`.
 
-Agents now shows:
+Agents shows capability/execution identity, Task and Workflow status, project context, authority level, canonical model spend/budget, pending approvals, safe execution metadata and errors. Real pending ApprovalRequest rows are approved/denied through existing canonical endpoints.
 
-- capability / execution identity;
-- Task and WorkflowExecution status;
-- project context;
-- authority level;
-- canonical model spend and budget where available;
-- pending approval counts;
-- safe execution metadata;
-- workflow errors;
-- direct navigation to Task / Workflow nodes.
+ADR-031 records the human-work vs capability-execution boundary.
 
-The right-side Agents rail exposes real pending ApprovalRequest rows and uses existing canonical approve/deny endpoints. ADR-031 records the human-work vs capability-execution workspace boundary.
+### Tools / MCP workspace
+
+**Active and aligned with the real Core contract.**
+
+The workspace now uses canonical `ToolServer` / `ToolDefinition` fields rather than a divergent frontend shape.
+
+It supports:
+
+- listing real MCP server records;
+- registering real HTTP(S) MCP endpoints with key + namespace + transport;
+- fail-closed server creation (`enabled=false`);
+- explicit server enable/disable;
+- disabling a server disables enabled tools;
+- re-enabling a server never silently restores individual tool authority;
+- per-tool allow/deny policy;
+- availability/risk/authority/retry/cost/schema inspection;
+- truthful empty-catalog state.
+
+Catalog synchronization remains an internal trusted gateway boundary; the frontend no longer exposes a fake/nonexistent public sync endpoint. Worker live-contract validation remains the execution-time authority boundary.
+
+ADR-032 records fail-closed MCP server registration.
 
 ### Shared specialist-workspace contract
 
-ADR-029 records that Projects, Tasks/Today/Gantt, Calendar, Knowledge and Agents are alternate views/controls over canonical KAIRO state. Frontend state remains interaction state only.
+ADR-029 records that Projects, Tasks/Today/Gantt, Calendar, Knowledge, Agents and Tools are alternate views/controls over KAIRO state or explicit sourced projections. Frontend state remains interaction state only.
 
 ## Dedicated Block 3 validation coverage
 
-The Graph Interface workflow now typechecks/builds the graph, Gantt and web packages, compiles Core/migrations and contains integration proofs for:
+The Graph Interface workflow now typechecks/builds graph, Gantt and web packages, compiles Core/migrations and contains integration proofs for:
 
-- canonical spatial graph + provenance + live activity;
-- canonical Knowledge + latest-completed-generation retrieval;
+- canonical graph + provenance + live activity + deterministic spatial directives;
+- Knowledge latest-completed-generation retrieval;
 - explicit Task planning + timezone-aware Today;
-- Agents capability-execution / human-work separation + approval surfacing.
+- Agents capability-execution / human-work separation + approval surfacing;
+- Project lifecycle + hierarchy-cycle refusal + archived Home behavior;
+- fail-closed MCP server registration/policy;
+- external Calendar source/event identity, replay, full-snapshot deletion, account rebinding refusal and timezone validation.
+
+Because these isolated cockpit proofs intentionally do not start Keycloak, they use `compose.graph-ci.yaml` to disable user auth **only for that CI stack**. Production explicitly forces KAIRO authentication on.
 
 These tests are committed but **not yet considered passed on the latest head** because issue #38 still prevents GitHub from assigning hosted runners.
 
 ## Major work still remaining
 
-- richer Project editing/status/lifecycle operations;
-- external Calendar integration with provenance/free-busy boundaries;
-- fuller 2D mind map / deep KAIRO Brain tooling;
-- Automations operational workspace / Activepieces integration;
-- broader MCP Tools management UX;
+- real Google/Microsoft Calendar connector authentication/polling/free-busy adapters feeding the normalized snapshot boundary;
+- deeper editable/collaborative Brain functionality where explicit mutations are required;
+- Automations operational workspace and a real Activepieces adapter/control boundary;
 - Tauri desktop capability bridge (files/clipboard/capture/notifications/microphone) reusing the same web UI;
 - Voice interaction;
 - Finance / Crypto portfolio, analysis and signing-isolation UX;
@@ -266,9 +338,9 @@ These tests are committed but **not yet considered passed on the latest head** b
 ## Next implementation milestone
 
 1. Resolve GitHub Actions runner issue #38 and execute #36 → #37 → #39 on real runners before merge.
-2. Continue filling Test Interface v1 without introducing a second frontend.
-3. Extend Calendar with explicit external-source provenance/connectors.
-4. Build Automations and Tools operational views from existing canonical registries/policy boundaries.
+2. Keep filling Test Interface v1 without introducing a second frontend.
+3. Build the **Automations / Activepieces** operational boundary as the next coherent specialist slice, preserving KAIRO-owned policy/audit state rather than exposing Activepieces as a second application.
+4. Implement actual external Calendar provider adapters against the normalized snapshot boundary when connector credentials are available.
 5. Then move into Desktop/Voice and specialist Finance/Crypto/Developer capability surfaces.
 
-The Block 3 goal is not "a pretty graph". It is one stable KAIRO environment in which every visible object, relationship, activity pulse and specialist workspace stays traceable to KAIRO-owned canonical state and policy boundaries.
+The Block 3 goal is not “a pretty graph”. It is one stable KAIRO environment in which every visible object, relationship, activity pulse, external observation and specialist workspace stays traceable to KAIRO-owned canonical state, provenance and policy boundaries.
