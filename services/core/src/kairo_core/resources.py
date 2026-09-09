@@ -74,23 +74,23 @@ async def _secret_reference_usage(
     subject: str,
     session: AsyncSession,
 ) -> tuple[int, int]:
-    automation_count, finance_count = await asyncio.gather(
-        session.scalar(
-            select(func.count())
-            .select_from(AutomationDefinition)
-            .where(
-                AutomationDefinition.webhook_secret_reference_id == reference_id,
-                AutomationDefinition.keycloak_subject == subject,
-            )
-        ),
-        session.scalar(
-            select(func.count())
-            .select_from(FinanceConnector)
-            .where(
-                FinanceConnector.secret_reference_id == reference_id,
-                FinanceConnector.keycloak_subject == subject,
-            )
-        ),
+    # One AsyncSession must not execute concurrent SQL operations. Keep these ownership counts
+    # sequential even though the queries are independent.
+    automation_count = await session.scalar(
+        select(func.count())
+        .select_from(AutomationDefinition)
+        .where(
+            AutomationDefinition.webhook_secret_reference_id == reference_id,
+            AutomationDefinition.keycloak_subject == subject,
+        )
+    )
+    finance_count = await session.scalar(
+        select(func.count())
+        .select_from(FinanceConnector)
+        .where(
+            FinanceConnector.secret_reference_id == reference_id,
+            FinanceConnector.keycloak_subject == subject,
+        )
     )
     return int(automation_count or 0), int(finance_count or 0)
 
