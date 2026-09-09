@@ -20,6 +20,12 @@ function groupCount(inventory: AccountDataInventory, keys: string[]) {
   return keys.reduce((sum, key) => sum + (inventory.canonical_counts[key] || 0), 0)
 }
 
+function evidenceCount(inventory: AccountDataInventory) {
+  return inventory.evidence.subject_owned_audit_records
+    + inventory.evidence.shared_audit_actor_references
+    + inventory.evidence.subject_owned_outbox_events
+}
+
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} o`
   const units = ['Ko', 'Mo', 'Go', 'To']
@@ -151,6 +157,22 @@ export function AccountDataLifecycleSettings() {
               <span>Projections mémoire</span>
               <strong>{derived?.memory_projection_records || 0}</strong>
             </div>
+            <div>
+              <span>Traçabilité</span>
+              <strong>{evidenceCount(inventory)} · {inventory.evidence.unpublished_subject_outbox_events} en transit</strong>
+            </div>
+          </div>
+
+          <div className="account-evidence-note">
+            <span className="kairo-kicker">AUDIT & ÉVÉNEMENTS</span>
+            <p>
+              {inventory.evidence.data_subject_addressable
+                ? 'Les preuves liées à votre monde KAIRO sont maintenant indexées par propriétaire. La politique finale de conservation/redaction reste volontairement séparée.'
+                : 'Certaines preuves ne sont pas encore adressables par propriétaire.'}
+            </p>
+            <small>
+              Audit personnel : {inventory.evidence.subject_owned_audit_records} · références acteur dans l’audit partagé : {inventory.evidence.shared_audit_actor_references} · Outbox : {inventory.evidence.subject_owned_outbox_events}
+            </small>
           </div>
 
           {derived && (
