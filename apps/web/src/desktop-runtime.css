@@ -43,6 +43,20 @@
 }
 .desktop-runtime-settings dt { color: #58767b; font-size: 6.6px; }
 .desktop-runtime-settings dd { margin: 0; color: #829c9d; font-size: 6.6px; text-align: right; }
+.desktop-runtime-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 8px;
+  border: 1px solid rgba(88, 215, 209, .07);
+  border-radius: 9px;
+  background: rgba(4, 24, 29, .38);
+}
+.desktop-runtime-check input { margin: 2px 0 0; accent-color: #5bc8bd; }
+.desktop-runtime-check span { display: grid; gap: 2px; }
+.desktop-runtime-check strong { color: #92ada9; font-size: 7px; font-weight: 520; }
+.desktop-runtime-check small { color: #566f73; font-size: 6.2px; line-height: 1.45; }
 .desktop-runtime-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .desktop-runtime-actions button {
   min-height: 31px;
