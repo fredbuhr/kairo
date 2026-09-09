@@ -16,6 +16,7 @@ from sqlalchemy import (
     Text,
     event as sa_event,
     func,
+    select,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -99,12 +100,17 @@ def _enqueue_memory_projection_event(_mapper, connection, target: ConversationMe
 
     The event intentionally carries only stable references. Workers must fetch the canonical
     message from Core, so the JetStream event log never becomes a second copy of conversation
-    content.
+    content. This listener bypasses the async event helper, therefore it resolves the owning
+    Conversation subject explicitly before inserting the Outbox row.
     """
 
+    owner_subject = connection.execute(
+        select(Conversation.subject_ref).where(Conversation.id == target.conversation_id)
+    ).scalar_one_or_none()
     connection.execute(
         OutboxEvent.__table__.insert().values(
             id=uuid.uuid4(),
+            keycloak_subject=owner_subject,
             subject="kairo.domain.conversation.message.created",
             event_type="conversation.message.created",
             aggregate_type="conversation_message",
