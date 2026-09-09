@@ -19,6 +19,7 @@ import { graphEntityKey, graphNodeKey } from './types'
 export interface MyceliumViewportProps {
   projection: KairoGraphProjection | null
   selectedKey?: string | null
+  activityKeys?: string[]
   quality?: KairoGraphQuality
   reducedMotion?: boolean
   className?: string
@@ -246,14 +247,14 @@ function ActivityPulse({
     if (!mesh.current) return
     const progress = reducedMotion
       ? phase
-      : (phase + clock.elapsedTime * (0.035 + edge.strength * 0.025)) % 1
+      : (phase + clock.elapsedTime * (0.055 + edge.strength * 0.035)) % 1
     const point = curve.getPointAt(progress)
     mesh.current.position.copy(point)
   })
   return (
     <mesh ref={mesh}>
-      <sphereGeometry args={[0.045, 8, 8]} />
-      <meshBasicMaterial color="#c7fff3" transparent opacity={0.72} depthWrite={false} />
+      <sphereGeometry args={[0.05, 8, 8]} />
+      <meshBasicMaterial color="#d4fff6" transparent opacity={0.82} depthWrite={false} />
     </mesh>
   )
 }
@@ -263,6 +264,7 @@ function GraphScene({
   poses,
   selectedKey,
   hoveredKey,
+  activityKeys,
   settings,
   reducedMotion,
   onSelect,
@@ -273,6 +275,7 @@ function GraphScene({
   poses: Map<string, KairoGraphPose>
   selectedKey?: string | null
   hoveredKey?: string | null
+  activityKeys: string[]
   settings: QualitySettings
   reducedMotion: boolean
   onSelect?: (node: KairoGraphNode | null) => void
@@ -292,6 +295,7 @@ function GraphScene({
     () => new Map(projection.nodes.map((node) => [graphNodeKey(node), node])),
     [projection.nodes],
   )
+  const activityKeySet = useMemo(() => new Set(activityKeys), [activityKeys])
   const emphasisKey = selectedKey || hoveredKey || null
 
   useFrame(() => {
@@ -319,11 +323,17 @@ function GraphScene({
     const keys = new Set<string>()
     for (const node of projection.nodes) {
       const key = graphNodeKey(node)
-      const forced = key === focusKey || key === selectedKey || key === hoveredKey || neighborKeys.has(key)
+      const forced = (
+        key === focusKey
+        || key === selectedKey
+        || key === hoveredKey
+        || neighborKeys.has(key)
+        || activityKeySet.has(key)
+      )
       if (forced || node.lod <= semanticBand) keys.add(key)
     }
     return keys
-  }, [focusKey, hoveredKey, neighborKeys, projection.nodes, selectedKey, semanticBand])
+  }, [activityKeySet, focusKey, hoveredKey, neighborKeys, projection.nodes, selectedKey, semanticBand])
 
   const pulseEdges = useMemo(
     () => projection.edges
@@ -331,13 +341,14 @@ function GraphScene({
         const sourceKey = graphEntityKey(edge.source)
         const targetKey = graphEntityKey(edge.target)
         if (!visibleKeys.has(sourceKey) || !visibleKeys.has(targetKey)) return false
+        if (!activityKeySet.has(sourceKey) && !activityKeySet.has(targetKey)) return false
         if (emphasisKey && sourceKey !== emphasisKey && targetKey !== emphasisKey) return false
         const source = nodeMap.get(sourceKey)
         const target = nodeMap.get(targetKey)
-        return source && target && source.activity + target.activity > 1.16
+        return Boolean(source && target)
       })
       .slice(0, settings.pulseLimit),
-    [emphasisKey, nodeMap, projection.edges, settings.pulseLimit, visibleKeys],
+    [activityKeySet, emphasisKey, nodeMap, projection.edges, settings.pulseLimit, visibleKeys],
   )
 
   return (
@@ -405,6 +416,7 @@ function GraphScene({
 export function MyceliumViewport({
   projection,
   selectedKey,
+  activityKeys = [],
   quality = 'auto',
   reducedMotion = false,
   className,
@@ -442,6 +454,7 @@ export function MyceliumViewport({
           poses={poses}
           selectedKey={selectedKey}
           hoveredKey={hoveredKey}
+          activityKeys={activityKeys}
           settings={settings}
           reducedMotion={reducedMotion}
           onSelect={onSelect}
