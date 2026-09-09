@@ -1,0 +1,223 @@
+from __future__ import annotations
+
+import uuid
+from typing import Literal
+
+from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .autonomy_models import ApprovalRequest
+from .command_models import Conversation
+from .document_models import Document
+from .models import Artifact, Asset, Project, Task, WorkflowExecution
+
+DEVELOPMENT_SUBJECT = "development-user"
+
+
+def scoped_system_project_id(
+    subject: str,
+    key: str,
+    *,
+    legacy_development_id: uuid.UUID | None = None,
+) -> uuid.UUID:
+    """Return a stable per-subject system Project identity.
+
+    The auth-disabled development subject may retain an existing historical system-project UUID so
+    old deterministic smoke identities continue to work. Authenticated users never share that row.
+    """
+
+    if subject == DEVELOPMENT_SUBJECT and legacy_development_id is not None:
+        return legacy_development_id
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:project:{key}:subject:{subject}")
+
+
+async def ensure_system_project(
+    session: AsyncSession,
+    *,
+    subject: str,
+    key: str,
+    name: str,
+    summary: str,
+    legacy_development_id: uuid.UUID | None = None,
+) -> tuple[Project, bool]:
+    project_id = scoped_system_project_id(
+        subject,
+        key,
+        legacy_development_id=legacy_development_id,
+    )
+    inserted_id = await session.scalar(
+        pg_insert(Project)
+        .values(
+            id=project_id,
+            keycloak_subject=subject,
+            name=name,
+            status="active",
+            summary=summary,
+            parent_id=None,
+        )
+        .on_conflict_do_nothing(index_elements=[Project.id])
+        .returning(Project.id)
+    )
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.keycloak_subject == subject,
+        )
+    )
+    if project is None:
+        raise RuntimeError(f"KAIRO system project {key} could not be initialized for subject")
+    return project, inserted_id is not None
+
+
+async def owned_project(
+    session: AsyncSession,
+    project_id: uuid.UUID,
+    subject: str,
+    *,
+    lock: bool = False,
+) -> Project | None:
+    statement = select(Project).where(
+        Project.id == project_id,
+        Project.keycloak_subject == subject,
+    )
+    if lock:
+        statement = statement.with_for_update()
+    return await session.scalar(statement)
+
+
+async def require_owned_project(
+    session: AsyncSession,
+    project_id: uuid.UUID,
+    subject: str,
+    *,
+    lock: bool = False,
+) -> Project:
+    project = await owned_project(session, project_id, subject, lock=lock)
+    if project is None:
+        # Deliberately collapse foreign ownership and absence into one 404 response.
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+async def owned_task(
+    session: AsyncSession,
+    task_id: uuid.UUID,
+    subject: str,
+    *,
+    lock: bool = False,
+) -> Task | None:
+    statement = (
+        select(Task)
+        .join(Project, Project.id == Task.project_id)
+        .where(Task.id == task_id, Project.keycloak_subject == subject)
+    )
+    if lock:
+        statement = statement.with_for_update()
+    return await session.scalar(statement)
+
+
+async def entity_belongs_to_subject(
+    session: AsyncSession,
+    entity_type: str,
+    entity_id: uuid.UUID,
+    subject: str,
+) -> bool:
+    normalized = entity_type.strip().lower().replace("-", "_")
+    aliases = {
+        "workflow": "workflow_execution",
+        "execution": "workflow_execution",
+        "approval_request": "approval",
+    }
+    normalized = aliases.get(normalized, normalized)
+
+    if normalized == "project":
+        return await owned_project(session, entity_id, subject) is not None
+    if normalized == "task":
+        return await owned_task(session, entity_id, subject) is not None
+    if normalized == "conversation":
+        return (
+            await session.scalar(
+                select(Conversation.id).where(
+                    Conversation.id == entity_id,
+                    Conversation.subject_ref == subject,
+                )
+            )
+            is not None
+        )
+    if normalized == "document":
+        row = await session.get(Document, entity_id)
+        metadata = row.metadata_json if row is not None and isinstance(row.metadata_json, dict) else {}
+        return row is not None and metadata.get("owner_subject") == subject
+    if normalized == "asset":
+        row = await session.get(Asset, entity_id)
+        if row is None:
+            return False
+        metadata = row.metadata_json if isinstance(row.metadata_json, dict) else {}
+        if metadata.get("owner_subject") == subject:
+            return True
+        return row.project_id is not None and await owned_project(session, row.project_id, subject) is not None
+    if normalized == "artifact":
+        return (
+            await session.scalar(
+                select(Artifact.id)
+                .join(Project, Project.id == Artifact.project_id)
+                .where(Artifact.id == entity_id, Project.keycloak_subject == subject)
+            )
+            is not None
+        )
+    if normalized == "workflow_execution":
+        return (
+            await session.scalar(
+                select(WorkflowExecution.id)
+                .join(Task, Task.id == WorkflowExecution.task_id)
+                .join(Project, Project.id == Task.project_id)
+                .where(
+                    WorkflowExecution.id == entity_id,
+                    Project.keycloak_subject == subject,
+                )
+            )
+            is not None
+        )
+    if normalized == "approval":
+        return (
+            await session.scalar(
+                select(ApprovalRequest.id)
+                .join(Task, Task.id == ApprovalRequest.task_id)
+                .join(Project, Project.id == Task.project_id)
+                .where(
+                    ApprovalRequest.id == entity_id,
+                    Project.keycloak_subject == subject,
+                )
+            )
+            is not None
+        )
+    return False
+
+
+async def require_same_owner_entities(
+    session: AsyncSession,
+    *,
+    source_type: str,
+    source_id: uuid.UUID,
+    target_type: str,
+    target_id: uuid.UUID,
+    subject: str,
+) -> None:
+    source_owned = await entity_belongs_to_subject(session, source_type, source_id, subject)
+    target_owned = await entity_belongs_to_subject(session, target_type, target_id, subject)
+    if not source_owned or not target_owned:
+        raise HTTPException(status_code=404, detail="Relationship endpoint not found")
+
+
+EntityOwnership = Literal[
+    "project",
+    "task",
+    "conversation",
+    "document",
+    "asset",
+    "artifact",
+    "workflow_execution",
+    "approval",
+]
