@@ -8,6 +8,7 @@ on:
       - 'packages/gantt/**'
       - 'services/core/**'
       - 'services/worker/**'
+      - 'compose.yaml'
       - 'compose.graph-ci.yaml'
       - 'scripts/smoke/graph_projection.py'
       - 'scripts/smoke/knowledge_workspace.py'
@@ -19,6 +20,7 @@ on:
       - 'scripts/smoke/automation_registry.py'
       - 'scripts/smoke/automation_full_stack.py'
       - 'scripts/smoke/fake_automation_webhook.py'
+      - 'scripts/smoke/finance_portfolio.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
@@ -29,6 +31,7 @@ on:
       - 'docs/decisions/ADR-033-2d-mind-map-is-a-canonical-graph-projection.md'
       - 'docs/decisions/ADR-034-external-calendar-events-remain-sourced-snapshots.md'
       - 'docs/decisions/ADR-035-kairo-owns-automations-activepieces-is-an-execution-adapter.md'
+      - 'docs/decisions/ADR-036-finance-snapshots-are-sourced-signing-stays-isolated.md'
       - '.github/workflows/graph-interface.yml'
   pull_request:
     paths:
@@ -37,6 +40,7 @@ on:
       - 'packages/gantt/**'
       - 'services/core/**'
       - 'services/worker/**'
+      - 'compose.yaml'
       - 'compose.graph-ci.yaml'
       - 'scripts/smoke/graph_projection.py'
       - 'scripts/smoke/knowledge_workspace.py'
@@ -48,6 +52,7 @@ on:
       - 'scripts/smoke/automation_registry.py'
       - 'scripts/smoke/automation_full_stack.py'
       - 'scripts/smoke/fake_automation_webhook.py'
+      - 'scripts/smoke/finance_portfolio.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
@@ -58,6 +63,7 @@ on:
       - 'docs/decisions/ADR-033-2d-mind-map-is-a-canonical-graph-projection.md'
       - 'docs/decisions/ADR-034-external-calendar-events-remain-sourced-snapshots.md'
       - 'docs/decisions/ADR-035-kairo-owns-automations-activepieces-is-an-execution-adapter.md'
+      - 'docs/decisions/ADR-036-finance-snapshots-are-sourced-signing-stays-isolated.md'
       - '.github/workflows/graph-interface.yml'
 
 concurrency:
@@ -102,7 +108,7 @@ jobs:
 
       - name: Validate Cockpit + runtime sources
         run: |
-          python -m compileall services/core/src services/core/migrations/versions services/worker/src scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py scripts/smoke/task_planning.py scripts/smoke/agent_operations.py scripts/smoke/project_lifecycle.py scripts/smoke/tool_management.py scripts/smoke/calendar_provenance.py scripts/smoke/automation_registry.py scripts/smoke/automation_full_stack.py scripts/smoke/fake_automation_webhook.py
+          python -m compileall services/core/src services/core/migrations/versions services/worker/src scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py scripts/smoke/task_planning.py scripts/smoke/agent_operations.py scripts/smoke/project_lifecycle.py scripts/smoke/tool_management.py scripts/smoke/calendar_provenance.py scripts/smoke/automation_registry.py scripts/smoke/automation_full_stack.py scripts/smoke/fake_automation_webhook.py scripts/smoke/finance_portfolio.py
 
   graph-projection-integration:
     needs: validate
@@ -143,6 +149,9 @@ jobs:
 
       - name: Prove canonical Automation registry
         run: python scripts/smoke/automation_registry.py
+
+      - name: Prove sourced Finance portfolio and signing isolation
+        run: python scripts/smoke/finance_portfolio.py
 
       - name: Dump graph state on failure
         if: failure()
