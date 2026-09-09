@@ -29,6 +29,7 @@ from .openbao import openbao_client
 from .operations import router as operations_router
 from .outbox import OutboxRelay
 from .planning import router as planning_router
+from .project_management import router as project_management_router
 from .research import router as research_router
 from .resources import router as resources_router
 from .schemas import (
@@ -42,6 +43,7 @@ from .schemas import (
     TaskRead,
 )
 from .temporal_gateway import temporal_gateway
+from .tool_management import router as tool_management_router
 from .tools import router as tools_router
 from .workflows import router as workflow_router
 
@@ -72,11 +74,13 @@ app.include_router(memory_router)
 app.include_router(documents_router)
 app.include_router(knowledge_router)
 app.include_router(planning_router)
+app.include_router(project_management_router)
 app.include_router(operations_router)
 app.include_router(graph_router)
 app.include_router(graph_activity_router)
 app.include_router(graph_directives_router)
 app.include_router(tools_router)
+app.include_router(tool_management_router)
 app.include_router(research_router)
 app.include_router(news_router)
 app.include_router(assistant_router)
@@ -186,6 +190,7 @@ async def architecture() -> dict[str, object]:
         "canonical_documents": "postgresql-document-version-chunks",
         "document_parser": "docling",
         "knowledge_retrieval": "kairo-core-latest-canonical-document-chunks",
+        "project_lifecycle": "kairo-core-canonical-project-mutation",
         "task_planning": "kairo-core-canonical-priority-schedule-due-fields",
         "today_projection": "kairo-core-explicit-task-planning-read-model",
         "agent_operations": "kairo-core-capability-task-workflow-approval-usage-read-model",
@@ -193,9 +198,11 @@ async def architecture() -> dict[str, object]:
         "tool_registry": "kairo-core-postgresql",
         "tool_transport": "mcp-streamable-http",
         "tool_policy": "deny-by-default-explicit-enable",
+        "tool_management": "kairo-core-fail-closed-server-and-tool-policy",
         "autonomous_research": "pydanticai-planner-policy-bound-mcp-child-tasks",
         "command_routing": "deterministic-first-semantic-later",
         "spatial_graph_projection": "kairo-core-canonical-read-model",
+        "mind_map_projection": "kairo-graph-shared-canonical-projection-local-layout",
         "spatial_graph_activity": "kairo-core-sanitized-sse-from-canonical-outbox",
         "spatial_ui_directives": "kairo-core-typed-deterministic-navigation",
         "derived_context_graph": "graphiti-neo4j",
