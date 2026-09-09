@@ -224,6 +224,10 @@ async def _load_invocation_binding(
     if not tool or not server or not task:
         raise HTTPException(status_code=409, detail="Tool registry binding is incomplete")
 
+    project = await session.get(Project, task.project_id)
+    if project is None or project.keycloak_subject != invocation.keycloak_subject:
+        raise HTTPException(status_code=409, detail="Tool invocation ownership binding is stale")
+
     if not require_current_authorization or invocation.status == "completed":
         return tool, server, task
     if invocation.status == "failed":
@@ -514,7 +518,10 @@ async def create_tool_invocation(
         uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:tool:{invocation_id}:{tool.key}")
     )
     existing = await session.scalar(
-        select(ToolInvocation).where(ToolInvocation.idempotency_key == idempotency_key)
+        select(ToolInvocation).where(
+            ToolInvocation.keycloak_subject == principal.subject,
+            ToolInvocation.idempotency_key == idempotency_key,
+        )
     )
     if existing:
         existing_task = await owned_task(session, existing.task_id, principal.subject)
@@ -565,6 +572,7 @@ async def create_tool_invocation(
     await session.flush()
     invocation = ToolInvocation(
         id=invocation_id,
+        keycloak_subject=principal.subject,
         tool_definition_id=tool.id,
         task_id=task.id,
         idempotency_key=idempotency_key,
@@ -607,7 +615,12 @@ async def get_tool_invocation(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> ToolInvocation:
-    invocation = await session.get(ToolInvocation, invocation_id)
+    invocation = await session.scalar(
+        select(ToolInvocation).where(
+            ToolInvocation.id == invocation_id,
+            ToolInvocation.keycloak_subject == principal.subject,
+        )
+    )
     if not invocation or await owned_task(session, invocation.task_id, principal.subject) is None:
         raise HTTPException(status_code=404, detail="Tool invocation not found")
     return invocation
