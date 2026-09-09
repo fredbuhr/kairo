@@ -9,6 +9,7 @@ type LayoutRequest = {
   edges: KairoGraphEdge[]
   focusKey?: string | null
   initialPoses?: Array<[string, KairoGraphPose]>
+  warmStart?: boolean
 }
 
 type LayoutResponse = {
@@ -84,8 +85,6 @@ function buildParticles(
     let z = cz + signed(key, 3) * localSpread
 
     if (previous) {
-      // Reuse the previous stable pose. When entering a focused neighborhood, translate the old
-      // world so the focus becomes the local origin instead of teleporting every neighbor.
       x = previous.x - (focusInitial?.x || 0)
       y = previous.y - (focusInitial?.y || 0)
       z = previous.z - (focusInitial?.z || 0)
@@ -124,9 +123,7 @@ function solve(request: LayoutRequest): LayoutResponse {
     })
     .filter((spring): spring is NonNullable<typeof spring> => spring !== null)
 
-  // Existing layouts need less energy than a cold start. This keeps familiar regions stable while
-  // still allowing newly created entities and relationships to find a coherent local position.
-  const warmStart = initialPoses.size > 0
+  const warmStart = request.warmStart === true
   const steps = warmStart
     ? (particles.length > 120 ? 70 : 96)
     : (particles.length > 120 ? 115 : 165)
