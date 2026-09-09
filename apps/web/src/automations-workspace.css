@@ -1,0 +1,68 @@
+.automations-workspace {
+  position: absolute;
+  inset: 70px 18px 76px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 14px;
+  overflow: hidden;
+}
+.automations-main,
+.automations-side { min-width: 0; overflow: auto; padding: 8px 5px 24px; scrollbar-width: thin; scrollbar-color: rgba(86, 219, 214, .15) transparent; }
+.automations-side { display: grid; align-content: start; gap: 10px; }
+.automation-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 8px; }
+.automation-card { display: grid; min-height: 190px; align-content: start; padding: 12px; border: 1px solid rgba(84, 211, 208, .08); border-radius: 13px; background: linear-gradient(150deg, rgba(5, 23, 29, .68), rgba(3, 16, 22, .54)); cursor: pointer; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
+.automation-card:hover, .automation-card-selected { border-color: rgba(91, 228, 219, .23); transform: translateY(-1px); }
+.automation-card-enabled { background: linear-gradient(150deg, rgba(7, 32, 35, .76), rgba(4, 19, 24, .60)); }
+.automation-card-top { display: grid; grid-template-columns: 7px minmax(0, 1fr) auto; gap: 6px; align-items: center; color: #648084; font-size: 7px; }
+.automation-card-top i { width: 5px; height: 5px; border-radius: 50%; background: #5d7378; }
+.automation-card-top i.automation-live { background: #63dfd0; box-shadow: 0 0 8px rgba(99, 223, 208, .34); }
+.automation-card-top small { color: #66878b; }
+.automation-card h2 { margin: 12px 0 5px; color: #d5e7e5; font-size: 15px; font-weight: 470; }
+.automation-card p { min-height: 42px; margin: 0; color: #6f898e; font-size: 8.5px; line-height: 1.5; }
+.automation-meta { display: flex; flex-wrap: wrap; gap: 4px; margin: 11px 0; }
+.automation-meta span { padding: 3px 5px; border: 1px solid rgba(85, 205, 201, .06); border-radius: 6px; color: #5b787d; font-size: 6.5px; }
+.automation-card-actions { display: flex; gap: 5px; margin-top: auto; }
+.automation-card-actions button { min-height: 29px; padding: 0 8px; border: 1px solid rgba(86, 215, 211, .11); border-radius: 8px; background: rgba(3, 17, 22, .52); color: #718d91; font-size: 7px; cursor: pointer; }
+.automation-card-actions button:hover:not(:disabled) { color: #d4ece8; border-color: rgba(91, 229, 220, .27); }
+.automation-card-actions button:disabled { opacity: .4; cursor: default; }
+.automation-global-error { display: block; margin-top: 8px; }
+
+.automation-runs { margin-top: 18px; border-top: 1px solid rgba(84, 210, 207, .07); padding-top: 13px; }
+.automation-runs > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
+.automation-runs > header > div { display: grid; gap: 3px; }
+.automation-runs > header strong { color: #a9c1c0; font-size: 10px; font-weight: 500; }
+.automation-runs > header b { min-width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: rgba(55, 150, 145, .09); color: #6f9d98; font-size: 7px; }
+.automation-run-row { width: 100%; display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 9px 7px; border: 0; border-top: 1px solid rgba(84, 210, 207, .055); background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.automation-run-row:hover { background: rgba(42, 136, 134, .035); }
+.automation-run-row > i { width: 5px; height: 5px; margin-top: 4px; border-radius: 50%; background: #60787d; }
+.automation-run-completed > i { background: #69d9c7; }
+.automation-run-running > i, .automation-run-queued > i { background: #62bfc7; box-shadow: 0 0 7px rgba(98, 191, 199, .26); }
+.automation-run-failed > i { background: #b77d87; }
+.automation-run-row > div:nth-child(2) { min-width: 0; display: grid; gap: 2px; }
+.automation-run-row strong { color: #c6d8d7; font-size: 8.5px; font-weight: 510; }
+.automation-run-row small { color: #607d82; font-size: 7px; }
+.automation-run-row div:nth-child(2) > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #8b6971; font-size: 6.8px; }
+.automation-run-row > div:last-child { display: grid; justify-items: end; gap: 4px; }
+.automation-run-row > div:last-child span { color: #5d797e; font-size: 6.5px; }
+.automation-run-row > div:last-child b { padding: 3px 5px; border: 1px solid rgba(194, 134, 143, .20); border-radius: 999px; color: #b08088; font-size: 5.8px; font-weight: 550; }
+
+.automation-run-composer { display: grid; gap: 8px; padding: 12px; border: 1px solid rgba(84, 213, 209, .11); border-radius: 13px; background: rgba(4, 19, 25, .67); }
+.automation-run-composer > div { display: grid; gap: 3px; }
+.automation-run-composer > div strong { color: #bdcfce; font-size: 10px; font-weight: 500; }
+.automation-run-composer textarea { width: 100%; resize: vertical; border: 1px solid rgba(84, 211, 208, .09); border-radius: 9px; outline: 0; background: rgba(1, 10, 14, .58); color: #9eb4b3; padding: 8px; font: 8px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.automation-run-composer textarea:focus { border-color: rgba(84, 225, 220, .28); }
+.automation-run-composer > button { min-height: 34px; border: 1px solid rgba(96, 224, 212, .18); border-radius: 9px; background: rgba(35, 122, 114, .10); color: #93c8be; font-size: 8px; cursor: pointer; }
+.automation-run-composer > button:hover:not(:disabled) { color: #d8f4ef; border-color: rgba(100, 235, 221, .34); }
+.automation-run-composer > button:disabled { opacity: .42; cursor: default; }
+.automation-run-composer > small { color: #59767b; font-size: 6.8px; line-height: 1.45; }
+.automation-create label { display: grid; gap: 4px; }
+.automation-create label > span { color: #638084; font-size: 7px; }
+.automation-secret-note { color: #557378; font-size: 6.7px; line-height: 1.45; }
+
+@media (max-width: 980px) {
+  .automations-workspace { grid-template-columns: minmax(0, 1fr) 280px; }
+}
+@media (max-width: 760px) {
+  .automations-workspace { inset: 64px 8px 72px; grid-template-columns: 1fr; overflow: auto; }
+  .automations-main, .automations-side { overflow: visible; }
+}
