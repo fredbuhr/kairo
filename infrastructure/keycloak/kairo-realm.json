@@ -14,14 +14,22 @@
   "clients": [
     {
       "clientId": "kairo-web",
-      "name": "KAIRO Web",
+      "name": "KAIRO Web + Desktop WebView",
       "enabled": true,
       "publicClient": true,
       "protocol": "openid-connect",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
-      "redirectUris": ["http://localhost:5173/*"],
-      "webOrigins": ["http://localhost:5173"]
+      "redirectUris": [
+        "http://localhost:5173/*",
+        "http://tauri.localhost/*",
+        "tauri://localhost/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173",
+        "http://tauri.localhost",
+        "tauri://localhost"
+      ]
     }
   ],
   "users": [
