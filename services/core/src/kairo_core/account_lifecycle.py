@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .account_lifecycle_models import AccountWriteFreeze
 from .auth import Principal, require_kairo_user
 from .automation_models import AutomationDefinition, AutomationInvocation
 from .autonomy_models import ApprovalRequest, ModelUsageRecord
@@ -455,6 +456,15 @@ async def _inventory(session: AsyncSession, subject: str) -> AccountDataInventor
         evidence=await _evidence_inventory(session, subject),
         boundaries=[
             RetentionBoundaryRead(
+                key="account_write_freeze",
+                state="canonical",
+                detail=(
+                    "A PostgreSQL subject write barrier rejects new public mutations from already-issued "
+                    "bearer tokens. The current freeze is reversible until a future irreversible erasure "
+                    "state machine takes ownership of the operation."
+                ),
+            ),
+            RetentionBoundaryRead(
                 key="audit_outbox",
                 state="shared_retention",
                 detail=(
@@ -475,14 +485,17 @@ async def _inventory(session: AsyncSession, subject: str) -> AccountDataInventor
             RetentionBoundaryRead(
                 key="keycloak_identity",
                 state="external",
-                detail="Deleting KAIRO data does not currently delete the Keycloak identity.",
+                detail=(
+                    "A least-privilege Keycloak management adapter exists, but final disable/session/delete "
+                    "orchestration is not yet connected to destructive account erasure."
+                ),
             ),
             RetentionBoundaryRead(
                 key="encrypted_backups",
                 state="shared_retention",
                 detail=(
-                    "Historical encrypted backups require a documented expiry/restore policy; "
-                    "they cannot support surgical subject deletion in place."
+                    "Restore refuses missing/non-empty external erasure ledgers to prevent resurrection, "
+                    "but tombstone reconciliation and historical encrypted-backup expiry remain incomplete."
                 ),
             ),
         ],
@@ -662,19 +675,43 @@ async def account_erasure_preflight(
             )
         )
 
+    frozen = (
+        await session.scalar(
+            select(AccountWriteFreeze.keycloak_subject).where(
+                AccountWriteFreeze.keycloak_subject == principal.subject
+            )
+        )
+        is not None
+    )
+    if not frozen:
+        blockers.append(
+            ErasureBlockerRead(
+                code="account_write_freeze_required",
+                scope="complete",
+                resolvable_by_user=True,
+                detail=(
+                    "Freeze user-originated KAIRO writes before final erasure so already-issued bearer "
+                    "tokens cannot recreate state while external stores are being reconciled."
+                ),
+            )
+        )
+
     blockers.extend(
         [
             ErasureBlockerRead(
                 code="keycloak_identity_deletion_not_implemented",
                 scope="complete",
-                detail="KAIRO Core does not currently delete the external Keycloak identity.",
+                detail=(
+                    "The least-privilege Keycloak management adapter exists, but durable disable/session/"
+                    "delete orchestration is not yet connected to account erasure."
+                ),
             ),
             ErasureBlockerRead(
                 code="backup_retention_policy_not_verified",
                 scope="complete",
                 detail=(
-                    "Encrypted backup expiry and restore-after-erasure semantics are not yet "
-                    "formally verified."
+                    "Restore now fails closed around the external erasure ledger, but tombstone emission/"
+                    "reconciliation and encrypted backup expiry/forget/prune semantics are not yet verified."
                 ),
             ),
         ]
