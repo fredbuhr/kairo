@@ -5,6 +5,8 @@ import type {
   KairoGraphUIDirectiveResolution,
 } from '@kairo/graph'
 
+import { authenticatedFetch } from './authSession'
+
 export const API_URL = (import.meta.env.VITE_KAIRO_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
 export type ProjectRecord = {
@@ -204,7 +206,7 @@ export type TaskCreateInput = {
 }
 
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, init)
+  const response = await authenticatedFetch(`${API_URL}${path}`, init)
   const body = await response.json().catch(() => null)
   if (!response.ok) {
     const detail = body?.detail
