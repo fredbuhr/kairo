@@ -39,3 +39,23 @@
   cursor: pointer;
 }
 .auth-startup-error button:hover { border-color: rgba(105, 234, 217, .36); color: #d6ece9; }
+
+.auth-identity-settings {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 11px;
+  border: 1px solid rgba(83, 210, 206, .09);
+  border-radius: 12px;
+  background: rgba(3, 17, 23, .42);
+}
+.auth-identity-settings > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.auth-identity-settings > header > div { display: grid; gap: 3px; }
+.auth-identity-settings > header strong { color: #bfd3d0; font-size: 10px; font-weight: 520; }
+.auth-identity-settings > header b { padding: 4px 6px; border: 1px solid rgba(94, 222, 211, .13); border-radius: 999px; color: #719b96; font-size: 5.8px; font-weight: 560; letter-spacing: .05em; }
+.auth-identity-settings dl { display: grid; gap: 4px; margin: 0; }
+.auth-identity-settings dl > div { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; padding: 5px 0; border-top: 1px solid rgba(83, 210, 206, .045); }
+.auth-identity-settings dt { color: #58767b; font-size: 6.6px; }
+.auth-identity-settings dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #829c9d; font-size: 6.6px; text-align: right; }
+.auth-identity-settings > button { min-height: 31px; border: 1px solid rgba(91, 225, 209, .14); border-radius: 8px; background: rgba(29, 111, 105, .09); color: #8eb7b2; font-size: 6.8px; cursor: pointer; }
+.auth-identity-settings > button:hover { border-color: rgba(105, 232, 216, .30); color: #d0e7e4; }
