@@ -72,3 +72,12 @@ class GraphProjectionRead(BaseModel):
 class GraphSearchRead(BaseModel):
     query: str
     nodes: list[GraphNodeRead]
+
+
+class GraphActivityEventRead(BaseModel):
+    id: uuid.UUID
+    event_type: str = Field(min_length=1, max_length=160)
+    entity: GraphEntityRef
+    related: list[GraphEntityRef] = Field(default_factory=list)
+    correlation_id: uuid.UUID
+    occurred_at: datetime
