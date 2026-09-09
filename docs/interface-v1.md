@@ -258,6 +258,27 @@ The Tools workspace is a policy/control surface over KAIRO's canonical MCP regis
 
 A newly registered ToolServer starts disabled. Enabling a server does not automatically enable its tools; each tool remains explicitly policy-controlled. Remote contract drift and execution-time contract checks remain Core/Worker authority boundaries, not UI assumptions.
 
+## Desktop shell and native capability boundary
+
+KAIRO Desktop uses Tauri v2 to wrap the **same `apps/web` Cockpit**. It is not a separate desktop application model and does not own another copy of Projects, Tasks, graph state, conversations or specialist workspaces.
+
+Rules:
+
+- browser and desktop render the same product shell and use the same Core contracts;
+- native capabilities are exposed only through narrow KAIRO-owned commands rather than a generic local-command channel;
+- the WebView receives no generic shell execution permission;
+- broad filesystem access is not granted merely because the app is native; first-slice file import stays explicit user-selected WebView input;
+- clipboard text access is bounded to explicit KAIRO commands;
+- local notifications request OS permission only when notification use is explicitly invoked;
+- one fixed `CmdOrCtrl+Shift+Space` summon shortcut is registered in Rust and may only restore/show/focus the main KAIRO window;
+- React/model code receives no generic global-shortcut registration permission;
+- screenshot and microphone capabilities stay visibly unavailable until their individual permission/provenance contracts are implemented;
+- future local actions that can affect external state still require the appropriate KAIRO Core policy/audit boundary and cannot use Tauri as an authority bypass.
+
+Settings exposes the actual runtime capability state so the normal Web version degrades truthfully instead of attempting native calls.
+
+ADR-038 defines this boundary.
+
 ## Performance contract
 
 The renderer must be built for graceful degradation from its first implementation.
@@ -303,10 +324,11 @@ Test Interface v1 is structurally complete when:
 6. no fake nodes or decorative semantic relationships are used;
 7. the same graph package powers 3D, 2D and accessible KAIRO Brain views;
 8. performance/reduced-motion modes are implemented in the same renderer family;
-9. desktop/Tauri can reuse the same web application rather than requiring a second UI;
+9. desktop/Tauri reuses the same web application rather than requiring a second UI;
 10. later feature work can extend Desktop/Voice and other areas without replacing the shell;
 11. specialist workspaces that create or inspect canonical objects remain synchronized with the same graph projection and can navigate back to exact canonical entities;
 12. external Calendar, Finance and future external-source overlays preserve explicit provenance rather than silently rewriting KAIRO-owned state;
 13. Automations remain KAIRO-owned policy/audit state even when execution is delegated to Activepieces;
 14. Finance/Crypto never exposes private signing material or a direct agent-signing path through the Cockpit;
-15. concrete Finance connectors preserve credential custody outside browser/Temporal state and cannot expand read-only portfolio synchronization into signing authority.
+15. concrete Finance connectors preserve credential custody outside browser/Temporal state and cannot expand read-only portfolio synchronization into signing authority;
+16. native desktop capabilities remain explicitly enumerated and bounded rather than exposing generic host-machine authority to the WebView or agents.
