@@ -10,9 +10,9 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import Principal, require_kairo_user
 from .capabilities import (
     get_capability,
     is_routable_capability,
@@ -25,6 +25,7 @@ from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project, Task
 from .news import start_news_brief
+from .ownership import DEVELOPMENT_SUBJECT, ensure_system_project
 from .research import ResearchCommandInput, ResearchRunCreate, start_research_run
 from .schemas import (
     AssistantCommandCreate,
@@ -242,10 +243,17 @@ def route_command(body: AssistantCommandCreate) -> CommandRoute | None:
 
 
 async def _conversation_for_command(
-    body: AssistantCommandCreate, session: AsyncSession
+    body: AssistantCommandCreate,
+    session: AsyncSession,
+    subject: str,
 ) -> Conversation:
     if body.conversation_id is not None:
-        conversation = await session.get(Conversation, body.conversation_id)
+        conversation = await session.scalar(
+            select(Conversation).where(
+                Conversation.id == body.conversation_id,
+                Conversation.subject_ref == subject,
+            )
+        )
         if conversation is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
         if conversation.status != "active":
@@ -253,34 +261,28 @@ async def _conversation_for_command(
         return conversation
 
     title = re.sub(r"\s+", " ", body.text).strip()[:120]
-    conversation = Conversation(locale=body.locale, title=title or None, status="active")
+    conversation = Conversation(
+        subject_ref=subject,
+        locale=body.locale,
+        title=title or None,
+        status="active",
+    )
     session.add(conversation)
     await session.flush()
     return conversation
 
 
-async def _ensure_assistant_project(session: AsyncSession) -> Project:
-    project = await session.get(Project, ASSISTANT_PROJECT_ID)
-    if project is not None:
-        return project
-
-    correlation_id = uuid.uuid4()
-    inserted_id = await session.scalar(
-        pg_insert(Project)
-        .values(
-            id=ASSISTANT_PROJECT_ID,
-            name="KAIRO Assistant",
-            status="active",
-            summary="System workspace for durable command routing and assistant orchestration.",
-            parent_id=None,
-        )
-        .on_conflict_do_nothing(index_elements=[Project.id])
-        .returning(Project.id)
+async def _ensure_assistant_project(session: AsyncSession, subject: str) -> Project:
+    project, created = await ensure_system_project(
+        session,
+        subject=subject,
+        key="assistant",
+        name="KAIRO Assistant",
+        summary="Per-user system workspace for durable command routing and assistant orchestration.",
+        legacy_development_id=ASSISTANT_PROJECT_ID,
     )
-    project = await session.get(Project, ASSISTANT_PROJECT_ID)
-    if project is None:
-        raise RuntimeError("KAIRO Assistant workspace could not be initialized")
-    if inserted_id is not None:
+    if created:
+        correlation_id = uuid.uuid4()
         await enqueue_domain_event(
             session,
             event_type="project.created",
@@ -298,7 +300,7 @@ async def _ensure_assistant_project(session: AsyncSession) -> Project:
             resource_id=str(project.id),
             authority_level=0,
             correlation_id=correlation_id,
-            request_json={"reason": "initialize assistant routing workspace"},
+            request_json={"reason": "initialize owner-scoped assistant routing workspace", "subject": subject},
         )
     return project
 
@@ -322,7 +324,8 @@ async def _start_semantic_route(
     conversation: Conversation,
     session: AsyncSession,
 ) -> AssistantCommandResponse:
-    project = await _ensure_assistant_project(session)
+    subject = conversation.subject_ref or DEVELOPMENT_SUBJECT
+    project = await _ensure_assistant_project(session, subject)
     route_input = SemanticRouteInput(
         command_id=command.id,
         text=body.text,
@@ -476,7 +479,9 @@ async def _execute_route(
         )
     elif capability.key == "research.autonomous":
         routed = ResearchCommandInput.model_validate(route.parameters)
-        project = await _ensure_assistant_project(session)
+        project = await _ensure_assistant_project(
+            session, conversation.subject_ref or DEVELOPMENT_SUBJECT
+        )
         research_request = ResearchRunCreate(
             project_id=project.id,
             query=routed.query,
@@ -574,10 +579,11 @@ async def capability_contracts() -> list[CapabilityContractRead]:
 )
 async def assistant_command(
     body: AssistantCommandCreate,
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> AssistantCommandResponse:
     await synchronize_capabilities(session)
-    conversation = await _conversation_for_command(body, session)
+    conversation = await _conversation_for_command(body, session, principal.subject)
     correlation_id = uuid.uuid4()
 
     message = ConversationMessage(
@@ -687,9 +693,16 @@ async def apply_semantic_route(
 
 @router.get("/v1/conversations/{conversation_id}", response_model=ConversationRead)
 async def get_conversation(
-    conversation_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+    conversation_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> Conversation:
-    conversation = await session.get(Conversation, conversation_id)
+    conversation = await session.scalar(
+        select(Conversation).where(
+            Conversation.id == conversation_id,
+            Conversation.subject_ref == principal.subject,
+        )
+    )
     if conversation is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return conversation
@@ -700,9 +713,17 @@ async def get_conversation(
     response_model=list[ConversationMessageRead],
 )
 async def get_conversation_messages(
-    conversation_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+    conversation_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> list[ConversationMessage]:
-    if await session.get(Conversation, conversation_id) is None:
+    conversation = await session.scalar(
+        select(Conversation.id).where(
+            Conversation.id == conversation_id,
+            Conversation.subject_ref == principal.subject,
+        )
+    )
+    if conversation is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
     result = await session.execute(
         select(ConversationMessage)
@@ -714,9 +735,18 @@ async def get_conversation_messages(
 
 @router.get("/v1/commands/{command_id}", response_model=CommandRead)
 async def get_command(
-    command_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+    command_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> CommandRecord:
-    command = await session.get(CommandRecord, command_id)
+    command = await session.scalar(
+        select(CommandRecord)
+        .join(Conversation, Conversation.id == CommandRecord.conversation_id)
+        .where(
+            CommandRecord.id == command_id,
+            Conversation.subject_ref == principal.subject,
+        )
+    )
     if command is None:
         raise HTTPException(status_code=404, detail="Command not found")
     return command
