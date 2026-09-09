@@ -28,10 +28,35 @@ export type TaskRecord = {
   authority_ceiling: number
   budget_usd?: string | number | null
   input: Record<string, unknown>
+  priority?: number
+  planned_start_at?: string | null
+  planned_end_at?: string | null
+  due_at?: string | null
   started_at?: string | null
   completed_at?: string | null
   created_at: string
   updated_at: string
+}
+
+export type TodayRecord = {
+  generated_at: string
+  day_start: string
+  day_end: string
+  timezone_offset_minutes: number
+  overdue: TaskRecord[]
+  due_today: TaskRecord[]
+  planned_today: TaskRecord[]
+  important: TaskRecord[]
+}
+
+export type TaskPlanningUpdateInput = {
+  title?: string
+  description?: string | null
+  status?: string
+  priority?: number
+  planned_start_at?: string | null
+  planned_end_at?: string | null
+  due_at?: string | null
 }
 
 export type AssetRecord = {
@@ -40,7 +65,7 @@ export type AssetRecord = {
   bucket: string
   object_key: string
   mime_type?: string | null
-  size_bytes: number
+  size_bytes: number | null
   sha256?: string | null
   metadata_json: Record<string, unknown>
   created_at: string
@@ -189,6 +214,23 @@ export function createProject(input: ProjectCreateInput): Promise<ProjectRecord>
 
 export function fetchTasks(): Promise<TaskRecord[]> {
   return apiJson('/v1/tasks')
+}
+
+export function fetchPlanningTasks(includeClosed = false): Promise<TaskRecord[]> {
+  return apiJson(`/v1/planning/tasks?include_closed=${includeClosed ? 'true' : 'false'}`)
+}
+
+export function fetchToday(): Promise<TodayRecord> {
+  const offset = -new Date().getTimezoneOffset()
+  return apiJson(`/v1/today?timezone_offset_minutes=${offset}`)
+}
+
+export function updateTaskPlanning(taskId: string, input: TaskPlanningUpdateInput): Promise<TaskRecord> {
+  return apiJson(`/v1/tasks/${encodeURIComponent(taskId)}/planning`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
 }
 
 export function createTask(input: TaskCreateInput): Promise<TaskRecord> {
