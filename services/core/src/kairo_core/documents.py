@@ -301,11 +301,14 @@ async def list_documents(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[Document]:
-    result = await session.execute(select(Document).order_by(Document.created_at.desc()))
-    return [
-        row for row in result.scalars()
-        if str((row.metadata_json or {}).get("owner_subject") or "") == principal.subject
-    ]
+    # Keep tenant filtering inside PostgreSQL so another user's Document rows never need to be
+    # materialized in this request merely to be discarded by Python afterwards.
+    result = await session.execute(
+        select(Document)
+        .where(Document.metadata_json["owner_subject"].astext == principal.subject)
+        .order_by(Document.created_at.desc())
+    )
+    return list(result.scalars())
 
 
 @router.get("/v1/documents/{document_id}", response_model=DocumentRead)
