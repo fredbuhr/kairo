@@ -10,6 +10,9 @@ services:
       # Full-stack Automation tests point the fixed Activepieces origin at a controlled webhook
       # fixture. KAIRO still receives only a secret path and cannot turn it into an arbitrary URL.
       ACTIVEPIECES_URL: http://automation-webhook:8089
+      # Full-stack Finance tests point the deployment-owned Rotki origin at a controlled read-only
+      # API fixture. User data cannot override this origin through connector metadata/secrets.
+      ROTKI_URL: http://fake-rotki:8090/api/1
 
   automation-webhook:
     image: python:3.12-alpine
@@ -20,4 +23,15 @@ services:
       - ./scripts/smoke:/workspace/scripts/smoke:ro
     ports:
       - "127.0.0.1:8089:8089"
+    networks: [kairo]
+
+  fake-rotki:
+    image: python:3.12-alpine
+    restart: unless-stopped
+    working_dir: /workspace
+    command: ["python", "/workspace/scripts/smoke/fake_rotki.py"]
+    volumes:
+      - ./scripts/smoke:/workspace/scripts/smoke:ro
+    ports:
+      - "127.0.0.1:8090:8090"
     networks: [kairo]
