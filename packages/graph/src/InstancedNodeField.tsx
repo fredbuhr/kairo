@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 
@@ -29,17 +29,14 @@ function hash(value: string): number {
   return h >>> 0
 }
 
-function nodeColor(node: KairoGraphNode): THREE.Color {
-  const value = (() => {
-    if (node.entity_type === 'approval') return '#b7f8d2'
-    if (node.entity_type === 'project') return '#49e8ef'
-    if (node.entity_type === 'task') return '#76f4cf'
-    if (node.entity_type === 'document') return '#78cff8'
-    if (node.entity_type === 'artifact') return '#8ce9d6'
-    if (node.entity_type === 'conversation') return '#83d9ef'
-    return '#65dce1'
-  })()
-  return new THREE.Color(value)
+function nodeColorValue(node: KairoGraphNode): string {
+  if (node.entity_type === 'approval') return '#b7f8d2'
+  if (node.entity_type === 'project') return '#49e8ef'
+  if (node.entity_type === 'task') return '#76f4cf'
+  if (node.entity_type === 'document') return '#78cff8'
+  if (node.entity_type === 'artifact') return '#8ce9d6'
+  if (node.entity_type === 'conversation') return '#83d9ef'
+  return '#65dce1'
 }
 
 function radiusFor(node: KairoGraphNode) {
@@ -77,6 +74,8 @@ export function InstancedNodeField({
     () => new THREE.SphereGeometry(1, nodeSegments, nodeSegments),
     [nodeSegments],
   )
+
+  useEffect(() => () => geometry.dispose(), [geometry])
 
   useFrame(({ clock }) => {
     if (!mesh.current || !halo.current) return
@@ -117,12 +116,12 @@ export function InstancedNodeField({
       dummy.updateMatrix()
       halo.current.setMatrixAt(index, dummy.matrix)
 
-      workingColor.copy(nodeColor(node))
+      workingColor.set(nodeColorValue(node))
       if (dimmed) workingColor.multiplyScalar(0.22)
       else if (selected) workingColor.multiplyScalar(1.18)
       mesh.current.setColorAt(index, workingColor)
 
-      workingColor.copy(nodeColor(node))
+      workingColor.set(nodeColorValue(node))
       if (dimmed) workingColor.multiplyScalar(0.12)
       halo.current.setColorAt(index, workingColor)
     }
