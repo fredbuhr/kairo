@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
+  applyEvidenceRetention,
   fetchAccountErasurePreflight,
   fetchAccountExportManifest,
   fetchAccountLifecycleTask,
+  fetchEvidenceRetentionPlan,
   purgeDerivedMemory,
   type AccountDataInventory,
 } from '../../lib/accountApi'
@@ -72,6 +74,12 @@ export function AccountDataLifecycleSettings() {
     queryFn: fetchAccountErasurePreflight,
     staleTime: 10_000,
   })
+  const evidencePlanQuery = useQuery({
+    queryKey: ['account-evidence-retention'],
+    queryFn: fetchEvidenceRetentionPlan,
+    staleTime: 5000,
+    retry: false,
+  })
   const manifestMutation = useMutation({
     mutationFn: fetchAccountExportManifest,
     onSuccess: (manifest) => downloadJson('kairo-account-export-manifest.json', manifest),
@@ -82,7 +90,17 @@ export function AccountDataLifecycleSettings() {
       setPurgePolling(true)
       await Promise.all([
         client.invalidateQueries({ queryKey: ['account-erasure-preflight'] }),
+        client.invalidateQueries({ queryKey: ['account-evidence-retention'] }),
         client.invalidateQueries({ queryKey: ['agent-executions'] }),
+      ])
+    },
+  })
+  const evidenceMutation = useMutation({
+    mutationFn: applyEvidenceRetention,
+    onSuccess: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ['account-erasure-preflight'] }),
+        client.invalidateQueries({ queryKey: ['account-evidence-retention'] }),
       ])
     },
   })
@@ -98,8 +116,14 @@ export function AccountDataLifecycleSettings() {
   const preflight = preflightQuery.data
   const inventory = preflight?.inventory
   const derived = inventory?.derived_projections
+  const evidencePlan = evidencePlanQuery.data
   const purgeTaskStatus = purgeTaskQuery.data?.status
-  const error = preflightQuery.error || manifestMutation.error || purgeMutation.error || purgeTaskQuery.error
+  const error = preflightQuery.error
+    || evidencePlanQuery.error
+    || manifestMutation.error
+    || purgeMutation.error
+    || evidenceMutation.error
+    || purgeTaskQuery.error
 
   useEffect(() => {
     if (!purgePolling || !purgeTaskStatus) return
@@ -107,6 +131,7 @@ export function AccountDataLifecycleSettings() {
       setPurgePolling(false)
       void Promise.all([
         client.invalidateQueries({ queryKey: ['account-erasure-preflight'] }),
+        client.invalidateQueries({ queryKey: ['account-evidence-retention'] }),
         client.invalidateQueries({ queryKey: ['agent-executions'] }),
       ])
     } else if (['failed', 'cancelled', 'archived'].includes(purgeTaskStatus)) {
@@ -121,6 +146,14 @@ export function AccountDataLifecycleSettings() {
       'Purger la mémoire dérivée Mem0 / Graphiti ?\n\nLes conversations canoniques resteront intactes. Seules les projections reconstruisibles seront supprimées.',
     )
     if (confirmed) purgeMutation.mutate()
+  }
+
+  function requestEvidenceRetention() {
+    if (!evidencePlan?.request_ready || evidenceMutation.isPending) return
+    const confirmed = window.confirm(
+      'Appliquer la rétention Audit / Outbox ?\n\nCette opération est irréversible : KAIRO retire les copies JetStream identifiées, supprime les lignes Outbox réconciliées et minimise les détails d’audit personnels. Les données canoniques ne sont pas supprimées.',
+    )
+    if (confirmed) evidenceMutation.mutate()
   }
 
   return (
@@ -167,13 +200,47 @@ export function AccountDataLifecycleSettings() {
             <span className="kairo-kicker">AUDIT & ÉVÉNEMENTS</span>
             <p>
               {inventory.evidence.data_subject_addressable
-                ? 'Les preuves liées à votre monde KAIRO sont maintenant indexées par propriétaire. La politique finale de conservation/redaction reste volontairement séparée.'
+                ? 'Les preuves de votre monde KAIRO sont adressables par propriétaire. La rétention retire d’abord les copies transport, puis minimise les détails personnels sans supprimer les données canoniques.'
                 : 'Certaines preuves ne sont pas encore adressables par propriétaire.'}
             </p>
             <small>
               Audit personnel : {inventory.evidence.subject_owned_audit_records} · références acteur dans l’audit partagé : {inventory.evidence.shared_audit_actor_references} · Outbox : {inventory.evidence.subject_owned_outbox_events}
             </small>
           </div>
+
+          {evidencePlan && evidenceCount(inventory) > 0 && (
+            <div className={`account-evidence-retention ${evidencePlan.request_ready ? 'account-evidence-ready' : ''}`}>
+              <div>
+                <span className="kairo-kicker">RÉTENTION AUDIT / OUTBOX</span>
+                <strong>{evidencePlan.request_ready ? 'Réconciliation disponible' : 'Réconciliation bloquée'}</strong>
+                <small>
+                  JetStream identifié : {evidencePlan.mapped_published_outbox_events} · historique sans reçu : {evidencePlan.unmapped_published_outbox_events} · en transit : {evidencePlan.unpublished_subject_outbox_events}
+                </small>
+              </div>
+              <button
+                type="button"
+                disabled={!evidencePlan.request_ready || evidenceMutation.isPending}
+                onClick={requestEvidenceRetention}
+              >
+                {evidenceMutation.isPending ? 'Réconciliation…' : 'Appliquer la rétention'}
+              </button>
+              <p>
+                Les événements avec reçu stream/séquence sont retirés de JetStream avant leur Outbox PostgreSQL. Les anciens événements sans reçu attendent leur expiration max-age avant d’être considérés absents.
+              </p>
+              {evidencePlan.historical_unmapped_safe_after && !evidencePlan.request_ready && (
+                <small>Fin de la fenêtre historique : {shortDateTime(evidencePlan.historical_unmapped_safe_after)}</small>
+              )}
+              {evidencePlan.blockers.length > 0 && (
+                <small>{evidencePlan.blockers.map((blocker) => blocker.detail).join(' · ')}</small>
+              )}
+              {evidenceMutation.data && (
+                <small>
+                  {evidenceMutation.data.status === 'complete' ? 'Rétention appliquée.' : 'Lot traité, une nouvelle passe est nécessaire.'}
+                  {' '}Outbox retiré : {evidenceMutation.data.outbox_rows_removed} · Audit minimisé : {evidenceMutation.data.audit_rows_minimized}
+                </small>
+              )}
+            </div>
+          )}
 
           {derived && (
             <div className={`derived-memory-control ${derived.purge_current ? 'derived-memory-current' : ''}`}>
