@@ -70,6 +70,9 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall services/core/src services/worker/src scripts/smoke
 
+      - name: Prove pinned derived-memory purge provider APIs
+        run: uv run --project services/worker --extra intelligence python scripts/smoke/memory_purge_provider_contract.py
+
       - name: Prove deterministic conversational routing
         run: uv run --project services/core python scripts/smoke/assistant_router.py
 
@@ -171,7 +174,7 @@ jobs:
         run: |
           docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
 
-      - name: Prove rebuildable memory projection generations
+      - name: Prove rebuildable memory projection and purge lifecycle
         run: python scripts/smoke/memory_projection.py
 
       - name: Dump memory-projection state on failure
