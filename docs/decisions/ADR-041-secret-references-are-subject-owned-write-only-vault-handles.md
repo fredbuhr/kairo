@@ -40,8 +40,14 @@ inside a deployment-owned namespace:
 The raw Keycloak subject is not embedded in the path. The digest is only namespace partitioning; Core
 authorization remains the access boundary.
 
+`provider_path` is also intentionally absent from the public `SecretReferenceRead` contract. The
+browser receives only the logical handle (`id`, name, purpose and timestamps); the managed vault
+location remains Core-owned deployment metadata. This prevents connector configuration screens from
+turning the OpenBao namespace layout into unnecessary user-visible topology.
+
 Auth-disabled isolated smoke stacks may still provide an explicit deterministic path so controlled
-fixtures can pre-provision OpenBao without inventing a second testing API.
+fixtures can pre-provision OpenBao without inventing a second testing API. The path still does not
+appear in the resulting public read model.
 
 ### Write-only value provisioning
 
@@ -108,7 +114,7 @@ therefore choose the same human-readable key without learning about or blocking 
 
 - Ordinary users can configure their own KAIRO integrations without receiving global admin access.
 - Secret metadata follows the same subject boundary as Projects, Automations and Finance connectors.
-- The browser never needs an OpenBao token and cannot select arbitrary vault paths.
+- The browser never needs an OpenBao token, cannot select arbitrary vault paths and does not receive managed vault paths back.
 - Secret values remain absent from PostgreSQL, Temporal payloads, NATS domain events and API reads.
 - Connector ownership is enforced both in handlers and in PostgreSQL.
 - Caller-selected idempotency strings no longer form a cross-tenant namespace.
