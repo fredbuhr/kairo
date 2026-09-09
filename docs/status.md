@@ -32,7 +32,7 @@ All three remain intentionally unmerged while GitHub Actions issue **#38** preve
 - Docling-backed ingestion produces canonical Documents / Versions / Chunks with provenance.
 - MCP tools are registered and executed through KAIRO-owned policy/contract boundaries.
 - Automation definitions/invocations are KAIRO-owned while Activepieces remains a replaceable execution adapter.
-- Finance portfolio data is an explicit sourced observation model; signing authority remains outside the AI/runtime boundary.
+- Finance portfolio data is an explicit sourced observation model; Rotki is the first concrete read-only connector and signing authority remains outside the AI/runtime boundary.
 - specialist workspaces are views/controls over canonical APIs or explicit sourced read models, not parallel frontend-owned applications.
 
 ## Block 1 — platform substrate
@@ -285,31 +285,33 @@ ADR-035 records this boundary.
 
 ### Finance & Crypto
 
-**Active first operational slice: sourced portfolio + unsigned transaction drafts.**
+**Active sourced portfolio, unsigned transaction drafts and concrete read-only Rotki connector.**
 
-Migration `0011_finance_portfolio_snapshots` adds:
+Migrations `0011_finance_portfolio_snapshots` and `0012_finance_connectors` add:
 
 - owner-scoped `FinanceSource` provider bindings;
 - deterministic sourced `FinanceAccount` observations;
 - latest `FinancePosition` observations with Decimal quantity/valuation/cost/P&L;
-- unsigned `FinanceTransactionProposal` drafts.
+- unsigned `FinanceTransactionProposal` drafts;
+- Project/owner-scoped `FinanceConnector` definitions created disabled.
 
-Core exposes:
+Core exposes the normalized Finance read model plus a concrete Rotki adapter. Rotki credentials are referenced through OpenBao; PostgreSQL stores only a `SecretReference` and required secret-field names. The Worker receives connector/task/workflow identifiers only and calls back into Core, so Rotki username/password values do not enter the Temporal payload/history or browser client.
 
-- `GET /v1/finance/sources`;
-- `GET /v1/finance/portfolio` with source/account/position provenance and aggregate USD read metrics;
-- trusted `POST /internal/v1/finance/snapshot` for normalized provider snapshots;
-- list/create endpoints for unsigned transaction proposals.
+The deployment owns `ROTKI_URL`; user metadata/secrets cannot redirect the connector to an arbitrary HTTP origin. A synchronization request creates/reuses a durable A1 `finance.sync.rotki` capability Task, and Core authenticates to Rotki, optionally refreshes blockchain balances, waits for Rotki's async task, normalizes sourced accounts/assets/liabilities, and ingests them through the existing Finance snapshot boundary.
+
+The Rotki normalizer handles the current blockchain-balance forms including address balance sheets and UTXO standalone/xpub observations. It preserves Decimal values and provider identifiers rather than inventing tickers. Extended public key material is deliberately not persisted in the first adapter slice.
+
+The Finance Cockpit now has a connector-management panel for real `FinanceConnector` records: list, fail-closed create, explicit enable/disable, sync, last sync/error state, SecretReference selection and credential-field binding. Credential values themselves are never exposed to the browser.
 
 The snapshot boundary prevents source-account rebinding, preserves deterministic account/position identity across replay, supports full-source replacement and rejects credential/private-key/seed-like metadata fields. Public addresses are allowed because they are provenance, not signing authority.
 
-The Finance Cockpit displays only real sourced positions. With no connector data it shows an empty state rather than fabricated holdings. It supports source filtering, account/public-address inspection, valuation/P&L display and preparation of a crypto transfer draft.
-
 A transfer draft must refer to an asset currently present in the selected sourced account observation and keeps the observed-position identity/time in its simulation metadata. KAIRO deliberately does **not** interpret that stale-able observation as current spend authority.
 
-There is no sign/send/broadcast API in this slice. Proposal responses state `signing_required=true` and `signing_boundary=external_isolated_signer`. Private keys and seed phrases never enter the AI/agent process. Future signing must remain behind policy/approval plus an isolated signer, hardware wallet or explicit user-wallet interaction.
+There is no sign/send/broadcast API. Proposal responses state `signing_required=true` and `signing_boundary=external_isolated_signer`. Private keys and seed phrases never enter the AI/agent process. Future signing must remain behind policy/approval plus an isolated signer, hardware wallet or explicit user-wallet interaction.
 
-ADR-015 defines signing isolation; ADR-036 extends it with the sourced portfolio/proposal boundary.
+A controlled full-stack Rotki proof now crosses **Core → Temporal → Worker → Core → OpenBao → Rotki API fixture → canonical Finance snapshot**. It checks disabled-by-default creation, credential non-disclosure, successful refresh, stable source/account/position identity as external values change, and preservation of the last good snapshot after a credential failure. A separately provisioned real Rotki release still requires provider-integration validation before production deployment.
+
+ADR-015 defines signing isolation; ADR-036 defines sourced Finance/signing separation; ADR-037 defines the concrete read-only Rotki connector boundary.
 
 ### Shared specialist-workspace contract
 
@@ -328,7 +330,8 @@ The Graph Interface workflow now typechecks/builds graph, Gantt and web packages
 - external Calendar source/event identity, replay, deletion, rebinding refusal and timezone validation;
 - canonical Automation registry fail-closed creation/enablement behavior;
 - controlled full-stack Automation Core/Temporal/Worker/OpenBao/webhook success + ambiguous-outcome non-replay;
-- sourced Finance source/account/position replay, full replacement, secret-field rejection, proposal provenance and external signing isolation.
+- sourced Finance source/account/position replay, full replacement, secret-field rejection, proposal provenance and external signing isolation;
+- controlled full-stack Rotki Core/Temporal/Worker/OpenBao/provider synchronization, credential non-disclosure, identity stability and last-good-snapshot preservation.
 
 Because isolated Cockpit proofs intentionally do not start Keycloak, `compose.graph-ci.yaml` disables user auth **only for that CI stack**. Production explicitly forces KAIRO authentication on.
 
@@ -337,7 +340,7 @@ These proofs are committed but **not yet considered passed on the latest head** 
 ## Major work still remaining
 
 - real Google/Microsoft Calendar connector authentication/polling/free-busy adapters feeding the normalized snapshot boundary;
-- real Rotki/exchange/wallet Finance connectors feeding the normalized Finance snapshot boundary;
+- validate the concrete Rotki adapter against a separately provisioned real Rotki release and then add exchange/wallet Finance adapters where useful;
 - an actual provisioned Activepieces-flow integration proof in addition to the controlled webhook-contract proof;
 - deeper editable/collaborative Brain functionality where explicit graph/domain mutations are required;
 - Tauri desktop capability bridge (files/clipboard/capture/notifications/microphone) reusing the same web UI;
@@ -350,7 +353,7 @@ These proofs are committed but **not yet considered passed on the latest head** 
 
 1. Resolve GitHub Actions runner issue #38 and execute #36 → #37 → #39 on real runners before merge.
 2. Keep filling Test Interface v1 without introducing a second frontend.
-3. Implement concrete external adapters against the boundaries that now exist: Calendar providers, Rotki/exchange/wallet Finance and a provisioned Activepieces flow.
+3. Validate/adapt the concrete connector boundaries against real providers: Google/Microsoft Calendar, a provisioned Rotki release and a provisioned Activepieces flow.
 4. Continue Desktop/Voice integration while preserving the same Cockpit and canonical Core contracts.
 5. Then deepen Developer/computer-use capabilities and isolated transaction-signing handoff without granting agents private-key custody.
 
