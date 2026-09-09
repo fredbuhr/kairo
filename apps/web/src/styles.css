@@ -32,6 +32,17 @@ h1 { margin: 8px 0 0; font-size: clamp(36px, 7vw, 76px); letter-spacing: -.06em;
 .route-chip span { font-size: 12px; font-weight: 700; }
 .route-chip small { color: #7fa795; }
 .conversation-chip { display: block; width: fit-content; margin-top: 9px; color: #72839f; font-size: 11px; }
+.conversation-thread { margin-top: 22px; padding-top: 18px; border-top: 1px solid #2d3b54; }
+.conversation-thread-heading { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 12px; }
+.conversation-thread-heading strong { font-size: 13px; }
+.conversation-thread-heading span { color: #71819b; font-size: 11px; }
+.conversation-messages { display: grid; gap: 10px; }
+.conversation-message { width: min(88%, 860px); border: 1px solid #2c3850; border-radius: 16px; padding: 12px 14px; background: rgba(7, 11, 18, .48); }
+.conversation-message small { display: block; margin-bottom: 6px; color: #8190aa; font-size: 10px; text-transform: uppercase; letter-spacing: .11em; }
+.conversation-message p { margin: 0; color: #e2e8f1; white-space: pre-wrap; line-height: 1.58; }
+.conversation-message > span { display: block; margin-top: 8px; color: #66758e; font-size: 10px; }
+.conversation-message-user { justify-self: end; border-color: #455979; background: rgba(35, 48, 70, .5); }
+.conversation-message-assistant { justify-self: start; border-color: #315044; background: rgba(20, 38, 31, .42); }
 
 .research-workspace, .news-workspace { margin: 28px 0 48px; padding: clamp(20px, 4vw, 38px); border: 1px solid #27334a; border-radius: 24px; background: rgba(14, 19, 29, .9); box-shadow: 0 28px 90px rgba(0, 0, 0, .24); }
 .research-workspace { border-color: #304538; background: linear-gradient(145deg, rgba(17, 28, 24, .9), rgba(14, 19, 29, .94)); }
@@ -100,7 +111,8 @@ a.source-card:hover { border-color: #3f506e; }
   .hero { margin-top: 48px; }
   .command-form { grid-template-columns: 1fr; }
   .command-form button { min-height: 48px; }
+  .conversation-thread-heading, .news-heading, .sources-title { flex-direction: column; align-items: flex-start; }
+  .conversation-message { width: 100%; }
   .news-controls { grid-template-columns: 1fr; }
-  .news-heading, .sources-title { flex-direction: column; }
   .source-card { grid-template-columns: 34px 1fr; }
 }
