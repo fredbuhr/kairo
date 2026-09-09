@@ -208,6 +208,11 @@ async def _propagate_command_task_failure(
         )
         await session.flush()
 
+    command.result_json = {
+        **(command.result_json or {}),
+        "assistant_message_id": str(message_id),
+    }
+
     if transitioned:
         await enqueue_domain_event(
             session,
@@ -238,6 +243,55 @@ async def _propagate_command_task_failure(
                 "task_id": str(task.id),
                 "assistant_message_id": str(message_id),
             },
+        )
+
+
+async def reconcile_command_task_projection(
+    session: AsyncSession,
+    *,
+    command_id: uuid.UUID,
+    task_id: uuid.UUID,
+) -> None:
+    """Repair the narrow race where a final capability Task finishes before Command binding commits.
+
+    The normal completion/failure endpoints project results when the Worker closes the Task. A very
+    fast Task can theoretically close after Temporal start but before `_execute_route` binds the final
+    Task onto its Command. After binding, this reconciler checks the already-canonical Task state. If
+    it is terminal, the same idempotent projection helpers repair the missed chat/Command projection;
+    if it is still running, the normal Worker completion path will project later.
+    """
+
+    command = await session.scalar(
+        select(CommandRecord).where(CommandRecord.id == command_id).with_for_update()
+    )
+    if command is None or command.task_id != task_id:
+        return
+    task = await session.get(Task, task_id)
+    if task is None:
+        return
+    execution = await session.scalar(
+        select(WorkflowExecution).where(WorkflowExecution.task_id == task.id)
+    )
+    if execution is None:
+        return
+
+    if task.status == "completed":
+        artifact = await session.scalar(
+            select(Artifact).where(Artifact.workflow_execution_id == execution.id)
+        )
+        if artifact is not None:
+            await _project_command_success(
+                session,
+                task=task,
+                execution=execution,
+                artifact=artifact,
+            )
+    elif task.status == "failed":
+        await _propagate_command_task_failure(
+            session,
+            task=task,
+            execution=execution,
+            error=execution.last_error or "Capability execution failed",
         )
 
 
