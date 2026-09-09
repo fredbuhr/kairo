@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .auth import Principal, require_kairo_admin, require_kairo_user
+from .auth import Principal, require_kairo_user
 from .config import settings
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
@@ -246,7 +246,6 @@ def _normalize_rotki_blockchain_balances(
         if not chain or not isinstance(raw_accounts, dict):
             continue
 
-        # UTXO-family balances have a standalone/xpub shape rather than a BalanceSheet per address.
         if "standalone" in raw_accounts or "xpubs" in raw_accounts:
             standalone = raw_accounts.get("standalone") or {}
             if isinstance(standalone, dict):
@@ -264,14 +263,8 @@ def _normalize_rotki_blockchain_balances(
                             metadata={"rotki_kind": "standalone"},
                         )
                     )
-                    balance_amount = _decimal(
-                        raw_balance.get("amount"),
-                        context=f"{chain}.{address}.amount",
-                    )
-                    balance_value = _decimal(
-                        raw_balance.get("value"),
-                        context=f"{chain}.{address}.value",
-                    )
+                    balance_amount = _decimal(raw_balance.get("amount"), context=f"{chain}.{address}.amount")
+                    balance_value = _decimal(raw_balance.get("value"), context=f"{chain}.{address}.value")
                     item = _position(
                         account_external_id=external_id,
                         asset_identifier=chain.upper(),
@@ -290,9 +283,6 @@ def _normalize_rotki_blockchain_balances(
                     if not isinstance(xpub_entry, dict):
                         continue
                     xpub = str(xpub_entry.get("xpub") or "")
-                    # Avoid persisting the extended public key itself. It is not signing material,
-                    # but it is high-value privacy data. The stable Rotki list index + derivation
-                    # path is enough for this read-model account in the first adapter slice.
                     derivation = xpub_entry.get("derivation_path")
                     if derivation is None:
                         derivation = xpub_entry.get("derivationPath")
@@ -305,14 +295,8 @@ def _normalize_rotki_blockchain_balances(
                         for address, raw_balance in address_balances.items():
                             if not isinstance(raw_balance, dict):
                                 continue
-                            amount += _decimal(
-                                raw_balance.get("amount"),
-                                context=f"{chain}.xpub.{address}.amount",
-                            )
-                            usd_value += _decimal(
-                                raw_balance.get("value"),
-                                context=f"{chain}.xpub.{address}.value",
-                            )
+                            amount += _decimal(raw_balance.get("amount"), context=f"{chain}.xpub.{address}.amount")
+                            usd_value += _decimal(raw_balance.get("value"), context=f"{chain}.xpub.{address}.value")
                             address_count += 1
                     accounts.append(
                         FinanceAccountSnapshot(
@@ -342,7 +326,6 @@ def _normalize_rotki_blockchain_balances(
                         positions.append(item)
             continue
 
-        # EVM-like and BalanceSheet-based chains expose address -> {assets, liabilities}.
         for address, raw_sheet in raw_accounts.items():
             if not isinstance(raw_sheet, dict):
                 continue
@@ -373,10 +356,7 @@ def _normalize_rotki_blockchain_balances(
                         usd_value=usd_value,
                         network=chain,
                         liability=liability,
-                        metadata={
-                            "rotki_balance_labels": labels,
-                            "rotki_category": category,
-                        },
+                        metadata={"rotki_balance_labels": labels, "rotki_category": category},
                     )
                     if item is not None:
                         positions.append(item)
@@ -451,9 +431,6 @@ async def _rotki_login_and_balances(
     base_url = settings.rotki_url.rstrip("/") + "/"
     timeout = httpx.Timeout(connect=5.0, read=35.0, write=15.0, pool=5.0)
     async with httpx.AsyncClient(base_url=base_url, timeout=timeout) as client:
-        # The current Rotki Docker contract optionally protects all API routes with a signed
-        # HttpOnly session cookie. `authenticate` verifies the database password and establishes
-        # that cookie; when session auth is disabled it remains a harmless credential check.
         await _rotki_json(
             client,
             "POST",
@@ -469,12 +446,7 @@ async def _rotki_login_and_balances(
                 client,
                 "POST",
                 f"users/{quote(username, safe='')}",
-                json_body={
-                    "password": password,
-                    "async_query": True,
-                    # Connector reads must never make a cloud-database conflict decision for a user.
-                    "sync_approval": "no",
-                },
+                json_body={"password": password, "async_query": True, "sync_approval": "no"},
             )
             pending = _action_result(login_payload, context="login")
             try:
@@ -508,6 +480,22 @@ async def _rotki_login_and_balances(
         return _action_result(cached_payload, context="cached blockchain balances")
 
 
+async def _project_owned(
+    project_id: uuid.UUID,
+    principal: Principal,
+    session: AsyncSession,
+) -> Project:
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.keycloak_subject == principal.subject,
+        )
+    )
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
 async def _owned_connector(
     connector_id: uuid.UUID,
     principal: Principal,
@@ -527,8 +515,17 @@ async def _owned_connector(
     return connector
 
 
-async def _secret_reference(reference_id: uuid.UUID, session: AsyncSession) -> SecretReference:
-    reference = await session.get(SecretReference, reference_id)
+async def _secret_reference(
+    reference_id: uuid.UUID,
+    owner_subject: str,
+    session: AsyncSession,
+) -> SecretReference:
+    reference = await session.scalar(
+        select(SecretReference).where(
+            SecretReference.id == reference_id,
+            SecretReference.keycloak_subject == owner_subject,
+        )
+    )
     if reference is None:
         raise HTTPException(status_code=404, detail="Secret reference not found")
     return reference
@@ -538,9 +535,10 @@ async def _validate_secret_binding(
     reference_id: uuid.UUID,
     username_key: str,
     password_key: str,
+    owner_subject: str,
     session: AsyncSession,
 ) -> None:
-    reference = await _secret_reference(reference_id, session)
+    reference = await _secret_reference(reference_id, owner_subject, session)
     try:
         provider_status = await openbao_client.secret_status(reference.provider_path)
     except (httpx.HTTPError, OSError, ValueError) as exc:
@@ -561,13 +559,11 @@ async def _validate_secret_binding(
 @router.post("/v1/finance/connectors", response_model=FinanceConnectorRead, status_code=201)
 async def create_finance_connector(
     body: FinanceConnectorCreate,
-    principal: Principal = Depends(require_kairo_admin),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> FinanceConnector:
-    project = await session.get(Project, body.project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-    await _secret_reference(body.secret_reference_id, session)
+    await _project_owned(body.project_id, principal, session)
+    await _secret_reference(body.secret_reference_id, principal.subject, session)
 
     connector = FinanceConnector(
         keycloak_subject=principal.subject,
@@ -614,7 +610,7 @@ async def create_finance_connector(
         action="finance.connector.create",
         resource_type="finance_connector",
         resource_id=str(connector.id),
-        authority_level=2,
+        authority_level=1,
         correlation_id=correlation_id,
         request_json={
             "project_id": str(connector.project_id),
@@ -649,7 +645,7 @@ async def list_finance_connectors(
 async def update_finance_connector(
     connector_id: uuid.UUID,
     body: FinanceConnectorUpdate,
-    principal: Principal = Depends(require_kairo_admin),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> FinanceConnector:
     connector = await _owned_connector(connector_id, principal, session, lock=True)
@@ -660,13 +656,19 @@ async def update_finance_connector(
     reference_id = body.secret_reference_id if body.secret_reference_id is not None else connector.secret_reference_id
     username_key = body.username_secret_key if body.username_secret_key is not None else connector.username_secret_key
     password_key = body.password_secret_key if body.password_secret_key is not None else connector.password_secret_key
-    await _secret_reference(reference_id, session)
+    await _secret_reference(reference_id, principal.subject, session)
 
     if body.enabled is True or (
         connector.enabled
         and bool(fields & {"secret_reference_id", "username_secret_key", "password_secret_key"})
     ):
-        await _validate_secret_binding(reference_id, username_key, password_key, session)
+        await _validate_secret_binding(
+            reference_id,
+            username_key,
+            password_key,
+            principal.subject,
+            session,
+        )
 
     if "display_name" in fields and body.display_name is not None:
         connector.display_name = body.display_name
@@ -703,7 +705,7 @@ async def update_finance_connector(
         action="finance.connector.update",
         resource_type="finance_connector",
         resource_id=str(connector.id),
-        authority_level=2,
+        authority_level=1,
         correlation_id=correlation_id,
         request_json={"changed_fields": sorted(fields)},
     )
@@ -726,6 +728,7 @@ async def sync_finance_connector(
     existing_rows = await session.execute(
         select(Task)
         .where(
+            Task.project_id == connector.project_id,
             Task.owner_ref == owner_ref,
             ~Task.status.in_(_TERMINAL_TASK_STATUSES),
         )
@@ -818,12 +821,17 @@ async def internal_sync_finance_connector(
         task is None
         or execution is None
         or execution.task_id != task.id
+        or task.project_id != connector.project_id
         or str(task_input.get("capability") or "") != "finance.sync.rotki"
         or str(task_input.get("finance_connector_id") or "") != str(connector.id)
     ):
         raise HTTPException(status_code=409, detail="Finance connector Task binding is invalid")
 
-    reference = await _secret_reference(connector.secret_reference_id, session)
+    reference = await _secret_reference(
+        connector.secret_reference_id,
+        connector.keycloak_subject,
+        session,
+    )
     try:
         username, password = await asyncio.gather(
             openbao_client.read_secret_value(reference.provider_path, connector.username_secret_key),
@@ -841,15 +849,10 @@ async def internal_sync_finance_connector(
                 key=connector.source_key,
                 provider="rotki",
                 source_type="portfolio",
-                # Do not persist the Rotki username. Connector identity is enough to bind the
-                # sourced observation while credentials/usernames remain behind OpenBao.
                 external_account_ref=str(connector.id),
                 display_name=connector.display_name,
                 status="connected",
-                metadata={
-                    "finance_connector_id": str(connector.id),
-                    **adapter_metadata,
-                },
+                metadata={"finance_connector_id": str(connector.id), **adapter_metadata},
             ),
             accounts=accounts,
             positions=positions,
