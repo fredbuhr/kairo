@@ -13,6 +13,30 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 2
 fi
 
+env_file_value() {
+  local key="$1"
+  local line
+  line="$(grep -E "^${key}=" "$ENV_FILE" | tail -n 1 || true)"
+  printf '%s' "${line#*=}"
+}
+
+# The erasure ledger is deliberately outside the Restic state snapshot. Restoring an older snapshot
+# must never roll this guard backward with the data it protects. Production therefore requires the
+# external ledger file to be mounted/present before any destructive restore is allowed.
+ERASURE_LEDGER_PATH="${KAIRO_ERASURE_LEDGER_PATH:-$(env_file_value KAIRO_ERASURE_LEDGER_PATH)}"
+ERASURE_LEDGER_PATH="${ERASURE_LEDGER_PATH:-.kairo-erasure-ledger/tombstones.jsonl}"
+if [[ "$OVERLAY" == *production* && ! -f "$ERASURE_LEDGER_PATH" ]]; then
+  echo "Production restore refused: external erasure ledger is unavailable at $ERASURE_LEDGER_PATH." >&2
+  echo "Mount the monotonic erasure ledger before restoring any historical KAIRO state." >&2
+  exit 4
+fi
+if [[ -s "$ERASURE_LEDGER_PATH" ]]; then
+  echo "Restore refused: the external erasure ledger contains account tombstones." >&2
+  echo "Current KAIRO has no verified post-restore tombstone reconciler yet; restoring this snapshot could resurrect erased user data." >&2
+  echo "Services and volumes were not modified." >&2
+  exit 4
+fi
+
 if [[ "${KAIRO_CONFIRM_RESTORE:-}" != "YES" ]]; then
   echo "Restore is destructive. Re-run with KAIRO_CONFIRM_RESTORE=YES after verifying the target environment." >&2
   exit 2
