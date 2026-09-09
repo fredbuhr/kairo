@@ -16,6 +16,7 @@ CORE = "http://127.0.0.1:8000"
 INTERNAL_TOKEN = os.getenv("KAIRO_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
 INTERNAL = {"X-Kairo-Internal-Token": INTERNAL_TOKEN}
 ASSISTANT_PROJECT_ID = "91d51873-3aa5-4fbc-a6df-cf474239682f"
+RESEARCH_CAPABILITY_VERSION = 2
 
 
 def json_request(
@@ -61,9 +62,19 @@ def wait_ready() -> None:
     raise RuntimeError(f"KAIRO Core did not become ready: {last_error}")
 
 
+def command_task_id(command_id: str) -> str:
+    return str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"kairo:command:{command_id}:research.autonomous:v{RESEARCH_CAPABILITY_VERSION}",
+        )
+    )
+
+
 def assert_core_owned_research_task(
     task: dict[str, Any], *, command_id: str, query: str, max_tool_calls: int
 ) -> None:
+    assert task["id"] == command_task_id(command_id), task
     assert task["project_id"] == ASSISTANT_PROJECT_ID, task
     assert task["input"]["capability"] == "research.autonomous", task
     assert task["input"]["command_id"] == command_id, task
@@ -101,6 +112,7 @@ def main() -> None:
         "max_tool_calls": 5,
     }, deterministic
     assert deterministic.get("routing_task_id") is None, deterministic
+    assert deterministic["task_id"] == command_task_id(deterministic["command_id"]), deterministic
 
     _, deterministic_task = json_request("GET", f"/v1/tasks/{deterministic['task_id']}")
     assert_core_owned_research_task(
@@ -147,13 +159,7 @@ def main() -> None:
     )
     assert applied["status"] == "accepted", applied
     assert applied["capability"] == "research.autonomous", applied
-    expected_task_id = str(
-        uuid.uuid5(
-            uuid.NAMESPACE_URL,
-            f"kairo:command:{pending['command_id']}:research.autonomous:v1",
-        )
-    )
-    assert applied["task_id"] == expected_task_id, applied
+    assert applied["task_id"] == command_task_id(pending["command_id"]), applied
 
     _, semantic_task = json_request("GET", f"/v1/tasks/{applied['task_id']}")
     assert_core_owned_research_task(
@@ -180,8 +186,8 @@ def main() -> None:
     assert replay["workflow_id"] == applied["workflow_id"], replay
 
     print(
-        "PASS: Command Kernel routes explicit and semantic Research requests while Core exclusively "
-        "owns project, model, budget and tool authority, and semantic replay reuses the same final Task"
+        "PASS: Command Kernel routes explicit and semantic Research requests on capability v2 while Core "
+        "exclusively owns project, model, budget and tool authority, and semantic replay reuses the same Task"
     )
 
 
