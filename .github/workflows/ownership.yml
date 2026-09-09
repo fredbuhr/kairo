@@ -15,6 +15,7 @@ on:
       - 'scripts/smoke/multi_user_tool_invocation_ownership.py'
       - 'scripts/smoke/multi_user_asset_document_ownership.py'
       - 'scripts/smoke/multi_user_account_lifecycle.py'
+      - 'scripts/smoke/multi_user_account_write_freeze.py'
       - 'scripts/smoke/tool_invocation_ownership_contract.py'
       - 'scripts/smoke/asset_document_ownership_contract.py'
       - 'scripts/smoke/evidence_subject_contract.py'
@@ -23,6 +24,7 @@ on:
       - 'scripts/smoke/internal_task_start_contract.py'
       - 'scripts/smoke/keycloak_identity_boundary_contract.py'
       - 'scripts/smoke/restore_erasure_guard_contract.py'
+      - 'scripts/smoke/account_write_freeze_contract.py'
       - 'scripts/smoke/openbao_policy_contract.py'
       - 'scripts/smoke/control_plane_visibility.py'
       - 'compose.yaml'
@@ -41,6 +43,7 @@ on:
       - 'docs/decisions/ADR-047-account-evidence-retention-minimizes-audit-and-clears-outbox-transport.md'
       - 'docs/decisions/ADR-048-keycloak-identity-management-is-a-separate-least-privilege-adapter.md'
       - 'docs/decisions/ADR-049-backup-restore-is-guarded-by-a-monotonic-erasure-ledger.md'
+      - 'docs/decisions/ADR-050-account-erasure-requires-a-local-write-freeze-before-identity-disable.md'
       - '.github/workflows/ownership.yml'
   pull_request:
     paths:
@@ -56,6 +59,7 @@ on:
       - 'scripts/smoke/multi_user_tool_invocation_ownership.py'
       - 'scripts/smoke/multi_user_asset_document_ownership.py'
       - 'scripts/smoke/multi_user_account_lifecycle.py'
+      - 'scripts/smoke/multi_user_account_write_freeze.py'
       - 'scripts/smoke/tool_invocation_ownership_contract.py'
       - 'scripts/smoke/asset_document_ownership_contract.py'
       - 'scripts/smoke/evidence_subject_contract.py'
@@ -64,6 +68,7 @@ on:
       - 'scripts/smoke/internal_task_start_contract.py'
       - 'scripts/smoke/keycloak_identity_boundary_contract.py'
       - 'scripts/smoke/restore_erasure_guard_contract.py'
+      - 'scripts/smoke/account_write_freeze_contract.py'
       - 'scripts/smoke/openbao_policy_contract.py'
       - 'scripts/smoke/control_plane_visibility.py'
       - 'compose.yaml'
@@ -82,6 +87,7 @@ on:
       - 'docs/decisions/ADR-047-account-evidence-retention-minimizes-audit-and-clears-outbox-transport.md'
       - 'docs/decisions/ADR-048-keycloak-identity-management-is-a-separate-least-privilege-adapter.md'
       - 'docs/decisions/ADR-049-backup-restore-is-guarded-by-a-monotonic-erasure-ledger.md'
+      - 'docs/decisions/ADR-050-account-erasure-requires-a-local-write-freeze-before-identity-disable.md'
       - '.github/workflows/ownership.yml'
 
 concurrency:
@@ -102,7 +108,7 @@ jobs:
 
       - name: Compile ownership-sensitive Core, Worker and proofs
         run: |
-          python -m compileall services/core/src services/core/migrations/versions services/worker/src scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py scripts/smoke/multi_user_tool_invocation_ownership.py scripts/smoke/multi_user_asset_document_ownership.py scripts/smoke/multi_user_account_lifecycle.py scripts/smoke/tool_invocation_ownership_contract.py scripts/smoke/asset_document_ownership_contract.py scripts/smoke/evidence_subject_contract.py scripts/smoke/evidence_retention_contract.py scripts/smoke/outbox_jetstream_retention_contract.py scripts/smoke/internal_task_start_contract.py scripts/smoke/keycloak_identity_boundary_contract.py scripts/smoke/restore_erasure_guard_contract.py scripts/smoke/openbao_policy_contract.py scripts/smoke/control_plane_visibility.py
+          python -m compileall services/core/src services/core/migrations/versions services/worker/src scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py scripts/smoke/multi_user_tool_invocation_ownership.py scripts/smoke/multi_user_asset_document_ownership.py scripts/smoke/multi_user_account_lifecycle.py scripts/smoke/multi_user_account_write_freeze.py scripts/smoke/tool_invocation_ownership_contract.py scripts/smoke/asset_document_ownership_contract.py scripts/smoke/evidence_subject_contract.py scripts/smoke/evidence_retention_contract.py scripts/smoke/outbox_jetstream_retention_contract.py scripts/smoke/internal_task_start_contract.py scripts/smoke/keycloak_identity_boundary_contract.py scripts/smoke/restore_erasure_guard_contract.py scripts/smoke/account_write_freeze_contract.py scripts/smoke/openbao_policy_contract.py scripts/smoke/control_plane_visibility.py
 
       - name: Prove least-privilege OpenBao workload policy
         run: python scripts/smoke/openbao_policy_contract.py
@@ -131,6 +137,9 @@ jobs:
       - name: Prove restore-after-erasure guard
         run: python scripts/smoke/restore_erasure_guard_contract.py
 
+      - name: Prove local account write-freeze contract
+        run: python scripts/smoke/account_write_freeze_contract.py
+
       - name: Start one shared database with two real Keycloak identities
         run: |
           docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace openbao keycloak kairo-core
@@ -155,6 +164,9 @@ jobs:
 
       - name: Prove account inventory/export/preflight isolation
         run: python scripts/smoke/multi_user_account_lifecycle.py
+
+      - name: Prove local account write freeze is subject-scoped
+        run: python scripts/smoke/multi_user_account_write_freeze.py
 
       - name: Dump ownership stack on failure
         if: failure()
