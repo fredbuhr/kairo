@@ -165,6 +165,7 @@ class Asset(Base):
     __tablename__ = "assets"
 
     id: Mapped[uuid.UUID] = uuid_pk()
+    keycloak_subject: Mapped[str] = mapped_column(String(255), nullable=False)
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL")
     )
@@ -178,7 +179,10 @@ class Asset(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    __table_args__ = (UniqueConstraint("bucket", "object_key", name="uq_assets_object"),)
+    __table_args__ = (
+        UniqueConstraint("bucket", "object_key", name="uq_assets_object"),
+        Index("ix_assets_subject_created", "keycloak_subject", "created_at"),
+    )
 
 
 class DeviceRegistration(Base):
