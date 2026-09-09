@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .auth import Principal, require_kairo_user
 from .autonomy_models import ApprovalRequest, ModelUsageRecord
 from .db import get_session
-from .models import Task, WorkflowExecution
+from .models import Project, Task, WorkflowExecution
 
 
 router = APIRouter(prefix="/v1/operations", tags=["operations"])
@@ -67,11 +67,13 @@ def _safe_metadata(task: Task) -> dict[str, Any]:
 async def list_agent_executions(
     execution_status: str | None = None,
     limit: int = Query(default=80, ge=10, le=250),
-    _: Principal = Depends(require_kairo_user),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[AgentExecutionRead]:
     statement = (
         select(Task)
+        .join(Project, Project.id == Task.project_id)
+        .where(Project.keycloak_subject == principal.subject)
         .where(Task.input.has_key("capability"))  # type: ignore[attr-defined]  # PostgreSQL JSONB ? operator
         .order_by(Task.updated_at.desc())
         .limit(limit)
