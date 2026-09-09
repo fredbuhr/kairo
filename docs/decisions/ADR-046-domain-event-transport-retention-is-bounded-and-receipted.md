@@ -57,23 +57,24 @@ JetStream de-duplication is still a server-side bounded window, not a substitute
 
 Migration 0020 does **not** guess JetStream sequences for rows published before receipt persistence existed.
 
-Those historical rows may have `published_at` but no stream/sequence. They require either:
+Those historical rows may have `published_at` but no stream/sequence. ADR-047 handles them conservatively: a historical unreceipted row may be removed from PostgreSQL only after its publication timestamp is older than the configured domain max-age plus a safety grace, and only while Core can verify the live stream remains bounded no more loosely than the declared contract. If the stream no longer exists, the transport copy is necessarily absent.
 
-- natural expiry under the bounded stream retention horizon; or
-- an operator/migration-specific reconciliation procedure if immediate deletion is mandatory.
+KAIRO never fabricates historical sequence identity.
 
-KAIRO must surface such unmapped evidence rather than pretending it can surgically delete a sequence it never recorded.
+### Account evidence retention consumes the receipt boundary
 
-### Future erasure action
+ADR-047 implements the retention operation prepared by this ADR.
 
-ADR-045 already makes user-world Outbox rows subject-addressable. This ADR adds the transport identity needed for the next retention action:
+For a subject-owned Outbox row with an exact receipt, Core:
 
-1. require no unpublished subject-owned events;
-2. delete/purge mapped JetStream sequences or wait for verified max-age expiry;
-3. only then minimize/remove PostgreSQL Outbox payloads according to the final retention policy;
-4. preserve shared/system evidence separately.
+1. verifies the live domain-stream subject/retention contract;
+2. deletes the exact JetStream `(stream, sequence)` message;
+3. treats an already-absent message as an idempotent success;
+4. only then deletes the corresponding PostgreSQL Outbox row.
 
-The actual delete/redact/retain action is intentionally not introduced merely by adding the receipt columns. `AccountErasurePreflight.destructive_endpoint_available` remains false until the full evidence-retention operation is replay-safe and validated.
+The operation is batched and retry-safe across the cross-store boundary. If JetStream deletion succeeded but the PostgreSQL transaction did not commit, a retry observes the message as absent and safely continues.
+
+The full account destructive endpoint remains disabled because evidence retention is only one stage of the ADR-044 cross-store state machine. Keycloak identity and backup/restore-after-erasure boundaries remain independent release gates.
 
 ## Validation
 
@@ -86,7 +87,9 @@ The actual delete/redact/retain action is intentionally not introduced merely by
 - `.env.example` exposes the retention control;
 - both Core and Worker set max-age/message-count bounds on new streams and reconcile existing streams with `update_stream`.
 
-The proof is scheduled in the Ownership workflow. Current GitHub-hosted CI remains blocked before runner assignment by issue #38, so this is implemented but not yet current-head validated.
+`scripts/smoke/evidence_retention_contract.py` checks that ADR-047 consumes these receipts before PostgreSQL Outbox deletion and uses the bounded expiry fallback only for historical unreceipted rows.
+
+The proofs are scheduled in the Ownership workflow. Current GitHub-hosted CI remains blocked before runner assignment by issue #38, so they are implemented but not yet current-head validated.
 
 ## Consequences
 
@@ -96,15 +99,15 @@ The proof is scheduled in the Ownership workflow. Current GitHub-hosted CI remai
 - newly published user-world events have an exact JetStream receipt for later erasure/reconciliation;
 - Outbox publish replay has a stable de-duplication identity;
 - stream configuration converges independently of Core/Worker startup order and older persistent NATS volumes;
-- account-erasure logic can distinguish mapped new events from historical unmapped events.
+- account evidence retention can delete mapped new events exactly and treat historical unmapped events conservatively.
 
 ### Trade-offs
 
 - domain-stream configuration logic currently exists in Core and Worker; a future dedicated messaging-control component could centralize the policy while retaining startup-order independence;
 - each successful publish persists two additional receipt fields;
-- historical published rows cannot be retroactively mapped safely;
+- historical published rows cannot be retroactively mapped safely and may delay erasure until bounded expiry;
 - bounded max-age can remove events a consumer failed to process for longer than the retention horizon, so consumer health/lag must be operationally monitored;
-- exact immediate erasure still requires a later JetStream sequence-deletion/reconciliation action.
+- JetStream logical deletion does not itself prove physical media or backup erasure.
 
 ## Rejected alternatives
 
@@ -116,9 +119,9 @@ Rejected because complete erasure cannot ignore a durable transport copy.
 
 Rejected because retries, other publishers and historical delivery timing make ordering inference unsafe.
 
-### Treat `published_at` as proof the NATS copy has expired
+### Treat `published_at` as immediate deletion proof
 
-Rejected because publication time alone does not identify the message or prove stream retention configuration.
+Rejected because publication time does not identify a specific message. ADR-047 uses it only after the bounded max-age horizon plus safety grace has elapsed.
 
 ### Use only NATS de-duplication and remove the PostgreSQL Outbox
 
