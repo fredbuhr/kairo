@@ -101,6 +101,44 @@ export type FinanceTransactionProposalCreate = {
   simulation?: Record<string, unknown>
 }
 
+export type FinanceConnectorRecord = {
+  id: string
+  project_id: string
+  key: string
+  provider: 'rotki'
+  display_name: string
+  enabled: boolean
+  secret_reference_id: string
+  username_secret_key: string
+  password_secret_key: string
+  source_key: string
+  refresh_remote: boolean
+  metadata_json: Record<string, unknown>
+  last_sync_at?: string | null
+  last_error?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type FinanceConnectorCreate = {
+  project_id: string
+  key: string
+  display_name: string
+  secret_reference_id: string
+  username_secret_key?: string
+  password_secret_key?: string
+  source_key?: string | null
+  refresh_remote?: boolean
+  metadata?: Record<string, unknown>
+}
+
+export type FinanceConnectorSyncRecord = {
+  connector: FinanceConnectorRecord
+  task_id: string
+  workflow_execution_id?: string | null
+  workflow_status?: string | null
+}
+
 export function fetchFinancePortfolio(sourceId?: string): Promise<FinancePortfolioRecord> {
   const query = sourceId ? `?source_id=${encodeURIComponent(sourceId)}` : ''
   return apiJson(`/v1/finance/portfolio${query}`)
@@ -121,5 +159,42 @@ export function createFinanceTransactionProposal(
       kind: 'crypto_transfer',
       simulation: input.simulation || {},
     }),
+  })
+}
+
+export function fetchFinanceConnectors(): Promise<FinanceConnectorRecord[]> {
+  return apiJson('/v1/finance/connectors')
+}
+
+export function createFinanceConnector(input: FinanceConnectorCreate): Promise<FinanceConnectorRecord> {
+  return apiJson('/v1/finance/connectors', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...input,
+      provider: 'rotki',
+      username_secret_key: input.username_secret_key || 'username',
+      password_secret_key: input.password_secret_key || 'password',
+      source_key: input.source_key || null,
+      refresh_remote: input.refresh_remote ?? true,
+      metadata: input.metadata || {},
+    }),
+  })
+}
+
+export function updateFinanceConnector(
+  connectorId: string,
+  input: Partial<Pick<FinanceConnectorRecord, 'display_name' | 'enabled' | 'secret_reference_id' | 'username_secret_key' | 'password_secret_key' | 'refresh_remote'>> & { metadata?: Record<string, unknown> },
+): Promise<FinanceConnectorRecord> {
+  return apiJson(`/v1/finance/connectors/${encodeURIComponent(connectorId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export function syncFinanceConnector(connectorId: string): Promise<FinanceConnectorSyncRecord> {
+  return apiJson(`/v1/finance/connectors/${encodeURIComponent(connectorId)}/sync`, {
+    method: 'POST',
   })
 }
