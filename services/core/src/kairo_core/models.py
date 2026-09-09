@@ -232,6 +232,9 @@ class AuditRecord(Base):
     __tablename__ = "audit_records"
 
     id: Mapped[uuid.UUID] = uuid_pk()
+    # Data-subject ownership is deliberately separate from actor identity. Shared control-plane
+    # actions can retain actor_id while keycloak_subject remains NULL.
+    keycloak_subject: Mapped[str | None] = mapped_column(String(255))
     actor_type: Mapped[str] = mapped_column(String(64), nullable=False)
     actor_id: Mapped[str | None] = mapped_column(String(240))
     action: Mapped[str] = mapped_column(String(160), nullable=False)
@@ -246,13 +249,20 @@ class AuditRecord(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    __table_args__ = (Index("ix_audit_correlation", "correlation_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_audit_correlation", "correlation_id", "created_at"),
+        Index("ix_audit_subject_created", "keycloak_subject", "created_at"),
+        Index("ix_audit_user_actor_created", "actor_type", "actor_id", "created_at"),
+    )
 
 
 class OutboxEvent(Base):
     __tablename__ = "outbox_events"
 
     id: Mapped[uuid.UUID] = uuid_pk()
+    # NULL denotes shared/system control-plane traffic. User-world events carry the canonical data
+    # owner so retention/export/erasure can address them without parsing payload conventions.
+    keycloak_subject: Mapped[str | None] = mapped_column(String(255))
     subject: Mapped[str] = mapped_column(String(240), nullable=False)
     event_type: Mapped[str] = mapped_column(String(160), nullable=False)
     aggregate_type: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -269,4 +279,5 @@ class OutboxEvent(Base):
     __table_args__ = (
         Index("ix_outbox_unpublished", "published_at", "created_at"),
         Index("ix_outbox_correlation", "correlation_id"),
+        Index("ix_outbox_subject_created", "keycloak_subject", "created_at"),
     )
