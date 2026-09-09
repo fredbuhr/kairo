@@ -50,8 +50,6 @@ def _task_command_id(task: Task) -> uuid.UUID | None:
 
 
 def _assistant_result_content(task: Task, artifact: Artifact) -> str | None:
-    """Render the small canonical chat projection; the full Artifact remains authoritative."""
-
     capability = str((task.input or {}).get("capability") or "")
     content = artifact.content if isinstance(artifact.content, dict) else {}
     value: object | None = None
@@ -73,8 +71,6 @@ async def _project_command_success(
     execution: WorkflowExecution,
     artifact: Artifact,
 ) -> None:
-    """Append one idempotent assistant message for a Command-owned capability result."""
-
     command_id = _task_command_id(task)
     if command_id is None:
         return
@@ -83,14 +79,10 @@ async def _project_command_success(
     )
     if command is None or command.task_id != task.id:
         return
-
     content = _assistant_result_content(task, artifact)
     if content is None:
         return
-
-    message_id = uuid.uuid5(
-        uuid.NAMESPACE_URL, f"kairo:command:{command.id}:assistant-result:v1"
-    )
+    message_id = uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:command:{command.id}:assistant-result:v1")
     message = await session.get(ConversationMessage, message_id)
     if message is None:
         message = ConversationMessage(
@@ -141,13 +133,8 @@ async def _project_command_success(
                 "task_id": str(task.id),
             },
         )
-    else:
-        if message.conversation_id != command.conversation_id or message.content != content:
-            raise HTTPException(
-                status_code=409,
-                detail="Canonical assistant result is already bound to different content",
-            )
-
+    elif message.conversation_id != command.conversation_id or message.content != content:
+        raise HTTPException(status_code=409, detail="Canonical assistant result is already bound to different content")
     command.result_json = {
         **(command.result_json or {}),
         "execution_status": "completed",
@@ -163,18 +150,14 @@ async def _propagate_command_task_failure(
     execution: WorkflowExecution,
     error: str,
 ) -> None:
-    """Make a failed final capability visible in both Command and canonical Conversation state."""
-
     command_id = _task_command_id(task)
     if command_id is None:
         return
     command = await session.scalar(
         select(CommandRecord).where(CommandRecord.id == command_id).with_for_update()
     )
-    # Semantic routing Tasks also carry command_id but are not the Command's final capability Task.
     if command is None or command.task_id != task.id or command.status == "unsupported":
         return
-
     transitioned = command.status != "failed"
     command.status = "failed"
     command.result_json = {
@@ -184,10 +167,7 @@ async def _propagate_command_task_failure(
         "task_id": str(task.id),
         "workflow_execution_id": str(execution.id),
     }
-
-    message_id = uuid.uuid5(
-        uuid.NAMESPACE_URL, f"kairo:command:{command.id}:assistant-failure:v1"
-    )
+    message_id = uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:command:{command.id}:assistant-failure:v1")
     message = await session.get(ConversationMessage, message_id)
     if message is None:
         session.add(
@@ -207,12 +187,7 @@ async def _propagate_command_task_failure(
             )
         )
         await session.flush()
-
-    command.result_json = {
-        **(command.result_json or {}),
-        "assistant_message_id": str(message_id),
-    }
-
+    command.result_json = {**(command.result_json or {}), "assistant_message_id": str(message_id)}
     if transitioned:
         await enqueue_domain_event(
             session,
@@ -238,11 +213,7 @@ async def _propagate_command_task_failure(
             authority_level=min(task.authority_ceiling, 1),
             correlation_id=command.correlation_id,
             idempotency_key=f"command:{command.id}:capability-fail",
-            result_json={
-                "error": error[:4000],
-                "task_id": str(task.id),
-                "assistant_message_id": str(message_id),
-            },
+            result_json={"error": error[:4000], "task_id": str(task.id), "assistant_message_id": str(message_id)},
         )
 
 
@@ -252,46 +223,22 @@ async def reconcile_command_task_projection(
     command_id: uuid.UUID,
     task_id: uuid.UUID,
 ) -> None:
-    """Repair the narrow race where a final capability Task finishes before Command binding commits.
-
-    The normal completion/failure endpoints project results when the Worker closes the Task. A very
-    fast Task can theoretically close after Temporal start but before `_execute_route` binds the final
-    Task onto its Command. After binding, this reconciler checks the already-canonical Task state. If
-    it is terminal, the same idempotent projection helpers repair the missed chat/Command projection;
-    if it is still running, the normal Worker completion path will project later.
-    """
-
-    command = await session.scalar(
-        select(CommandRecord).where(CommandRecord.id == command_id).with_for_update()
-    )
+    command = await session.scalar(select(CommandRecord).where(CommandRecord.id == command_id).with_for_update())
     if command is None or command.task_id != task_id:
         return
     task = await session.get(Task, task_id)
     if task is None:
         return
-    execution = await session.scalar(
-        select(WorkflowExecution).where(WorkflowExecution.task_id == task.id)
-    )
+    execution = await session.scalar(select(WorkflowExecution).where(WorkflowExecution.task_id == task.id))
     if execution is None:
         return
-
     if task.status == "completed":
-        artifact = await session.scalar(
-            select(Artifact).where(Artifact.workflow_execution_id == execution.id)
-        )
+        artifact = await session.scalar(select(Artifact).where(Artifact.workflow_execution_id == execution.id))
         if artifact is not None:
-            await _project_command_success(
-                session,
-                task=task,
-                execution=execution,
-                artifact=artifact,
-            )
+            await _project_command_success(session, task=task, execution=execution, artifact=artifact)
     elif task.status == "failed":
         await _propagate_command_task_failure(
-            session,
-            task=task,
-            execution=execution,
-            error=execution.last_error or "Capability execution failed",
+            session, task=task, execution=execution, error=execution.last_error or "Capability execution failed"
         )
 
 
@@ -302,18 +249,9 @@ async def _propagate_semantic_route_failure(
     execution: WorkflowExecution,
     error: str,
 ) -> None:
-    """Make a failed semantic routing Task terminal in the canonical Command state too.
-
-    The routing Task is an implementation detail of the Command Kernel. If it reaches a terminal
-    failure before Core accepts or rejects a semantic proposal, clients must not poll `routing`
-    forever. A Command that has already been accepted/unsupported is deliberately left untouched:
-    a late infrastructure failure cannot revoke an authoritative route that Core already applied.
-    """
-
     task_input = task.input or {}
     if str(task_input.get("capability") or "") != "assistant.route.semantic":
         return
-
     raw_command_id = task_input.get("command_id")
     if raw_command_id is None:
         return
@@ -321,13 +259,9 @@ async def _propagate_semantic_route_failure(
         command_id = uuid.UUID(str(raw_command_id))
     except (TypeError, ValueError):
         return
-
-    command = await session.scalar(
-        select(CommandRecord).where(CommandRecord.id == command_id).with_for_update()
-    )
+    command = await session.scalar(select(CommandRecord).where(CommandRecord.id == command_id).with_for_update())
     if command is None or command.status != "routing":
         return
-
     command.status = "failed"
     command.route_reason = "semantic.execution-failed"
     command.result_json = {
@@ -372,17 +306,9 @@ async def _propagate_document_ingestion_failure(
     execution: WorkflowExecution,
     error: str,
 ) -> None:
-    """Project a terminal document Task failure onto its canonical parse generation.
-
-    Worker activity attempts are intentionally not allowed to mark a DocumentVersion terminal:
-    Temporal may still retry them. This hook only runs from the canonical workflow failure path,
-    after the activity retry policy has been exhausted or policy has terminally denied execution.
-    """
-
     task_input = task.input or {}
     if str(task_input.get("capability") or "") != "document.ingest":
         return
-
     raw_version_id = task_input.get("document_version_id")
     if raw_version_id is None:
         return
@@ -390,36 +316,23 @@ async def _propagate_document_ingestion_failure(
         version_id = uuid.UUID(str(raw_version_id))
     except (TypeError, ValueError):
         return
-
-    version = await session.scalar(
-        select(DocumentVersion).where(DocumentVersion.id == version_id).with_for_update()
-    )
+    version = await session.scalar(select(DocumentVersion).where(DocumentVersion.id == version_id).with_for_update())
     if version is None or version.status == "completed":
         return
-
     transitioned = version.status != "failed"
     version.status = "failed"
     version.last_error = error[:4000]
     version.completed_at = version.completed_at or datetime.now(UTC)
-
-    document = await session.scalar(
-        select(Document).where(Document.id == version.document_id).with_for_update()
-    )
+    document = await session.scalar(select(Document).where(Document.id == version.document_id).with_for_update())
     if document is not None:
         latest_generation = int(
-            await session.scalar(
-                select(func.max(DocumentVersion.generation)).where(
-                    DocumentVersion.document_id == document.id
-                )
-            )
+            await session.scalar(select(func.max(DocumentVersion.generation)).where(DocumentVersion.document_id == document.id))
             or version.generation
         )
         if version.generation == latest_generation:
             document.status = "failed"
-
     if not transitioned:
         return
-
     await enqueue_domain_event(
         session,
         event_type="document.ingestion.failed",
@@ -449,8 +362,20 @@ async def _propagate_document_ingestion_failure(
     )
 
 
+@router.post(
+    "/internal/v1/tasks/{task_id}/run",
+    response_model=TaskRunResponse,
+    dependencies=[Depends(require_internal_token)],
+)
 @router.post("/v1/tasks/{task_id}/run", response_model=TaskRunResponse)
 async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_session)) -> TaskRunResponse:
+    """Start/reconcile one canonical Task through its deterministic Temporal workflow identity.
+
+    The public route is protected by the authenticated `/v1/*` perimeter and Project ownership guard.
+    Internal services use the separate internal-token route so they never bypass browser auth by
+    calling a public endpoint without a bearer token. Both surfaces share exactly the same durable
+    start/reconciliation logic.
+    """
     task = await session.get(Task, task_id, with_for_update=True)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -458,9 +383,7 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
         raise HTTPException(status_code=409, detail="Completed task cannot be started again")
 
     workflow_id = _workflow_id(task.id)
-    execution = await session.scalar(
-        select(WorkflowExecution).where(WorkflowExecution.workflow_id == workflow_id)
-    )
+    execution = await session.scalar(select(WorkflowExecution).where(WorkflowExecution.workflow_id == workflow_id))
     if execution is None:
         correlation_id = uuid.uuid4()
         execution = WorkflowExecution(
@@ -478,15 +401,11 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
             aggregate_type="workflow_execution",
             aggregate_id=execution.id,
             correlation_id=correlation_id,
-            payload={
-                "execution_id": str(execution.id),
-                "workflow_id": workflow_id,
-                "task_id": str(task.id),
-            },
+            payload={"execution_id": str(execution.id), "workflow_id": workflow_id, "task_id": str(task.id)},
         )
         await append_audit(
             session,
-            actor_type="user",
+            actor_type="system",
             actor_id=None,
             action="task.run.request",
             resource_type="task",
@@ -507,14 +426,11 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
         "correlation_id": str(correlation_id),
     }
     try:
-        already_started, run_id = await temporal_gateway.start_task_workflow(
-            workflow_id=workflow_id, payload=payload
-        )
+        already_started, run_id = await temporal_gateway.start_task_workflow(workflow_id=workflow_id, payload=payload)
     except Exception as exc:
         locked_execution = await _lock_execution(session, workflow_id)
         if locked_execution is None:
             raise HTTPException(status_code=404, detail="Workflow execution not found") from exc
-
         if locked_execution.status in {"running", "completed"}:
             await session.commit()
             return TaskRunResponse(
@@ -524,7 +440,6 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
                 status=locked_execution.status,
                 already_started=True,
             )
-
         locked_execution.status = "start_unknown"
         locked_execution.last_error = str(exc)[:4000]
         await enqueue_domain_event(
@@ -543,10 +458,7 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
         await session.commit()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "message": "Temporal start outcome is unknown; retrying is safe",
-                "workflow_id": workflow_id,
-            },
+            detail={"message": "Temporal start outcome is unknown; retrying is safe", "workflow_id": workflow_id},
         ) from exc
 
     locked_execution = await _lock_execution(session, workflow_id)
@@ -585,20 +497,13 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
     response_model=InternalStartResponse,
     dependencies=[Depends(require_internal_token)],
 )
-async def internal_start_execution(
-    workflow_id: str, session: AsyncSession = Depends(get_session)
-) -> InternalStartResponse:
-    execution = await session.scalar(
-        select(WorkflowExecution)
-        .where(WorkflowExecution.workflow_id == workflow_id)
-        .with_for_update()
-    )
+async def internal_start_execution(workflow_id: str, session: AsyncSession = Depends(get_session)) -> InternalStartResponse:
+    execution = await session.scalar(select(WorkflowExecution).where(WorkflowExecution.workflow_id == workflow_id).with_for_update())
     if not execution:
         raise HTTPException(status_code=404, detail="Workflow execution not found")
     task = await session.get(Task, execution.task_id, with_for_update=True)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-
     if execution.status not in {"running", "completed"}:
         now = datetime.now(UTC)
         execution.status = "running"
@@ -625,7 +530,6 @@ async def internal_start_execution(
             idempotency_key=f"{workflow_id}:start",
         )
         await session.commit()
-
     return InternalStartResponse(
         task_id=task.id,
         task_title=task.title,
@@ -644,31 +548,18 @@ async def internal_complete_execution(
     body: InternalCompleteRequest,
     session: AsyncSession = Depends(get_session),
 ) -> InternalCompleteResponse:
-    execution = await session.scalar(
-        select(WorkflowExecution)
-        .where(WorkflowExecution.workflow_id == workflow_id)
-        .with_for_update()
-    )
+    execution = await session.scalar(select(WorkflowExecution).where(WorkflowExecution.workflow_id == workflow_id).with_for_update())
     if not execution:
         raise HTTPException(status_code=404, detail="Workflow execution not found")
     task = await session.get(Task, execution.task_id, with_for_update=True)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-
-    artifact = await session.scalar(
-        select(Artifact).where(Artifact.workflow_execution_id == execution.id)
-    )
+    artifact = await session.scalar(select(Artifact).where(Artifact.workflow_execution_id == execution.id))
     if execution.status == "completed" and artifact:
-        await _project_command_success(
-            session,
-            task=task,
-            execution=execution,
-            artifact=artifact,
-        )
+        await _project_command_success(session, task=task, execution=execution, artifact=artifact)
         await session.commit()
         await session.refresh(artifact)
         return InternalCompleteResponse(execution_status="completed", artifact=artifact)
-
     if artifact is None:
         artifact = Artifact(
             project_id=task.project_id,
@@ -686,14 +577,8 @@ async def internal_complete_execution(
             aggregate_type="artifact",
             aggregate_id=artifact.id,
             correlation_id=execution.correlation_id,
-            payload={
-                "artifact_id": str(artifact.id),
-                "task_id": str(task.id),
-                "project_id": str(task.project_id),
-                "kind": artifact.kind,
-            },
+            payload={"artifact_id": str(artifact.id), "task_id": str(task.id), "project_id": str(task.project_id), "kind": artifact.kind},
         )
-
     now = datetime.now(UTC)
     execution.status = "completed"
     execution.completed_at = execution.completed_at or now
@@ -720,12 +605,7 @@ async def internal_complete_execution(
         idempotency_key=f"{workflow_id}:complete",
         result_json={"artifact_id": str(artifact.id)},
     )
-    await _project_command_success(
-        session,
-        task=task,
-        execution=execution,
-        artifact=artifact,
-    )
+    await _project_command_success(session, task=task, execution=execution, artifact=artifact)
     await session.commit()
     await session.refresh(artifact)
     return InternalCompleteResponse(execution_status="completed", artifact=artifact)
@@ -740,17 +620,12 @@ async def internal_fail_execution(
     body: InternalFailRequest,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, str]:
-    execution = await session.scalar(
-        select(WorkflowExecution)
-        .where(WorkflowExecution.workflow_id == workflow_id)
-        .with_for_update()
-    )
+    execution = await session.scalar(select(WorkflowExecution).where(WorkflowExecution.workflow_id == workflow_id).with_for_update())
     if not execution:
         raise HTTPException(status_code=404, detail="Workflow execution not found")
     task = await session.get(Task, execution.task_id, with_for_update=True)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-
     if execution.status != "completed":
         if execution.status != "failed":
             execution.status = "failed"
@@ -776,33 +651,14 @@ async def internal_fail_execution(
                 idempotency_key=f"{workflow_id}:fail",
                 result_json={"error": body.error},
             )
-        await _propagate_semantic_route_failure(
-            session,
-            task=task,
-            execution=execution,
-            error=body.error,
-        )
-        await _propagate_document_ingestion_failure(
-            session,
-            task=task,
-            execution=execution,
-            error=body.error,
-        )
-        await _propagate_command_task_failure(
-            session,
-            task=task,
-            execution=execution,
-            error=body.error,
-        )
+        await _propagate_semantic_route_failure(session, task=task, execution=execution, error=body.error)
+        await _propagate_document_ingestion_failure(session, task=task, execution=execution, error=body.error)
+        await _propagate_command_task_failure(session, task=task, execution=execution, error=body.error)
         await session.commit()
     return {"status": execution.status}
 
 
 @router.get("/v1/tasks/{task_id}/artifacts", response_model=list[ArtifactRead])
-async def task_artifacts(
-    task_id: uuid.UUID, session: AsyncSession = Depends(get_session)
-) -> list[Artifact]:
-    result = await session.execute(
-        select(Artifact).where(Artifact.task_id == task_id).order_by(Artifact.created_at)
-    )
+async def task_artifacts(task_id: uuid.UUID, session: AsyncSession = Depends(get_session)) -> list[Artifact]:
+    result = await session.execute(select(Artifact).where(Artifact.task_id == task_id).order_by(Artifact.created_at))
     return list(result.scalars())
