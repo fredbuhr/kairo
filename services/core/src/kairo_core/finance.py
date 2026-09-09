@@ -751,20 +751,41 @@ async def create_finance_transaction_proposal(
             detail="Transaction proposal network does not match the selected finance account",
         )
 
+    observed_position = await session.scalar(
+        select(FinancePosition).where(
+            FinancePosition.account_id == account.id,
+            FinancePosition.asset_key == body.asset_key,
+        )
+    )
+    if observed_position is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Transaction asset is not present in the latest observed account snapshot",
+        )
+    if observed_position.symbol != body.symbol:
+        raise HTTPException(
+            status_code=409,
+            detail="Transaction symbol does not match the observed finance position",
+        )
+
     proposal = FinanceTransactionProposal(
         keycloak_subject=principal.subject,
         project_id=body.project_id,
         from_account_id=account.id,
         kind=body.kind,
         network=body.network,
-        asset_key=body.asset_key,
-        symbol=body.symbol,
+        asset_key=observed_position.asset_key,
+        symbol=observed_position.symbol,
         amount=body.amount,
         destination=body.destination,
         memo=body.memo,
         estimated_fee_asset=body.estimated_fee_asset,
         estimated_fee_amount=body.estimated_fee_amount,
-        simulation_json=body.simulation,
+        simulation_json={
+            **body.simulation,
+            "observed_position_id": str(observed_position.id),
+            "observed_at": observed_position.observed_at.isoformat(),
+        },
         status="draft",
         created_by="user",
     )
@@ -800,10 +821,11 @@ async def create_finance_transaction_proposal(
             "project_id": str(body.project_id) if body.project_id else None,
             "from_account_id": str(account.id),
             "network": body.network,
-            "asset_key": body.asset_key,
-            "symbol": body.symbol,
+            "asset_key": observed_position.asset_key,
+            "symbol": observed_position.symbol,
             "amount": str(body.amount),
             "destination": body.destination,
+            "observed_position_id": str(observed_position.id),
         },
         result_json={
             "status": "draft",
