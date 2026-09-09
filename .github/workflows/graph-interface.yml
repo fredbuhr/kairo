@@ -5,6 +5,7 @@ on:
     paths:
       - 'apps/web/**'
       - 'packages/graph/**'
+      - 'packages/gantt/**'
       - 'services/core/**'
       - 'scripts/smoke/graph_projection.py'
       - 'scripts/smoke/knowledge_workspace.py'
@@ -13,11 +14,13 @@ on:
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
       - 'docs/decisions/ADR-029-specialist-workspaces-share-canonical-state.md'
+      - 'docs/decisions/ADR-030-explicit-task-planning-drives-today-and-gantt.md'
       - '.github/workflows/graph-interface.yml'
   pull_request:
     paths:
       - 'apps/web/**'
       - 'packages/graph/**'
+      - 'packages/gantt/**'
       - 'services/core/**'
       - 'scripts/smoke/graph_projection.py'
       - 'scripts/smoke/knowledge_workspace.py'
@@ -26,6 +29,7 @@ on:
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
       - 'docs/decisions/ADR-029-specialist-workspaces-share-canonical-state.md'
+      - 'docs/decisions/ADR-030-explicit-task-planning-drives-today-and-gantt.md'
       - '.github/workflows/graph-interface.yml'
 
 concurrency:
@@ -51,6 +55,9 @@ jobs:
 
       - name: Typecheck graph package
         run: pnpm --filter @kairo/graph typecheck
+
+      - name: Typecheck Gantt package
+        run: pnpm --filter @kairo/gantt typecheck
 
       - name: Typecheck KAIRO Web
         run: pnpm --filter @kairo/web typecheck
