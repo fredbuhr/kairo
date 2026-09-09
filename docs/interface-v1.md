@@ -238,7 +238,19 @@ Rules:
 - any future signing requires the policy/approval boundary plus an isolated signer, hardware wallet or explicit user-wallet interaction;
 - LLM/agent processes never receive private keys or seed phrases.
 
-ADR-015 and ADR-036 define the signing/provenance boundary.
+The first concrete provider adapter is Rotki and it obeys additional rules:
+
+- `FinanceConnector` records are KAIRO-owned, Project/owner scoped and created disabled;
+- Rotki username/password values remain in OpenBao; only a `SecretReference` and field names are stored in PostgreSQL;
+- the browser never receives credential values, and Temporal/Worker payloads carry connector/task/workflow identifiers rather than the Rotki credentials;
+- `ROTKI_URL` is deployment-owned and cannot be replaced by connector metadata or a secret value;
+- synchronization is a durable A1 `finance.sync.rotki` capability that reads provider state and writes only sourced Finance observations;
+- adapter errors retain the last successful Finance snapshot rather than erasing it;
+- repeated observations update stable source/account/position identities;
+- extended public keys are not persisted by the first adapter slice even though they are not signing secrets, because they are high-value privacy data;
+- Rotki provides no signing, send or broadcast authority to KAIRO.
+
+ADR-015 and ADR-036 define the signing/provenance boundary. ADR-037 defines the concrete Rotki connector boundary.
 
 ## Tools and external capabilities
 
@@ -296,4 +308,5 @@ Test Interface v1 is structurally complete when:
 11. specialist workspaces that create or inspect canonical objects remain synchronized with the same graph projection and can navigate back to exact canonical entities;
 12. external Calendar, Finance and future external-source overlays preserve explicit provenance rather than silently rewriting KAIRO-owned state;
 13. Automations remain KAIRO-owned policy/audit state even when execution is delegated to Activepieces;
-14. Finance/Crypto never exposes private signing material or a direct agent-signing path through the Cockpit.
+14. Finance/Crypto never exposes private signing material or a direct agent-signing path through the Cockpit;
+15. concrete Finance connectors preserve credential custody outside browser/Temporal state and cannot expand read-only portfolio synchronization into signing authority.
