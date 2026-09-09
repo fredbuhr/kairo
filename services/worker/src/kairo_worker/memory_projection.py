@@ -153,6 +153,17 @@ def _mem0_project_sync(source: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _mem0_purge_sync(user_id: str) -> None:
+    """Idempotently remove one KAIRO subject scope from the derived Mem0 store."""
+
+    memory = _get_mem0_instance()
+    memory.delete_all(user_id=user_id)
+    remaining = memory.get_all(filters={"user_id": user_id}, top_k=1)
+    remaining_results = remaining.get("results") if isinstance(remaining, dict) else []
+    if remaining_results:
+        raise RuntimeError("Mem0 purge verification found remaining subject-scoped memories")
+
+
 async def _graphiti_project(source: dict[str, Any]) -> dict[str, Any]:
     from graphiti_core.driver.neo4j_driver import Neo4jDriver
     from graphiti_core.nodes import EpisodeType, EpisodicNode
@@ -195,6 +206,33 @@ async def _graphiti_project(source: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+async def _graphiti_purge(group_ids: list[str]) -> None:
+    """Delete the current non-generative Graphiti episodes for owned conversation groups.
+
+    KAIRO deliberately has Graphiti generative entity/fact extraction disabled. If that is enabled in
+    the future, this purge contract must be widened to the generated entity/community/edge group
+    before the new extraction mode is allowed in production.
+    """
+
+    if not group_ids:
+        return
+    from graphiti_core.driver.neo4j_driver import Neo4jDriver
+
+    driver = Neo4jDriver(
+        uri=settings.neo4j_uri,
+        user=settings.neo4j_user,
+        password=settings.neo4j_password,
+    )
+    try:
+        for group_id in group_ids:
+            await driver.episode_node_ops.delete_by_group_id(driver, group_id)
+        remaining = await driver.episode_node_ops.get_by_group_ids(driver, group_ids, limit=1)
+        if remaining:
+            raise RuntimeError("Graphiti purge verification found remaining owned episodic nodes")
+    finally:
+        await driver.close()
+
+
 def _stub_projection(projector: str, source: dict[str, Any]) -> dict[str, Any]:
     message_id = str(source["message_id"])
     return {
@@ -229,6 +267,29 @@ async def _report(message_id: str, generation: int, reports: list[dict[str, Any]
             json={"generation": generation, "projectors": reports},
         )
         response.raise_for_status()
+
+
+async def _fetch_purge_context(task_id: str) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.get(
+            f"{settings.kairo_core_url.rstrip('/')}/internal/v1/account/derived-memory/"
+            f"purges/{task_id}/context",
+            headers=_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def _report_purge(task_id: str, report: dict[str, Any]) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.post(
+            f"{settings.kairo_core_url.rstrip('/')}/internal/v1/account/derived-memory/"
+            f"purges/{task_id}/report",
+            headers=_headers(),
+            json=report,
+        )
+        response.raise_for_status()
+        return response.json()
 
 
 @activity.defn
@@ -292,5 +353,59 @@ async def perform_memory_projection(payload: dict[str, Any]) -> dict[str, Any]:
                 }
                 for item in reports
             ],
+        },
+    }
+
+
+@activity.defn
+async def perform_memory_purge(payload: dict[str, Any]) -> dict[str, Any]:
+    """Purge only rebuildable memory projections; canonical conversations remain untouched."""
+
+    task_id = str(payload.get("task_id") or "")
+    task_input = payload.get("task_input") or {}
+    if not task_id or str(task_input.get("capability") or "") != "memory.purge":
+        raise RuntimeError("memory.purge requires a bound purge Task")
+
+    context = await _fetch_purge_context(task_id)
+    mode = memory_projector_mode()
+    group_ids = [str(value) for value in context.get("graphiti_group_ids") or []]
+
+    if mode == "real":
+        await asyncio.to_thread(_mem0_purge_sync, str(context["mem0_user_id"]))
+        activity.heartbeat({"kind": "kairo.memory-purge", "task_id": task_id, "mem0": "verified"})
+        await _graphiti_purge(group_ids)
+        activity.heartbeat(
+            {
+                "kind": "kairo.memory-purge",
+                "task_id": task_id,
+                "mem0": "verified",
+                "graphiti": "verified",
+                "graphiti_group_count": len(group_ids),
+            }
+        )
+
+    report = await _report_purge(
+        task_id,
+        {
+            "projector_mode": mode,
+            "mem0_purged": True,
+            "graphiti_purged": True,
+            "graphiti_group_count": len(group_ids),
+            "verified": True,
+        },
+    )
+    return {
+        "kind": "derived-memory-purge",
+        "title": "Derived memory purge",
+        "content": {
+            "canonical_conversations_preserved": True,
+            "cutoff_message_created_at": context.get("cutoff_message_created_at"),
+            "canonical_message_count": int(context.get("canonical_message_count") or 0),
+            "projector_mode": mode,
+            "mem0_purged": True,
+            "graphiti_purged": True,
+            "graphiti_group_count": len(group_ids),
+            "projection_rows_removed": int(report.get("projection_rows_removed") or 0),
+            "verified": True,
         },
     }
