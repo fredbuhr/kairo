@@ -62,7 +62,8 @@
 .tools-tool-main > p { margin: 0; color: #71898d; font-size: 7.7px; line-height: 1.4; }
 .tools-tool-meta { display: flex; flex-wrap: wrap; gap: 4px; }
 .tools-tool-meta span { padding: 3px 5px; border: 1px solid rgba(83, 207, 204, .06); border-radius: 6px; color: #57747a; font-size: 6.5px; }
-.tools-policy-toggle { min-width: 70px; min-height: 29px; border: 1px solid rgba(85, 211, 208, .10); border-radius: 999px; background: rgba(3, 15, 20, .48); color: #678287; font-size: 7px; cursor: pointer; }
+.tools-policy-toggle { min-width: 70px; min-height: 29px; display: inline-grid; place-items: center; padding: 0 8px; border: 1px solid rgba(85, 211, 208, .10); border-radius: 999px; background: rgba(3, 15, 20, .48); color: #678287; font-size: 7px; cursor: pointer; }
+span.tools-policy-toggle { cursor: default; user-select: none; }
 .tools-policy-toggle-on { border-color: rgba(106, 225, 205, .26); background: rgba(43, 128, 116, .12); color: #97c9bd; }
 .tools-policy-toggle:disabled { opacity: .35; cursor: default; }
 
