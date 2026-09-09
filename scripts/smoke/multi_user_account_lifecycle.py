@@ -121,8 +121,20 @@ def main() -> None:
     assert after_b["canonical_counts"]["projects"] == before_b["canonical_counts"]["projects"]
     assert after_b["canonical_counts"]["tasks"] == before_b["canonical_counts"]["tasks"]
 
+    # Project + Task creation each emit one owner-tagged Audit row and one owner-tagged Outbox row.
+    # The exact published/unpublished split may change while the relay is running; total ownership
+    # must be stable and user B must not absorb A's evidence.
+    assert after_a["evidence"]["data_subject_addressable"] is True
+    assert after_a["evidence"]["subject_owned_audit_records"] >= before_a["evidence"]["subject_owned_audit_records"] + 2
+    assert after_a["evidence"]["subject_owned_outbox_events"] >= before_a["evidence"]["subject_owned_outbox_events"] + 2
+    assert after_b["evidence"]["subject_owned_audit_records"] == before_b["evidence"]["subject_owned_audit_records"]
+    assert after_b["evidence"]["subject_owned_outbox_events"] == before_b["evidence"]["subject_owned_outbox_events"]
+
     assert blocker_count(after_preflight_a, "active_tasks") == blocker_count(preflight_a, "active_tasks") + 1
     assert blocker_count(after_preflight_b, "active_tasks") == blocker_count(preflight_b, "active_tasks")
+    assert "audit_outbox_retention_policy_not_applied" in {
+        row["code"] for row in after_preflight_a["blockers"]
+    }
     assert after_preflight_a["destructive_endpoint_available"] is False
     assert after_preflight_b["destructive_endpoint_available"] is False
     assert after_preflight_a["complete_erasure_ready"] is False
@@ -133,6 +145,8 @@ def main() -> None:
     assert manifest_b["status"] == "manifest_only" and manifest_b["bundle_export_available"] is False
     assert manifest_a["inventory"]["canonical_counts"] == after_a["canonical_counts"]
     assert manifest_b["inventory"]["canonical_counts"] == after_b["canonical_counts"]
+    assert manifest_a["inventory"]["evidence"] == after_a["evidence"]
+    assert manifest_b["inventory"]["evidence"] == after_b["evidence"]
     assert any("secret values" in item for item in manifest_a["excludes"])
 
     # The public lifecycle models never expose a Keycloak subject or OpenBao provider path.
@@ -140,7 +154,7 @@ def main() -> None:
     assert USER_A not in serialized
     assert "provider_path" not in serialized
 
-    print("KAIRO account lifecycle two-user isolation proof passed")
+    print("KAIRO account lifecycle + evidence two-user isolation proof passed")
 
 
 if __name__ == "__main__":
