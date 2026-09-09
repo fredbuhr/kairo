@@ -14,6 +14,9 @@ from .models import OutboxEvent
 
 logger = logging.getLogger(__name__)
 
+DOMAIN_SUBJECT = "kairo.domain.>"
+DOMAIN_MAX_MESSAGES = 100_000
+
 
 class OutboxRelay:
     """At-least-once PostgreSQL -> NATS JetStream relay.
@@ -25,6 +28,9 @@ class OutboxRelay:
     A successful PubAck is persisted on the Outbox row as stream/sequence transport evidence before
     the surrounding PostgreSQL transaction commits. This lets account-retention reconciliation map a
     canonical Outbox event to the exact JetStream message when the receipt is available.
+
+    Core also reconciles the shared domain stream before publishing. The Worker performs the same
+    convergence before subscribing, so bounded retention does not depend on service start order.
     """
 
     def __init__(self) -> None:
@@ -36,6 +42,35 @@ class OutboxRelay:
     def connected(self) -> bool:
         return bool(self._nc and self._nc.is_connected)
 
+    async def _ensure_domain_stream(self) -> None:
+        if self._js is None:
+            raise RuntimeError("JetStream is not connected")
+        max_age = float(max(60, settings.nats_domain_retention_seconds))
+        try:
+            info = await self._js.stream_info(settings.nats_domain_stream)
+        except Exception:
+            await self._js.add_stream(
+                name=settings.nats_domain_stream,
+                subjects=[DOMAIN_SUBJECT],
+                max_msgs=DOMAIN_MAX_MESSAGES,
+                max_age=max_age,
+            )
+            return
+
+        config = info.config
+        changed = False
+        if list(config.subjects or []) != [DOMAIN_SUBJECT]:
+            config.subjects = [DOMAIN_SUBJECT]
+            changed = True
+        if int(config.max_msgs or 0) != DOMAIN_MAX_MESSAGES:
+            config.max_msgs = DOMAIN_MAX_MESSAGES
+            changed = True
+        if float(config.max_age or 0) != max_age:
+            config.max_age = max_age
+            changed = True
+        if changed:
+            await self._js.update_stream(config=config)
+
     async def _connect(self) -> None:
         if self.connected:
             return
@@ -46,13 +81,7 @@ class OutboxRelay:
             max_reconnect_attempts=-1,
         )
         self._js = self._nc.jetstream()
-        try:
-            await self._js.stream_info(settings.nats_domain_stream)
-        except Exception:
-            await self._js.add_stream(
-                name=settings.nats_domain_stream,
-                subjects=["kairo.domain.>"],
-            )
+        await self._ensure_domain_stream()
 
     async def _publish_batch(self) -> int:
         if not self._js:
