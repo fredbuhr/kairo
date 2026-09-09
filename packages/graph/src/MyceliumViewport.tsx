@@ -38,6 +38,8 @@ type QualitySettings = {
   antialias: boolean
 }
 
+type SemanticBand = 1 | 2 | 3
+
 function hash(value: string): number {
   let h = 2166136261
   for (let i = 0; i < value.length; i += 1) {
@@ -74,6 +76,12 @@ function qualitySettings(quality: KairoGraphQuality): QualitySettings {
     return { dpr: Math.min(deviceDpr, 1.35), nodeSegments: 22, filamentSegments: 14, radialSegments: 4, pulseLimit: 18, antialias: true }
   }
   return { dpr: Math.min(deviceDpr, 1.75), nodeSegments: 28, filamentSegments: 18, radialSegments: 5, pulseLimit: 30, antialias: true }
+}
+
+function semanticBandForDistance(distance: number): SemanticBand {
+  if (distance > 18) return 1
+  if (distance > 11) return 2
+  return 3
 }
 
 function useGraphLayout(projection: KairoGraphProjection | null) {
@@ -154,7 +162,7 @@ function CameraRig({ focusPose }: { focusPose?: KairoGraphPose | null }) {
   const controls = useRef<OrbitControls | null>(null)
   const desiredTarget = useMemo(
     () => new THREE.Vector3(focusPose?.x || 0, focusPose?.y || 0, focusPose?.z || 0),
-    [focusPose],
+    [focusPose?.x, focusPose?.y, focusPose?.z],
   )
 
   useEffect(() => {
@@ -189,6 +197,8 @@ function MyceliumNode({
   pose,
   selected,
   focused,
+  visible,
+  dimmed,
   reducedMotion,
   settings,
   onSelect,
@@ -199,20 +209,30 @@ function MyceliumNode({
   pose: KairoGraphPose
   selected: boolean
   focused: boolean
+  visible: boolean
+  dimmed: boolean
   reducedMotion: boolean
   settings: QualitySettings
   onSelect?: (node: KairoGraphNode) => void
   onExplore?: (node: KairoGraphNode) => void
   onHover?: (node: KairoGraphNode | null, point: KairoGraphTooltipPoint | null) => void
 }) {
+  const group = useRef<THREE.Group>(null)
   const mesh = useRef<THREE.Mesh>(null)
+  const birthStartedAt = useRef<number | null>(null)
   const color = nodeColor(node)
   const baseRadius = 0.22 + node.importance * 0.48
   const key = graphNodeKey(node)
   const phase = ((hash(key) % 1000) / 1000) * Math.PI * 2
 
   useFrame(({ clock }) => {
-    if (!mesh.current) return
+    if (!mesh.current || !group.current) return
+    if (birthStartedAt.current === null) birthStartedAt.current = clock.elapsedTime
+    const age = Math.max(0, clock.elapsedTime - birthStartedAt.current)
+    const birthProgress = reducedMotion ? 1 : Math.min(1, age / 0.82)
+    const emergence = 1 - (1 - birthProgress) ** 3
+    group.current.scale.setScalar(emergence)
+
     const breathing = reducedMotion ? 1 : 1 + Math.sin(clock.elapsedTime * 0.52 + phase) * (0.018 + node.activity * 0.018)
     const emphasis = selected ? 1.18 : focused ? 1.11 : 1
     mesh.current.scale.setScalar(breathing * emphasis)
@@ -224,7 +244,7 @@ function MyceliumNode({
   }
 
   return (
-    <group position={[pose.x, pose.y, pose.z]}>
+    <group ref={group} position={[pose.x, pose.y, pose.z]} visible={visible}>
       <mesh
         ref={mesh}
         onClick={(event) => {
@@ -250,16 +270,16 @@ function MyceliumNode({
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={selected ? 1.55 : 0.82 + node.activity * 0.55}
+          emissiveIntensity={dimmed ? 0.18 : selected ? 1.55 : 0.82 + node.activity * 0.55}
           roughness={0.34}
           metalness={0.08}
           transparent
-          opacity={0.74 + node.importance * 0.22}
+          opacity={dimmed ? 0.20 : 0.74 + node.importance * 0.22}
         />
       </mesh>
       <mesh scale={selected ? 1.56 : 1.36}>
         <sphereGeometry args={[baseRadius, 12, 12]} />
-        <meshBasicMaterial color={color} transparent opacity={selected ? 0.11 : 0.055} depthWrite={false} />
+        <meshBasicMaterial color={color} transparent opacity={dimmed ? 0.018 : selected ? 0.11 : 0.055} depthWrite={false} />
       </mesh>
     </group>
   )
@@ -282,13 +302,17 @@ function Filament({
   source,
   target,
   settings,
+  visible,
   highlighted,
+  dimmed,
 }: {
   edge: KairoGraphEdge
   source: KairoGraphPose
   target: KairoGraphPose
   settings: QualitySettings
+  visible: boolean
   highlighted: boolean
+  dimmed: boolean
 }) {
   const curve = useMemo(() => edgeCurve(edge, source, target), [edge, source, target])
   const geometry = useMemo(
@@ -298,11 +322,11 @@ function Filament({
   useEffect(() => () => geometry.dispose(), [geometry])
 
   return (
-    <mesh geometry={geometry}>
+    <mesh geometry={geometry} visible={visible}>
       <meshBasicMaterial
         color={edge.provenance === 'canonical_relationship' ? '#53e7e8' : '#78eecf'}
         transparent
-        opacity={highlighted ? 0.74 : 0.18 + edge.strength * 0.22}
+        opacity={dimmed ? 0.045 : highlighted ? 0.74 : 0.18 + edge.strength * 0.22}
         depthWrite={false}
       />
     </mesh>
@@ -343,6 +367,7 @@ function GraphScene({
   projection,
   poses,
   selectedKey,
+  hoveredKey,
   settings,
   reducedMotion,
   onSelect,
@@ -352,24 +377,69 @@ function GraphScene({
   projection: KairoGraphProjection
   poses: Map<string, KairoGraphPose>
   selectedKey?: string | null
+  hoveredKey?: string | null
   settings: QualitySettings
   reducedMotion: boolean
   onSelect?: (node: KairoGraphNode | null) => void
   onExplore?: (node: KairoGraphNode) => void
   onHover?: (node: KairoGraphNode | null, point: KairoGraphTooltipPoint | null) => void
 }) {
+  const { camera } = useThree()
   const focusKey = projection.context.focus ? graphEntityKey(projection.context.focus) : null
   const focusPose = focusKey ? poses.get(focusKey) : null
+  const semanticTarget = useMemo(
+    () => new THREE.Vector3(focusPose?.x || 0, focusPose?.y || 0, focusPose?.z || 0),
+    [focusPose?.x, focusPose?.y, focusPose?.z],
+  )
+  const semanticBandRef = useRef<SemanticBand>(1)
+  const [semanticBand, setSemanticBand] = useState<SemanticBand>(1)
   const nodeMap = useMemo(() => new Map(projection.nodes.map((node) => [graphNodeKey(node), node])), [projection.nodes])
+  const emphasisKey = selectedKey || hoveredKey || null
+
+  useFrame(() => {
+    const next = semanticBandForDistance(camera.position.distanceTo(semanticTarget))
+    if (next !== semanticBandRef.current) {
+      semanticBandRef.current = next
+      setSemanticBand(next)
+    }
+  })
+
+  const neighborKeys = useMemo(() => {
+    const keys = new Set<string>()
+    if (!emphasisKey) return keys
+    keys.add(emphasisKey)
+    for (const edge of projection.edges) {
+      const sourceKey = graphEntityKey(edge.source)
+      const targetKey = graphEntityKey(edge.target)
+      if (sourceKey === emphasisKey) keys.add(targetKey)
+      if (targetKey === emphasisKey) keys.add(sourceKey)
+    }
+    return keys
+  }, [emphasisKey, projection.edges])
+
+  const visibleKeys = useMemo(() => {
+    const keys = new Set<string>()
+    for (const node of projection.nodes) {
+      const key = graphNodeKey(node)
+      const forced = key === focusKey || key === selectedKey || key === hoveredKey || neighborKeys.has(key)
+      if (forced || node.lod <= semanticBand) keys.add(key)
+    }
+    return keys
+  }, [focusKey, hoveredKey, neighborKeys, projection.nodes, selectedKey, semanticBand])
+
   const pulseEdges = useMemo(
     () => projection.edges
       .filter((edge) => {
-        const source = nodeMap.get(graphEntityKey(edge.source))
-        const target = nodeMap.get(graphEntityKey(edge.target))
+        const sourceKey = graphEntityKey(edge.source)
+        const targetKey = graphEntityKey(edge.target)
+        if (!visibleKeys.has(sourceKey) || !visibleKeys.has(targetKey)) return false
+        if (emphasisKey && sourceKey !== emphasisKey && targetKey !== emphasisKey) return false
+        const source = nodeMap.get(sourceKey)
+        const target = nodeMap.get(targetKey)
         return source && target && source.activity + target.activity > 1.16
       })
       .slice(0, settings.pulseLimit),
-    [nodeMap, projection.edges, settings.pulseLimit],
+    [emphasisKey, nodeMap, projection.edges, settings.pulseLimit, visibleKeys],
   )
 
   return (
@@ -384,13 +454,26 @@ function GraphScene({
       {!focusKey && <KairoAnchor reducedMotion={reducedMotion} />}
 
       {projection.edges.map((edge) => {
-        const source = poses.get(graphEntityKey(edge.source))
-        const target = poses.get(graphEntityKey(edge.target))
+        const sourceKey = graphEntityKey(edge.source)
+        const targetKey = graphEntityKey(edge.target)
+        const source = poses.get(sourceKey)
+        const target = poses.get(targetKey)
         if (!source || !target) return null
-        const highlighted = Boolean(
-          selectedKey && (graphEntityKey(edge.source) === selectedKey || graphEntityKey(edge.target) === selectedKey),
+        const visible = visibleKeys.has(sourceKey) && visibleKeys.has(targetKey)
+        const highlighted = Boolean(emphasisKey && (sourceKey === emphasisKey || targetKey === emphasisKey))
+        const dimmed = Boolean(emphasisKey && !highlighted)
+        return (
+          <Filament
+            key={edge.id}
+            edge={edge}
+            source={source}
+            target={target}
+            settings={settings}
+            visible={visible}
+            highlighted={highlighted}
+            dimmed={dimmed}
+          />
         )
-        return <Filament key={edge.id} edge={edge} source={source} target={target} settings={settings} highlighted={highlighted} />
       })}
 
       {pulseEdges.map((edge, index) => {
@@ -413,6 +496,7 @@ function GraphScene({
         const key = graphNodeKey(node)
         const pose = poses.get(key)
         if (!pose) return null
+        const dimmed = Boolean(emphasisKey && !neighborKeys.has(key))
         return (
           <MyceliumNode
             key={key}
@@ -420,6 +504,8 @@ function GraphScene({
             pose={pose}
             selected={key === selectedKey}
             focused={key === focusKey}
+            visible={visibleKeys.has(key)}
+            dimmed={dimmed}
             reducedMotion={reducedMotion}
             settings={settings}
             onSelect={onSelect ? (value) => onSelect(value) : undefined}
@@ -444,9 +530,15 @@ export function MyceliumViewport({
 }: MyceliumViewportProps) {
   const poses = useGraphLayout(projection)
   const settings = useMemo(() => qualitySettings(quality), [quality])
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null)
 
   if (!projection) {
     return <div className={className} aria-label="Chargement du cerveau KAIRO" />
+  }
+
+  function handleHover(node: KairoGraphNode | null, point: KairoGraphTooltipPoint | null) {
+    setHoveredKey(node ? graphNodeKey(node) : null)
+    onHover?.(node, point)
   }
 
   return (
@@ -461,11 +553,12 @@ export function MyceliumViewport({
           projection={projection}
           poses={poses}
           selectedKey={selectedKey}
+          hoveredKey={hoveredKey}
           settings={settings}
           reducedMotion={reducedMotion}
           onSelect={onSelect}
           onExplore={onExplore}
-          onHover={onHover}
+          onHover={handleHover}
         />
       </Canvas>
     </div>
