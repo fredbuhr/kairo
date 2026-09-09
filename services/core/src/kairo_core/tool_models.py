@@ -86,6 +86,7 @@ class ToolInvocation(Base):
     __tablename__ = "tool_invocations"
 
     id: Mapped[uuid.UUID] = uuid_pk()
+    keycloak_subject: Mapped[str] = mapped_column(String(240), nullable=False)
     tool_definition_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("tool_definitions.id", ondelete="RESTRICT"), nullable=False
     )
@@ -95,7 +96,7 @@ class ToolInvocation(Base):
     workflow_execution_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("workflow_executions.id", ondelete="SET NULL")
     )
-    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
     correlation_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     authority_level: Mapped[int] = mapped_column(Integer, nullable=False)
     estimated_cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
@@ -113,6 +114,12 @@ class ToolInvocation(Base):
     )
 
     __table_args__ = (
+        UniqueConstraint(
+            "keycloak_subject",
+            "idempotency_key",
+            name="uq_tool_invocation_subject_idempotency",
+        ),
+        Index("ix_tool_invocations_subject_status", "keycloak_subject", "status", "created_at"),
         Index("ix_tool_invocations_task_status", "task_id", "status"),
         Index("ix_tool_invocations_correlation", "correlation_id", "created_at"),
     )
