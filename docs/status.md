@@ -6,79 +6,38 @@ Last updated: 2026-09-10
 
 KAIRO is transitioning from **Block 2 — intelligence, memory and safe autonomy** into the permanent **Block 3 — Cockpit / Test Interface v1**.
 
-The active Block 3 branch does not treat the frontend as a disposable dashboard prototype. `KairoCockpit` is the product entrypoint and the current spatial world model plus specialist workspaces are intended to remain the daily-use test interface while later capabilities extend the same structure.
+The active Block 3 branch is not a disposable frontend prototype. `KairoCockpit` is the product entrypoint and the spatial world plus specialist workspaces are intended to remain the daily-use Test Interface while later capabilities extend the same structure.
 
-Three stacked pull requests must remain in order:
+Three stacked pull requests remain in order:
 
 1. **PR #36 — durable multi-slot Research synthesis** (`feat/research-synthesis-checkpoints` → `main`);
 2. **PR #37 — Research through the Command Kernel** (`feat/research-command-handoff` → PR #36);
 3. **PR #39 — KAIRO Test Interface v1** (`feat/kairo-test-interface-v1` → PR #37).
 
-All three remain intentionally unmerged while GitHub Actions issue **#38** prevents GitHub-hosted jobs from receiving a runner. A red check with `runner_id=0` / no executed steps is an infrastructure failure, not code validation. Real hosted runs are required before merge.
+All remain intentionally unmerged while GitHub Actions issue **#38** prevents GitHub-hosted jobs from receiving a runner. A red check with no allocated runner/no executed steps is infrastructure failure, not code validation. Real hosted runs are required before merge.
 
 ## Canonical architecture active
 
 - PostgreSQL + pgvector: canonical domain/state store.
 - SeaweedFS: canonical object storage.
-- Temporal: durable workflow execution/replay.
-- NATS JetStream: event bus fed by a transactional PostgreSQL outbox.
+- Temporal: durable execution/replay.
+- NATS JetStream: bounded event transport fed by transactional PostgreSQL Outbox.
 - Keycloak: authenticated Web/Desktop identity boundary.
-- OpenBao: secret-value custody; public KAIRO state stores logical vault handles only.
+- OpenBao: secret-value custody; KAIRO exposes only logical handles/status metadata.
 - Conversation / Message / Command: canonical conversational continuity.
-- KAIRO Capability contracts: policy/authority boundary above replaceable engines.
 - LiteLLM: model gateway with canonical PostgreSQL budget/usage accounting.
-- Mem0 + Graphiti/Neo4j: rebuildable projections, never canonical state.
-- Docling: preferred parser into canonical Documents / Versions / Chunks.
-- MCP: shared deployment registry + KAIRO-owned user execution ledger/policy.
-- Activepieces: replaceable Automation execution adapter behind KAIRO.
-- Finance: sourced observations; Rotki is the first read-only provider adapter; signing remains outside the AI/runtime boundary.
+- Mem0 + Graphiti/Neo4j: rebuildable projections, never canonical truth.
+- Docling: canonical Document/Version/Chunk parser boundary.
+- MCP: shared deployment registry plus subject-owned invocation/execution state.
+- Activepieces: replaceable Automation execution adapter behind KAIRO-owned definitions/history.
+- Finance: sourced observations; Rotki is the first read-only provider adapter; signing remains outside AI/runtime custody.
 - Tauri: bounded Desktop trust boundary around the same Web Cockpit, not a second frontend.
 
-## Block 1 — platform substrate
+## Product interface implemented
 
-**Implementation: complete.**
+The current Cockpit contains one persistent shell with left navigation, central work surface, contextual right rail and Command Dock. Home and KAIRO Brain consume one canonical graph contract. Brain provides **3D / Carte 2D / Liste** renderers over the same projection.
 
-Projects, Tasks, Relationships, WorkflowExecutions, Artifacts, Assets, Devices, SecretReferences, Audit and Outbox state are in place together with deterministic Temporal identity, transactional event delivery, authenticated resources, object digest verification and backup/restore substrate.
-
-Earlier Foundation proofs established the baseline invariants. Current stacked heads still need fresh real-runner validation after issue #38 is resolved.
-
-## Block 2 — intelligence and safe autonomy
-
-### Policy / approvals / accounting
-
-**Implemented.** Authority ceilings, approvals, signed capability tokens, hard Task budgets and canonical model usage accounting are Core-owned. Paid-provider replay ambiguity fails closed.
-
-### Command Kernel / Assistant
-
-**Implemented on the stacked Block 2 head.** `POST /v1/assistant/commands` is the conversational entry point. Deterministic routing is first-tier; durable constrained semantic routing is second-tier. Conversation state remains canonical.
-
-### News / Research / Memory
-
-**Implemented in stacked layers; current heads await real CI.** News Intelligence is operational, Research synthesis/handoff lives on #36/#37, and Mem0/Graphiti remain rebuildable memory projections. Generative Graphiti entity/fact extraction stays deferred until it can use KAIRO's accounted/replay-safe model boundary.
-
-### Documents / Knowledge / MCP
-
-**Implemented.** Asset → Document → Version → Chunk is canonical and provenance-preserving. Knowledge reads only the latest completed generation. MCP registry/policy/schema snapshots, Worker live-contract revalidation and child invocation Tasks are present.
-
-## Block 3 — permanent KAIRO Test Interface v1
-
-**Active implementation: PR #39.**
-
-### Permanent Cockpit / spatial Brain
-
-Implemented:
-
-- stable left navigation, central working surface, contextual right rail and compact Command Dock;
-- same shell in Web and Tauri Desktop;
-- bounded Home/neighborhood/search Graph projections;
-- custom R3F/Three.js mycelium with deterministic Worker layout, instanced nodes, batched filaments and real activity pulses;
-- semantic LOD, adaptive quality and reduced motion;
-- deterministic natural-language focus/isolate directives;
-- KAIRO Brain **3D / Carte 2D / Liste** from the same canonical projection.
-
-### Active specialist workspaces
-
-Implemented inside the same Cockpit:
+Operational workspaces currently include:
 
 - Projects lifecycle/hierarchy;
 - Tasks / Today / Gantt;
@@ -87,21 +46,30 @@ Implemented inside the same Cockpit:
 - Agents / Approvals;
 - Automations / Activepieces boundary;
 - Finance & Crypto / read-only Rotki connector;
-- Tools / MCP registry + policy.
+- Tools / MCP registry and policy;
+- Assistant / News / Research conversation surfaces;
+- Settings for identity, Desktop capabilities, personal secrets and account-data lifecycle.
 
-Actual Google/Microsoft Calendar adapters, a real provisioned Rotki release and a real Activepieces flow still need provider validation.
+The 3D mycelium uses the custom R3F/Three.js engine with deterministic Worker layout, instanced nodes, batched filaments, canonical activity pulses, semantic LOD, adaptive quality and reduced motion. Later UI work is tuning/extension of this architecture, not a planned rewrite.
 
-### Desktop / Tauri
+## Intelligence and execution
 
-Implemented first native slice using the same Cockpit:
+Implemented in stacked code:
 
-- runtime/platform/capability introspection;
-- clipboard text read/write;
-- local notifications with permission requested on use;
-- user-selected WebView file input;
-- fixed `CmdOrCtrl+Shift+Space` summon shortcut that only restores/shows/focuses KAIRO.
+- deterministic-first Command Kernel with constrained semantic routing;
+- News Intelligence;
+- durable Research synthesis/handoff on #36/#37;
+- policy authority ceilings, approvals and signed short-lived capability tokens;
+- canonical model usage and budget accounting;
+- Temporal durable workflows;
+- transactional Outbox → JetStream delivery;
+- Mem0/Graphiti rebuildable memory projection and owner-scoped purge;
+- canonical Document ingestion/retrieval;
+- MCP registry/policy/live Worker schema validation;
+- Automation invocation with explicit ambiguous-side-effect handling;
+- Rotki read-only synchronization.
 
-Screenshot, microphone/VAD/wake-word/voice and selected-directory scopes remain unavailable until their bounded contracts exist.
+Generative Graphiti entity/fact extraction remains deliberately disabled until it is both model-accounted/replay-safe and covered by the owner-purge contract.
 
 ## Authentication and multi-user hardening
 
@@ -110,192 +78,189 @@ Screenshot, microphone/VAD/wake-word/voice and selected-directory scopes remain 
 Implemented:
 
 - Keycloak Authorization Code + PKCE S256 before React mounts;
-- bearer-authenticated Core requests and streamed Graph activity;
-- tokens remain in adapter memory rather than LocalStorage/IndexedDB;
-- fail-closed public `/v1/*` auth perimeter;
+- bearer-authenticated Core/SSE/audio requests;
+- token refresh held in adapter memory rather than LocalStorage/IndexedDB;
+- fail-closed public `/v1/*` bearer perimeter;
+- separate internal-token boundary for `/internal/v1/*` service calls;
 - explicit Web/Tauri CORS origins;
 - identity/logout surface in Settings.
 
-### Ownership / evidence migrations
+### Ownership/evidence migrations
 
 Current branch contains:
 
 - `0013_canonical_project_relationship_ownership` — Project/Relationship subject ownership;
-- `0014_project_scoped_control_plane_ownership` — Project/subject DB consistency for Automations, FinanceConnectors and optional Finance proposal Project bindings;
+- `0014_project_scoped_control_plane_ownership` — Project/subject consistency for Automations, FinanceConnectors and Finance proposal Project bindings;
 - `0015_secret_reference_ownership` — personal SecretReference ownership + same-owner connector bindings;
-- `0016_automation_idempotency_scope` — Automation idempotency scoped to one AutomationDefinition;
-- `0017_tool_invocation_ownership` — ToolInvocation owner + subject-local idempotency + Task/Project owner trigger;
-- `0018_asset_document_ownership` — first-class indexed Asset/Document owners + Project/Asset/Document owner triggers;
-- `0019_audit_outbox_data_subject` — nullable indexed user-world data-subject ownership for Audit/Outbox evidence, distinct from actor identity;
-- `0020_outbox_jetstream_receipts` — exact JetStream stream/sequence transport receipts for newly published Outbox rows.
+- `0016_automation_idempotency_scope` — Automation idempotency scoped to one definition;
+- `0017_tool_invocation_ownership` — ToolInvocation subject ownership/idempotency + Task/Project owner trigger;
+- `0018_asset_document_ownership` — first-class Asset/Document owners + Project/Asset/Document owner triggers;
+- `0019_audit_outbox_data_subject` — nullable user-world data-subject ownership for Audit/Outbox, distinct from actor identity;
+- `0020_outbox_jetstream_receipts` — exact JetStream stream/sequence publication receipts.
 
-ADR-040 through ADR-047 now record canonical-world ownership, personal vault semantics, ToolInvocation ownership, Asset/Document ownership, cross-store account lifecycle, Audit/Outbox data-subject semantics, bounded/receipted JetStream transport and the explicit account-evidence retention action.
+ADR-040 through ADR-047 record the resulting ownership, secret, execution, evidence and retention boundaries.
 
-### Personal vault / OpenBao
+### Personal OpenBao boundary
 
-Implemented:
+Authenticated users manage only their SecretReferences. Core allocates managed subject-scoped KV-v2 paths; browser reads never expose `provider_path` or secret values. Provisioning is write-only and bounded. Credential destruction is explicit and irreversible, while logical reference deletion is separately guarded.
 
-- authenticated users manage only their own SecretReferences;
-- authenticated clients cannot choose arbitrary OpenBao paths;
-- public responses do not expose `provider_path`;
-- write-only value provisioning returns key names/version, never values;
-- explicit irreversible value destruction is distinct from deleting the logical KAIRO reference;
-- reference deletion is refused while connectors still use it, OpenBao still contains values, or OpenBao is unavailable;
-- production policy `infrastructure/openbao/policies/kairo-core-user-secrets.hcl` grants only the managed user-secret data/metadata operations required by KAIRO.
+A production OpenBao policy is committed which grants only the managed user-secret data/metadata operations required by KAIRO. Root/dev tokens remain development-only.
 
-### MCP control-plane vs user execution
+### MCP control plane vs execution state
 
-Implemented distinction:
-
-- ToolServer/ToolDefinition remain shared deployment/admin control-plane records;
-- ordinary ToolServer listings omit endpoint URLs/arbitrary deployment metadata;
-- ordinary users inspect contracts/policy state but do not receive admin mutation controls;
-- ToolInvocation is user-world execution state with explicit subject ownership;
-- direct and Research-generated ToolInvocations preserve Task→Project ownership;
-- PostgreSQL rejects a ToolInvocation bound to a foreign Task;
-- caller idempotency is subject-local rather than installation-global.
+ToolServer/ToolDefinition remain shared deployment/admin records. Ordinary users receive sanitized registry summaries and do not receive administrative mutation controls. ToolInvocation is explicit user-world execution state, owner-scoped in Core and PostgreSQL and propagated through Research child invocations.
 
 ### Assets / Documents
 
-Implemented first-class ownership:
+Asset and Document authorization no longer depends on JSON metadata. First-class indexed subject columns are used by REST reads, Knowledge and Graph. PostgreSQL rejects cross-owner Project/Asset/Document bindings, and internal document source resolution validates Document/Asset owner consistency.
 
-- Asset and Document authorization no longer depends on `metadata_json.owner_subject`;
-- list/detail/content/delete/search paths filter first-class subject columns;
-- Knowledge and Graph consume the same owner fact;
-- PostgreSQL triggers reject future cross-owner Project/Asset/Document bindings;
-- internal document source resolution verifies Document/Asset owner consistency before returning a Worker source.
+### Audit / Outbox and JetStream
 
-### Audit / Outbox evidence addressing and retention
+Audit/Outbox now distinguish data subject from actor. Shared deployment Audit remains shared even when an administrator acted on it. Graph SSE starts with subject-scoped Outbox queries.
 
-Implemented:
+Core stores exact JetStream PubAck stream/sequence receipts and publishes `Nats-Msg-Id = OutboxEvent.id`. Core and Worker independently converge `KAIRO_DOMAIN` to `kairo.domain.>`, max 100,000 messages and finite `NATS_DOMAIN_RETENTION_SECONDS` (7 days default), avoiding startup-order-dependent retention.
 
-- `AuditRecord.keycloak_subject` identifies the owner of the audited user-world resource;
-- `OutboxEvent.keycloak_subject` identifies the owner of the user-world aggregate;
-- shared deployment/control-plane rows remain NULL even when an administrator is the actor;
-- shared Audit rows that reference a user as `actor_id` are counted separately;
-- `event_ownership.resolve_data_subject(...)` centrally resolves known canonical user-world aggregate/resource owners;
-- normal `enqueue_domain_event(...)` / `append_audit(...)` calls use the resolver automatically;
-- the direct transactional ConversationMessage Outbox listener writes `Conversation.subject_ref` explicitly;
-- migration 0019 backfills resolvable historical evidence without guessing ambiguous/shared rows;
-- Graph activity SSE starts with `OutboxEvent.keycloak_subject == Principal.subject` and applies the same predicate to Last-Event-ID lookup;
-- Core captures exact JetStream `PubAck.stream/seq` and publishes with `Nats-Msg-Id = OutboxEvent.id`;
-- Core and Worker independently reconcile `KAIRO_DOMAIN` to `kairo.domain.>`, max 100,000 messages and finite `NATS_DOMAIN_RETENTION_SECONDS` (7 days default);
-- `GET /v1/account/evidence/retention` exposes subject-only retention readiness/counts;
-- `POST /v1/account/evidence/retention/apply` requires typed irreversible confirmation, refuses active work/unpublished/partial receipts, deletes exact JetStream messages before PostgreSQL Outbox rows, waits bounded expiry for historical unreceipted rows, minimizes subject Audit and redacts shared administrative actor references;
-- the retention action is bounded to 250 Outbox rows per pass and may be repeated;
-- it leaves one deployment-neutral aggregate receipt with no subject identifier/hash;
-- later user activity creates fresh evidence and makes erasure preflight dirty again.
-
-### Deployment diagnostics
-
-Installation-wide diagnostics are admin-only:
-
-- `/v1/system/components`;
-- `/v1/system/architecture`;
-- `/v1/system/outbox`.
-
-Normal users receive 403; `kairo-admin` retains access. Health/readiness remain orchestrator probes.
-
-## Account data lifecycle
+## Account lifecycle
 
 ADR-044 defines account erasure as a **cross-store state machine**, not a Project/database cascade.
 
-Implemented current slice:
+### Inventory / export / preflight
 
-- `GET /v1/account/data-inventory` — subject-scoped canonical counts, tracked Asset object count/bytes, derived-memory purge freshness and Audit/Outbox evidence counts;
-- `GET /v1/account/export/manifest` — versioned `kairo.account-export-manifest.v1`, currently truthful `manifest_only` with `bundle_export_available=false`;
+Implemented:
+
+- `GET /v1/account/data-inventory` — subject-scoped canonical counts, tracked Asset bytes, derived-memory purge freshness and evidence counts;
+- `GET /v1/account/export/manifest` — versioned `kairo.account-export-manifest.v1`, deliberately `manifest_only` / `bundle_export_available=false`;
 - `GET /v1/account/erasure/preflight` — canonical blockers vs complete-erasure blockers;
-- `POST /v1/account/derived-memory/purge` — durable owner-scoped Temporal Task that purges rebuildable Mem0/Graphiti state while preserving canonical Conversations;
-- `GET /v1/account/evidence/retention` + `POST /v1/account/evidence/retention/apply` — explicit Audit/Outbox erasure-preparation stage;
-- Settings surface showing inventory, evidence retention, memory-purge state, export manifest and preflight;
-- no destructive full-account endpoint is advertised while complete cross-store erasure cannot be guaranteed.
+- Settings surface that exposes real lifecycle state while full destructive deletion remains disabled.
+
+Secret values are deliberately absent from export. Raw retained Audit/Outbox payloads are not exported by the current manifest.
 
 ### Derived-memory purge
 
-The purge Task snapshots the latest canonical ConversationMessage timestamp as `purge_cutoff_at`.
+`POST /v1/account/derived-memory/purge` creates/reuses a canonical A1 `memory.purge` Task and executes through Temporal/Worker.
 
-- Mem0 deletion is subject-scoped through its KAIRO user scope and verified empty;
-- current non-generative Graphiti projection deletes all owned `conversation:<id>` groups and verifies none remain;
-- the canonical `MemoryProjectionRecord` ledger is cleared only after projector success is verified;
-- stub mode cannot clear evidence of a prior real projection;
-- a new canonical message after the purge cutoff makes the purge stale and the preflight asks for another purge;
-- generative Graphiti extraction remains prohibited until its future entity/community/edge material is included in the purge contract.
+Mem0 is deleted by owner scope and verified empty. Current non-generative Graphiti groups are deleted by owned `conversation:<id>` groups and verified empty. `MemoryProjectionRecord` rows are cleared only after projector success. Canonical Conversations/Messages remain untouched. A purge cutoff tied to the latest canonical message makes later messages render the purge stale rather than overstating deletion.
 
-### Evidence retention
+### Audit / Outbox evidence retention
 
-The Audit/Outbox blocker is now actionable rather than merely descriptive.
+ADR-047 turns the Audit/Outbox blocker into an actual bounded erasure-preparation action:
 
-- active Tasks/Workflows/Approvals/AutomationInvocations/ToolInvocations prevent the operation;
-- unpublished Outbox rows must first reach transport;
-- exact `(stream, sequence)` receipts are deleted from JetStream before their PostgreSQL Outbox rows;
-- historical published rows without a receipt require verified max-age + safety-grace expiry rather than guessed sequence deletion;
-- personal Audit is minimized to coarse unowned facts rather than retained as linkable personal history;
-- shared control-plane Audit stays shared but loses the erased user's actor attribution;
-- the preflight removes `audit_outbox_retention_required` only when the remaining evidence counts reach zero.
+- `GET /v1/account/evidence/retention` reports subject-only readiness/counts;
+- `POST /v1/account/evidence/retention/apply` requires literal confirmation `MINIMIZE_ACCOUNT_EVIDENCE`;
+- non-terminal Tasks/Workflows/Approvals/AutomationInvocations/ToolInvocations block the operation;
+- unpublished events and malformed JetStream receipts fail closed;
+- exact receipted JetStream messages are deleted before their PostgreSQL Outbox rows;
+- historical published rows without receipts must age beyond verified max-age + safety grace instead of receiving guessed sequence ids;
+- subject-owned Audit is minimized to coarse unowned facts;
+- shared administrative Audit preserves shared resource history but removes/redacts the erased actor identity;
+- one neutral aggregate receipt remains without a subject identifier/hash;
+- processing is bounded to 250 Outbox rows per pass and retry-safe for already-absent transport messages.
 
-Canonical deletion is still blocked while live work exists. Complete erasure still remains blocked by some combination of:
+Later user activity creates fresh evidence and re-blocks preflight. This is why a final destructive flow still requires an enforced account freeze.
 
-- remaining personal SecretReferences/credential material;
-- stale derived-memory purge relative to the latest canonical message;
-- remaining Audit/Outbox evidence until the explicit retention stage is applied;
-- Keycloak identity lifecycle not yet implemented through KAIRO;
-- backup expiry/restore-after-erasure semantics not yet formally verified.
+### Keycloak identity management boundary
 
-Secret values are deliberately excluded from export; export must never become a secret-readback path. Raw retained Audit/Outbox payloads also remain excluded from the manifest.
+ADR-048 and `KeycloakIdentityManager` now establish the **provider adapter**, but not the final user-facing deletion flow.
+
+Implemented foundation:
+
+- dedicated confidential `kairo-identity-manager` workload identity;
+- `client_credentials`, never the public `kairo-web` client;
+- no runtime reuse of bootstrap Keycloak admin credentials;
+- exact immutable Keycloak `sub` used as Admin REST user id, not username/email search;
+- bounded internal `get_identity`, `disable_identity` and `delete_identity` methods with post-operation verification;
+- management secret is Core-only configuration and empty by default in development;
+- production compose wiring exists for a separately provisioned least-privilege service account;
+- there is deliberately **no APIRouter/public disable/delete endpoint yet**.
+
+Keycloak disable alone is not a KAIRO write freeze because already-issued bearer tokens may remain valid until expiry. A local/durable KAIRO freeze must exist before this provider mutation is wired into account erasure.
+
+### Backup restore-after-erasure guard
+
+ADR-049 introduces a monotonic erasure-ledger boundary outside the rollback-able Restic application-state snapshot.
+
+Implemented current guard:
+
+- `.kairo-erasure-ledger/` is excluded from Git/application state;
+- `restore.sh` derives production from `KAIRO_ENV`, not an overlay filename convention;
+- production restore refuses a missing external erasure ledger;
+- any non-empty erasure ledger refuses restore before Restic materialization or durable volume mutation;
+- normal Restic backup remains limited to PostgreSQL/NATS/SeaweedFS/OpenBao and intentionally does not back up the erasure ledger;
+- `docs/operations.md` documents separate encrypted/replicated production storage for the future ledger.
+
+This **prevents accidental resurrection through current restore tooling**. It does not yet implement tombstone creation/reconciliation and it does not physically destroy old encrypted Restic snapshots. Backup expiry/prune and restore reconciliation remain complete-erasure blockers.
+
+## Desktop / Tauri
+
+Implemented first native slice using the same Cockpit:
+
+- runtime/platform/capability introspection;
+- clipboard text read/write;
+- local notifications requested on use;
+- explicit WebView file input;
+- fixed `CmdOrCtrl+Shift+Space` summon shortcut that only restores/shows/focuses KAIRO.
+
+Screenshot, microphone/VAD/wake-word/voice and selected-directory scopes remain unavailable until their bounded contracts exist.
 
 ## Validation code committed
 
-The dedicated Ownership/Foundation workflows compile/schedule proof code for:
+The Ownership/Foundation suites now compile/schedule contracts/proofs covering:
 
-- canonical Project/Task/Graph two-user isolation;
-- Assistant/News/Memory/Research two-user isolation;
+- Project/Task/Graph two-user isolation;
+- Assistant/News/Memory/Research isolation;
 - Asset/Document two-user isolation;
-- SecretReference/Automation/Finance connector ownership + credential-retention lifecycle;
-- ToolInvocation source/migration invariants + two-user idempotency/read isolation;
+- SecretReference/Automation/Finance ownership and credential lifecycle;
+- ToolInvocation ownership/idempotency;
 - least-privilege OpenBao policy;
 - admin-only deployment diagnostics;
-- account inventory/export/preflight two-user isolation including Audit/Outbox evidence ownership;
-- Audit/Outbox source/migration/Graph-SSE data-subject contract;
-- bounded JetStream max-age + PubAck receipt contract;
-- explicit account-evidence retention source/behavior contract;
+- Audit/Outbox data-subject ownership;
+- bounded JetStream max-age + PubAck receipts;
 - internal Worker Task-start trust boundary;
-- pinned Mem0/Graphiti purge-provider API contract;
-- durable memory projection/rebuild/purge lifecycle with canonical Conversation preservation.
+- account inventory/export/preflight isolation;
+- Audit/Outbox evidence-retention source/behavior contract;
+- Keycloak identity-management boundary contract;
+- restore-after-erasure guard contract;
+- pinned Mem0/Graphiti purge-provider compatibility and durable projection/purge lifecycle.
 
-Graph Interface, Desktop, Research, MCP, Document, Automation and Finance validation suites remain committed as well.
+Graph, Desktop, Research, MCP, Document, Automation and Finance suites remain committed too.
 
-These proofs are **implemented but not claimed as passed on the current head** because GitHub still does not assign a runner under issue #38.
+A two-user **destructive** evidence-retention runtime proof could not be committed in the earlier tooling session because the repository write was blocked by the surrounding safety control. Do not treat that runtime proof as existing. The retention implementation currently has a static behavior/source contract plus the existing two-user lifecycle/readiness coverage.
+
+None of the current-head proof/build code is claimed as passed because issue #38 still prevents GitHub-hosted runner execution.
 
 ## Major work still remaining
 
-### Before treating the test baseline as validated
+### Release gate for Test Interface v1
 
 1. Resolve GitHub Actions runner allocation issue #38.
-2. Execute #36 → #37 → #39 in order on real runners.
-3. Fix only real executed failures and rerun until green.
-4. Finish the remaining identity/backup/destructive lifecycle contracts and freeze this stack as one coherent Test Interface baseline.
+2. Execute #36 → #37 → #39 on real runners.
+3. Fix only actual executed failures and rerun until green.
+4. Freeze the stack as one coherent daily-use Test Interface baseline.
 
 ### Account lifecycle / commercial multi-user
 
-- Keycloak account freeze/disable/delete contract;
-- verified backup expiry and restore-after-erasure/tombstone semantics;
-- full portable canonical export bundle beyond the current manifest;
-- replay-safe destructive deletion ledger spanning PostgreSQL, SeaweedFS, OpenBao and external identity/projection actions;
-- account freeze before the final destructive cleanup so later activity cannot recreate evidence mid-erasure.
+- durable local account freeze that blocks stale bearer-token writes while allowing the erasure orchestrator to proceed;
+- replay-safe account-erasure operation/deletion ledger;
+- provision and provider-validate the dedicated Keycloak management service account;
+- final Keycloak disable/session/delete sequencing;
+- final PostgreSQL + SeaweedFS + OpenBao + projection destructive ordering;
+- monotonic erasure tombstone creation and verified post-restore reconciliation;
+- documented/verified backup retention, forget/prune and maximum lifetime;
+- full portable canonical export bundle beyond the manifest.
 
 ### Provider work
 
-- Google/Microsoft Calendar OAuth, polling and free/busy adapters;
-- validate Rotki against a real provisioned release/version;
-- validate an actual Activepieces flow;
-- add exchange/wallet Finance adapters only where useful.
+- Google/Microsoft Calendar OAuth/polling/free-busy adapters;
+- validation against a real provisioned Rotki release;
+- validation against a real Activepieces flow;
+- additional exchange/wallet adapters only where useful.
 
 ### Desktop / presence
 
 - authenticated runtime/server configuration hardening;
 - screenshot/capture;
 - microphone/VAD/transcription/voice + visible recording state;
-- selected-directory/watched-folder access with bounded scopes.
+- selected-directory/watched-folder access with explicit scopes.
 
 ### Brain / collaboration / Developer
 
@@ -305,18 +270,18 @@ These proofs are **implemented but not claimed as passed on the current head** b
 
 ### Finance signing / production operations
 
-- isolated signer / hardware-wallet / explicit wallet handoff; still no agent private-key custody or generic sign/send/broadcast path;
+- isolated signer/hardware-wallet/explicit wallet handoff; still no agent private-key custody or generic sign/send/broadcast path;
 - TLS/reverse proxy/private-network policy;
 - production workload identities rather than development tokens;
 - verified encrypted off-host recovery and provider-specific rate-limit/retry/credential lifecycle.
 
 ## Current implementation order
 
-1. **Define the Keycloak account freeze/identity lifecycle and backup restore-after-erasure contract without changing the Cockpit architecture.**
-2. **Restore real CI execution and validate the entire stacked baseline.**
-3. **Freeze Test Interface v1 as the coherent daily-use test baseline.**
-4. Connect real Calendar / Rotki / Activepieces providers.
+1. **Implement the durable local account-freeze/erasure ledger boundary without exposing premature full deletion.**
+2. **Define tombstone emission + post-restore reconciliation/backup retention semantics.**
+3. **Restore real CI execution and validate the entire stacked baseline.**
+4. Freeze Test Interface v1, then connect real external providers.
 5. Continue Tauri with screenshot → microphone/voice as separate permissioned capabilities.
 6. Add isolated signing and Developer/computer-use only behind explicit policy/audit boundaries.
 
-The Block 3 goal is one stable KAIRO environment in which every visible object, relationship, activity pulse, external observation and specialist workspace remains traceable to KAIRO-owned canonical state, provenance, identity, retention and policy boundaries.
+The Block 3 goal remains one stable KAIRO environment in which every visible object, relationship, activity pulse, external observation and specialist workspace is traceable to KAIRO-owned canonical state, provenance, identity, retention and policy boundaries.
