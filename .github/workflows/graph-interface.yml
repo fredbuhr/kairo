@@ -17,6 +17,8 @@ on:
       - 'scripts/smoke/tool_management.py'
       - 'scripts/smoke/calendar_provenance.py'
       - 'scripts/smoke/automation_registry.py'
+      - 'scripts/smoke/automation_full_stack.py'
+      - 'scripts/smoke/fake_automation_webhook.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
@@ -44,6 +46,8 @@ on:
       - 'scripts/smoke/tool_management.py'
       - 'scripts/smoke/calendar_provenance.py'
       - 'scripts/smoke/automation_registry.py'
+      - 'scripts/smoke/automation_full_stack.py'
+      - 'scripts/smoke/fake_automation_webhook.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
@@ -98,7 +102,7 @@ jobs:
 
       - name: Validate Cockpit + runtime sources
         run: |
-          python -m compileall services/core/src services/core/migrations/versions services/worker/src scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py scripts/smoke/task_planning.py scripts/smoke/agent_operations.py scripts/smoke/project_lifecycle.py scripts/smoke/tool_management.py scripts/smoke/calendar_provenance.py scripts/smoke/automation_registry.py
+          python -m compileall services/core/src services/core/migrations/versions services/worker/src scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py scripts/smoke/task_planning.py scripts/smoke/agent_operations.py scripts/smoke/project_lifecycle.py scripts/smoke/tool_management.py scripts/smoke/calendar_provenance.py scripts/smoke/automation_registry.py scripts/smoke/automation_full_stack.py scripts/smoke/fake_automation_webhook.py
 
   graph-projection-integration:
     needs: validate
@@ -147,5 +151,34 @@ jobs:
           docker compose -f compose.yaml -f compose.graph-ci.yaml logs --no-color --tail=350 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
 
       - name: Tear down graph stack
+        if: always()
+        run: docker compose -f compose.yaml -f compose.graph-ci.yaml down -v --remove-orphans
+
+  automation-full-stack:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare Automation integration environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+
+      - name: Start Core, Temporal, Worker, OpenBao and controlled webhook boundary
+        run: |
+          docker compose -f compose.yaml -f compose.graph-ci.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace openbao automation-webhook kairo-core kairo-worker
+
+      - name: Prove Automation execution and ambiguous-outcome non-replay
+        run: python scripts/smoke/automation_full_stack.py
+
+      - name: Dump Automation stack on failure
+        if: failure()
+        run: |
+          docker compose -f compose.yaml -f compose.graph-ci.yaml ps -a
+          docker compose -f compose.yaml -f compose.graph-ci.yaml logs --no-color --tail=450 postgres nats temporal temporal-create-namespace openbao automation-webhook kairo-core kairo-worker
+
+      - name: Tear down Automation stack
         if: always()
         run: docker compose -f compose.yaml -f compose.graph-ci.yaml down -v --remove-orphans
