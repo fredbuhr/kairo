@@ -23,6 +23,15 @@ class OpenBaoClient:
     def _headers(self) -> dict[str, str]:
         return {"X-Vault-Token": self.token, "Accept": "application/json"}
 
+    @staticmethod
+    def _normalized_path(provider_path: str) -> str:
+        normalized = provider_path.strip().lstrip("/")
+        if normalized.startswith("v1/"):
+            normalized = normalized[3:]
+        if not normalized:
+            raise ValueError("OpenBao provider path cannot be empty")
+        return normalized
+
     async def health(self) -> bool:
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
@@ -33,12 +42,7 @@ class OpenBaoClient:
             return False
 
     async def secret_status(self, provider_path: str) -> SecretStatus:
-        normalized = provider_path.strip().lstrip("/")
-        if normalized.startswith("v1/"):
-            normalized = normalized[3:]
-        if not normalized:
-            raise ValueError("OpenBao provider path cannot be empty")
-
+        normalized = self._normalized_path(provider_path)
         async with httpx.AsyncClient(timeout=8.0) as client:
             response = await client.get(
                 f"{self.base_url}/v1/{normalized}", headers=self._headers()
@@ -58,15 +62,44 @@ class OpenBaoClient:
             version = None
         return SecretStatus(exists=True, keys=keys, version=version)
 
+    async def write_secret_values(
+        self,
+        provider_path: str,
+        values: dict[str, str],
+    ) -> SecretStatus:
+        """Write one owned KV-v2 secret without returning any secret value.
+
+        Callers must enforce ownership before reaching this method. The returned object exposes only
+        key names/version metadata so secret material cannot accidentally flow into API responses,
+        audit records, Temporal payloads or NATS events.
+        """
+        normalized = self._normalized_path(provider_path)
+        if not values:
+            raise ValueError("OpenBao secret values cannot be empty")
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            response = await client.post(
+                f"{self.base_url}/v1/{normalized}",
+                headers={**self._headers(), "Content-Type": "application/json"},
+                json={"data": values},
+            )
+        response.raise_for_status()
+        version: int | None = None
+        try:
+            payload: dict[str, Any] = response.json()
+            data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+            version_raw = data.get("version") if isinstance(data, dict) else None
+            version = int(version_raw) if version_raw is not None else None
+        except (ValueError, TypeError):
+            version = None
+        return SecretStatus(exists=True, keys=tuple(sorted(values)), version=version)
+
     async def read_secret_value(self, provider_path: str, key: str) -> str:
-        """Internal-only value resolver for future adapters.
+        """Internal-only value resolver for adapters.
 
         This method must never be returned by a public API, persisted in PostgreSQL, emitted to NATS,
         or placed in audit records. Callers receive one requested field only.
         """
-        normalized = provider_path.strip().lstrip("/")
-        if normalized.startswith("v1/"):
-            normalized = normalized[3:]
+        normalized = self._normalized_path(provider_path)
         async with httpx.AsyncClient(timeout=8.0) as client:
             response = await client.get(
                 f"{self.base_url}/v1/{normalized}", headers=self._headers()
