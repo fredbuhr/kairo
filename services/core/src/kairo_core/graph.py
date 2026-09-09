@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import Principal, require_kairo_user
 from .autonomy_models import ApprovalRequest
 from .command_models import Conversation
 from .db import get_session
@@ -23,6 +24,7 @@ from .graph_schemas import (
     GraphSearchRead,
 )
 from .models import Artifact, Asset, Project, RelationshipRecord, Task, WorkflowExecution
+from .ownership import entity_belongs_to_subject
 
 
 router = APIRouter(prefix="/v1/graph", tags=["graph"])
@@ -268,9 +270,14 @@ def _node_from_workflow(row: WorkflowExecution) -> GraphNodeRead:
 
 
 async def _resolve_entity(
-    session: AsyncSession, entity_type: str, entity_id: uuid.UUID
+    session: AsyncSession,
+    entity_type: str,
+    entity_id: uuid.UUID,
+    subject: str,
 ) -> GraphNodeRead | None:
     entity_type = _normalize_type(entity_type)
+    if not await entity_belongs_to_subject(session, entity_type, entity_id, subject):
+        return None
     if entity_type == "project":
         row = await session.get(Project, entity_id)
         return _node_from_project(row) if row else None
@@ -371,13 +378,16 @@ def _relationship_edge(row: RelationshipRecord) -> GraphEdgeRead:
 
 
 async def _explicit_edges_for(
-    session: AsyncSession, nodes: dict[str, GraphNodeRead]
+    session: AsyncSession,
+    nodes: dict[str, GraphNodeRead],
+    subject: str,
 ) -> list[GraphEdgeRead]:
     if not nodes:
         return []
     ids = list({node.id for node in nodes.values()})
     rows = await session.execute(
         select(RelationshipRecord)
+        .where(RelationshipRecord.keycloak_subject == subject)
         .where(
             or_(
                 RelationshipRecord.source_id.in_(ids),
@@ -498,6 +508,7 @@ async def _ensure_project_anchors(
     nodes: dict[str, GraphNodeRead],
     *,
     max_nodes: int,
+    subject: str,
 ) -> None:
     project_ids = {
         node.project_id
@@ -507,18 +518,23 @@ async def _ensure_project_anchors(
     for project_id in project_ids:
         if len(nodes) >= max_nodes:
             break
-        project = await session.get(Project, project_id)
+        project = await session.scalar(
+            select(Project).where(
+                Project.id == project_id,
+                Project.keycloak_subject == subject,
+            )
+        )
         if project:
             node = _node_from_project(project)
             nodes[node.key] = node
 
 
-async def _home_candidates(session: AsyncSession) -> list[GraphNodeRead]:
+async def _home_candidates(session: AsyncSession, subject: str) -> list[GraphNodeRead]:
     results: list[GraphNodeRead] = []
 
     project_rows = await session.execute(
         select(Project)
-        .where(Project.status != "archived")
+        .where(Project.keycloak_subject == subject, Project.status != "archived")
         .order_by(Project.updated_at.desc())
         .limit(18)
     )
@@ -526,7 +542,11 @@ async def _home_candidates(session: AsyncSession) -> list[GraphNodeRead]:
 
     task_rows = await session.execute(
         select(Task)
-        .where(~Task.status.in_(["completed", "done", "cancelled", "archived"]))
+        .join(Project, Project.id == Task.project_id)
+        .where(
+            Project.keycloak_subject == subject,
+            ~Task.status.in_(["completed", "done", "cancelled", "archived"]),
+        )
         .order_by(Task.updated_at.desc())
         .limit(32)
     )
@@ -534,27 +554,40 @@ async def _home_candidates(session: AsyncSession) -> list[GraphNodeRead]:
 
     approval_rows = await session.execute(
         select(ApprovalRequest)
-        .where(ApprovalRequest.status == "pending")
+        .join(Task, Task.id == ApprovalRequest.task_id)
+        .join(Project, Project.id == Task.project_id)
+        .where(
+            Project.keycloak_subject == subject,
+            ApprovalRequest.status == "pending",
+        )
         .order_by(ApprovalRequest.updated_at.desc())
         .limit(10)
     )
     results.extend(_node_from_approval(row) for row in approval_rows.scalars())
 
     document_rows = await session.execute(
-        select(Document).order_by(Document.updated_at.desc()).limit(20)
+        select(Document)
+        .join(Project, Project.id == Document.project_id)
+        .where(Project.keycloak_subject == subject)
+        .order_by(Document.updated_at.desc())
+        .limit(20)
     )
     results.extend(_node_from_document(row) for row in document_rows.scalars())
 
     conversation_rows = await session.execute(
         select(Conversation)
-        .where(Conversation.status == "active")
+        .where(Conversation.subject_ref == subject, Conversation.status == "active")
         .order_by(Conversation.updated_at.desc())
         .limit(16)
     )
     results.extend(_node_from_conversation(row) for row in conversation_rows.scalars())
 
     artifact_rows = await session.execute(
-        select(Artifact).order_by(Artifact.created_at.desc()).limit(14)
+        select(Artifact)
+        .join(Project, Project.id == Artifact.project_id)
+        .where(Project.keycloak_subject == subject)
+        .order_by(Artifact.created_at.desc())
+        .limit(14)
     )
     results.extend(_node_from_artifact(row) for row in artifact_rows.scalars())
 
@@ -566,6 +599,7 @@ async def _structural_neighbors(
     node: GraphNodeRead,
     *,
     limit: int,
+    subject: str,
 ) -> list[tuple[GraphNodeRead, GraphEdgeRead]]:
     if limit <= 0:
         return []
@@ -585,7 +619,7 @@ async def _structural_neighbors(
         parent_id = node.metadata.get("parent_id")
         if parent_id:
             await add(
-                await _resolve_entity(session, "project", uuid.UUID(parent_id)),
+                await _resolve_entity(session, "project", uuid.UUID(parent_id), subject),
                 "part_of",
                 "Project hierarchy",
                 0.92,
@@ -636,7 +670,7 @@ async def _structural_neighbors(
         if len(pairs) < limit:
             rows = await session.execute(
                 select(Project)
-                .where(Project.parent_id == node.id)
+                .where(Project.parent_id == node.id, Project.keycloak_subject == subject)
                 .order_by(Project.updated_at.desc())
                 .limit(limit - len(pairs))
             )
@@ -659,7 +693,7 @@ async def _structural_neighbors(
     elif node.entity_type == "task":
         if node.project_id:
             await add(
-                await _resolve_entity(session, "project", node.project_id),
+                await _resolve_entity(session, "project", node.project_id, subject),
                 "belongs_to",
                 "Canonical project scope",
                 0.94,
@@ -712,7 +746,7 @@ async def _structural_neighbors(
     elif node.entity_type == "document":
         if node.project_id:
             await add(
-                await _resolve_entity(session, "project", node.project_id),
+                await _resolve_entity(session, "project", node.project_id, subject),
                 "belongs_to",
                 "Canonical project scope",
                 0.94,
@@ -720,7 +754,7 @@ async def _structural_neighbors(
         asset_id = node.metadata.get("asset_id")
         if asset_id:
             await add(
-                await _resolve_entity(session, "asset", uuid.UUID(asset_id)),
+                await _resolve_entity(session, "asset", uuid.UUID(asset_id), subject),
                 "sourced_from",
                 "Canonical source asset",
                 0.86,
@@ -729,7 +763,7 @@ async def _structural_neighbors(
     elif node.entity_type == "approval":
         task_id = node.metadata.get("task_id")
         if task_id:
-            task = await _resolve_entity(session, "task", uuid.UUID(task_id))
+            task = await _resolve_entity(session, "task", uuid.UUID(task_id), subject)
             if task:
                 pairs.append(
                     (
@@ -747,7 +781,7 @@ async def _structural_neighbors(
     elif node.entity_type == "artifact":
         if node.project_id:
             await add(
-                await _resolve_entity(session, "project", node.project_id),
+                await _resolve_entity(session, "project", node.project_id, subject),
                 "belongs_to",
                 "Canonical project scope",
                 0.94,
@@ -755,7 +789,7 @@ async def _structural_neighbors(
         task_id = node.metadata.get("task_id")
         if task_id:
             await add(
-                await _resolve_entity(session, "task", uuid.UUID(task_id)),
+                await _resolve_entity(session, "task", uuid.UUID(task_id), subject),
                 "produced_by",
                 "Artifact produced by this task",
                 0.88,
@@ -764,7 +798,7 @@ async def _structural_neighbors(
     elif node.entity_type == "asset":
         if node.project_id:
             await add(
-                await _resolve_entity(session, "project", node.project_id),
+                await _resolve_entity(session, "project", node.project_id, subject),
                 "belongs_to",
                 "Canonical project scope",
                 0.90,
@@ -774,7 +808,7 @@ async def _structural_neighbors(
         task_id = node.metadata.get("task_id")
         if task_id:
             await add(
-                await _resolve_entity(session, "task", uuid.UUID(task_id)),
+                await _resolve_entity(session, "task", uuid.UUID(task_id), subject),
                 "executes",
                 "Workflow execution for this task",
                 0.92,
@@ -788,6 +822,7 @@ async def _explicit_neighbors(
     frontier: list[GraphNodeRead],
     *,
     limit: int,
+    subject: str,
 ) -> list[tuple[GraphNodeRead, GraphEdgeRead]]:
     if not frontier or limit <= 0:
         return []
@@ -795,6 +830,7 @@ async def _explicit_neighbors(
     ids = [node.id for node in frontier]
     rows = await session.execute(
         select(RelationshipRecord)
+        .where(RelationshipRecord.keycloak_subject == subject)
         .where(
             or_(
                 RelationshipRecord.source_id.in_(ids),
@@ -815,7 +851,7 @@ async def _explicit_neighbors(
             other = edge.source
         else:
             continue
-        neighbor = await _resolve_entity(session, other.entity_type, other.entity_id)
+        neighbor = await _resolve_entity(session, other.entity_type, other.entity_id, subject)
         if neighbor:
             pairs.append((neighbor, edge))
         if len(pairs) >= limit:
@@ -826,9 +862,10 @@ async def _explicit_neighbors(
 @router.get("/home", response_model=GraphProjectionRead)
 async def graph_home(
     max_nodes: int = Query(default=72, ge=12, le=200),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> GraphProjectionRead:
-    candidates = await _home_candidates(session)
+    candidates = await _home_candidates(session, principal.subject)
     candidates.sort(
         key=lambda node: (node.importance + node.activity * 0.30, node.recency),
         reverse=True,
@@ -848,14 +885,19 @@ async def graph_home(
             break
         nodes.setdefault(node.key, node)
 
-    await _ensure_project_anchors(session, nodes, max_nodes=max_nodes)
+    await _ensure_project_anchors(
+        session,
+        nodes,
+        max_nodes=max_nodes,
+        subject=principal.subject,
+    )
 
     for node in other_candidates:
         if len(nodes) >= max_nodes:
             break
         nodes.setdefault(node.key, node)
 
-    explicit = await _explicit_edges_for(session, nodes)
+    explicit = await _explicit_edges_for(session, nodes, principal.subject)
     structural = _structural_edges(nodes)
     edges = _merge_edges(explicit, structural)
     _finalize_nodes(nodes, edges)
@@ -888,9 +930,10 @@ async def graph_neighborhood(
     entity_id: uuid.UUID,
     depth: int = Query(default=1, ge=1, le=2),
     max_nodes: int = Query(default=96, ge=8, le=200),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> GraphProjectionRead:
-    center = await _resolve_entity(session, entity_type, entity_id)
+    center = await _resolve_entity(session, entity_type, entity_id, principal.subject)
     if center is None:
         raise HTTPException(status_code=404, detail="Graph entity not found")
 
@@ -918,6 +961,7 @@ async def graph_neighborhood(
                     session,
                     source,
                     limit=remaining - len(discovered),
+                    subject=principal.subject,
                 )
             )
 
@@ -927,11 +971,19 @@ async def graph_neighborhood(
                     session,
                     frontier,
                     limit=remaining - len(discovered),
+                    subject=principal.subject,
                 )
             )
 
         next_frontier: list[GraphNodeRead] = []
         for neighbor, edge in discovered:
+            if not await entity_belongs_to_subject(
+                session,
+                neighbor.entity_type,
+                neighbor.id,
+                principal.subject,
+            ):
+                continue
             edge_map[edge.id] = edge
             if neighbor.key not in nodes:
                 if len(nodes) >= max_nodes:
@@ -944,8 +996,13 @@ async def graph_neighborhood(
             break
         frontier = next_frontier
 
-    await _ensure_project_anchors(session, nodes, max_nodes=max_nodes)
-    explicit = await _explicit_edges_for(session, nodes)
+    await _ensure_project_anchors(
+        session,
+        nodes,
+        max_nodes=max_nodes,
+        subject=principal.subject,
+    )
+    explicit = await _explicit_edges_for(session, nodes, principal.subject)
     structural = _structural_edges(nodes)
     edges = _merge_edges(edge_map.values(), explicit, structural)
     _finalize_nodes(nodes, edges)
@@ -976,6 +1033,7 @@ async def graph_neighborhood(
 async def graph_search(
     q: str = Query(min_length=2, max_length=200),
     limit: int = Query(default=20, ge=1, le=50),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> GraphSearchRead:
     query = q.strip()
@@ -987,7 +1045,7 @@ async def graph_search(
 
     rows = await session.execute(
         select(Project)
-        .where(Project.name.ilike(pattern))
+        .where(Project.keycloak_subject == principal.subject, Project.name.ilike(pattern))
         .order_by(Project.updated_at.desc())
         .limit(per_type)
     )
@@ -997,7 +1055,8 @@ async def graph_search(
 
     rows = await session.execute(
         select(Task)
-        .where(Task.title.ilike(pattern))
+        .join(Project, Project.id == Task.project_id)
+        .where(Project.keycloak_subject == principal.subject, Task.title.ilike(pattern))
         .order_by(Task.updated_at.desc())
         .limit(per_type)
     )
@@ -1007,7 +1066,8 @@ async def graph_search(
 
     rows = await session.execute(
         select(Document)
-        .where(Document.title.ilike(pattern))
+        .join(Project, Project.id == Document.project_id)
+        .where(Project.keycloak_subject == principal.subject, Document.title.ilike(pattern))
         .order_by(Document.updated_at.desc())
         .limit(per_type)
     )
@@ -1017,7 +1077,11 @@ async def graph_search(
 
     rows = await session.execute(
         select(Conversation)
-        .where(Conversation.title.is_not(None), Conversation.title.ilike(pattern))
+        .where(
+            Conversation.subject_ref == principal.subject,
+            Conversation.title.is_not(None),
+            Conversation.title.ilike(pattern),
+        )
         .order_by(Conversation.updated_at.desc())
         .limit(per_type)
     )
@@ -1027,7 +1091,12 @@ async def graph_search(
 
     rows = await session.execute(
         select(ApprovalRequest)
-        .where(ApprovalRequest.action.ilike(pattern))
+        .join(Task, Task.id == ApprovalRequest.task_id)
+        .join(Project, Project.id == Task.project_id)
+        .where(
+            Project.keycloak_subject == principal.subject,
+            ApprovalRequest.action.ilike(pattern),
+        )
         .order_by(ApprovalRequest.updated_at.desc())
         .limit(per_type)
     )
