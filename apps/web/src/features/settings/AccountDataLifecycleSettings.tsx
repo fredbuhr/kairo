@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   fetchAccountErasurePreflight,
   fetchAccountExportManifest,
+  fetchAccountLifecycleTask,
   purgeDerivedMemory,
   type AccountDataInventory,
 } from '../../lib/accountApi'
@@ -64,7 +65,6 @@ export function AccountDataLifecycleSettings() {
     queryKey: ['account-erasure-preflight'],
     queryFn: fetchAccountErasurePreflight,
     staleTime: 10_000,
-    refetchInterval: purgePolling ? 2500 : false,
   })
   const manifestMutation = useMutation({
     mutationFn: fetchAccountExportManifest,
@@ -80,15 +80,34 @@ export function AccountDataLifecycleSettings() {
       ])
     },
   })
+  const purgeTaskId = purgeMutation.data?.task_id || ''
+  const purgeTaskQuery = useQuery({
+    queryKey: ['account-derived-memory-purge-task', purgeTaskId],
+    queryFn: () => fetchAccountLifecycleTask(purgeTaskId),
+    enabled: Boolean(purgeTaskId),
+    refetchInterval: purgePolling ? 1500 : false,
+    retry: false,
+  })
 
   const preflight = preflightQuery.data
   const inventory = preflight?.inventory
   const derived = inventory?.derived_projections
-  const error = preflightQuery.error || manifestMutation.error || purgeMutation.error
+  const purgeTaskStatus = purgeTaskQuery.data?.status
+  const error = preflightQuery.error || manifestMutation.error || purgeMutation.error || purgeTaskQuery.error
 
   useEffect(() => {
-    if (purgePolling && derived?.purge_current) setPurgePolling(false)
-  }, [derived?.purge_current, purgePolling])
+    if (!purgePolling || !purgeTaskStatus) return
+    if (purgeTaskStatus === 'completed' || purgeTaskStatus === 'done') {
+      setPurgePolling(false)
+      void Promise.all([
+        client.invalidateQueries({ queryKey: ['account-erasure-preflight'] }),
+        client.invalidateQueries({ queryKey: ['agent-executions'] }),
+      ])
+    } else if (['failed', 'cancelled', 'archived'].includes(purgeTaskStatus)) {
+      setPurgePolling(false)
+      void client.invalidateQueries({ queryKey: ['account-erasure-preflight'] })
+    }
+  }, [client, purgePolling, purgeTaskStatus])
 
   function requestPurge() {
     if (!derived || purgeMutation.isPending || derived.purge_current) return
@@ -154,7 +173,9 @@ export function AccountDataLifecycleSettings() {
                 Cette opération supprime uniquement les projections reconstruisibles. Les messages et conversations canoniques restent dans KAIRO.
               </p>
               {purgeMutation.data && (
-                <small>Task {purgeMutation.data.task_id.slice(0, 8)}… · {purgeMutation.data.already_running ? 'exécution déjà active' : 'exécution demandée'}</small>
+                <small>
+                  Task {purgeMutation.data.task_id.slice(0, 8)}… · {purgeTaskStatus || (purgeMutation.data.already_running ? 'exécution déjà active' : 'exécution demandée')}
+                </small>
               )}
             </div>
           )}
