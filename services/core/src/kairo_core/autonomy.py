@@ -16,7 +16,8 @@ from .autonomy_models import ApprovalRequest, ModelUsageRecord
 from .config import settings
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
-from .models import Task, WorkflowExecution
+from .models import Project, Task, WorkflowExecution
+from .ownership import owned_task
 from .security import require_internal_token
 
 router = APIRouter()
@@ -185,15 +186,15 @@ async def create_approval_request(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> ApprovalRequest:
-    task = await session.get(Task, body.task_id)
+    task = await owned_task(session, body.task_id, principal.subject)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     if body.authority_level > task.authority_ceiling:
         raise HTTPException(status_code=409, detail="Requested authority exceeds task authority ceiling")
-    if body.workflow_execution_id and not await session.get(
-        WorkflowExecution, body.workflow_execution_id
-    ):
-        raise HTTPException(status_code=404, detail="Workflow execution not found")
+    if body.workflow_execution_id:
+        execution = await session.get(WorkflowExecution, body.workflow_execution_id)
+        if not execution or execution.task_id != task.id:
+            raise HTTPException(status_code=404, detail="Workflow execution not found")
 
     correlation_id = uuid.uuid4()
     approval = ApprovalRequest(
@@ -243,10 +244,18 @@ async def create_approval_request(
 async def list_approval_requests(
     task_id: uuid.UUID | None = None,
     approval_status: str | None = None,
-    _: Principal = Depends(require_kairo_user),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[ApprovalRequest]:
-    statement = select(ApprovalRequest).order_by(ApprovalRequest.created_at.desc())
+    if task_id is not None and await owned_task(session, task_id, principal.subject) is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    statement = (
+        select(ApprovalRequest)
+        .join(Task, Task.id == ApprovalRequest.task_id)
+        .join(Project, Project.id == Task.project_id)
+        .where(Project.keycloak_subject == principal.subject)
+        .order_by(ApprovalRequest.created_at.desc())
+    )
     if task_id:
         statement = statement.where(ApprovalRequest.task_id == task_id)
     if approval_status:
@@ -262,7 +271,16 @@ async def decide_approval_request(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> ApprovalRequest:
-    approval = await session.get(ApprovalRequest, approval_id, with_for_update=True)
+    approval = await session.scalar(
+        select(ApprovalRequest)
+        .join(Task, Task.id == ApprovalRequest.task_id)
+        .join(Project, Project.id == Task.project_id)
+        .where(
+            ApprovalRequest.id == approval_id,
+            Project.keycloak_subject == principal.subject,
+        )
+        .with_for_update()
+    )
     if not approval:
         raise HTTPException(status_code=404, detail="Approval request not found")
     if approval.status != "pending":
@@ -310,10 +328,10 @@ async def decide_approval_request(
 @router.get("/v1/tasks/{task_id}/budget", response_model=BudgetRead)
 async def get_task_budget(
     task_id: uuid.UUID,
-    _: Principal = Depends(require_kairo_user),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> BudgetRead:
-    task = await session.get(Task, task_id)
+    task = await owned_task(session, task_id, principal.subject)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return await _budget_read(session, task)
