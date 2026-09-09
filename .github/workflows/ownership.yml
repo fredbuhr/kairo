@@ -7,6 +7,8 @@ on:
       - 'services/worker/**'
       - 'infrastructure/keycloak/**'
       - 'infrastructure/openbao/**'
+      - 'scripts/ops/backup.sh'
+      - 'scripts/ops/restore.sh'
       - 'scripts/smoke/multi_user_ownership.py'
       - 'scripts/smoke/multi_user_conversation_ownership.py'
       - 'scripts/smoke/multi_user_secret_ownership.py'
@@ -20,11 +22,15 @@ on:
       - 'scripts/smoke/outbox_jetstream_retention_contract.py'
       - 'scripts/smoke/internal_task_start_contract.py'
       - 'scripts/smoke/keycloak_identity_boundary_contract.py'
+      - 'scripts/smoke/restore_erasure_guard_contract.py'
       - 'scripts/smoke/openbao_policy_contract.py'
       - 'scripts/smoke/control_plane_visibility.py'
       - 'compose.yaml'
       - 'compose.override.yaml'
+      - 'compose.production.yaml'
       - '.env.example'
+      - '.env.production.example'
+      - '.gitignore'
       - 'docs/decisions/ADR-040-canonical-world-is-scoped-by-authenticated-subject.md'
       - 'docs/decisions/ADR-041-secret-references-are-subject-owned-write-only-vault-handles.md'
       - 'docs/decisions/ADR-042-tool-invocations-are-subject-owned-execution-state.md'
@@ -34,6 +40,7 @@ on:
       - 'docs/decisions/ADR-046-domain-event-transport-retention-is-bounded-and-receipted.md'
       - 'docs/decisions/ADR-047-account-evidence-retention-minimizes-audit-and-clears-outbox-transport.md'
       - 'docs/decisions/ADR-048-keycloak-identity-management-is-a-separate-least-privilege-adapter.md'
+      - 'docs/decisions/ADR-049-backup-restore-is-guarded-by-a-monotonic-erasure-ledger.md'
       - '.github/workflows/ownership.yml'
   pull_request:
     paths:
@@ -41,6 +48,8 @@ on:
       - 'services/worker/**'
       - 'infrastructure/keycloak/**'
       - 'infrastructure/openbao/**'
+      - 'scripts/ops/backup.sh'
+      - 'scripts/ops/restore.sh'
       - 'scripts/smoke/multi_user_ownership.py'
       - 'scripts/smoke/multi_user_conversation_ownership.py'
       - 'scripts/smoke/multi_user_secret_ownership.py'
@@ -54,11 +63,15 @@ on:
       - 'scripts/smoke/outbox_jetstream_retention_contract.py'
       - 'scripts/smoke/internal_task_start_contract.py'
       - 'scripts/smoke/keycloak_identity_boundary_contract.py'
+      - 'scripts/smoke/restore_erasure_guard_contract.py'
       - 'scripts/smoke/openbao_policy_contract.py'
       - 'scripts/smoke/control_plane_visibility.py'
       - 'compose.yaml'
       - 'compose.override.yaml'
+      - 'compose.production.yaml'
       - '.env.example'
+      - '.env.production.example'
+      - '.gitignore'
       - 'docs/decisions/ADR-040-canonical-world-is-scoped-by-authenticated-subject.md'
       - 'docs/decisions/ADR-041-secret-references-are-subject-owned-write-only-vault-handles.md'
       - 'docs/decisions/ADR-042-tool-invocations-are-subject-owned-execution-state.md'
@@ -68,6 +81,7 @@ on:
       - 'docs/decisions/ADR-046-domain-event-transport-retention-is-bounded-and-receipted.md'
       - 'docs/decisions/ADR-047-account-evidence-retention-minimizes-audit-and-clears-outbox-transport.md'
       - 'docs/decisions/ADR-048-keycloak-identity-management-is-a-separate-least-privilege-adapter.md'
+      - 'docs/decisions/ADR-049-backup-restore-is-guarded-by-a-monotonic-erasure-ledger.md'
       - '.github/workflows/ownership.yml'
 
 concurrency:
@@ -88,7 +102,7 @@ jobs:
 
       - name: Compile ownership-sensitive Core, Worker and proofs
         run: |
-          python -m compileall services/core/src services/core/migrations/versions services/worker/src scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py scripts/smoke/multi_user_tool_invocation_ownership.py scripts/smoke/multi_user_asset_document_ownership.py scripts/smoke/multi_user_account_lifecycle.py scripts/smoke/tool_invocation_ownership_contract.py scripts/smoke/asset_document_ownership_contract.py scripts/smoke/evidence_subject_contract.py scripts/smoke/evidence_retention_contract.py scripts/smoke/outbox_jetstream_retention_contract.py scripts/smoke/internal_task_start_contract.py scripts/smoke/keycloak_identity_boundary_contract.py scripts/smoke/openbao_policy_contract.py scripts/smoke/control_plane_visibility.py
+          python -m compileall services/core/src services/core/migrations/versions services/worker/src scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py scripts/smoke/multi_user_tool_invocation_ownership.py scripts/smoke/multi_user_asset_document_ownership.py scripts/smoke/multi_user_account_lifecycle.py scripts/smoke/tool_invocation_ownership_contract.py scripts/smoke/asset_document_ownership_contract.py scripts/smoke/evidence_subject_contract.py scripts/smoke/evidence_retention_contract.py scripts/smoke/outbox_jetstream_retention_contract.py scripts/smoke/internal_task_start_contract.py scripts/smoke/keycloak_identity_boundary_contract.py scripts/smoke/restore_erasure_guard_contract.py scripts/smoke/openbao_policy_contract.py scripts/smoke/control_plane_visibility.py
 
       - name: Prove least-privilege OpenBao workload policy
         run: python scripts/smoke/openbao_policy_contract.py
@@ -113,6 +127,9 @@ jobs:
 
       - name: Prove Keycloak identity-management boundary
         run: python scripts/smoke/keycloak_identity_boundary_contract.py
+
+      - name: Prove restore-after-erasure guard
+        run: python scripts/smoke/restore_erasure_guard_contract.py
 
       - name: Start one shared database with two real Keycloak identities
         run: |
