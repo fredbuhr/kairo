@@ -21,6 +21,8 @@ on:
       - 'scripts/smoke/automation_full_stack.py'
       - 'scripts/smoke/fake_automation_webhook.py'
       - 'scripts/smoke/finance_portfolio.py'
+      - 'scripts/smoke/finance_rotki_full_stack.py'
+      - 'scripts/smoke/fake_rotki.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
@@ -32,6 +34,7 @@ on:
       - 'docs/decisions/ADR-034-external-calendar-events-remain-sourced-snapshots.md'
       - 'docs/decisions/ADR-035-kairo-owns-automations-activepieces-is-an-execution-adapter.md'
       - 'docs/decisions/ADR-036-finance-snapshots-are-sourced-signing-stays-isolated.md'
+      - 'docs/decisions/ADR-037-rotki-is-a-read-only-finance-connector.md'
       - '.github/workflows/graph-interface.yml'
   pull_request:
     paths:
@@ -53,6 +56,8 @@ on:
       - 'scripts/smoke/automation_full_stack.py'
       - 'scripts/smoke/fake_automation_webhook.py'
       - 'scripts/smoke/finance_portfolio.py'
+      - 'scripts/smoke/finance_rotki_full_stack.py'
+      - 'scripts/smoke/fake_rotki.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
@@ -64,6 +69,7 @@ on:
       - 'docs/decisions/ADR-034-external-calendar-events-remain-sourced-snapshots.md'
       - 'docs/decisions/ADR-035-kairo-owns-automations-activepieces-is-an-execution-adapter.md'
       - 'docs/decisions/ADR-036-finance-snapshots-are-sourced-signing-stays-isolated.md'
+      - 'docs/decisions/ADR-037-rotki-is-a-read-only-finance-connector.md'
       - '.github/workflows/graph-interface.yml'
 
 concurrency:
@@ -108,7 +114,7 @@ jobs:
 
       - name: Validate Cockpit + runtime sources
         run: |
-          python -m compileall services/core/src services/core/migrations/versions services/worker/src scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py scripts/smoke/task_planning.py scripts/smoke/agent_operations.py scripts/smoke/project_lifecycle.py scripts/smoke/tool_management.py scripts/smoke/calendar_provenance.py scripts/smoke/automation_registry.py scripts/smoke/automation_full_stack.py scripts/smoke/fake_automation_webhook.py scripts/smoke/finance_portfolio.py
+          python -m compileall services/core/src services/core/migrations/versions services/worker/src scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py scripts/smoke/task_planning.py scripts/smoke/agent_operations.py scripts/smoke/project_lifecycle.py scripts/smoke/tool_management.py scripts/smoke/calendar_provenance.py scripts/smoke/automation_registry.py scripts/smoke/automation_full_stack.py scripts/smoke/fake_automation_webhook.py scripts/smoke/finance_portfolio.py scripts/smoke/finance_rotki_full_stack.py scripts/smoke/fake_rotki.py
 
   graph-projection-integration:
     needs: validate
@@ -189,5 +195,34 @@ jobs:
           docker compose -f compose.yaml -f compose.graph-ci.yaml logs --no-color --tail=450 postgres nats temporal temporal-create-namespace openbao automation-webhook kairo-core kairo-worker
 
       - name: Tear down Automation stack
+        if: always()
+        run: docker compose -f compose.yaml -f compose.graph-ci.yaml down -v --remove-orphans
+
+  finance-rotki-full-stack:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare Finance integration environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+
+      - name: Start Core, Temporal, Worker, OpenBao and controlled Rotki boundary
+        run: |
+          docker compose -f compose.yaml -f compose.graph-ci.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace openbao fake-rotki kairo-core kairo-worker
+
+      - name: Prove Rotki read-only Finance synchronization
+        run: python scripts/smoke/finance_rotki_full_stack.py
+
+      - name: Dump Finance stack on failure
+        if: failure()
+        run: |
+          docker compose -f compose.yaml -f compose.graph-ci.yaml ps -a
+          docker compose -f compose.yaml -f compose.graph-ci.yaml logs --no-color --tail=500 postgres nats temporal temporal-create-namespace openbao fake-rotki kairo-core kairo-worker
+
+      - name: Tear down Finance stack
         if: always()
         run: docker compose -f compose.yaml -f compose.graph-ci.yaml down -v --remove-orphans
