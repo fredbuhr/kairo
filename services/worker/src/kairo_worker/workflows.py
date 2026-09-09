@@ -25,6 +25,38 @@ ACTIVITY_RETRY = RetryPolicy(
 AUTOMATION_NO_RETRY = RetryPolicy(maximum_attempts=1)
 
 
+def _exception_chain_text(exc: BaseException) -> str:
+    """Render bounded nested Temporal causes without depending on wrapper-specific __str__ output."""
+    messages: list[str] = []
+    current: BaseException | None = exc
+    for _ in range(8):
+        if current is None:
+            break
+        messages.append(str(current))
+        nested = getattr(current, "cause", None)
+        if not isinstance(nested, BaseException):
+            nested = current.__cause__
+        current = nested if isinstance(nested, BaseException) else None
+    return "\n".join(messages)
+
+
+def _automation_outcome_is_ambiguous(exc: BaseException, *, policy_passed: bool) -> bool:
+    """Fail closed around the webhook side-effect boundary.
+
+    Temporal wraps activity failures. Inspect the bounded cause chain so an explicit pre-call failure
+    is not mislabeled merely because the outer ActivityError omits the inner marker. Once policy has
+    passed, an unclassified failure remains conservatively ambiguous rather than risking a replay.
+    """
+    if not policy_passed:
+        return False
+    rendered = _exception_chain_text(exc)
+    if "automation-pre-call:" in rendered:
+        return False
+    if "automation-post-call:" in rendered:
+        return True
+    return True
+
+
 @workflow.defn
 class TaskExecutionWorkflow:
     def __init__(self) -> None:
@@ -191,8 +223,11 @@ class TaskExecutionWorkflow:
                     retry_policy=ACTIVITY_RETRY,
                 )
             elif capability == "automation.invoke":
-                rendered_error = str(exc)
-                outcome_ambiguous = policy_passed and "automation-pre-call:" not in rendered_error
+                rendered_error = _exception_chain_text(exc)
+                outcome_ambiguous = _automation_outcome_is_ambiguous(
+                    exc,
+                    policy_passed=policy_passed,
+                )
                 await workflow.execute_activity(
                     fail_automation_invocation,
                     {
