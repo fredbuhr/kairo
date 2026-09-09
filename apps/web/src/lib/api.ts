@@ -136,6 +136,48 @@ export type KnowledgeSearchResult = {
   results: KnowledgeSearchHit[]
 }
 
+export type AgentExecutionRecord = {
+  task_id: string
+  project_id: string
+  title: string
+  task_status: string
+  capability: string
+  authority_ceiling: number
+  budget_usd?: string | number | null
+  spent_usd: string | number
+  pending_approvals: number
+  workflow_execution_id?: string | null
+  workflow_id?: string | null
+  workflow_status?: string | null
+  workflow_started_at?: string | null
+  workflow_completed_at?: string | null
+  last_error?: string | null
+  command_id?: string | null
+  created_at: string
+  updated_at: string
+  metadata: Record<string, unknown>
+}
+
+export type ApprovalRecord = {
+  id: string
+  task_id: string
+  workflow_execution_id?: string | null
+  requested_by: string
+  action: string
+  resource_type: string
+  resource_id?: string | null
+  authority_level: number
+  reason: string
+  scope_json: Record<string, unknown>
+  status: string
+  decided_by?: string | null
+  decision_note?: string | null
+  expires_at?: string | null
+  decided_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type ProjectCreateInput = {
   name: string
   status?: string
@@ -247,6 +289,23 @@ export function createTask(input: TaskCreateInput): Promise<TaskRecord> {
       budget_usd: input.budget_usd ?? null,
       input: input.input || {},
     }),
+  })
+}
+
+export function fetchAgentExecutions(limit = 100): Promise<AgentExecutionRecord[]> {
+  return apiJson(`/v1/operations/agents?limit=${limit}`)
+}
+
+export function fetchApprovalRequests(approvalStatus?: string): Promise<ApprovalRecord[]> {
+  const query = approvalStatus ? `?approval_status=${encodeURIComponent(approvalStatus)}` : ''
+  return apiJson(`/v1/approval-requests${query}`)
+}
+
+export function decideApproval(approvalId: string, decision: 'approved' | 'denied', note?: string): Promise<ApprovalRecord> {
+  return apiJson(`/v1/approval-requests/${encodeURIComponent(approvalId)}/decision`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision, note: note || null }),
   })
 }
 
