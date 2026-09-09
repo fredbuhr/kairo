@@ -48,58 +48,62 @@ def wait_ready() -> None:
     raise RuntimeError(f"KAIRO Core did not become ready: {last_error}")
 
 
+def server_payload(*, key: str, namespace: str, title: str, endpoint_url: str) -> dict[str, Any]:
+    return {
+        "key": key,
+        "namespace": namespace,
+        "title": title,
+        "endpoint_url": endpoint_url,
+        "transport": "mcp_streamable_http",
+        "metadata": {"purpose": "smoke"},
+    }
+
+
 def main() -> None:
     wait_ready()
 
-    json_request(
-        "POST",
-        "/v1/tool-servers",
-        expected=422,
-        payload={
-            "key": "Invalid Key",
-            "title": "Invalid",
-            "endpoint_url": "https://mcp.invalid.example/mcp",
-        },
+    invalid_key = server_payload(
+        key="Invalid Key",
+        namespace="fixture-invalid-key",
+        title="Invalid",
+        endpoint_url="https://mcp.invalid.example/mcp",
     )
-    json_request(
-        "POST",
-        "/v1/tool-servers",
-        expected=422,
-        payload={
-            "key": "fixture.invalid-url",
-            "title": "Invalid URL",
-            "endpoint_url": "file:///etc/passwd",
-        },
-    )
+    json_request("POST", "/v1/tool-servers", expected=422, payload=invalid_key)
 
+    invalid_url = server_payload(
+        key="fixture.invalid-url",
+        namespace="fixture-invalid-url",
+        title="Invalid URL",
+        endpoint_url="file:///etc/passwd",
+    )
+    json_request("POST", "/v1/tool-servers", expected=422, payload=invalid_url)
+
+    payload = server_payload(
+        key="fixture.tools-workspace",
+        namespace="fixture-tools-workspace",
+        title="Tools Workspace Fixture",
+        endpoint_url="https://mcp.fixture.invalid/mcp",
+    )
     _, server = json_request(
         "POST",
         "/v1/tool-servers",
         expected=201,
-        payload={
-            "key": "fixture.tools-workspace",
-            "title": "Tools Workspace Fixture",
-            "endpoint_url": "https://mcp.fixture.invalid/mcp",
-            "transport": "streamable-http",
-            "auth_mode": "none",
-            "metadata": {"purpose": "smoke"},
-        },
+        payload=payload,
     )
     assert server["key"] == "fixture.tools-workspace", server
+    assert server["namespace"] == "fixture-tools-workspace", server
+    assert server["transport"] == "mcp_streamable_http", server
     assert server["enabled"] is False, server
     assert int(server["catalog_generation"]) == 0, server
 
     # Registration is unique and must not mutate the existing record on conflict.
-    json_request(
-        "POST",
-        "/v1/tool-servers",
-        expected=409,
-        payload={
-            "key": "fixture.tools-workspace",
-            "title": "Duplicate",
-            "endpoint_url": "https://other.invalid/mcp",
-        },
+    duplicate = server_payload(
+        key="fixture.tools-workspace",
+        namespace="fixture-tools-workspace-duplicate",
+        title="Duplicate",
+        endpoint_url="https://other.invalid/mcp",
     )
+    json_request("POST", "/v1/tool-servers", expected=409, payload=duplicate)
 
     _, servers = json_request("GET", "/v1/tool-servers")
     listed = next(item for item in servers if item["key"] == "fixture.tools-workspace")
