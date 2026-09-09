@@ -1,0 +1,55 @@
+.tools-register-trigger {
+  width: 100%;
+  min-height: 32px;
+  margin-top: 3px;
+  border: 1px dashed rgba(89, 221, 216, .16);
+  border-radius: 10px;
+  background: rgba(3, 16, 21, .32);
+  color: #68858a;
+  font-size: 7.5px;
+  cursor: pointer;
+}
+.tools-register-trigger:hover { border-color: rgba(93, 231, 220, .29); color: #b8d9d4; }
+
+.tools-register-form {
+  display: grid;
+  gap: 6px;
+  margin-top: 3px;
+  padding: 9px;
+  border: 1px solid rgba(87, 216, 212, .11);
+  border-radius: 11px;
+  background: rgba(3, 16, 21, .62);
+}
+.tools-register-form > div:first-child { display: grid; gap: 2px; }
+.tools-register-form > div:first-child strong { color: #b9cece; font-size: 8.5px; font-weight: 500; }
+.tools-register-form input,
+.tools-register-form select {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid rgba(85, 211, 208, .10);
+  border-radius: 8px;
+  outline: 0;
+  background: rgba(2, 12, 17, .72);
+  color: #aac1c1;
+  font-size: 7.5px;
+}
+.tools-register-form input:focus,
+.tools-register-form select:focus { border-color: rgba(93, 229, 219, .27); }
+.tools-register-form > small { color: #58757a; font-size: 6.6px; line-height: 1.45; }
+.tools-register-actions { display: grid; grid-template-columns: 1fr 1.25fr; gap: 5px; }
+.tools-register-actions button {
+  min-height: 29px;
+  border: 1px solid rgba(85, 211, 208, .10);
+  border-radius: 8px;
+  background: rgba(3, 15, 20, .52);
+  color: #6f898e;
+  font-size: 7px;
+  cursor: pointer;
+}
+.tools-register-actions button[type="submit"] {
+  border-color: rgba(99, 225, 211, .22);
+  background: rgba(34, 111, 104, .10);
+  color: #9fc8bf;
+}
+.tools-register-actions button:disabled { opacity: .4; cursor: default; }
