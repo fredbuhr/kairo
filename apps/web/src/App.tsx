@@ -79,11 +79,52 @@ type NewsRun = {
   output: string
 }
 
+type ResearchFinding = {
+  claim: string
+  evidence_invocation_ids: string[]
+}
+
+type ResearchReport = {
+  answer?: string
+  findings?: ResearchFinding[]
+  caveats?: string[]
+}
+
+type ResearchToolResult = {
+  slot?: number
+  tool_key?: string
+  invocation_id?: string
+  result?: Record<string, unknown>
+}
+
+type ResearchArtifact = {
+  id: string
+  title: string
+  content: {
+    query?: string
+    model_alias?: string
+    model_call_slots?: string[]
+    report?: ResearchReport
+    tool_results?: ResearchToolResult[]
+    tool_call_count?: number
+    authority?: string
+  }
+}
+
+type ResearchRun = {
+  task_id: string
+  project_id: string
+  status: string
+  query: string
+  artifact?: ResearchArtifact | null
+}
+
 type RouteParameters = {
   query?: string
   mode?: 'general' | 'local' | 'market_impact'
   location?: string | null
   output?: 'text' | 'audio' | 'both'
+  max_tool_calls?: number
 }
 
 type AssistantRun = {
@@ -120,17 +161,24 @@ function impactLabel(level?: string) {
   return labels[level || ''] || level || 'Non évalué'
 }
 
+function shortId(value?: string) {
+  if (!value) return 'preuve'
+  return `${value.slice(0, 8)}…`
+}
+
 export default function App() {
   const [command, setCommand] = useState('Quelles sont les nouvelles du jour sur la ville de Paris ?')
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [pendingCommandId, setPendingCommandId] = useState<string | null>(null)
   const [lastRoute, setLastRoute] = useState<AssistantRun | null>(null)
+  const [activeCapability, setActiveCapability] = useState<string | null>(null)
   const [query, setQuery] = useState('Quelles sont les nouvelles du jour sur la ville de Paris ?')
   const [mode, setMode] = useState<'general' | 'local' | 'market_impact'>('local')
   const [location, setLocation] = useState('Paris')
   const [output, setOutput] = useState<'text' | 'audio' | 'both'>('both')
   const [taskId, setTaskId] = useState<string | null>(null)
   const [brief, setBrief] = useState<NewsBrief | null>(null)
+  const [research, setResearch] = useState<ResearchRun | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [routing, setRouting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -160,6 +208,7 @@ export default function App() {
             parameters,
             task_id: state.task_id,
           })
+          setActiveCapability(state.capability_key)
           setTaskId(state.task_id)
           setQuery(parameters.query || command)
           if (parameters.mode) setMode(parameters.mode)
@@ -196,23 +245,40 @@ export default function App() {
   }, [pendingCommandId, command])
 
   useEffect(() => {
-    if (!taskId) return
+    if (!taskId || !activeCapability) return
     let cancelled = false
     let timer: number | undefined
 
     const poll = async () => {
       try {
-        const response = await fetch(`${API_URL}/v1/news/briefs/${taskId}`)
-        if (!response.ok) throw new Error(`KAIRO Core répond ${response.status}`)
-        const data = (await response.json()) as NewsBrief
-        if (cancelled) return
-        setBrief(data)
-        if (!['completed', 'failed'].includes(data.status)) {
-          timer = window.setTimeout(poll, 1200)
+        if (activeCapability === 'news.brief') {
+          const response = await fetch(`${API_URL}/v1/news/briefs/${taskId}`)
+          if (!response.ok) throw new Error(`KAIRO Core répond ${response.status}`)
+          const data = (await response.json()) as NewsBrief
+          if (cancelled) return
+          setBrief(data)
+          if (!['completed', 'failed'].includes(data.status)) {
+            timer = window.setTimeout(poll, 1200)
+          }
+          return
         }
+
+        if (activeCapability === 'research.autonomous') {
+          const response = await fetch(`${API_URL}/v1/research/runs/${taskId}`)
+          if (!response.ok) throw new Error(`KAIRO Core répond ${response.status}`)
+          const data = (await response.json()) as ResearchRun
+          if (cancelled) return
+          setResearch(data)
+          if (!['completed', 'failed'].includes(data.status)) {
+            timer = window.setTimeout(poll, 1200)
+          }
+          return
+        }
+
+        throw new Error(`L’interface ne sait pas encore afficher la capacité ${activeCapability}.`)
       } catch (pollError) {
         if (!cancelled) {
-          setError(pollError instanceof Error ? pollError.message : 'Impossible de lire le briefing.')
+          setError(pollError instanceof Error ? pollError.message : 'Impossible de lire le résultat de la tâche.')
         }
       }
     }
@@ -222,10 +288,21 @@ export default function App() {
       cancelled = true
       if (timer) window.clearTimeout(timer)
     }
-  }, [taskId])
+  }, [taskId, activeCapability])
 
   const sources = useMemo(() => brief?.artifact?.content.sources || [], [brief])
   const impact = brief?.artifact?.content.market_impact
+  const researchReport = research?.artifact?.content.report
+  const researchFindings = researchReport?.findings || []
+  const researchCaveats = researchReport?.caveats || []
+  const researchToolResults = research?.artifact?.content.tool_results || []
+
+  function resetCapabilityResult() {
+    setBrief(null)
+    setResearch(null)
+    setTaskId(null)
+    setActiveCapability(null)
+  }
 
   async function submitCommand(event: FormEvent) {
     event.preventDefault()
@@ -233,8 +310,7 @@ export default function App() {
     setRouting(true)
     setPendingCommandId(null)
     setError(null)
-    setBrief(null)
-    setTaskId(null)
+    resetCapabilityResult()
     setLastRoute(null)
     try {
       const response = await fetch(`${API_URL}/v1/assistant/commands`, {
@@ -265,6 +341,7 @@ export default function App() {
       if (!run.task_id || !run.capability) {
         throw new Error('KAIRO a accepté la commande sans fournir de capacité finale.')
       }
+      setActiveCapability(run.capability)
       setTaskId(run.task_id)
       setQuery(run.parameters.query || command)
       if (run.parameters.mode) setMode(run.parameters.mode)
@@ -281,8 +358,7 @@ export default function App() {
     event.preventDefault()
     setSubmitting(true)
     setError(null)
-    setBrief(null)
-    setTaskId(null)
+    resetCapabilityResult()
     setLastRoute(null)
     try {
       const response = await fetch(`${API_URL}/v1/news/briefs`, {
@@ -304,6 +380,7 @@ export default function App() {
         throw new Error(`Impossible de lancer le briefing (${response.status}) : ${body}`)
       }
       const run = (await response.json()) as NewsRun
+      setActiveCapability('news.brief')
       setTaskId(run.task_id)
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Impossible de lancer le briefing.')
@@ -326,7 +403,7 @@ export default function App() {
           <span className="eyebrow">PERSONAL AI OPERATING SYSTEM</span>
           <h1>KAIRO</h1>
         </div>
-        <span className="status">foundation + semantic command kernel</span>
+        <span className="status">command kernel + news + autonomous research</span>
       </header>
 
       <section className="hero">
@@ -347,7 +424,7 @@ export default function App() {
             value={command}
             onChange={(event) => setCommand(event.target.value)}
             minLength={2}
-            placeholder="Ex. Que s’est-il passé à Paris ce matin ?"
+            placeholder="Ex. Fais une recherche approfondie sur les agents durables."
             aria-label="Commande KAIRO"
           />
           <button type="submit" disabled={routing || pendingCommandId !== null || !command.trim()}>
@@ -360,6 +437,9 @@ export default function App() {
           </button>
           <button type="button" onClick={() => useExample("Que s'est-il passé à Paris ce matin ?")}>
             Routage sémantique
+          </button>
+          <button type="button" onClick={() => useExample("Fais une recherche approfondie sur les architectures d'agents durables.")}>
+            Recherche autonome
           </button>
           <button type="button" onClick={() => useExample("Quelles sont les nouvelles qui risquent d'impacter la bourse aujourd'hui ?")}>
             Impact bourse
@@ -379,6 +459,93 @@ export default function App() {
         )}
         {conversationId && (
           <small className="conversation-chip">conversation {conversationId.slice(0, 8)}… persistée côté serveur</small>
+        )}
+        {pendingCommandId && !error && (
+          <div className="progress-panel">
+            <strong>KAIRO interprète la demande via une capacité de routage durable.</strong>
+            <span>Le modèle ne peut proposer qu’une capacité enregistrée ; Core valide son contrat avant toute exécution.</span>
+          </div>
+        )}
+      </section>
+
+      <section className="research-workspace" aria-labelledby="research-heading">
+        <div className="news-heading">
+          <div>
+            <span className="eyebrow">AUTONOMOUS RESEARCH</span>
+            <h2 id="research-heading">Recherche bornée, outils read-only, preuves canoniques.</h2>
+          </div>
+          {research && <span className={`run-state run-state-${research.status}`}>{research.status}</span>}
+        </div>
+
+        {taskId && activeCapability === 'research.autonomous' && !research?.artifact && !error && (
+          <div className="progress-panel">
+            <strong>KAIRO planifie puis exécute des outils MCP read-only autorisés.</strong>
+            <span>Chaque appel est une Task durable séparée ; la synthèse ne peut citer que des invocations persistées.</span>
+          </div>
+        )}
+
+        {research?.artifact && (
+          <article className="briefing research-report">
+            <div className="briefing-topline">
+              <div>
+                <span className="eyebrow">RAPPORT SOURCÉ</span>
+                <h3>{research.artifact.title}</h3>
+              </div>
+              <div className="impact-score">
+                <strong>{research.artifact.content.tool_call_count || 0}</strong>
+                <span>outil(s) canonique(s)</span>
+              </div>
+            </div>
+
+            <div className="brief-summary">{researchReport?.answer}</div>
+
+            <section className="sources" aria-label="Findings de recherche">
+              <div className="sources-title">
+                <strong>Findings vérifiables</strong>
+                <span>{researchFindings.length} conclusion(s) liée(s) aux invocations MCP</span>
+              </div>
+              <div className="source-list">
+                {researchFindings.map((finding, index) => (
+                  <div key={`${finding.claim}-${index}`} className="source-card research-finding">
+                    <span className="source-id">F{index + 1}</span>
+                    <div>
+                      <strong>{finding.claim}</strong>
+                      <small>
+                        preuves · {finding.evidence_invocation_ids.map((id) => shortId(id)).join(', ')}
+                      </small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {researchCaveats.length > 0 && (
+              <div className="impact-panel">
+                <span>Limites / incertitudes</span>
+                {researchCaveats.map((caveat, index) => (
+                  <p key={`${caveat}-${index}`}>{caveat}</p>
+                ))}
+              </div>
+            )}
+
+            <section className="sources" aria-label="Invocations MCP de recherche">
+              <div className="sources-title">
+                <strong>Invocations MCP</strong>
+                <span>provenance conservée dans PostgreSQL</span>
+              </div>
+              <div className="source-list">
+                {researchToolResults.map((toolResult, index) => (
+                  <div key={toolResult.invocation_id || `${toolResult.tool_key}-${index}`} className="source-card">
+                    <span className="source-id">{index + 1}</span>
+                    <div>
+                      <strong>{toolResult.tool_key || 'outil MCP'}</strong>
+                      <small>{shortId(toolResult.invocation_id)}</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </article>
         )}
       </section>
 
@@ -438,14 +605,7 @@ export default function App() {
 
         {error && <div className="error-panel">{error}</div>}
 
-        {pendingCommandId && !error && (
-          <div className="progress-panel">
-            <strong>KAIRO interprète la demande via une capacité de routage durable.</strong>
-            <span>Le modèle ne peut proposer qu’une capacité enregistrée ; Core valide avant toute exécution.</span>
-          </div>
-        )}
-
-        {taskId && !brief?.artifact && !error && (
+        {taskId && activeCapability === 'news.brief' && !brief?.artifact && !error && (
           <div className="progress-panel">
             <strong>KAIRO recherche et recoupe les sources.</strong>
             <span>La tâche est durable : elle peut reprendre après un redémarrage du Worker.</span>
@@ -522,14 +682,16 @@ export default function App() {
 
       <section className="grid" aria-label="KAIRO spaces">
         {spaces.map((space) => (
-          <article key={space} className={`card ${['Command Center', 'News Intelligence'].includes(space) ? 'card-active' : ''}`}>
+          <article key={space} className={`card ${['Command Center', 'News Intelligence', 'Research'].includes(space) ? 'card-active' : ''}`}>
             <span>{space}</span>
             <small>
               {space === 'Command Center'
                 ? 'deterministic + semantic routing'
                 : space === 'News Intelligence'
                   ? 'working capability'
-                  : 'planned workspace'}
+                  : space === 'Research'
+                    ? 'working bounded agent'
+                    : 'planned workspace'}
             </small>
           </article>
         ))}
