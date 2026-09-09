@@ -11,6 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import __version__
 from .account_evidence import router as account_evidence_router
+from .account_freeze import (
+    account_writes_frozen,
+    frozen_public_write_allowed,
+    router as account_freeze_router,
+)
 from .account_lifecycle import router as account_lifecycle_router
 from .account_memory import internal_router as account_memory_internal_router
 from .account_memory import router as account_memory_router
@@ -100,6 +105,21 @@ async def _owned_path_guard(path: str, subject: str) -> str | None:
         return None if owned is not None else "Task not found"
 
 
+async def _write_freeze_active(path: str, method: str, subject: str) -> bool:
+    """Reject new browser/user mutations while an account-erasure write barrier is active.
+
+    Read-only requests stay available so the user can inspect/export/preflight their world. A tiny,
+    explicit allow-list lets the user cancel the reversible freeze or finish bounded erasure-prep
+    primitives. Internal `/internal/v1/*` Worker traffic never enters this public perimeter and may
+    therefore reconcile already-started durable work to a terminal state.
+    """
+
+    if method.upper() in {"GET", "HEAD", "OPTIONS"} or frozen_public_write_allowed(path):
+        return False
+    async with SessionFactory() as session:
+        return await account_writes_frozen(session, subject)
+
+
 @app.middleware("http")
 async def authenticated_public_api_perimeter(request: Request, call_next):
     """Fail closed for every public `/v1` route, including newly added routers.
@@ -128,11 +148,20 @@ async def authenticated_public_api_perimeter(request: Request, call_next):
     if ownership_error is not None:
         return JSONResponse(status_code=404, content={"detail": ownership_error})
 
+    if await _write_freeze_active(request.url.path, request.method, principal.subject):
+        return JSONResponse(
+            status_code=status.HTTP_423_LOCKED,
+            content={
+                "detail": "Account writes are frozen for erasure preparation",
+                "code": "account_write_frozen",
+            },
+        )
+
     request.state.principal = principal
     return await call_next(request)
 
 
-# Keep CORS outside the auth perimeter so even 401/403 responses carry the browser-visible CORS
+# Keep CORS outside the auth perimeter so even 401/403/423 responses carry the browser-visible CORS
 # headers for explicitly allowed KAIRO Web/Desktop origins.
 app.add_middleware(
     CORSMiddleware,
@@ -142,6 +171,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(account_evidence_router)
+app.include_router(account_freeze_router)
 app.include_router(account_lifecycle_router)
 app.include_router(account_memory_router)
 app.include_router(account_memory_internal_router)
@@ -270,6 +300,7 @@ async def architecture(
         "event_delivery": "transactional-outbox-at-least-once",
         "identity": "keycloak-jwt-jwks",
         "public_api_authentication": "fail-closed-v1-bearer-perimeter",
+        "account_write_freeze": "postgresql-subject-write-barrier-before-public-mutations",
         "domain_ownership": "project-root-keycloak-subject-with-explicit-polymorphic-ownership",
         "secret_values": "openbao",
         "conversation_state": "postgresql",
