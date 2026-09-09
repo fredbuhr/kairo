@@ -459,7 +459,8 @@ async def _execute_route(
         raise HTTPException(status_code=422, detail="Capability is not routable")
 
     deterministic_task_id = uuid.uuid5(
-        uuid.NAMESPACE_URL, f"kairo:command:{command.id}:{capability.key}:v1"
+        uuid.NAMESPACE_URL,
+        f"kairo:command:{command.id}:{capability.key}:v{capability.version}",
     )
 
     if capability.key == "news.brief":
