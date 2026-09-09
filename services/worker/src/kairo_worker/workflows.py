@@ -9,6 +9,7 @@ with workflow.unsafe.imports_passed_through():
     from .activities import begin_execution, complete_execution, fail_execution, perform_foundation_work
     from .automation_runtime import fail_automation_invocation, perform_automation_invocation
     from .document_ingestion import perform_document_ingestion
+    from .finance_connector_runtime import perform_finance_rotki_sync
     from .memory_projection import perform_memory_projection
     from .news_activity import perform_news_brief
     from .policy_activities import check_policy_gate
@@ -123,7 +124,12 @@ class TaskExecutionWorkflow:
         authority_level = int(task_input.get("authority_level") or 1)
         estimated_cost_usd = str(task_input.get("estimated_cost_usd") or "0")
         resource_type = "tool" if capability == "tool.invoke" else "capability"
-        resource_id = str(task_input.get("tool_key") or task_input.get("automation_id") or capability)
+        resource_id = str(
+            task_input.get("tool_key")
+            or task_input.get("automation_id")
+            or task_input.get("finance_connector_id")
+            or capability
+        )
         gate_payload = {
             "task_id": payload["task_id"],
             "workflow_execution_id": payload.get("workflow_execution_id"),
@@ -198,6 +204,16 @@ class TaskExecutionWorkflow:
                     work_payload,
                     start_to_close_timeout=timedelta(minutes=6),
                     retry_policy=AUTOMATION_NO_RETRY,
+                )
+            elif capability == "finance.sync.rotki":
+                # Rotki synchronization is read-only with respect to external financial state.
+                # Repeating a failed fetch/normalization is safe; Core preserves deterministic
+                # source/account/position identity across replay.
+                result = await workflow.execute_activity(
+                    perform_finance_rotki_sync,
+                    work_payload,
+                    start_to_close_timeout=timedelta(minutes=5),
+                    retry_policy=ACTIVITY_RETRY,
                 )
             else:
                 result = await workflow.execute_activity(
