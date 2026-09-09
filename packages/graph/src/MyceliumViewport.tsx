@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
+import { useGraphActivityKeys } from './activityStore'
 import { BatchedFilamentField } from './BatchedFilamentField'
 import { ClusterField } from './ClusterField'
 import { InstancedNodeField } from './InstancedNodeField'
@@ -416,7 +417,7 @@ function GraphScene({
 export function MyceliumViewport({
   projection,
   selectedKey,
-  activityKeys = [],
+  activityKeys,
   quality = 'auto',
   reducedMotion = false,
   className,
@@ -425,6 +426,8 @@ export function MyceliumViewport({
   onHover,
 }: MyceliumViewportProps) {
   const poses = useGraphLayout(projection)
+  const bridgedActivityKeys = useGraphActivityKeys()
+  const effectiveActivityKeys = activityKeys ?? bridgedActivityKeys
   const settings = useMemo(() => qualitySettings(quality), [quality])
   const [hoveredKey, setHoveredKey] = useState<string | null>(null)
 
@@ -454,7 +457,7 @@ export function MyceliumViewport({
           poses={poses}
           selectedKey={selectedKey}
           hoveredKey={hoveredKey}
-          activityKeys={activityKeys}
+          activityKeys={effectiveActivityKeys}
           settings={settings}
           reducedMotion={reducedMotion}
           onSelect={onSelect}
