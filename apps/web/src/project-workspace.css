@@ -1,0 +1,63 @@
+.workspace-project-actions {
+  display: grid;
+  grid-template-columns: minmax(0, .72fr) minmax(0, 1.28fr);
+  gap: 6px;
+  margin-top: 11px;
+}
+.workspace-project-actions button {
+  min-height: 31px;
+  border: 1px solid rgba(88, 219, 215, .12);
+  border-radius: 9px;
+  background: rgba(3, 16, 21, .48);
+  color: #718e92;
+  font-size: 7.5px;
+  cursor: pointer;
+}
+.workspace-project-actions button:last-child {
+  border-color: rgba(91, 229, 220, .20);
+  background: rgba(31, 105, 105, .10);
+  color: #a4cbc5;
+}
+.workspace-project-actions button:hover { border-color: rgba(93, 232, 221, .29); color: #d4eeea; }
+
+.workspace-project-paused { opacity: .82; }
+.workspace-project-completed { border-color: rgba(109, 206, 184, .14); }
+.workspace-project-archived { opacity: .52; filter: saturate(.72); }
+.workspace-project-archived:hover { opacity: .72; }
+
+.project-editor { display: grid; gap: 7px; margin-top: 6px; }
+.project-editor input,
+.project-editor textarea,
+.project-editor select {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 8px;
+  border: 1px solid rgba(87, 216, 213, .11);
+  border-radius: 9px;
+  outline: 0;
+  background: rgba(2, 13, 18, .62);
+  color: #c1d4d3;
+  font-size: 8px;
+}
+.project-editor textarea { min-height: 70px; resize: vertical; line-height: 1.45; }
+.project-editor input:focus,
+.project-editor textarea:focus,
+.project-editor select:focus { border-color: rgba(95, 229, 219, .28); box-shadow: 0 0 0 2px rgba(61, 178, 174, .04); }
+.project-editor-actions { display: grid; grid-template-columns: 1fr 1.25fr; gap: 6px; }
+.project-editor-actions button {
+  min-height: 31px;
+  border: 1px solid rgba(86, 214, 211, .10);
+  border-radius: 9px;
+  background: rgba(3, 16, 21, .48);
+  color: #718d92;
+  font-size: 7.5px;
+  cursor: pointer;
+}
+.project-editor-actions button[type="submit"] { border-color: rgba(96, 231, 218, .23); background: rgba(33, 112, 108, .11); color: #a8d4cb; }
+.project-editor-actions button:hover:not(:disabled) { border-color: rgba(96, 231, 219, .32); color: #d7eeea; }
+.project-editor-actions button:disabled { opacity: .4; cursor: default; }
+
+@media (max-width: 650px) {
+  .workspace-project-actions { grid-template-columns: 1fr; }
+  .project-editor-actions { grid-template-columns: 1fr; }
+}
