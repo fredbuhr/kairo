@@ -1,0 +1,57 @@
+.desktop-runtime-settings {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 11px;
+  border: 1px solid rgba(83, 210, 206, .09);
+  border-radius: 12px;
+  background: rgba(3, 17, 23, .42);
+}
+.desktop-runtime-settings > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.desktop-runtime-settings > header > div { display: grid; gap: 3px; }
+.desktop-runtime-settings > header strong { color: #bfd3d0; font-size: 10px; font-weight: 520; }
+.desktop-runtime-settings > header b {
+  padding: 4px 6px;
+  border: 1px solid rgba(94, 222, 211, .13);
+  border-radius: 999px;
+  color: #719b96;
+  font-size: 5.8px;
+  font-weight: 560;
+  letter-spacing: .05em;
+}
+.desktop-runtime-settings > p { margin: 0; color: #617f84; font-size: 7px; line-height: 1.5; }
+.desktop-runtime-settings dl { display: grid; gap: 4px; margin: 0; }
+.desktop-runtime-settings dl > div {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 0;
+  border-top: 1px solid rgba(83, 210, 206, .045);
+}
+.desktop-runtime-settings dt { color: #58767b; font-size: 6.6px; }
+.desktop-runtime-settings dd { margin: 0; color: #829c9d; font-size: 6.6px; text-align: right; }
+.desktop-runtime-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.desktop-runtime-actions button {
+  min-height: 31px;
+  border: 1px solid rgba(91, 225, 209, .14);
+  border-radius: 8px;
+  background: rgba(29, 111, 105, .09);
+  color: #8eb7b2;
+  font-size: 6.8px;
+  cursor: pointer;
+}
+.desktop-runtime-actions button:hover:not(:disabled) { border-color: rgba(105, 232, 216, .30); color: #d0e7e4; }
+.desktop-runtime-actions button:disabled { opacity: .35; cursor: default; }
+.desktop-runtime-error { border-color: rgba(211, 142, 152, .14); }
+.desktop-runtime-error strong { color: #c5989d; font-size: 8px; }
+.desktop-runtime-error span { color: #765f65; font-size: 7px; }
+
+@media (max-width: 720px) {
+  .desktop-runtime-actions { grid-template-columns: 1fr; }
+}
