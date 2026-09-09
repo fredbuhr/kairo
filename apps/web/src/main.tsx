@@ -15,6 +15,7 @@ import './task-planning.css'
 import './gantt-workspace.css'
 import './calendar-workspace.css'
 import './agents-workspace.css'
+import './automations-workspace.css'
 import './tools-workspace.css'
 import './brain-mind-map.css'
 
