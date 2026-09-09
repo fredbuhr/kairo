@@ -15,6 +15,8 @@ export type KairoDesktopCapabilities = {
   summon_shortcut_label?: string | null
 }
 
+const DESKTOP_ATTENTION_NOTIFICATIONS_KEY = 'kairo.desktop.attention-notifications'
+
 const WEB_CAPABILITIES: KairoDesktopCapabilities = {
   runtime: 'web',
   app_version: null,
@@ -43,6 +45,18 @@ function requireDesktopRuntime() {
   if (!isKairoDesktopRuntime()) {
     throw new Error('Cette capacité locale est disponible uniquement dans KAIRO Desktop.')
   }
+}
+
+export function desktopAttentionNotificationsEnabled(): boolean {
+  if (!isKairoDesktopRuntime() || typeof window === 'undefined') return false
+  return window.localStorage.getItem(DESKTOP_ATTENTION_NOTIFICATIONS_KEY) === 'enabled'
+}
+
+export function setDesktopAttentionNotificationsEnabled(enabled: boolean): void {
+  if (typeof window === 'undefined') return
+  if (enabled) window.localStorage.setItem(DESKTOP_ATTENTION_NOTIFICATIONS_KEY, 'enabled')
+  else window.localStorage.removeItem(DESKTOP_ATTENTION_NOTIFICATIONS_KEY)
+  window.dispatchEvent(new CustomEvent('kairo:desktop-notification-preference', { detail: { enabled } }))
 }
 
 export async function readDesktopClipboard(): Promise<string> {
