@@ -33,6 +33,7 @@ All three remain intentionally unmerged while GitHub Actions issue **#38** preve
 - MCP tools are registered and executed through KAIRO-owned policy/contract boundaries.
 - Automation definitions/invocations are KAIRO-owned while Activepieces remains a replaceable execution adapter.
 - Finance portfolio data is an explicit sourced observation model; Rotki is the first concrete read-only connector and signing authority remains outside the AI/runtime boundary.
+- KAIRO Desktop is a bounded Tauri trust boundary around the same Web Cockpit rather than a second frontend.
 - specialist workspaces are views/controls over canonical APIs or explicit sourced read models, not parallel frontend-owned applications.
 
 ## Block 1 — platform substrate
@@ -313,6 +314,26 @@ A controlled full-stack Rotki proof now crosses **Core → Temporal → Worker �
 
 ADR-015 defines signing isolation; ADR-036 defines sourced Finance/signing separation; ADR-037 defines the concrete read-only Rotki connector boundary.
 
+### KAIRO Desktop / local capability bridge
+
+**Active first native slice; the same Cockpit is reused.**
+
+`apps/desktop` is now a real Tauri v2 application instead of a placeholder package. It points development and production builds at the existing `apps/web` application, so Home, Brain, workspaces and Command surfaces are not duplicated.
+
+The first native bridge exposes only bounded capabilities:
+
+- runtime/platform/capability introspection;
+- clipboard text read/write through KAIRO-owned commands;
+- local notifications, with OS permission requested only when notification use is explicitly invoked;
+- ordinary user-selected WebView file input rather than broad filesystem permission;
+- a fixed `CmdOrCtrl+Shift+Space` summon shortcut registered in Rust that can only unminimize/show/focus the main KAIRO window.
+
+The frontend receives no generic shell command, filesystem scope or global-shortcut registration API. Settings shows the actual runtime and explicitly reports screenshot and microphone support as unavailable until those bridges exist.
+
+A dedicated Desktop workflow installs the Linux Tauri build prerequisites, typechecks/builds the shared Web app, runs Rust formatting/checks and attempts a no-bundle Tauri build. Like the rest of the current branch, those new CI checks are committed but not claimed as passed until issue #38 assigns a real runner.
+
+ADR-038 records the shared-Cockpit and bounded-native-capability decision.
+
 ### Shared specialist-workspace contract
 
 ADR-029 records that Projects, Tasks/Today/Gantt, Calendar, Knowledge, Agents, Tools, Automations and Finance are alternate views/controls over KAIRO state or explicit sourced projections. Frontend state remains interaction state only.
@@ -333,6 +354,8 @@ The Graph Interface workflow now typechecks/builds graph, Gantt and web packages
 - sourced Finance source/account/position replay, full replacement, secret-field rejection, proposal provenance and external signing isolation;
 - controlled full-stack Rotki Core/Temporal/Worker/OpenBao/provider synchronization, credential non-disclosure, identity stability and last-good-snapshot preservation.
 
+Desktop validation is intentionally separate because it requires native Rust/WebKit build dependencies rather than the Core integration stack.
+
 Because isolated Cockpit proofs intentionally do not start Keycloak, `compose.graph-ci.yaml` disables user auth **only for that CI stack**. Production explicitly forces KAIRO authentication on.
 
 These proofs are committed but **not yet considered passed on the latest head** because issue #38 still prevents GitHub from assigning hosted runners.
@@ -343,8 +366,8 @@ These proofs are committed but **not yet considered passed on the latest head** 
 - validate the concrete Rotki adapter against a separately provisioned real Rotki release and then add exchange/wallet Finance adapters where useful;
 - an actual provisioned Activepieces-flow integration proof in addition to the controlled webhook-contract proof;
 - deeper editable/collaborative Brain functionality where explicit graph/domain mutations are required;
-- Tauri desktop capability bridge (files/clipboard/capture/notifications/microphone) reusing the same web UI;
-- Voice interaction;
+- Desktop runtime server/auth configuration, screenshot/capture, microphone/VAD/voice and selected filesystem scopes;
+- Voice interaction and visible recording state;
 - isolated Finance signing handoff UX when a concrete wallet/hardware signer target is selected;
 - Developer / browser/computer-use specialist capabilities;
 - production hardening: auth propagation in the web client, multi-user ownership coverage for every domain endpoint, TLS/reverse proxy/private-network policy, untrusted execution isolation and verified encrypted off-host recovery.
@@ -353,8 +376,8 @@ These proofs are committed but **not yet considered passed on the latest head** 
 
 1. Resolve GitHub Actions runner issue #38 and execute #36 → #37 → #39 on real runners before merge.
 2. Keep filling Test Interface v1 without introducing a second frontend.
-3. Validate/adapt the concrete connector boundaries against real providers: Google/Microsoft Calendar, a provisioned Rotki release and a provisioned Activepieces flow.
-4. Continue Desktop/Voice integration while preserving the same Cockpit and canonical Core contracts.
+3. Finish the authenticated Desktop/runtime connection contract and then add screenshot/microphone/voice as separately permissioned capabilities.
+4. Validate/adapt the concrete connector boundaries against real providers: Google/Microsoft Calendar, a provisioned Rotki release and a provisioned Activepieces flow.
 5. Then deepen Developer/computer-use capabilities and isolated transaction-signing handoff without granting agents private-key custody.
 
 The Block 3 goal is not “a pretty graph”. It is one stable KAIRO environment in which every visible object, relationship, activity pulse, external observation and specialist workspace stays traceable to KAIRO-owned canonical state, provenance and policy boundaries.
