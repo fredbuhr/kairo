@@ -7,7 +7,9 @@ on:
       - 'apps/web/package.json'
       - 'apps/web/src/lib/desktopBridge.ts'
       - 'apps/web/src/lib/authSession.ts'
+      - 'apps/web/src/lib/automationApi.ts'
       - 'apps/web/src/features/desktop/**'
+      - 'apps/web/src/features/settings/**'
       - 'apps/web/src/features/auth/**'
       - 'apps/web/src/features/graph/useGraphActivity.ts'
       - 'apps/web/src/features/graph/LiveGraphBridge.tsx'
@@ -22,6 +24,7 @@ on:
       - 'package.json'
       - 'docs/decisions/ADR-038-desktop-reuses-cockpit-and-bounds-native-capabilities.md'
       - 'docs/decisions/ADR-039-web-and-desktop-share-in-memory-keycloak-session.md'
+      - 'docs/decisions/ADR-041-secret-references-are-subject-owned-write-only-vault-handles.md'
       - '.github/workflows/desktop.yml'
   pull_request:
     paths:
@@ -29,7 +32,9 @@ on:
       - 'apps/web/package.json'
       - 'apps/web/src/lib/desktopBridge.ts'
       - 'apps/web/src/lib/authSession.ts'
+      - 'apps/web/src/lib/automationApi.ts'
       - 'apps/web/src/features/desktop/**'
+      - 'apps/web/src/features/settings/**'
       - 'apps/web/src/features/auth/**'
       - 'apps/web/src/features/graph/useGraphActivity.ts'
       - 'apps/web/src/features/graph/LiveGraphBridge.tsx'
@@ -44,6 +49,7 @@ on:
       - 'package.json'
       - 'docs/decisions/ADR-038-desktop-reuses-cockpit-and-bounds-native-capabilities.md'
       - 'docs/decisions/ADR-039-web-and-desktop-share-in-memory-keycloak-session.md'
+      - 'docs/decisions/ADR-041-secret-references-are-subject-owned-write-only-vault-handles.md'
       - '.github/workflows/desktop.yml'
 
 concurrency:
