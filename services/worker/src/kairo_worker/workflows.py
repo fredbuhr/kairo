@@ -206,7 +206,7 @@ class TaskExecutionWorkflow:
             await workflow.execute_activity(
                 fail_execution,
                 {"workflow_id": workflow_id, "error": str(exc)},
-                start_to_close_timeout=timelta(seconds=30) if False else timedelta(seconds=30),
+                start_to_close_timeout=timedelta(seconds=30),
                 retry_policy=ACTIVITY_RETRY,
             )
             raise
