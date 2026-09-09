@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App'
 import { LiveGraphBridge } from './features/graph/LiveGraphBridge'
 import './styles.css'
+import './brand.css'
 import './graph-controls.css'
 import './graph-filters.css'
 
