@@ -6,13 +6,15 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import and_, or_, select
 
+from .auth import Principal, require_kairo_user
 from .db import SessionFactory
 from .graph_schemas import GraphActivityEventRead, GraphEntityRef
 from .models import OutboxEvent
+from .ownership import entity_belongs_to_subject
 
 
 router = APIRouter(prefix="/v1/graph/activity", tags=["graph"])
@@ -145,8 +147,36 @@ async def _cursor_from_request(request: Request) -> tuple[datetime, uuid.UUID]:
     return datetime.now(timezone.utc) - timedelta(seconds=5), uuid.UUID(int=0)
 
 
+async def _owned_activity(
+    session,
+    activity: GraphActivityEventRead,
+    subject: str,
+) -> GraphActivityEventRead | None:
+    if not await entity_belongs_to_subject(
+        session,
+        activity.entity.entity_type,
+        activity.entity.entity_id,
+        subject,
+    ):
+        return None
+    related: list[GraphEntityRef] = []
+    for ref in activity.related:
+        if await entity_belongs_to_subject(
+            session,
+            ref.entity_type,
+            ref.entity_id,
+            subject,
+        ):
+            related.append(ref)
+    activity.related = related
+    return activity
+
+
 @router.get("/stream")
-async def stream_graph_activity(request: Request) -> StreamingResponse:
+async def stream_graph_activity(
+    request: Request,
+    principal: Principal = Depends(require_kairo_user),
+) -> StreamingResponse:
     async def event_stream():
         cursor_time, cursor_id = await _cursor_from_request(request)
         idle_ticks = 0
@@ -168,23 +198,28 @@ async def stream_graph_activity(request: Request) -> StreamingResponse:
                 )
                 events = list(rows.scalars())
 
-            if events:
-                idle_ticks = 0
-                for row in events:
-                    cursor_time = row.created_at
-                    if cursor_time.tzinfo is None:
-                        cursor_time = cursor_time.replace(tzinfo=timezone.utc)
-                    cursor_id = row.id
-                    activity = _activity_from_outbox(row)
-                    if activity is None:
-                        continue
-                    payload = json.dumps(activity.model_dump(mode="json"), separators=(",", ":"))
-                    yield f"id: {row.id}\ndata: {payload}\n\n"
-            else:
-                idle_ticks += 1
-                if idle_ticks >= 12:
+                if events:
                     idle_ticks = 0
-                    yield ": keepalive\n\n"
+                    for row in events:
+                        cursor_time = row.created_at
+                        if cursor_time.tzinfo is None:
+                            cursor_time = cursor_time.replace(tzinfo=timezone.utc)
+                        cursor_id = row.id
+                        activity = _activity_from_outbox(row)
+                        if activity is None:
+                            continue
+                        activity = await _owned_activity(session, activity, principal.subject)
+                        if activity is None:
+                            continue
+                        payload = json.dumps(
+                            activity.model_dump(mode="json"), separators=(",", ":")
+                        )
+                        yield f"id: {row.id}\ndata: {payload}\n\n"
+                else:
+                    idle_ticks += 1
+                    if idle_ticks >= 12:
+                        idle_ticks = 0
+                        yield ": keepalive\n\n"
 
             await asyncio.sleep(1.0)
 
