@@ -14,6 +14,7 @@ import {
 
 import { AssistantDrawer } from '../features/assistant/AssistantDrawer'
 import { useAssistant } from '../features/assistant/useAssistant'
+import { BrainMindMap } from '../features/brain/BrainMindMap'
 import { CoreWorkspace, type CoreWorkspaceMode } from '../features/core/CoreWorkspaces'
 import { ContextRail } from '../features/home/ContextRail'
 import {
@@ -24,6 +25,7 @@ import {
 } from '../lib/api'
 
 type ViewMode = 'home' | 'brain'
+type GraphView = 'spatial' | 'mindmap' | 'list'
 
 type NavigationItem = {
   key: string
@@ -130,7 +132,7 @@ export default function KairoCockpit() {
   const [contextCollapsed, setContextCollapsed] = useState(false)
   const [quality, setQuality] = useState<KairoGraphQuality>('auto')
   const [forceReducedMotion, setForceReducedMotion] = useState(false)
-  const [listView, setListView] = useState(false)
+  const [graphView, setGraphView] = useState<GraphView>('spatial')
   const [search, setSearch] = useState('')
   const reducedMotion = systemReducedMotion || forceReducedMotion
 
@@ -230,6 +232,7 @@ export default function KairoCockpit() {
     setHistory([])
     setSelectedKey(null)
     setIsolatedKey(null)
+    if (mode === 'home' && graphView === 'mindmap') setGraphView('spatial')
   }
 
   function openWorkspace(mode: CoreWorkspaceMode) {
@@ -363,9 +366,13 @@ export default function KairoCockpit() {
                 >
                   Filtres{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
                 </button>
-                <button type="button" className={`view-toggle ${listView ? 'view-toggle-active' : ''}`} onClick={() => setListView((value) => !value)}>
-                  {listView ? '3D' : 'Liste'}
-                </button>
+                <div className="graph-view-switcher" aria-label="Mode de représentation du graphe">
+                  <button type="button" className={graphView === 'spatial' ? 'graph-view-active' : ''} onClick={() => setGraphView('spatial')}>3D</button>
+                  {viewMode === 'brain' && (
+                    <button type="button" className={graphView === 'mindmap' ? 'graph-view-active' : ''} onClick={() => setGraphView('mindmap')}>Carte 2D</button>
+                  )}
+                  <button type="button" className={graphView === 'list' ? 'graph-view-active' : ''} onClick={() => setGraphView('list')}>Liste</button>
+                </div>
               </>
             )}
             <button type="button" className="round-button" onClick={() => setSettingsOpen(true)} aria-label="Qualité et accessibilité">◐</button>
@@ -415,7 +422,7 @@ export default function KairoCockpit() {
             </div>
           ) : (
             <>
-              {!listView && (
+              {graphView === 'spatial' && (
                 <MyceliumViewport
                   projection={displayProjection || null}
                   selectedKey={selectedKey}
@@ -428,7 +435,16 @@ export default function KairoCockpit() {
                 />
               )}
 
-              {listView && (
+              {graphView === 'mindmap' && viewMode === 'brain' && displayProjection && (
+                <BrainMindMap
+                  projection={displayProjection}
+                  selectedKey={selectedKey}
+                  onSelect={(node) => setSelectedKey(node ? graphNodeKey(node) : null)}
+                  onExplore={explore}
+                />
+              )}
+
+              {graphView === 'list' && (
                 <div className="accessible-graph" aria-label="Vue accessible du graphe KAIRO">
                   <header>
                     <span className="kairo-kicker">PROJECTION CANONIQUE</span>
@@ -455,7 +471,7 @@ export default function KairoCockpit() {
                 <div className="stage-state stage-empty"><KairoMark /><strong>Votre univers KAIRO est encore calme.</strong><span>Les projets, tâches, documents et relations réels apparaîtront ici à mesure qu’ils sont créés.</span></div>
               )}
 
-              {hovered && !listView && (
+              {hovered && graphView === 'spatial' && (
                 <div className="node-tooltip" style={{ left: hovered.point.x + 16, top: hovered.point.y + 14 }}>
                   <small>{entityLabel(hovered.node.entity_type)}</small>
                   <strong>{hovered.node.label}</strong>
@@ -465,6 +481,7 @@ export default function KairoCockpit() {
 
               <div className="stage-caption">
                 <span>{displayProjection?.nodes.length || 0} entités · {displayProjection?.edges.length || 0} relations</span>
+                {graphView === 'mindmap' && <span>Carte mentale · disposition locale</span>}
                 {isolatedKey && <span>Branche isolée · profondeur 1</span>}
                 {activeFilterCount > 0 && <span>{activeFilterCount} filtre{activeFilterCount === 1 ? '' : 's'} actif{activeFilterCount === 1 ? '' : 's'}</span>}
                 {displayProjection?.truncated && <span>Projection contextuelle · réseau plus vaste</span>}
