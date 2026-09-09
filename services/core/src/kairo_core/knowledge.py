@@ -81,7 +81,7 @@ async def search_knowledge(
             ),
         )
         .join(Document, Document.id == DocumentVersion.document_id)
-        .where(Document.metadata_json["owner_subject"].astext == principal.subject)
+        .where(Document.keycloak_subject == principal.subject)
         .where(DocumentChunk.text.ilike(f"%{query}%"))
         .order_by(Document.updated_at.desc(), DocumentChunk.ordinal.asc())
         .limit(limit)
