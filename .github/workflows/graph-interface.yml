@@ -8,6 +8,7 @@ on:
       - 'services/core/**'
       - 'scripts/smoke/graph_projection.py'
       - 'scripts/smoke/knowledge_workspace.py'
+      - 'scripts/smoke/task_planning.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
@@ -20,6 +21,7 @@ on:
       - 'services/core/**'
       - 'scripts/smoke/graph_projection.py'
       - 'scripts/smoke/knowledge_workspace.py'
+      - 'scripts/smoke/task_planning.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
@@ -61,7 +63,7 @@ jobs:
       - name: Validate Core cockpit sources
         run: |
           uv build --package kairo-core
-          python -m compileall services/core/src scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py
+          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py scripts/smoke/task_planning.py
 
   graph-projection-integration:
     needs: validate
@@ -84,6 +86,9 @@ jobs:
 
       - name: Prove canonical Knowledge workspace
         run: python scripts/smoke/knowledge_workspace.py
+
+      - name: Prove explicit Today planning
+        run: python scripts/smoke/task_planning.py
 
       - name: Dump graph state on failure
         if: failure()
