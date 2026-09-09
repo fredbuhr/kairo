@@ -8,6 +8,7 @@ import { useGraphActivityKeys } from './activityStore'
 import { BatchedFilamentField } from './BatchedFilamentField'
 import { ClusterField } from './ClusterField'
 import { InstancedNodeField } from './InstancedNodeField'
+import { NodeLabelField } from './NodeLabelField'
 import type {
   KairoGraphNode,
   KairoGraphPose,
@@ -133,6 +134,7 @@ function useGraphLayout(projection: KairoGraphProjection | null) {
     const contextKey = projectionCacheKey(projection)
     const focusKey = projection.context.focus ? graphEntityKey(projection.context.focus) : null
     const saved = cache.current.get(contextKey)
+    const hasPriorLayout = Boolean(saved || lastPoses.current.size > 0)
     const source = saved || lastPoses.current
     const focusPrevious = focusKey ? source.get(focusKey) : undefined
 
@@ -182,6 +184,7 @@ function useGraphLayout(projection: KairoGraphProjection | null) {
       edges: projection.edges,
       focusKey,
       initialPoses: Array.from(immediate.entries()),
+      warmStart: hasPriorLayout,
     })
     return () => worker.terminate()
   }, [projection])
@@ -378,6 +381,14 @@ function GraphScene({
         onSelect={onSelect ? (node) => onSelect(node) : undefined}
         onExplore={onExplore}
         onHover={onHover}
+      />
+
+      <NodeLabelField
+        nodes={projection.nodes}
+        poses={poses}
+        visibleKeys={visibleKeys}
+        detailLevel={semanticBand}
+        selectedKey={selectedKey}
       />
     </>
   )
