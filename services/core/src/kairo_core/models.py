@@ -31,8 +31,6 @@ class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    # User-created Projects always set the authenticated subject explicitly. The default exists only
-    # for legacy/system workspace constructors while they are being moved to per-subject identities.
     keycloak_subject: Mapped[str] = mapped_column(
         String(255), nullable=False, default="__kairo_system__"
     )
@@ -93,8 +91,6 @@ class RelationshipRecord(Base):
     __tablename__ = "relationships"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    # Explicit user relationships set this to the principal subject. System-generated edges must
-    # opt into a concrete owner before they can surface in a user graph.
     keycloak_subject: Mapped[str] = mapped_column(
         String(255), nullable=False, default="__kairo_system__"
     )
@@ -232,8 +228,6 @@ class AuditRecord(Base):
     __tablename__ = "audit_records"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    # Data-subject ownership is deliberately separate from actor identity. Shared control-plane
-    # actions can retain actor_id while keycloak_subject remains NULL.
     keycloak_subject: Mapped[str | None] = mapped_column(String(255))
     actor_type: Mapped[str] = mapped_column(String(64), nullable=False)
     actor_id: Mapped[str | None] = mapped_column(String(240))
@@ -260,8 +254,6 @@ class OutboxEvent(Base):
     __tablename__ = "outbox_events"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    # NULL denotes shared/system control-plane traffic. User-world events carry the canonical data
-    # owner so retention/export/erasure can address them without parsing payload conventions.
     keycloak_subject: Mapped[str | None] = mapped_column(String(255))
     subject: Mapped[str] = mapped_column(String(240), nullable=False)
     event_type: Mapped[str] = mapped_column(String(160), nullable=False)
@@ -275,9 +267,18 @@ class OutboxEvent(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Transport receipt for later privacy-retention reconciliation. Stream sequence is meaningful
+    # only together with its stream name and is not treated as canonical domain identity.
+    jetstream_stream: Mapped[str | None] = mapped_column(String(120))
+    jetstream_sequence: Mapped[int | None] = mapped_column(BigInteger)
 
     __table_args__ = (
         Index("ix_outbox_unpublished", "published_at", "created_at"),
         Index("ix_outbox_correlation", "correlation_id"),
         Index("ix_outbox_subject_created", "keycloak_subject", "created_at"),
+        UniqueConstraint(
+            "jetstream_stream",
+            "jetstream_sequence",
+            name="uq_outbox_jetstream_receipt",
+        ),
     )
