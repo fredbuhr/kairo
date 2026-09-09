@@ -41,6 +41,16 @@ Initial product areas:
 
 Availability is capability-driven. Unimplemented or disabled specialist areas should be hidden or explicitly unavailable rather than populated with fake content.
 
+### Specialist workspaces
+
+Specialist workspaces do not create a second application shell. Projects, Tasks, Knowledge, Calendar, Gantt, Agents, Finance and later tools occupy the same central surface while preserving the primary navigation, universal search, command dock, assistant access and KAIRO identity.
+
+A specialist workspace must use canonical KAIRO APIs or explicitly identified derived read models. It must not introduce its own authoritative project/task/document state merely because a tabular or form-oriented view is more convenient than the mycelium.
+
+When a specialist view exposes an entity already represented spatially, it should provide a direct path back to that same canonical entity in KAIRO Brain. Creation or mutation in a specialist workspace must invalidate/update the shared graph projection so the world model and operational view converge without manual synchronization.
+
+The first operational slices are Projects and Tasks. Their initial scope is intentionally simple: real create/read/filter/navigation behavior is preferable to a visually complete but fake workspace. Rich lifecycle actions may be added later without replacing the workspace boundary.
+
 ### Context rail
 
 The rail is composed from contextual sections, not a fixed dashboard:
@@ -135,6 +145,8 @@ Connections should feel organic rather than diagrammatic:
 - subtle depth, parallax and occlusion
 - no aggressive cyberpunk, gaming HUD or crypto-cliché styling
 
+Clusters must read as local density/gravity, not enclosing category bubbles. Sparse light wisps or shared filament density are preferred to visible containers around groups.
+
 Motion should communicate life and activity without increasing cognitive load.
 
 ## Interaction contract
@@ -178,6 +190,8 @@ No information may be communicated only through color or motion.
 
 The same graph projection must be exposable as a linear/tree-like neighborhood inspector for keyboard and assistive technology. `prefers-reduced-motion` must disable nonessential movement and greatly reduce ambient animation.
 
+Specialist workspaces must remain keyboard-operable and must not require the 3D view to create, locate or inspect canonical objects.
+
 ## Migration from the current prototype
 
 The current `App.tsx` is a capability demonstration surface, not a product shell.
@@ -199,4 +213,5 @@ Test Interface v1 is considered structurally complete when:
 7. the same graph package can power the deeper KAIRO Brain view;
 8. performance/reduced-motion modes are implemented in the same renderer;
 9. desktop/Tauri can reuse the same web application rather than requiring a second UI;
-10. later feature work can fill Projects, Knowledge, Calendar, Gantt, Finance and other areas without replacing the shell.
+10. later feature work can fill Projects, Knowledge, Calendar, Gantt, Finance and other areas without replacing the shell;
+11. specialist workspaces that create or inspect canonical objects remain synchronized with the same graph projection and can navigate back to those exact entities.
