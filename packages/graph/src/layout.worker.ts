@@ -8,6 +8,7 @@ type LayoutRequest = {
   nodes: KairoGraphNode[]
   edges: KairoGraphEdge[]
   focusKey?: string | null
+  initialPoses?: Array<[string, KairoGraphPose]>
 }
 
 type LayoutResponse = {
@@ -44,9 +45,8 @@ function signed(seed: string, salt: number): number {
 
 function clusterForNode(node: KairoGraphNode): string {
   // Only canonical/contextual cluster hints may create a shared gravity well. Falling back to
-  // entity type would turn the spatial model into a disguised category menu (all tasks together,
-  // all conversations together, etc.). Unscoped entities therefore receive a stable private well
-  // and are grouped by their real relationships instead.
+  // entity type would turn the spatial model into a disguised category menu. Unscoped entities
+  // therefore receive a stable private well and are grouped by their real relationships instead.
   return node.cluster_hint || node.project_id || graphNodeKey(node)
 }
 
@@ -67,18 +67,35 @@ function buildParticles(
   nodes: KairoGraphNode[],
   focusKey?: string | null,
   anchoredCluster?: string | null,
+  initialPoses: Map<string, KairoGraphPose> = new Map(),
 ): Particle[] {
+  const focusInitial = focusKey ? initialPoses.get(focusKey) : undefined
+
   return nodes.map((node) => {
     const key = graphNodeKey(node)
     const cluster = clusterForNode(node)
     const [cx, cy, cz] = clusterCenter(cluster, anchoredCluster)
     const pinned = key === focusKey
+    const previous = initialPoses.get(key)
     const localSpread = cluster === anchoredCluster ? 3.25 : 4.2
+
+    let x = cx + signed(key, 1) * localSpread
+    let y = cy + signed(key, 2) * (cluster === anchoredCluster ? 2.6 : 3.4)
+    let z = cz + signed(key, 3) * localSpread
+
+    if (previous) {
+      // Reuse the previous stable pose. When entering a focused neighborhood, translate the old
+      // world so the focus becomes the local origin instead of teleporting every neighbor.
+      x = previous.x - (focusInitial?.x || 0)
+      y = previous.y - (focusInitial?.y || 0)
+      z = previous.z - (focusInitial?.z || 0)
+    }
+
     return {
       key,
-      x: pinned ? 0 : cx + signed(key, 1) * localSpread,
-      y: pinned ? 0 : cy + signed(key, 2) * (cluster === anchoredCluster ? 2.6 : 3.4),
-      z: pinned ? 0 : cz + signed(key, 3) * localSpread,
+      x: pinned ? 0 : x,
+      y: pinned ? 0 : y,
+      z: pinned ? 0 : z,
       vx: 0,
       vy: 0,
       vz: 0,
@@ -91,7 +108,13 @@ function buildParticles(
 
 function solve(request: LayoutRequest): LayoutResponse {
   const anchoredCluster = focusedCluster(request.nodes, request.focusKey)
-  const particles = buildParticles(request.nodes, request.focusKey, anchoredCluster)
+  const initialPoses = new Map(request.initialPoses || [])
+  const particles = buildParticles(
+    request.nodes,
+    request.focusKey,
+    anchoredCluster,
+    initialPoses,
+  )
   const byKey = new Map(particles.map((particle) => [particle.key, particle]))
   const springs = request.edges
     .map((edge) => {
@@ -101,7 +124,13 @@ function solve(request: LayoutRequest): LayoutResponse {
     })
     .filter((spring): spring is NonNullable<typeof spring> => spring !== null)
 
-  const steps = particles.length > 120 ? 115 : 165
+  // Existing layouts need less energy than a cold start. This keeps familiar regions stable while
+  // still allowing newly created entities and relationships to find a coherent local position.
+  const warmStart = initialPoses.size > 0
+  const steps = warmStart
+    ? (particles.length > 120 ? 70 : 96)
+    : (particles.length > 120 ? 115 : 165)
+
   for (let step = 0; step < steps; step += 1) {
     const cooling = 1 - step / steps
 
