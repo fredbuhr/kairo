@@ -39,7 +39,7 @@ from .schemas import (
     SemanticRouteProposal,
 )
 from .security import require_internal_token
-from .workflows import run_task
+from .workflows import reconcile_command_task_projection, run_task
 
 router = APIRouter()
 
@@ -514,6 +514,17 @@ async def _execute_route(
         "workflow_id": execution.workflow_id,
         "status": execution.status,
     }
+
+    # A very fast Worker can finish after Temporal start but before the Command binding above is
+    # committed. The completion endpoint cannot safely project an assistant result until task_id is
+    # authoritative. Reconcile now; if the Task is still non-terminal this is a no-op and the normal
+    # Worker completion/failure path will project later.
+    await reconcile_command_task_projection(
+        session,
+        command_id=command.id,
+        task_id=execution.task_id,
+    )
+
     await enqueue_domain_event(
         session,
         event_type="command.routed",
