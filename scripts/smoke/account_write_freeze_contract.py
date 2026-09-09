@@ -26,6 +26,7 @@ def main() -> None:
     model = text("services/core/src/kairo_core/account_lifecycle_models.py")
     migration = text("services/core/migrations/versions/0021_account_write_freeze.py")
     router = text("services/core/src/kairo_core/account_freeze.py")
+    lifecycle = text("services/core/src/kairo_core/account_lifecycle.py")
     main_py = text("services/core/src/kairo_core/main.py")
     keycloak = text("services/core/src/kairo_core/keycloak_management.py")
 
@@ -55,6 +56,11 @@ def main() -> None:
     require(main_py, '"code": "account_write_frozen"', "stable frozen response code")
     require(main_py, "app.include_router(account_freeze_router)", "freeze router registration")
     require(main_py, 'not request.url.path.startswith("/v1/")', "internal routes remain outside public perimeter")
+
+    require(lifecycle, "from .account_lifecycle_models import AccountWriteFreeze", "preflight freeze model")
+    require(lifecycle, 'code="account_write_freeze_required"', "complete-erasure freeze blocker")
+    require(lifecycle, "AccountWriteFreeze.keycloak_subject == principal.subject", "subject-scoped preflight freeze lookup")
+    require(lifecycle, 'key="account_write_freeze"', "inventory freeze boundary declaration")
 
     # The Keycloak adapter stays separate. Local freeze is the protection against already-issued
     # bearer tokens; provider mutation is a later durable lifecycle phase.
