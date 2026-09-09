@@ -43,6 +43,7 @@ function ConnectorCard({ connector }: { connector: FinanceConnectorRecord }) {
       ])
     },
   })
+  const actionError = policy.error || sync.error
 
   return (
     <article className={`finance-connector-card ${connector.enabled ? 'finance-connector-enabled' : ''}`}>
@@ -60,7 +61,7 @@ function ConnectorCard({ connector }: { connector: FinanceConnectorRecord }) {
         <button type="button" disabled={policy.isPending} onClick={() => policy.mutate()}>{policy.isPending ? '…' : connector.enabled ? 'Désactiver' : 'Activer'}</button>
         <button type="button" disabled={!connector.enabled || sync.isPending} onClick={() => sync.mutate()}>{sync.isPending ? 'Synchro…' : 'Synchroniser'}</button>
       </div>
-      {(policy.isError || sync.isError) && <small className="workspace-error">{(policy.error || sync.error) instanceof Error ? (policy.error || sync.error as Error).message : 'Action impossible.'}</small>}
+      {actionError && <small className="workspace-error">{actionError instanceof Error ? actionError.message : 'Action impossible.'}</small>}
     </article>
   )
 }
