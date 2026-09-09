@@ -131,7 +131,10 @@ class DeviceRegistrationRead(BaseModel):
 
 class SecretReferenceCreate(BaseModel):
     name: str = Field(min_length=1, max_length=240)
-    provider_path: str = Field(
+    # Authenticated deployments generate a subject-scoped OpenBao path server-side. The optional
+    # field remains only for isolated auth-disabled fixtures that pre-provision deterministic paths.
+    provider_path: str | None = Field(
+        default=None,
         min_length=1,
         max_length=1024,
         pattern=r"^[A-Za-z0-9][A-Za-z0-9_./-]*$",
@@ -142,6 +145,10 @@ class SecretReferenceCreate(BaseModel):
 class SecretReferenceUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=240)
     purpose: str | None = Field(default=None, min_length=1, max_length=320)
+
+
+class SecretReferenceProvision(BaseModel):
+    values: dict[str, str] = Field(min_length=1, max_length=32)
 
 
 class SecretReferenceRead(BaseModel):
