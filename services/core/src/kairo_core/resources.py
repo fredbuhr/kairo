@@ -5,14 +5,16 @@ from datetime import UTC, datetime
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import Principal, require_kairo_user
+from .automation_models import AutomationDefinition
 from .config import settings
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
+from .finance_models import FinanceConnector
 from .models import DeviceRegistration, SecretReference
 from .openbao import openbao_client
 from .schemas import (
@@ -65,6 +67,32 @@ async def _owned_secret_reference(
     if not reference or reference.keycloak_subject != principal.subject:
         raise HTTPException(status_code=404, detail="Secret reference not found")
     return reference
+
+
+async def _secret_reference_usage(
+    reference_id: uuid.UUID,
+    subject: str,
+    session: AsyncSession,
+) -> tuple[int, int]:
+    automation_count, finance_count = await asyncio.gather(
+        session.scalar(
+            select(func.count())
+            .select_from(AutomationDefinition)
+            .where(
+                AutomationDefinition.webhook_secret_reference_id == reference_id,
+                AutomationDefinition.keycloak_subject == subject,
+            )
+        ),
+        session.scalar(
+            select(func.count())
+            .select_from(FinanceConnector)
+            .where(
+                FinanceConnector.secret_reference_id == reference_id,
+                FinanceConnector.keycloak_subject == subject,
+            )
+        ),
+    )
+    return int(automation_count or 0), int(finance_count or 0)
 
 
 def _validate_secret_values(values: dict[str, str]) -> None:
@@ -372,6 +400,58 @@ async def provision_secret_reference(
     )
 
 
+@router.delete(
+    "/v1/secret-references/{reference_id}/values",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def destroy_secret_reference_values(
+    reference_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    reference = await _owned_secret_reference(reference_id, principal, session)
+    try:
+        before = await openbao_client.secret_status(reference.provider_path)
+        await openbao_client.destroy_secret_values(reference.provider_path)
+    except (httpx.HTTPError, OSError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenBao is unavailable or rejected secret destruction",
+        ) from exc
+
+    correlation_id = uuid.uuid4()
+    await enqueue_domain_event(
+        session,
+        event_type="secret-reference.values-destroyed",
+        aggregate_type="secret-reference",
+        aggregate_id=reference.id,
+        correlation_id=correlation_id,
+        payload={
+            "secret_reference_id": str(reference.id),
+            "keys": list(before.keys),
+            "previous_version": before.version,
+            "existed": before.exists,
+        },
+    )
+    await append_audit(
+        session,
+        actor_type="user",
+        actor_id=principal.subject,
+        action="secret-reference.values.destroy",
+        resource_type="secret-reference",
+        resource_id=str(reference.id),
+        authority_level=1,
+        correlation_id=correlation_id,
+        request_json={"explicit_irreversible_action": True},
+        result_json={
+            "keys": list(before.keys),
+            "previous_version": before.version,
+            "existed": before.exists,
+        },
+    )
+    await session.commit()
+
+
 @router.patch("/v1/secret-references/{reference_id}", response_model=SecretReferenceRead)
 async def update_secret_reference(
     reference_id: uuid.UUID,
@@ -422,7 +502,43 @@ async def delete_secret_reference(
     session: AsyncSession = Depends(get_session),
 ) -> None:
     reference = await _owned_secret_reference(reference_id, principal, session)
+    automation_count, finance_count = await _secret_reference_usage(
+        reference.id,
+        principal.subject,
+        session,
+    )
+    if automation_count or finance_count:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Secret reference is still in use",
+                "automations": automation_count,
+                "finance_connectors": finance_count,
+            },
+        )
+
+    try:
+        provider_status = await openbao_client.secret_status(reference.provider_path)
+    except (httpx.HTTPError, OSError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenBao is unavailable; KAIRO cannot prove the secret is empty",
+        ) from exc
+    if provider_status.exists:
+        raise HTTPException(
+            status_code=409,
+            detail="Secret values still exist; destroy them explicitly before removing the reference",
+        )
+
     correlation_id = uuid.uuid4()
+    await enqueue_domain_event(
+        session,
+        event_type="secret-reference.deleted",
+        aggregate_type="secret-reference",
+        aggregate_id=reference.id,
+        correlation_id=correlation_id,
+        payload={"secret_reference_id": str(reference.id), "purpose": reference.purpose},
+    )
     await append_audit(
         session,
         actor_type="user",
@@ -432,7 +548,7 @@ async def delete_secret_reference(
         resource_id=str(reference.id),
         authority_level=1,
         correlation_id=correlation_id,
-        request_json={"purpose": reference.purpose},
+        request_json={"purpose": reference.purpose, "provider_values_absent": True},
     )
     await session.delete(reference)
     try:
