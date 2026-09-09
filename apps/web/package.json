@@ -12,6 +12,7 @@
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@hocuspocus/provider": "^4.4.0",
+    "@kairo/gantt": "workspace:*",
     "@kairo/graph": "workspace:*",
     "@lexical/react": "^0.35.0",
     "@react-three/fiber": "^9.7.0",
