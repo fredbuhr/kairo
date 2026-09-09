@@ -30,7 +30,7 @@ KAIRO makes the domain-event transport both **time-bounded** and **receipted**.
 
 The development/default value is 604800 seconds (7 days).
 
-The Worker memory-event consumer is currently the component that ensures the shared domain stream exists. It now also reconciles an already-existing stream so `subjects`, `max_msgs` and `max_age` converge on KAIRO's declared configuration rather than silently preserving an old unbounded stream.
+Both Core's Outbox relay and the Worker memory-event consumer reconcile the shared domain stream before using it. New streams are created with KAIRO's declared subject, message-count bound and `max_age`; already-existing streams are updated when those fields drift. This deliberately avoids making retention correctness depend on whether Core or Worker starts first.
 
 This stream is transport state, not canonical history. Production deployments may shorten the horizon, but increasing it to effectively indefinite retention requires revisiting the account-retention contract.
 
@@ -47,7 +47,7 @@ The `(jetstream_stream, jetstream_sequence)` pair is unique when present. It is 
 
 ### Publish replay de-duplication
 
-Core publishes the canonical Outbox UUID as the `Nats-Msg-Id` header.
+Core publishes the canonical Outbox UUID as the `Nats-Msg-Id` header while preserving KAIRO event-type and correlation headers used for diagnostics.
 
 This closes the most common dual-write ambiguity: if NATS accepted the message but Core lost the PostgreSQL commit, the immediate Outbox retry asks JetStream to de-duplicate the same logical publish instead of intentionally creating another transport copy.
 
@@ -81,10 +81,10 @@ The actual delete/redact/retain action is intentionally not introduced merely by
 
 - Outbox has stream/sequence receipt fields and uniqueness;
 - migration 0020 exists and documents the historical limitation;
-- the relay uses `Nats-Msg-Id` and persists `PubAck.stream/seq` before marking publication complete;
+- the relay captures the PubAck, uses `Nats-Msg-Id`, preserves diagnostic headers and persists `PubAck.stream/seq` before marking publication complete;
 - Core and Worker share the 7-day default retention setting;
 - `.env.example` exposes the retention control;
-- the Worker sets max-age on new streams and reconciles existing streams with `update_stream`.
+- both Core and Worker set max-age/message-count bounds on new streams and reconcile existing streams with `update_stream`.
 
 The proof is scheduled in the Ownership workflow. Current GitHub-hosted CI remains blocked before runner assignment by issue #38, so this is implemented but not yet current-head validated.
 
@@ -95,12 +95,12 @@ The proof is scheduled in the Ownership workflow. Current GitHub-hosted CI remai
 - NATS transport copies no longer have intentionally indefinite retention;
 - newly published user-world events have an exact JetStream receipt for later erasure/reconciliation;
 - Outbox publish replay has a stable de-duplication identity;
-- stream configuration converges even when an older persistent NATS volume already exists;
+- stream configuration converges independently of Core/Worker startup order and older persistent NATS volumes;
 - account-erasure logic can distinguish mapped new events from historical unmapped events.
 
 ### Trade-offs
 
-- the Worker currently owns domain-stream configuration because it owns the durable consumer bootstrap; a future dedicated messaging-control service could centralize this;
+- domain-stream configuration logic currently exists in Core and Worker; a future dedicated messaging-control component could centralize the policy while retaining startup-order independence;
 - each successful publish persists two additional receipt fields;
 - historical published rows cannot be retroactively mapped safely;
 - bounded max-age can remove events a consumer failed to process for longer than the retention horizon, so consumer health/lag must be operationally monitored;
