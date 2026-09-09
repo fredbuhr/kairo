@@ -41,6 +41,7 @@ class InternalDerivedMemoryPurgeContext(BaseModel):
     graphiti_group_ids: list[str]
     cutoff_message_created_at: datetime | None
     canonical_message_count: int
+    requires_real_projectors: bool
 
 
 class InternalDerivedMemoryPurgeReport(BaseModel):
@@ -64,6 +65,29 @@ async def _latest_owned_message_at(session: AsyncSession, subject: str) -> datet
         .join(Conversation, Conversation.id == ConversationMessage.conversation_id)
         .where(Conversation.subject_ref == subject)
     )
+
+
+async def _owned_message_ids(subject: str):
+    return (
+        select(ConversationMessage.id)
+        .join(Conversation, Conversation.id == ConversationMessage.conversation_id)
+        .where(Conversation.subject_ref == subject)
+    )
+
+
+async def _requires_real_projectors(session: AsyncSession, subject: str) -> bool:
+    message_ids = await _owned_message_ids(subject)
+    metadata_rows = await session.execute(
+        select(MemoryProjectionRecord.metadata_json).where(
+            MemoryProjectionRecord.source_type == MEMORY_SOURCE_TYPE,
+            MemoryProjectionRecord.source_id.in_(message_ids),
+        )
+    )
+    for metadata in metadata_rows.scalars():
+        backend = str((metadata or {}).get("backend") or "").strip()
+        if backend and backend != "deterministic-stub":
+            return True
+    return False
 
 
 async def _memory_purge_task(
@@ -242,6 +266,10 @@ async def internal_derived_memory_purge_context(
         graphiti_group_ids=[f"conversation:{conversation_id}" for conversation_id in conversations],
         cutoff_message_created_at=cutoff,
         canonical_message_count=message_count,
+        requires_real_projectors=await _requires_real_projectors(
+            session,
+            project.keycloak_subject,
+        ),
     )
 
 
@@ -258,6 +286,14 @@ async def internal_report_derived_memory_purge(
     task, project = await _memory_purge_task(session, task_id, lock=True)
     if not body.verified or not body.mem0_purged or not body.graphiti_purged:
         raise HTTPException(status_code=409, detail="Derived-memory purge was not fully verified")
+    if body.projector_mode == "stub" and await _requires_real_projectors(
+        session,
+        project.keycloak_subject,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Real derived memory exists; stub mode cannot clear the canonical purge ledger",
+        )
 
     execution = await session.scalar(
         select(WorkflowExecution).where(WorkflowExecution.task_id == task.id)
@@ -265,11 +301,7 @@ async def internal_report_derived_memory_purge(
     if execution is None:
         raise HTTPException(status_code=409, detail="Derived-memory purge WorkflowExecution is missing")
 
-    owned_message_ids = (
-        select(ConversationMessage.id)
-        .join(Conversation, Conversation.id == ConversationMessage.conversation_id)
-        .where(Conversation.subject_ref == project.keycloak_subject)
-    )
+    owned_message_ids = await _owned_message_ids(project.keycloak_subject)
     result = await session.execute(
         delete(MemoryProjectionRecord).where(
             MemoryProjectionRecord.source_type == MEMORY_SOURCE_TYPE,
