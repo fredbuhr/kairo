@@ -25,20 +25,29 @@ The desktop application:
 5. keeps external-state authority in KAIRO Core policy/approval flows rather than treating Tauri as a policy bypass;
 6. adds sensitive native capabilities incrementally, with an explicit permission and provenance design for each capability.
 
-The first desktop slice exposes only:
+The first desktop slice exposes:
 
 - runtime/capability introspection;
 - clipboard text read/write;
-- local notifications;
-- ordinary user-selected WebView file input.
+- local notifications, requesting OS permission only when the user actually invokes notification use;
+- ordinary user-selected WebView file input;
+- one fixed native summon shortcut, `CmdOrCtrl+Shift+Space`, whose Rust handler may only restore/show/focus the main KAIRO window.
 
-Screenshot capture, microphone, wake word/VAD, global summon shortcuts and privileged local commands remain explicitly unavailable until their individual contracts exist.
+The frontend receives **no global-shortcut registration API**. It cannot claim arbitrary operating-system shortcuts merely because the native plugin is present.
+
+Screenshot capture, microphone, wake word/VAD, user-configurable global shortcuts and privileged local commands remain explicitly unavailable until their individual contracts exist.
 
 ## Why file import remains WebView-selected initially
 
 KAIRO already has a canonical Asset → Document ingestion boundary. A native desktop wrapper does not justify granting broad filesystem access merely to reproduce the browser's explicit file picker.
 
 The first desktop version therefore continues to use the browser/WebView file-input path. A future selected-directory or watched-folder capability may be added, but it must receive a bounded scope and cannot silently become unrestricted disk access.
+
+## Why the summon shortcut is registered in Rust
+
+The shortcut is a shell capability, not product/domain state. Registering a single fixed shortcut in Rust lets KAIRO provide the expected “summon” behavior without exposing a generic shortcut-management surface to React or to model-driven code.
+
+Its action is intentionally local and reversible: unminimize, show and focus the main window. It does not execute a Command, invoke an agent or cross an external side-effect boundary by itself.
 
 ## Consequences
 
@@ -48,13 +57,15 @@ The first desktop version therefore continues to use the browser/WebView file-in
 - The mycelium, Brain, Command Dock and specialist workspaces are not reimplemented.
 - Native permissions stay visible and reviewable.
 - Browser users receive truthful unsupported states instead of broken calls.
+- The initial summon behavior exists without granting shortcut-registration authority to the frontend.
 - Future Tauri capabilities can be tested without granting agents generic operating-system authority.
 
 ### Trade-offs
 
 - Some desktop features arrive later than they would with an unrestricted local sidecar.
 - A production remote-server configuration and authenticated desktop session still need explicit hardening.
-- Clipboard and notification plugins add native build dependencies that must be validated on supported operating systems.
+- Clipboard, notification and global-shortcut plugins add native build dependencies that must be validated on supported operating systems.
+- The first shortcut is fixed rather than user-configurable; configurability requires a dedicated settings/permission contract.
 
 ## Rejected alternatives
 
@@ -66,6 +77,10 @@ Rejected because it would immediately duplicate the permanent Cockpit and violat
 
 Rejected because arbitrary command execution would collapse the security boundary between model/UI code and the host machine.
 
+### Frontend-managed global shortcut plugin
+
+Rejected for the first slice because it would give the WebView a broader OS-level registration capability than the product currently needs.
+
 ### Broad filesystem permission from day one
 
 Rejected because explicit user-selected file import already works and broader access has no justified first-slice requirement.
@@ -75,7 +90,7 @@ Rejected because explicit user-selected file import already works and broader ac
 Future desktop work should proceed capability by capability:
 
 1. authenticated/runtime server configuration;
-2. global summon shortcut and window-focus behavior;
+2. user-configurable summon shortcut only after a bounded registration contract exists;
 3. screenshot/capture with explicit user scope and provenance;
 4. microphone/VAD/voice with visible recording state and permission handling;
 5. selected filesystem scopes/watched folders;
