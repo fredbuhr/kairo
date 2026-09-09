@@ -7,10 +7,12 @@ on:
       - 'infrastructure/keycloak/**'
       - 'scripts/smoke/multi_user_ownership.py'
       - 'scripts/smoke/multi_user_conversation_ownership.py'
+      - 'scripts/smoke/multi_user_secret_ownership.py'
       - 'compose.yaml'
       - 'compose.override.yaml'
       - '.env.example'
       - 'docs/decisions/ADR-040-canonical-world-is-scoped-by-authenticated-subject.md'
+      - 'docs/decisions/ADR-041-secret-references-are-subject-owned-write-only-vault-handles.md'
       - '.github/workflows/ownership.yml'
   pull_request:
     paths:
@@ -18,10 +20,12 @@ on:
       - 'infrastructure/keycloak/**'
       - 'scripts/smoke/multi_user_ownership.py'
       - 'scripts/smoke/multi_user_conversation_ownership.py'
+      - 'scripts/smoke/multi_user_secret_ownership.py'
       - 'compose.yaml'
       - 'compose.override.yaml'
       - '.env.example'
       - 'docs/decisions/ADR-040-canonical-world-is-scoped-by-authenticated-subject.md'
+      - 'docs/decisions/ADR-041-secret-references-are-subject-owned-write-only-vault-handles.md'
       - '.github/workflows/ownership.yml'
 
 concurrency:
@@ -42,7 +46,7 @@ jobs:
 
       - name: Compile ownership-sensitive Core and proofs
         run: |
-          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py
+          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py
 
       - name: Start one shared database with two real Keycloak identities
         run: |
@@ -54,11 +58,14 @@ jobs:
       - name: Prove Assistant/News/Memory ownership isolation
         run: python scripts/smoke/multi_user_conversation_ownership.py
 
+      - name: Prove SecretReference/Automation/Finance ownership isolation
+        run: python scripts/smoke/multi_user_secret_ownership.py
+
       - name: Dump ownership stack on failure
         if: failure()
         run: |
           docker compose ps -a
-          docker compose logs --no-color --tail=600 postgres nats temporal temporal-create-namespace keycloak kairo-core
+          docker compose logs --no-color --tail=600 postgres nats temporal temporal-create-namespace openbao keycloak kairo-core
 
       - name: Tear down ownership stack
         if: always()
