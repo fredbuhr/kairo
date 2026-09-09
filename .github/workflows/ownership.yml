@@ -8,11 +8,13 @@ on:
       - 'scripts/smoke/multi_user_ownership.py'
       - 'scripts/smoke/multi_user_conversation_ownership.py'
       - 'scripts/smoke/multi_user_secret_ownership.py'
+      - 'scripts/smoke/tool_invocation_ownership_contract.py'
       - 'compose.yaml'
       - 'compose.override.yaml'
       - '.env.example'
       - 'docs/decisions/ADR-040-canonical-world-is-scoped-by-authenticated-subject.md'
       - 'docs/decisions/ADR-041-secret-references-are-subject-owned-write-only-vault-handles.md'
+      - 'docs/decisions/ADR-042-tool-invocations-are-subject-owned-execution-state.md'
       - '.github/workflows/ownership.yml'
   pull_request:
     paths:
@@ -21,11 +23,13 @@ on:
       - 'scripts/smoke/multi_user_ownership.py'
       - 'scripts/smoke/multi_user_conversation_ownership.py'
       - 'scripts/smoke/multi_user_secret_ownership.py'
+      - 'scripts/smoke/tool_invocation_ownership_contract.py'
       - 'compose.yaml'
       - 'compose.override.yaml'
       - '.env.example'
       - 'docs/decisions/ADR-040-canonical-world-is-scoped-by-authenticated-subject.md'
       - 'docs/decisions/ADR-041-secret-references-are-subject-owned-write-only-vault-handles.md'
+      - 'docs/decisions/ADR-042-tool-invocations-are-subject-owned-execution-state.md'
       - '.github/workflows/ownership.yml'
 
 concurrency:
@@ -46,7 +50,10 @@ jobs:
 
       - name: Compile ownership-sensitive Core and proofs
         run: |
-          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py
+          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py scripts/smoke/tool_invocation_ownership_contract.py
+
+      - name: Prove ToolInvocation ownership contract
+        run: python scripts/smoke/tool_invocation_ownership_contract.py
 
       - name: Start one shared database with two real Keycloak identities
         run: |
