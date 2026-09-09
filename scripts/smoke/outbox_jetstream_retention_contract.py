@@ -49,9 +49,12 @@ def main() -> None:
         )
     require(env, "NATS_DOMAIN_RETENTION_SECONDS=604800", "deployment retention environment")
 
-    require(memory_events, "max_age=max_age", "new stream max-age")
-    require(memory_events, "config.max_age = max_age", "existing stream max-age reconciliation")
-    require(memory_events, "await self._js.update_stream(config=config)", "existing stream update")
+    for source, label in ((outbox, "Core"), (memory_events, "Worker")):
+        require(source, "max_age=max_age", f"{label} new stream max-age")
+        require(source, "config.max_age = max_age", f"{label} existing stream max-age reconciliation")
+        require(source, "await self._js.update_stream(config=config)", f"{label} existing stream update")
+        require(source, 'DOMAIN_SUBJECT = "kairo.domain.>"', f"{label} domain subject declaration")
+        require(source, "DOMAIN_MAX_MESSAGES = 100_000", f"{label} message-count bound")
 
     print("KAIRO Outbox/JetStream bounded-retention receipt contract passed")
 
