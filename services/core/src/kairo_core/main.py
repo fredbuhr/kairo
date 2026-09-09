@@ -39,6 +39,7 @@ from .news import router as news_router
 from .openbao import openbao_client
 from .operations import router as operations_router
 from .outbox import OutboxRelay
+from .ownership import owned_task, require_owned_project, require_same_owner_entities
 from .planning import router as planning_router
 from .project_management import router as project_management_router
 from .research import router as research_router
@@ -233,6 +234,7 @@ async def architecture() -> dict[str, object]:
         "event_delivery": "transactional-outbox-at-least-once",
         "identity": "keycloak-jwt-jwks",
         "public_api_authentication": "fail-closed-v1-bearer-perimeter",
+        "domain_ownership": "project-root-keycloak-subject-with-explicit-polymorphic-ownership",
         "secret_values": "openbao",
         "conversation_state": "postgresql",
         "canonical_documents": "postgresql-document-version-chunks",
@@ -294,9 +296,9 @@ async def create_project(
     session: AsyncSession = Depends(get_session),
 ) -> Project:
     correlation_id = uuid.uuid4()
-    if body.parent_id and not await session.get(Project, body.parent_id):
-        raise HTTPException(status_code=404, detail="Parent project not found")
-    project = Project(**body.model_dump())
+    if body.parent_id:
+        await require_owned_project(session, body.parent_id, principal.subject)
+    project = Project(keycloak_subject=principal.subject, **body.model_dump())
     session.add(project)
     await session.flush()
     await enqueue_domain_event(
@@ -325,10 +327,14 @@ async def create_project(
 
 @app.get("/v1/projects", response_model=list[ProjectRead])
 async def list_projects(
-    _: Principal = Depends(require_kairo_user),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[Project]:
-    rows = await session.execute(select(Project).order_by(Project.created_at.desc()))
+    rows = await session.execute(
+        select(Project)
+        .where(Project.keycloak_subject == principal.subject)
+        .order_by(Project.created_at.desc())
+    )
     return list(rows.scalars())
 
 
@@ -338,8 +344,7 @@ async def create_task(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> Task:
-    if not await session.get(Project, body.project_id):
-        raise HTTPException(status_code=404, detail="Project not found")
+    await require_owned_project(session, body.project_id, principal.subject)
     correlation_id = uuid.uuid4()
     task = Task(**body.model_dump())
     session.add(task)
@@ -370,21 +375,26 @@ async def create_task(
 
 @app.get("/v1/tasks", response_model=list[TaskRead])
 async def list_tasks(
-    _: Principal = Depends(require_kairo_user),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[Task]:
-    rows = await session.execute(select(Task).order_by(Task.created_at.desc()))
+    rows = await session.execute(
+        select(Task)
+        .join(Project, Project.id == Task.project_id)
+        .where(Project.keycloak_subject == principal.subject)
+        .order_by(Task.created_at.desc())
+    )
     return list(rows.scalars())
 
 
 @app.get("/v1/tasks/{task_id}", response_model=TaskRead)
 async def get_task(
     task_id: uuid.UUID,
-    _: Principal = Depends(require_kairo_user),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> Task:
-    task = await session.get(Task, task_id)
-    if not task:
+    task = await owned_task(session, task_id, principal.subject)
+    if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
 
@@ -395,8 +405,17 @@ async def create_relationship(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> RelationshipRecord:
+    await require_same_owner_entities(
+        session,
+        source_type=body.source_type,
+        source_id=body.source_id,
+        target_type=body.target_type,
+        target_id=body.target_id,
+        subject=principal.subject,
+    )
     correlation_id = uuid.uuid4()
     relationship = RelationshipRecord(
+        keycloak_subject=principal.subject,
         source_type=body.source_type,
         source_id=body.source_id,
         relation_type=body.relation_type,
