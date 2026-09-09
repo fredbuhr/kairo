@@ -11,8 +11,9 @@ import {
   type TaskPlanningUpdateInput,
   type TaskRecord,
 } from '../../lib/api'
+import { TaskGantt } from './TaskGantt'
 
-type TaskView = 'today' | 'all'
+type TaskView = 'today' | 'all' | 'gantt'
 
 const PRIORITY_LABELS = ['Plus tard', 'Basse', 'Normale', 'Haute', 'Critique']
 
@@ -275,6 +276,7 @@ export function TaskPlanningWorkspace({
   }), [allTasks, projectFilter, statusFilter])
   const today = todayQuery.data
   const todayCount = (today?.overdue.length || 0) + (today?.due_today.length || 0) + (today?.planned_today.length || 0) + (today?.important.length || 0)
+  const ganttCount = allTasks.filter((task) => task.planned_start_at || task.due_at).length
 
   if (planningQuery.isLoading || todayQuery.isLoading) {
     return <div className="workspace-state"><span className="kairo-kicker">TÂCHES</span><strong>Construction de votre journée…</strong></div>
@@ -284,16 +286,20 @@ export function TaskPlanningWorkspace({
     return <div className="workspace-state workspace-state-error"><strong>Impossible de lire la planification.</strong><span>{error instanceof Error ? error.message : 'Erreur KAIRO Core.'}</span></div>
   }
 
+  const title = view === 'today' ? 'Aujourd’hui' : view === 'gantt' ? 'Planning' : 'Toutes les tâches'
+  const count = view === 'today' ? todayCount : view === 'gantt' ? ganttCount : visible.length
+
   return (
     <div className="workspace-layout task-planning-workspace">
       <section className="workspace-main">
         <header className="workspace-title">
-          <div><span className="kairo-kicker">TÂCHES</span><h1>{view === 'today' ? 'Aujourd’hui' : 'Toutes les tâches'}</h1><p>Priorités, échéances et créneaux sont des données KAIRO explicites — jamais une priorité inventée par l’interface.</p></div>
-          <strong>{view === 'today' ? todayCount : visible.length}</strong>
+          <div><span className="kairo-kicker">TÂCHES</span><h1>{title}</h1><p>Priorités, échéances et créneaux sont des données KAIRO explicites — jamais une priorité inventée par l’interface.</p></div>
+          <strong>{count}</strong>
         </header>
         <div className="planning-tabs">
           <button type="button" className={view === 'today' ? 'planning-tab-active' : ''} onClick={() => setView('today')}>Aujourd’hui <span>{todayCount}</span></button>
           <button type="button" className={view === 'all' ? 'planning-tab-active' : ''} onClick={() => setView('all')}>Toutes</button>
+          <button type="button" className={view === 'gantt' ? 'planning-tab-active' : ''} onClick={() => setView('gantt')}>Gantt <span>{ganttCount}</span></button>
         </div>
 
         {view === 'today' ? (
@@ -304,6 +310,8 @@ export function TaskPlanningWorkspace({
             <TodayGroup title="Prévu aujourd’hui" hint="créneau planifié" tasks={today?.planned_today || []} projects={projectById} onExplore={onExploreEntity} />
             <TodayGroup title="Important" hint="priorité haute sans créneau aujourd’hui" tasks={today?.important || []} projects={projectById} onExplore={onExploreEntity} />
           </div>
+        ) : view === 'gantt' ? (
+          <TaskGantt tasks={allTasks} projects={projectById} onExploreEntity={onExploreEntity} />
         ) : (
           <>
             <div className="workspace-toolbar">
