@@ -16,10 +16,35 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Import Core with research router
         run: uv run --project services/core python -c "from kairo_core.main import app; assert app.title == 'KAIRO Core'"
+      - name: Prove deterministic Command routing keeps Research authority out of model parameters
+        run: uv run --project services/core python scripts/smoke/assistant_router.py
       - name: Prove bounded PydanticAI research planner and sourced synthesis
         run: uv run --project services/worker python scripts/smoke/research_agent_contract.py
       - name: Prove multi-slot model checkpoint ledger
         run: uv run --project services/worker python scripts/smoke/model_checkpoint_ledger.py
+
+  research-command-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Command Kernel Research environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_AUTH_ENABLED=false' >> .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+      - name: Start canonical Command and Temporal substrate
+        run: docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+      - name: Prove deterministic and semantic Research handoff
+        run: python scripts/smoke/research_command_handoff.py
+      - name: Dump Research handoff state on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color --tail=600 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+      - name: Tear down Research handoff stack
+        if: always()
+        run: docker compose down -v --remove-orphans
 
   research-core-integration:
     runs-on: ubuntu-latest
