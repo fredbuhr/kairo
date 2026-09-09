@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     nats_domain_stream: str = "KAIRO_DOMAIN"
     # JetStream is transport retention, not canonical history. Seven days gives consumers time to
     # recover while keeping account-erasure semantics bounded; production may shorten this but must
-    # not make the stream effectively infinite without revisiting ADR-044/045.
+    # not make the stream effectively infinite without revisiting ADR-044/045/046/047.
     nats_domain_retention_seconds: int = 7 * 24 * 60 * 60
     outbox_batch_size: int = 100
     outbox_poll_interval_seconds: float = 0.5
@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     keycloak_client_id: str = "kairo-web"
     keycloak_issuer: str = "http://localhost:8081/realms/kairo"
     keycloak_jwks_url: str = "http://keycloak:8080/realms/kairo/protocol/openid-connect/certs"
+    # Optional confidential workload identity for the future account-erasure state machine. It must
+    # be a dedicated least-privilege Keycloak service account; never reuse the bootstrap realm admin
+    # or the public Web/Desktop client. Leaving the secret empty disables management operations.
+    keycloak_management_client_id: str = "kairo-identity-manager"
+    keycloak_management_client_secret: str = ""
 
     activepieces_url: str = "http://activepieces:80"
     # Provider origins are deployment-owned rather than user-supplied so connector credentials
