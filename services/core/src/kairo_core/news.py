@@ -4,13 +4,14 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import Principal, require_kairo_user
 from .config import settings
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Artifact, Project, Task, WorkflowExecution
+from .ownership import DEVELOPMENT_SUBJECT, ensure_system_project, owned_task
 from .schemas import NewsBriefCreate, NewsBriefRead, NewsBriefRunResponse
 from .workflows import run_task
 
@@ -19,29 +20,17 @@ router = APIRouter()
 NEWS_PROJECT_ID = uuid.UUID("b8d9cccf-257b-4b48-b58e-4fe63a4398b2")
 
 
-async def _ensure_news_project(session: AsyncSession) -> Project:
-    project = await session.get(Project, NEWS_PROJECT_ID)
-    if project:
-        return project
-
-    correlation_id = uuid.uuid4()
-    inserted_id = await session.scalar(
-        pg_insert(Project)
-        .values(
-            id=NEWS_PROJECT_ID,
-            name="KAIRO News",
-            status="active",
-            summary="System workspace for sourced news briefings and market-impact intelligence.",
-            parent_id=None,
-        )
-        .on_conflict_do_nothing(index_elements=[Project.id])
-        .returning(Project.id)
+async def _ensure_news_project(session: AsyncSession, subject: str) -> Project:
+    project, created = await ensure_system_project(
+        session,
+        subject=subject,
+        key="news",
+        name="KAIRO News",
+        summary="Per-user system workspace for sourced news briefings and market-impact intelligence.",
+        legacy_development_id=NEWS_PROJECT_ID,
     )
-    project = await session.get(Project, NEWS_PROJECT_ID)
-    if project is None:
-        raise RuntimeError("KAIRO News workspace could not be initialized")
-
-    if inserted_id is not None:
+    if created:
+        correlation_id = uuid.uuid4()
         await enqueue_domain_event(
             session,
             event_type="project.created",
@@ -59,7 +48,7 @@ async def _ensure_news_project(session: AsyncSession) -> Project:
             resource_id=str(project.id),
             authority_level=0,
             correlation_id=correlation_id,
-            request_json={"reason": "initialize News Intelligence workspace"},
+            request_json={"reason": "initialize owner-scoped News Intelligence workspace", "subject": subject},
         )
     return project
 
@@ -69,8 +58,8 @@ def _task_title(body: NewsBriefCreate) -> str:
     return f"{prefix} — {body.query}"[:320]
 
 
-async def _get_news_task(task_id: uuid.UUID, session: AsyncSession) -> Task:
-    task = await session.get(Task, task_id)
+async def _get_news_task(task_id: uuid.UUID, session: AsyncSession, subject: str) -> Task:
+    task = await owned_task(session, task_id, subject)
     if not task or (task.input or {}).get("capability") != "news.brief":
         raise HTTPException(status_code=404, detail="News brief not found")
     return task
@@ -96,6 +85,7 @@ async def start_news_brief(
     *,
     actor_type: str = "user",
     actor_id: str | None = None,
+    owner_subject: str | None = None,
     correlation_id: uuid.UUID | None = None,
     command_id: uuid.UUID | None = None,
     task_id: uuid.UUID | None = None,
@@ -107,12 +97,15 @@ async def start_news_brief(
     and WorkflowExecution are reused rather than creating a duplicate News request.
     """
 
-    project = await _ensure_news_project(session)
+    subject = owner_subject or actor_id or DEVELOPMENT_SUBJECT
+    project = await _ensure_news_project(session, subject)
     correlation_id = correlation_id or uuid.uuid4()
     requested_task_id = task_id
 
     if requested_task_id is not None:
-        existing = await session.get(Task, requested_task_id)
+        existing = await owned_task(session, requested_task_id, subject)
+        if existing is None and await session.get(Task, requested_task_id) is not None:
+            raise HTTPException(status_code=409, detail="Deterministic task ID is already in use")
         if existing is not None:
             existing_input = existing.input or {}
             if existing_input.get("capability") != "news.brief":
@@ -203,16 +196,26 @@ async def start_news_brief(
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_news_brief(
-    body: NewsBriefCreate, session: AsyncSession = Depends(get_session)
+    body: NewsBriefCreate,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> NewsBriefRunResponse:
-    return await start_news_brief(body, session)
+    return await start_news_brief(
+        body,
+        session,
+        actor_type="user",
+        actor_id=principal.subject,
+        owner_subject=principal.subject,
+    )
 
 
 @router.get("/v1/news/briefs/{task_id}", response_model=NewsBriefRead)
 async def get_news_brief(
-    task_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+    task_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> NewsBriefRead:
-    task = await _get_news_task(task_id, session)
+    task = await _get_news_task(task_id, session, principal.subject)
     artifact = await session.scalar(
         select(Artifact)
         .where(Artifact.task_id == task.id, Artifact.kind == "news-brief")
@@ -236,9 +239,10 @@ async def get_news_brief(
 async def news_brief_audio(
     task_id: uuid.UUID,
     voice: str | None = None,
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    task = await _get_news_task(task_id, session)
+    task = await _get_news_task(task_id, session, principal.subject)
     artifact = await session.scalar(
         select(Artifact)
         .where(Artifact.task_id == task.id, Artifact.kind == "news-brief")
