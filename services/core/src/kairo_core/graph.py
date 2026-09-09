@@ -433,17 +433,22 @@ def _structural_edges(nodes: dict[str, GraphNodeRead]) -> list[GraphEdgeRead]:
         if task_id:
             task_key = _entity_key("task", uuid.UUID(task_id))
             if task_key in nodes:
-                relation = "authorizes" if node.entity_type == "approval" else "relates_to_task"
+                relation = {
+                    "approval": "authorizes",
+                    "artifact": "produced_by",
+                    "workflow_execution": "executes",
+                }.get(node.entity_type, "relates_to_task")
+                explanation = {
+                    "approval": "Approval request for this task",
+                    "artifact": "Artifact produced by this task",
+                    "workflow_execution": "Workflow execution for this task",
+                }.get(node.entity_type, "Canonical task linkage")
                 edges.append(
                     _structural_edge(
                         node,
                         nodes[task_key],
                         relation,
-                        explanation=(
-                            "Approval request for this task"
-                            if node.entity_type == "approval"
-                            else "Canonical task linkage"
-                        ),
+                        explanation=explanation,
                         strength=0.90,
                     )
                 )
@@ -592,7 +597,20 @@ async def _structural_neighbors(
             .limit(limit)
         )
         for row in rows.scalars():
-            await add(_node_from_task(row), "contains", "Task in this project", 0.94)
+            child = _node_from_task(row)
+            if len(pairs) < limit:
+                pairs.append(
+                    (
+                        child,
+                        _structural_edge(
+                            child,
+                            node,
+                            "belongs_to",
+                            explanation="Canonical project scope",
+                            strength=0.94,
+                        ),
+                    )
+                )
         if len(pairs) < limit:
             rows = await session.execute(
                 select(Document)
@@ -601,7 +619,20 @@ async def _structural_neighbors(
                 .limit(limit - len(pairs))
             )
             for row in rows.scalars():
-                await add(_node_from_document(row), "contains", "Document in this project", 0.90)
+                child = _node_from_document(row)
+                if len(pairs) < limit:
+                    pairs.append(
+                        (
+                            child,
+                            _structural_edge(
+                                child,
+                                node,
+                                "belongs_to",
+                                explanation="Canonical project scope",
+                                strength=0.94,
+                            ),
+                        )
+                    )
         if len(pairs) < limit:
             rows = await session.execute(
                 select(Project)
@@ -610,7 +641,20 @@ async def _structural_neighbors(
                 .limit(limit - len(pairs))
             )
             for row in rows.scalars():
-                await add(_node_from_project(row), "contains", "Child project", 0.92)
+                child = _node_from_project(row)
+                if len(pairs) < limit:
+                    pairs.append(
+                        (
+                            child,
+                            _structural_edge(
+                                child,
+                                node,
+                                "part_of",
+                                explanation="Project hierarchy",
+                                strength=0.92,
+                            ),
+                        )
+                    )
 
     elif node.entity_type == "task":
         if node.project_id:
