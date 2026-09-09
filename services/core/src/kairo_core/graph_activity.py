@@ -142,7 +142,7 @@ async def _cursor_from_request(request: Request) -> tuple[datetime, uuid.UUID]:
                 if created_at.tzinfo is None:
                     created_at = created_at.replace(tzinfo=timezone.utc)
                 return created_at, row.id
-    return datetime.now(timezone.utc) - timedelta(seconds=2), uuid.UUID(int=0)
+    return datetime.now(timezone.utc) - timedelta(seconds=5), uuid.UUID(int=0)
 
 
 @router.get("/stream")
