@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     keycloak_issuer: str = "http://localhost:8081/realms/kairo"
     keycloak_jwks_url: str = "http://keycloak:8080/realms/kairo/protocol/openid-connect/certs"
 
+    activepieces_url: str = "http://activepieces:80"
+
     kokoro_tts_url: str = "http://kokoro-tts:8880"
     kokoro_default_voice: str = "ff_siwis"
 
