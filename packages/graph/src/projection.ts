@@ -1,6 +1,12 @@
 import type { KairoGraphProjection } from './types'
 import { graphEntityKey, graphNodeKey } from './types'
 
+export interface KairoGraphProjectionFilters {
+  hiddenEntityTypes?: Iterable<string>
+  hiddenRelations?: Iterable<string>
+  preserveKeys?: Iterable<string>
+}
+
 export function isolateGraphProjection(
   projection: KairoGraphProjection,
   rootKey: string | null | undefined,
@@ -36,5 +42,35 @@ export function isolateGraphProjection(
     nodes,
     edges,
     truncated: projection.truncated || nodes.length < projection.nodes.length,
+  }
+}
+
+export function filterGraphProjection(
+  projection: KairoGraphProjection,
+  filters: KairoGraphProjectionFilters,
+): KairoGraphProjection {
+  const hiddenTypes = new Set(filters.hiddenEntityTypes || [])
+  const hiddenRelations = new Set(filters.hiddenRelations || [])
+  const preserved = new Set(filters.preserveKeys || [])
+
+  if (hiddenTypes.size === 0 && hiddenRelations.size === 0) return projection
+
+  const visibleKeys = new Set<string>()
+  const nodes = projection.nodes.filter((node) => {
+    const key = graphNodeKey(node)
+    const visible = preserved.has(key) || !hiddenTypes.has(node.entity_type)
+    if (visible) visibleKeys.add(key)
+    return visible
+  })
+  const edges = projection.edges.filter((edge) => {
+    if (hiddenRelations.has(edge.relation)) return false
+    return visibleKeys.has(graphEntityKey(edge.source)) && visibleKeys.has(graphEntityKey(edge.target))
+  })
+
+  return {
+    ...projection,
+    nodes,
+    edges,
+    truncated: projection.truncated || nodes.length < projection.nodes.length || edges.length < projection.edges.length,
   }
 }
