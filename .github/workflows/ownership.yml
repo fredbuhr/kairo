@@ -14,6 +14,7 @@ on:
       - 'scripts/smoke/multi_user_account_lifecycle.py'
       - 'scripts/smoke/tool_invocation_ownership_contract.py'
       - 'scripts/smoke/asset_document_ownership_contract.py'
+      - 'scripts/smoke/evidence_subject_contract.py'
       - 'scripts/smoke/openbao_policy_contract.py'
       - 'scripts/smoke/control_plane_visibility.py'
       - 'compose.yaml'
@@ -24,6 +25,7 @@ on:
       - 'docs/decisions/ADR-042-tool-invocations-are-subject-owned-execution-state.md'
       - 'docs/decisions/ADR-043-assets-and-documents-have-first-class-subject-ownership.md'
       - 'docs/decisions/ADR-044-account-erasure-is-a-cross-store-state-machine.md'
+      - 'docs/decisions/ADR-045-audit-and-outbox-track-data-subject-separately-from-actor.md'
       - '.github/workflows/ownership.yml'
   pull_request:
     paths:
@@ -38,6 +40,7 @@ on:
       - 'scripts/smoke/multi_user_account_lifecycle.py'
       - 'scripts/smoke/tool_invocation_ownership_contract.py'
       - 'scripts/smoke/asset_document_ownership_contract.py'
+      - 'scripts/smoke/evidence_subject_contract.py'
       - 'scripts/smoke/openbao_policy_contract.py'
       - 'scripts/smoke/control_plane_visibility.py'
       - 'compose.yaml'
@@ -48,6 +51,7 @@ on:
       - 'docs/decisions/ADR-042-tool-invocations-are-subject-owned-execution-state.md'
       - 'docs/decisions/ADR-043-assets-and-documents-have-first-class-subject-ownership.md'
       - 'docs/decisions/ADR-044-account-erasure-is-a-cross-store-state-machine.md'
+      - 'docs/decisions/ADR-045-audit-and-outbox-track-data-subject-separately-from-actor.md'
       - '.github/workflows/ownership.yml'
 
 concurrency:
@@ -68,7 +72,7 @@ jobs:
 
       - name: Compile ownership-sensitive Core and proofs
         run: |
-          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py scripts/smoke/multi_user_tool_invocation_ownership.py scripts/smoke/multi_user_asset_document_ownership.py scripts/smoke/multi_user_account_lifecycle.py scripts/smoke/tool_invocation_ownership_contract.py scripts/smoke/asset_document_ownership_contract.py scripts/smoke/openbao_policy_contract.py scripts/smoke/control_plane_visibility.py
+          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py scripts/smoke/multi_user_tool_invocation_ownership.py scripts/smoke/multi_user_asset_document_ownership.py scripts/smoke/multi_user_account_lifecycle.py scripts/smoke/tool_invocation_ownership_contract.py scripts/smoke/asset_document_ownership_contract.py scripts/smoke/evidence_subject_contract.py scripts/smoke/openbao_policy_contract.py scripts/smoke/control_plane_visibility.py
 
       - name: Prove least-privilege OpenBao workload policy
         run: python scripts/smoke/openbao_policy_contract.py
@@ -78,6 +82,9 @@ jobs:
 
       - name: Prove ToolInvocation ownership contract
         run: python scripts/smoke/tool_invocation_ownership_contract.py
+
+      - name: Prove Audit/Outbox data-subject contract
+        run: python scripts/smoke/evidence_subject_contract.py
 
       - name: Start one shared database with two real Keycloak identities
         run: |
