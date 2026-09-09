@@ -33,6 +33,7 @@ export function DesktopRuntimeSettings() {
         capabilities.platform ? `${capabilities.platform}/${capabilities.arch || 'unknown'}` : null,
         `clipboard=${capabilities.clipboard_write ? 'yes' : 'no'}`,
         `notifications=${capabilities.notifications ? 'yes' : 'no'}`,
+        `summon=${capabilities.summon_shortcut_label || 'no'}`,
         `microphone=${capabilities.microphone ? 'yes' : 'no'}`,
         `screenshots=${capabilities.screenshots ? 'yes' : 'no'}`,
       ].filter(Boolean).join(' · ')
@@ -76,7 +77,7 @@ export function DesktopRuntimeSettings() {
         <div><dt>Notifications</dt><dd>{availability(capabilities.notifications)}</dd></div>
         <div><dt>Capture écran</dt><dd>{availability(capabilities.screenshots)}</dd></div>
         <div><dt>Microphone</dt><dd>{availability(capabilities.microphone)}</dd></div>
-        <div><dt>Raccourci d’invocation</dt><dd>{availability(capabilities.summon_shortcut)}</dd></div>
+        <div><dt>Raccourci d’invocation</dt><dd>{capabilities.summon_shortcut ? capabilities.summon_shortcut_label || 'Disponible' : 'Non activé'}</dd></div>
       </dl>
       {desktop && (
         <div className="desktop-runtime-actions">
