@@ -8,12 +8,15 @@ import './styles.css'
 import './brand.css'
 import './graph-controls.css'
 import './graph-filters.css'
+import './context-today.css'
 import './core-workspaces.css'
 import './knowledge-workspace.css'
 import './task-planning.css'
 import './gantt-workspace.css'
 import './calendar-workspace.css'
 import './agents-workspace.css'
+import './tools-workspace.css'
+import './brain-mind-map.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
