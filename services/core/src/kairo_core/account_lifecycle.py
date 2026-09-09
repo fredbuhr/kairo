@@ -66,7 +66,7 @@ class EvidenceInventory(BaseModel):
     subject_owned_outbox_events: int = 0
     unpublished_subject_outbox_events: int = 0
     data_subject_addressable: bool = True
-    retention_action_available: bool = False
+    retention_action_available: bool = True
 
 
 class RetentionBoundaryRead(BaseModel):
@@ -209,6 +209,7 @@ async def _evidence_inventory(session: AsyncSession, subject: str) -> EvidenceIn
         shared_audit_actor_references=shared_actor_refs,
         subject_owned_outbox_events=subject_outbox,
         unpublished_subject_outbox_events=unpublished_subject_outbox,
+        retention_action_available=True,
     )
 
 
@@ -457,9 +458,9 @@ async def _inventory(session: AsyncSession, subject: str) -> AccountDataInventor
                 key="audit_outbox",
                 state="shared_retention",
                 detail=(
-                    "User-world Audit/Outbox rows now carry an indexed data-subject owner. Shared "
-                    "administrative audit rows can still reference a user as actor, so a formal "
-                    "retention/redaction action is required before complete erasure."
+                    "Subject-owned Audit evidence can be irreversibly minimized and published Outbox "
+                    "transport state can be deleted after exact JetStream receipt deletion or verified "
+                    "max-age expiry. Shared administrative actor references are redacted separately."
                 ),
             ),
             RetentionBoundaryRead(
@@ -516,7 +517,7 @@ async def account_export_manifest(
             "secret values (write-only OpenBao material is never exported)",
             "shared deployment MCP server endpoint topology",
             "Mem0/Graphiti derived payloads",
-            "raw retained audit/outbox payloads until the retention/export policy is finalized",
+            "raw Audit/Outbox evidence (retention minimizes/removes it rather than exporting it)",
             "Keycloak credentials/tokens",
         ],
     )
@@ -641,21 +642,28 @@ async def account_erasure_preflight(
             )
         )
 
+    evidence_count = (
+        inventory.evidence.subject_owned_audit_records
+        + inventory.evidence.shared_audit_actor_references
+        + inventory.evidence.subject_owned_outbox_events
+    )
+    if evidence_count:
+        blockers.append(
+            ErasureBlockerRead(
+                code="audit_outbox_retention_required",
+                scope="complete",
+                count=evidence_count,
+                resolvable_by_user=inventory.evidence.retention_action_available,
+                detail=(
+                    "Apply the explicit account evidence retention action: published Outbox transport "
+                    "copies are deleted/reconciled first, then subject-owned Audit rows are minimized "
+                    "and shared administrative actor references are redacted."
+                ),
+            )
+        )
+
     blockers.extend(
         [
-            ErasureBlockerRead(
-                code="audit_outbox_retention_policy_not_applied",
-                scope="complete",
-                count=(
-                    inventory.evidence.subject_owned_audit_records
-                    + inventory.evidence.shared_audit_actor_references
-                    + inventory.evidence.subject_owned_outbox_events
-                ),
-                detail=(
-                    "Audit/Outbox evidence is now data-subject addressable, but KAIRO has not yet "
-                    "applied the final delete/redact/retain policy for account erasure."
-                ),
-            ),
             ErasureBlockerRead(
                 code="keycloak_identity_deletion_not_implemented",
                 scope="complete",
