@@ -44,7 +44,7 @@ def main() -> None:
 
     require(
         memory_events,
-        "/internal/v1/tasks/{task_id}/run",
+        "}/internal/v1/tasks/{task_id}/run",
         "memory projector internal Task start",
     )
     require(
@@ -54,7 +54,7 @@ def main() -> None:
     )
     forbid(
         memory_events,
-        "/v1/tasks/{task_id}/run",
+        "}/v1/tasks/{task_id}/run",
         "memory projector public Task start",
     )
 
