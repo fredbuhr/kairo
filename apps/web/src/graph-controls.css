@@ -1,0 +1,38 @@
+.context-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.context-actions .context-primary,
+.context-actions .context-secondary {
+  width: 100%;
+  min-height: 32px;
+  margin: 0;
+  border-radius: 999px;
+  font-size: 9px;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, color .18s ease;
+}
+
+.context-secondary {
+  border: 1px solid rgba(99, 222, 214, .14);
+  background: rgba(8, 37, 42, .34);
+  color: #7f9ea1;
+}
+
+.context-secondary:hover {
+  border-color: rgba(99, 222, 214, .29);
+  color: #d8f3ef;
+}
+
+.context-secondary-active {
+  border-color: rgba(120, 238, 207, .38);
+  background: rgba(45, 151, 139, .14);
+  color: #c9f8ed;
+}
+
+@media (max-width: 720px) {
+  .context-actions { grid-template-columns: 1fr; }
+}
