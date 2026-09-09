@@ -20,6 +20,9 @@ export type AccountDataInventory = {
     projectors: string[]
     canonical: false
     purge_adapter_available: boolean
+    latest_canonical_message_at?: string | null
+    latest_completed_purge_cutoff_at?: string | null
+    purge_current: boolean
   }
   boundaries: AccountRetentionBoundary[]
 }
@@ -51,6 +54,14 @@ export type AccountErasurePreflight = {
   destructive_endpoint_available: boolean
 }
 
+export type DerivedMemoryPurgeRun = {
+  task_id: string
+  workflow_execution_id?: string | null
+  workflow_status?: string | null
+  cutoff_message_created_at?: string | null
+  already_running: boolean
+}
+
 export function fetchAccountDataInventory(): Promise<AccountDataInventory> {
   return apiJson('/v1/account/data-inventory')
 }
@@ -61,4 +72,8 @@ export function fetchAccountExportManifest(): Promise<AccountExportManifest> {
 
 export function fetchAccountErasurePreflight(): Promise<AccountErasurePreflight> {
   return apiJson('/v1/account/erasure/preflight')
+}
+
+export function purgeDerivedMemory(): Promise<DerivedMemoryPurgeRun> {
+  return apiJson('/v1/account/derived-memory/purge', { method: 'POST' })
 }
