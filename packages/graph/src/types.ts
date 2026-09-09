@@ -2,6 +2,8 @@ export type KairoGraphNodeProvenance = 'canonical'
 export type KairoGraphEdgeProvenance = 'canonical_relationship' | 'canonical_fk'
 export type KairoGraphProjectionMode = 'home' | 'neighborhood'
 export type KairoGraphQuality = 'auto' | 'high' | 'balanced' | 'eco'
+export type KairoGraphUIDirectiveKind = 'focus_entity' | 'isolate_entity'
+export type KairoGraphUIDirectiveOutcome = 'directive' | 'not_navigation' | 'ambiguous' | 'not_found'
 
 export interface KairoGraphEntityRef {
   entity_type: string
@@ -65,6 +67,21 @@ export interface KairoGraphActivityEvent {
   related: KairoGraphEntityRef[]
   correlation_id: string
   occurred_at: string
+}
+
+export interface KairoGraphUIDirective {
+  kind: KairoGraphUIDirectiveKind
+  entity: KairoGraphEntityRef
+  label: string
+  depth: 1 | 2
+  reason: string
+}
+
+export interface KairoGraphUIDirectiveResolution {
+  outcome: KairoGraphUIDirectiveOutcome
+  query: string
+  directive?: KairoGraphUIDirective | null
+  candidates: KairoGraphNode[]
 }
 
 export interface KairoGraphPose {
