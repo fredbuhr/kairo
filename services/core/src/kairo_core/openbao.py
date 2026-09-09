@@ -32,6 +32,16 @@ class OpenBaoClient:
             raise ValueError("OpenBao provider path cannot be empty")
         return normalized
 
+    @classmethod
+    def _kv2_metadata_path(cls, provider_path: str) -> str:
+        """Convert a KV-v2 data path to its metadata path for irreversible destruction."""
+
+        normalized = cls._normalized_path(provider_path)
+        mount, marker, secret_path = normalized.partition("/data/")
+        if not marker or not mount or not secret_path:
+            raise ValueError("OpenBao secret destruction requires a KV-v2 data path")
+        return f"{mount}/metadata/{secret_path}"
+
     async def health(self) -> bool:
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
@@ -92,6 +102,24 @@ class OpenBaoClient:
         except (ValueError, TypeError):
             version = None
         return SecretStatus(exists=True, keys=tuple(sorted(values)), version=version)
+
+    async def destroy_secret_values(self, provider_path: str) -> None:
+        """Permanently delete all KV-v2 versions and metadata for one owned secret path.
+
+        This is intentionally separate from deleting the PostgreSQL SecretReference. Callers must
+        make the irreversible provider-side action explicit and audit it without ever reading secret
+        values into canonical state.
+        """
+
+        metadata_path = self._kv2_metadata_path(provider_path)
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            response = await client.delete(
+                f"{self.base_url}/v1/{metadata_path}",
+                headers=self._headers(),
+            )
+        if response.status_code == 404:
+            return
+        response.raise_for_status()
 
     async def read_secret_value(self, provider_path: str, key: str) -> str:
         """Internal-only value resolver for adapters.
