@@ -9,7 +9,10 @@ export function LiveGraphBridge() {
 
   useEffect(() => {
     if (!lastEvent) return
-    void queryClient.invalidateQueries({ queryKey: ['kairo-graph'] })
+    const timer = window.setTimeout(() => {
+      void queryClient.invalidateQueries({ queryKey: ['kairo-graph'] })
+    }, 280)
+    return () => window.clearTimeout(timer)
   }, [lastEvent, queryClient])
 
   return null
