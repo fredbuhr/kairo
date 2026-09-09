@@ -92,6 +92,7 @@ jobs:
       - name: Prepare command-kernel environment
         run: |
           cp .env.example .env
+          echo 'KAIRO_AUTH_ENABLED=false' >> .env
           echo 'KAIRO_WORKER_EXTRAS=' >> .env
 
       - name: Start canonical command and Temporal substrate
@@ -121,6 +122,7 @@ jobs:
       - name: Prepare semantic-routing environment
         run: |
           cp .env.example .env
+          echo 'KAIRO_AUTH_ENABLED=false' >> .env
           echo 'KAIRO_WORKER_EXTRAS=' >> .env
 
       - name: Start canonical command, policy and Worker substrate
@@ -161,6 +163,7 @@ jobs:
       - name: Prepare memory-projection environment
         run: |
           cp .env.example .env
+          echo 'KAIRO_AUTH_ENABLED=false' >> .env
           echo 'KAIRO_WORKER_EXTRAS=' >> .env
           echo 'KAIRO_MEMORY_PROJECTOR_MODE=stub' >> .env
 
@@ -191,6 +194,7 @@ jobs:
       - name: Prepare integration environment
         run: |
           cp .env.example .env
+          echo 'KAIRO_AUTH_ENABLED=false' >> .env
           echo 'KAIRO_WORKER_EXTRAS=' >> .env
 
       - name: Start Block 1 substrate
@@ -228,6 +232,9 @@ jobs:
 
       - name: Prove authenticated resource boundaries
         run: python scripts/smoke/resources.py
+
+      - name: Prove Cockpit public API bearer perimeter
+        run: python scripts/smoke/cockpit_auth.py
 
       - name: Dump trust-boundary state on failure
         if: failure()
@@ -268,7 +275,7 @@ jobs:
         if: always()
         run: |
           docker compose --env-file .env -f compose.yaml -f compose.override.yaml -f compose.ops.yaml --profile ops run --rm ops-cleanup || true
-          docker compose --env-file .env -f compose.yaml -f compose.override.yaml -f compose.ops.yaml --profile ops down -v --remove-orphans
+          docker compose --env-file .env -f compose.yaml -f compose.production.yaml -f compose.ops.yaml --profile ops down -v --remove-orphans
           rm -rf backups/restic .kairo-backup-staging
 
   block2-policy-integration:
