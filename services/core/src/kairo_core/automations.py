@@ -341,9 +341,17 @@ async def update_automation(
         if "webhook_secret_key" in fields and body.webhook_secret_key is not None
         else automation.webhook_secret_key
     )
+    next_enabled = (
+        body.enabled
+        if "enabled" in fields and body.enabled is not None
+        else automation.enabled
+    )
     await _secret_reference(next_reference_id, session)
 
-    if body.enabled is True:
+    # Changing a secret reference/key on an already enabled automation must be just as strict as
+    # enabling it for the first time. Otherwise the UI could leave an apparently active definition
+    # bound to an invalid webhook until the Worker eventually failed at execution time.
+    if next_enabled:
         await _validate_secret_binding(next_reference_id, next_secret_key, session)
 
     if "name" in fields and body.name is not None:
@@ -408,12 +416,7 @@ async def invoke_automation(
     if not automation.enabled:
         raise HTTPException(status_code=409, detail="Automation is disabled")
 
-    idempotency_key = body.idempotency_key or str(
-        uuid.uuid5(
-            uuid.NAMESPACE_URL,
-            f"kairo:automation:{automation.id}:{uuid.uuid4()}",
-        )
-    )
+    idempotency_key = body.idempotency_key or str(uuid.uuid4())
     existing = await session.scalar(
         select(AutomationInvocation).where(AutomationInvocation.idempotency_key == idempotency_key)
     )
