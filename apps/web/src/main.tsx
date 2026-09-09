@@ -19,6 +19,7 @@ import './automations-workspace.css'
 import './finance-workspace.css'
 import './tools-workspace.css'
 import './brain-mind-map.css'
+import './desktop-runtime.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
