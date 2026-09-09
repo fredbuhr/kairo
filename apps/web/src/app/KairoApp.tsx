@@ -38,7 +38,7 @@ const NAVIGATION: NavigationItem[] = [
   { key: 'knowledge', label: 'Connaissances', glyph: '□', available: true },
   { key: 'brain', label: 'Cerveau KAIRO', glyph: '◎', available: true },
   { key: 'tasks', label: 'Tâches', glyph: '✓', available: true },
-  { key: 'calendar', label: 'Calendrier', glyph: '▦', available: false },
+  { key: 'calendar', label: 'Calendrier', glyph: '▦', available: true },
   { key: 'agents', label: 'Agents', glyph: '⌘', available: false },
   { key: 'automations', label: 'Automatisations', glyph: '↯', available: false },
   { key: 'finance', label: 'Finance & Crypto', glyph: '◒', available: false },
@@ -332,7 +332,7 @@ export default function KairoApp() {
     if (!item.available) return
     if (item.key === 'home') recenter('home')
     if (item.key === 'brain') recenter('brain')
-    if (item.key === 'projects' || item.key === 'tasks' || item.key === 'knowledge') openWorkspace(item.key)
+    if (item.key === 'projects' || item.key === 'tasks' || item.key === 'knowledge' || item.key === 'calendar') openWorkspace(item.key)
     if (item.key === 'assistant') setAssistantOpen(true)
     if (item.key === 'settings') setSettingsOpen(true)
   }
@@ -378,7 +378,9 @@ export default function KairoApp() {
       ? 'Tâches'
       : workspaceMode === 'knowledge'
         ? 'Connaissances'
-        : null
+        : workspaceMode === 'calendar'
+          ? 'Calendrier'
+          : null
 
   return (
     <main className="kairo-app">
