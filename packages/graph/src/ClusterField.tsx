@@ -139,10 +139,6 @@ export function ClusterField({
     () => buildClusters(nodes, poses),
     [nodes, poses],
   )
-  const geometry = useMemo(
-    () => buildPointGeometry(clusters, detailLevel),
-    [clusters, detailLevel],
-  )
   const visibleClusterKeys = useMemo(() => {
     const keys = new Set<string>()
     for (const node of nodes) {
@@ -153,9 +149,14 @@ export function ClusterField({
     }
     return keys
   }, [nodes, visibleKeys])
-  const visibleRatio = clusters.length === 0
-    ? 0
-    : clusters.filter((cluster) => visibleClusterKeys.has(cluster.key)).length / clusters.length
+  const visibleClusters = useMemo(
+    () => clusters.filter((cluster) => visibleClusterKeys.has(cluster.key)),
+    [clusters, visibleClusterKeys],
+  )
+  const geometry = useMemo(
+    () => buildPointGeometry(visibleClusters, detailLevel),
+    [detailLevel, visibleClusters],
+  )
 
   useEffect(() => () => geometry.dispose(), [geometry])
 
@@ -165,7 +166,7 @@ export function ClusterField({
     group.current.rotation.x = Math.cos(clock.elapsedTime * 0.021) * 0.004
   })
 
-  if (clusters.length === 0 || detailLevel > 2) return null
+  if (visibleClusters.length === 0 || detailLevel > 2) return null
 
   return (
     <group ref={group} renderOrder={-2}>
@@ -175,7 +176,7 @@ export function ClusterField({
           size={detailLevel === 1 ? 0.105 : 0.075}
           sizeAttenuation
           transparent
-          opacity={(detailLevel === 1 ? 0.24 : 0.13) * (0.65 + visibleRatio * 0.35)}
+          opacity={detailLevel === 1 ? 0.24 : 0.13}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
           toneMapped={false}
