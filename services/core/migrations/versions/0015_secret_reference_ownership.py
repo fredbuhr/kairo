@@ -64,15 +64,16 @@ def upgrade() -> None:
                 UNION ALL
                 SELECT secret_reference_id AS reference_id, keycloak_subject
                 FROM finance_connectors
-            ), unique_owner AS (
-                SELECT reference_id, min(keycloak_subject) AS keycloak_subject
-                FROM refs
-                GROUP BY reference_id
             )
             UPDATE secret_references AS secret
-               SET keycloak_subject = COALESCE(owner.keycloak_subject, :development_subject)
-              FROM (SELECT 1) AS anchor
-              LEFT JOIN unique_owner AS owner ON owner.reference_id = secret.id
+               SET keycloak_subject = COALESCE(
+                   (
+                       SELECT min(refs.keycloak_subject)
+                       FROM refs
+                       WHERE refs.reference_id = secret.id
+                   ),
+                   :development_subject
+               )
              WHERE secret.keycloak_subject IS NULL
             """
         ).bindparams(development_subject=_DEVELOPMENT_SUBJECT)
