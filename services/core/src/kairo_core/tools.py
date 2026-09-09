@@ -50,6 +50,22 @@ class ToolServerRead(BaseModel):
     updated_at: datetime
 
 
+class ToolServerSummaryRead(BaseModel):
+    """User-visible shared MCP registry view without deployment transport details."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    key: str
+    namespace: str
+    title: str
+    transport: str
+    enabled: bool
+    catalog_generation: int
+    created_at: datetime
+    updated_at: datetime
+
+
 class ToolCatalogItem(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     title: str | None = Field(default=None, max_length=240)
@@ -325,7 +341,7 @@ async def create_tool_server(
     return server
 
 
-@router.get("/v1/tool-servers", response_model=list[ToolServerRead])
+@router.get("/v1/tool-servers", response_model=list[ToolServerSummaryRead])
 async def list_tool_servers(
     _: Principal = Depends(require_kairo_user), session: AsyncSession = Depends(get_session)
 ) -> list[ToolServer]:
