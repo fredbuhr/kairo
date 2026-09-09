@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke proof for KAIRO's canonical spatial graph read model and activity stream."""
+"""Smoke proof for KAIRO's canonical spatial graph, activity and navigation contracts."""
 
 from __future__ import annotations
 
@@ -161,7 +161,34 @@ def main() -> None:
     _, search = json_request("GET", "/v1/graph/search?q=Spatial%20Graph%20Smoke&limit=10")
     assert any(node["id"] == project["id"] and node["entity_type"] == "project" for node in search["nodes"]), search
 
-    print("KAIRO canonical spatial graph projection + activity stream smoke proof passed")
+    _, focus_directive = json_request(
+        "POST",
+        "/v1/graph/directives/resolve",
+        payload={"text": "Montre-moi Spatial Graph Smoke Project"},
+    )
+    assert focus_directive["outcome"] == "directive", focus_directive
+    assert focus_directive["directive"]["kind"] == "focus_entity", focus_directive
+    assert focus_directive["directive"]["entity"] == {
+        "entity_type": "project",
+        "entity_id": project["id"],
+    }, focus_directive
+
+    _, isolate_directive = json_request(
+        "POST",
+        "/v1/graph/directives/resolve",
+        payload={"text": "Isole Spatial Graph Smoke Project"},
+    )
+    assert isolate_directive["outcome"] == "directive", isolate_directive
+    assert isolate_directive["directive"]["kind"] == "isolate_entity", isolate_directive
+
+    _, ordinary = json_request(
+        "POST",
+        "/v1/graph/directives/resolve",
+        payload={"text": "Quelles sont les nouvelles du jour ?"},
+    )
+    assert ordinary["outcome"] == "not_navigation", ordinary
+
+    print("KAIRO canonical spatial graph + activity + typed navigation smoke proof passed")
 
 
 if __name__ == "__main__":
