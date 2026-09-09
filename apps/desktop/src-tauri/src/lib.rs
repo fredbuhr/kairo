@@ -1,5 +1,5 @@
 use serde::Serialize;
-use tauri::Manager;
+use tauri::{plugin::PermissionState, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_notification::NotificationExt;
 
@@ -62,7 +62,23 @@ fn desktop_notify(app: tauri::AppHandle, title: String, body: String) -> Result<
     if body.len() > 1_000 {
         return Err("notification body exceeds 1000 characters".into());
     }
-    app.notification()
+
+    let notifications = app.notification();
+    let state = notifications
+        .permission_state()
+        .map_err(|error| error.to_string())?;
+    let state = if state == PermissionState::Unknown {
+        notifications
+            .request_permission()
+            .map_err(|error| error.to_string())?
+    } else {
+        state
+    };
+    if state != PermissionState::Granted {
+        return Err("notification permission was not granted".into());
+    }
+
+    notifications
         .builder()
         .title(title)
         .body(body)
