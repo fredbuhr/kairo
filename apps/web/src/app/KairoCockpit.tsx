@@ -16,6 +16,7 @@ import { AssistantDrawer } from '../features/assistant/AssistantDrawer'
 import { useAssistant } from '../features/assistant/useAssistant'
 import { BrainMindMap } from '../features/brain/BrainMindMap'
 import { CoreWorkspace, type CoreWorkspaceMode } from '../features/core/CoreWorkspaces'
+import { DesktopRuntimeSettings } from '../features/desktop/DesktopRuntimeSettings'
 import { ContextRail } from '../features/home/ContextRail'
 import {
   fetchGraphHome,
@@ -536,6 +537,7 @@ export default function KairoCockpit() {
                 <span><strong>Réduire les animations</strong><small>Les respirations et impulsions non essentielles sont fortement limitées.</small></span>
               </label>
               {systemReducedMotion && <p className="settings-note">Votre système demande déjà une réduction des mouvements. KAIRO respecte cette préférence.</p>}
+              <DesktopRuntimeSettings />
             </section>
           </div>
         )}
