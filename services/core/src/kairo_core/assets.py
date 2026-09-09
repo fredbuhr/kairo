@@ -33,7 +33,7 @@ def _filer_url(object_key: str) -> str:
 
 
 def _owned(asset: Asset, principal: Principal) -> bool:
-    return str((asset.metadata_json or {}).get("owner_subject") or "") == principal.subject
+    return asset.keycloak_subject == principal.subject
 
 
 async def _get_owned_asset(
@@ -80,13 +80,14 @@ async def upload_asset(
 
     correlation_id = uuid.uuid4()
     asset = Asset(
+        keycloak_subject=principal.subject,
         project_id=project_id,
         bucket="kairo",
         object_key=object_key,
         mime_type=mime_type,
         size_bytes=len(content),
         sha256=digest,
-        metadata_json={"filename": filename, "owner_subject": principal.subject},
+        metadata_json={"filename": filename},
     )
     session.add(asset)
     try:
@@ -143,12 +144,7 @@ async def list_assets(
 ) -> list[Asset]:
     if project_id is not None:
         await require_owned_project(session, project_id, principal.subject)
-    # Tenant scoping belongs in SQL, not as an after-the-fact Python filter. This keeps foreign Asset
-    # rows out of the request process entirely and scales with the authenticated user's world rather
-    # than the installation-wide Asset table.
-    statement = select(Asset).where(
-        Asset.metadata_json["owner_subject"].astext == principal.subject
-    ).order_by(Asset.created_at)
+    statement = select(Asset).where(Asset.keycloak_subject == principal.subject).order_by(Asset.created_at)
     if project_id is not None:
         statement = statement.where(Asset.project_id == project_id)
     result = await session.execute(statement)
