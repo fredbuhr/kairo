@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   createSecretReference,
+  deleteSecretReference,
+  destroySecretReferenceValues,
   fetchSecretReferences,
   fetchSecretReferenceStatus,
   provisionSecretReference,
@@ -91,6 +93,22 @@ export function SecretVaultSettings() {
     },
   })
 
+  const destroyValuesMutation = useMutation({
+    mutationFn: () => destroySecretReferenceValues(selectedId),
+    onSuccess: async () => {
+      setFields((current) => current.map((field) => ({ ...field, value: '' })))
+      await client.invalidateQueries({ queryKey: ['secret-reference-status', selectedId] })
+    },
+  })
+
+  const deleteReferenceMutation = useMutation({
+    mutationFn: () => deleteSecretReference(selectedId),
+    onSuccess: async () => {
+      setSelectedId('')
+      await client.invalidateQueries({ queryKey: ['secret-references'] })
+    },
+  })
+
   function create(event: FormEvent) {
     event.preventDefault()
     if (!name.trim() || createMutation.isPending) return
@@ -103,9 +121,27 @@ export function SecretVaultSettings() {
     provisionMutation.mutate()
   }
 
+  function destroyValues() {
+    if (!selected || !statusQuery.data?.exists || destroyValuesMutation.isPending) return
+    const confirmed = window.confirm(
+      `Détruire définitivement toutes les versions du secret « ${selected.name} » dans OpenBao ? Cette action est irréversible et peut interrompre les connecteurs qui l’utilisent.`,
+    )
+    if (confirmed) destroyValuesMutation.mutate()
+  }
+
+  function deleteReference() {
+    if (!selected || statusQuery.data?.exists || deleteReferenceMutation.isPending) return
+    const confirmed = window.confirm(
+      `Supprimer la référence « ${selected.name} » de KAIRO ? Les valeurs OpenBao doivent déjà être absentes et aucun connecteur ne doit encore l’utiliser.`,
+    )
+    if (confirmed) deleteReferenceMutation.mutate()
+  }
+
   function updateField(id: number, patch: Partial<Pick<SecretField, 'key' | 'value'>>) {
     setFields((current) => current.map((field) => field.id === id ? { ...field, ...patch } : field))
   }
+
+  const retentionError = destroyValuesMutation.error || deleteReferenceMutation.error
 
   return (
     <section className="secret-vault-settings">
@@ -189,6 +225,36 @@ export function SecretVaultSettings() {
             </div>
             {provisionMutation.isError && <small className="workspace-error">{provisionMutation.error instanceof Error ? provisionMutation.error.message : 'Écriture impossible.'}</small>}
           </form>
+
+          {selected && (
+            <section className="secret-vault-retention">
+              <div>
+                <strong>Rétention</strong>
+                <small>La destruction du secret OpenBao et la suppression de sa référence KAIRO sont deux décisions distinctes.</small>
+              </div>
+              <div className="secret-vault-retention-actions">
+                <button
+                  type="button"
+                  className="secret-vault-danger"
+                  disabled={!statusQuery.data?.exists || destroyValuesMutation.isPending}
+                  onClick={destroyValues}
+                >
+                  {destroyValuesMutation.isPending ? 'Destruction…' : 'Détruire les valeurs'}
+                </button>
+                <button
+                  type="button"
+                  disabled={Boolean(statusQuery.data?.exists) || statusQuery.isLoading || deleteReferenceMutation.isPending}
+                  onClick={deleteReference}
+                >
+                  {deleteReferenceMutation.isPending ? 'Suppression…' : 'Supprimer la référence'}
+                </button>
+              </div>
+              <small>
+                KAIRO refuse de supprimer la référence tant qu’un secret existe encore dans OpenBao ou qu’une Automation / un connecteur Finance l’utilise.
+              </small>
+              {retentionError && <small className="workspace-error">{retentionError instanceof Error ? retentionError.message : 'Opération de rétention impossible.'}</small>}
+            </section>
+          )}
         </>
       )}
     </section>
