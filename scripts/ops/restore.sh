@@ -20,12 +20,15 @@ env_file_value() {
   printf '%s' "${line#*=}"
 }
 
+KAIRO_ENV_VALUE="${KAIRO_ENV:-$(env_file_value KAIRO_ENV)}"
+KAIRO_ENV_VALUE="${KAIRO_ENV_VALUE:-development}"
+
 # The erasure ledger is deliberately outside the Restic state snapshot. Restoring an older snapshot
 # must never roll this guard backward with the data it protects. Production therefore requires the
 # external ledger file to be mounted/present before any destructive restore is allowed.
 ERASURE_LEDGER_PATH="${KAIRO_ERASURE_LEDGER_PATH:-$(env_file_value KAIRO_ERASURE_LEDGER_PATH)}"
 ERASURE_LEDGER_PATH="${ERASURE_LEDGER_PATH:-.kairo-erasure-ledger/tombstones.jsonl}"
-if [[ "$OVERLAY" == *production* && ! -f "$ERASURE_LEDGER_PATH" ]]; then
+if [[ "$KAIRO_ENV_VALUE" == "production" && ! -f "$ERASURE_LEDGER_PATH" ]]; then
   echo "Production restore refused: external erasure ledger is unavailable at $ERASURE_LEDGER_PATH." >&2
   echo "Mount the monotonic erasure ledger before restoring any historical KAIRO state." >&2
   exit 4
