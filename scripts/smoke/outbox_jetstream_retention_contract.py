@@ -35,7 +35,8 @@ def main() -> None:
     require(migration, 'sa.Column("jetstream_sequence"', "sequence migration")
     require(migration, "Historical", "historical receipt limitation documentation")
 
-    require(outbox, 'headers={"Nats-Msg-Id": str(event.id)}', "Outbox UUID JetStream dedupe header")
+    require(outbox, '"Nats-Msg-Id": str(event.id)', "Outbox UUID JetStream dedupe header")
+    require(outbox, "ack = await self._js.publish(", "PubAck capture")
     require(outbox, "event.jetstream_stream = str(ack.stream)", "PubAck stream persistence")
     require(outbox, "event.jetstream_sequence = int(ack.seq)", "PubAck sequence persistence")
     require(outbox, "event.published_at = datetime.now(UTC)", "publish completion marker")
