@@ -12,6 +12,7 @@ from . import __version__
 from .approval_signals import router as approval_signals_router
 from .assistant import router as assistant_router
 from .assets import router as assets_router
+from .automations import router as automations_router
 from .autonomy import router as autonomy_router
 from .calendar_external import router as calendar_external_router
 from .components import load_component_registry
@@ -78,6 +79,7 @@ app.include_router(planning_router)
 app.include_router(calendar_external_router)
 app.include_router(project_management_router)
 app.include_router(operations_router)
+app.include_router(automations_router)
 app.include_router(graph_router)
 app.include_router(graph_activity_router)
 app.include_router(graph_directives_router)
@@ -197,6 +199,8 @@ async def architecture() -> dict[str, object]:
         "today_projection": "kairo-core-explicit-task-planning-read-model",
         "external_calendar": "kairo-core-provenance-preserving-external-source-snapshots",
         "agent_operations": "kairo-core-capability-task-workflow-approval-usage-read-model",
+        "automation_registry": "kairo-core-postgresql-activepieces-webhook-boundary",
+        "automation_execution": "temporal-no-retry-after-webhook-side-effect-boundary",
         "capability_registry": "kairo-core",
         "tool_registry": "kairo-core-postgresql",
         "tool_transport": "mcp-streamable-http",
