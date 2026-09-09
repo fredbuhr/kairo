@@ -13,12 +13,14 @@ def route(text: str, output: str = "auto"):
 def main() -> None:
     news = get_capability("news.brief")
     assert news is not None
+    assert news.version == 1
     assert news.runtime == "temporal"
     assert news.authority_level == 1
     assert news.metadata["model_gateway"] == "litellm"
 
     research = get_capability("research.autonomous")
     assert research is not None
+    assert research.version == 2
     assert research.runtime == "temporal"
     assert research.authority_level == 1
     assert research.metadata["tool_risk_ceiling"] == "read"
@@ -96,7 +98,7 @@ def main() -> None:
     assert unsupported is None
 
     print(
-        "ASSISTANT ROUTER PASS: News priority, research routing, authority-free research contracts, "
+        "ASSISTANT ROUTER PASS: versioned authority-free Research v2, News priority, research routing, "
         "Paris locality, market impact, spoken output, time ranges and unsupported routing are deterministic"
     )
 
