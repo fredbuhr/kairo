@@ -91,7 +91,7 @@ class InternalDocumentProjectionReport(BaseModel):
 
 
 def _owned_asset(asset: Asset, principal: Principal) -> bool:
-    return str((asset.metadata_json or {}).get("owner_subject") or "") == principal.subject
+    return asset.keycloak_subject == principal.subject
 
 
 def _filer_url(object_key: str) -> str:
@@ -240,13 +240,14 @@ async def create_document(
 
     title = (body.title or (asset.metadata_json or {}).get("filename") or "Document").strip()
     document = Document(
+        keycloak_subject=principal.subject,
         asset_id=asset.id,
         project_id=project.id,
         title=title[:320],
         media_type=asset.mime_type,
         source_sha256=asset.sha256,
         status="pending",
-        metadata_json={"owner_subject": principal.subject},
+        metadata_json={},
     )
     session.add(document)
     await session.flush()
@@ -267,14 +268,14 @@ async def reingest_document(
     session: AsyncSession = Depends(get_session),
 ) -> DocumentRunResponse:
     document = await session.get(Document, document_id)
-    if not document or str((document.metadata_json or {}).get("owner_subject") or "") != principal.subject:
+    if not document or document.keycloak_subject != principal.subject:
         raise HTTPException(status_code=404, detail="Document not found")
     asset = await session.get(Asset, document.asset_id)
     if asset is None or not _owned_asset(asset, principal):
         raise HTTPException(status_code=410, detail="Source asset metadata is missing")
 
-    # Legacy unscoped documents may still point at the migration-owned historical Documents project.
-    # Move only this explicitly owner-tagged Document into that user's deterministic system workspace.
+    # Legacy rows may still point at a migration-owned historical Documents Project. Rehome only the
+    # explicitly owner-bound Document when it is touched; new rows are protected by the DB trigger.
     if await owned_project(session, document.project_id, principal.subject) is None:
         if asset.project_id is not None:
             project = await require_owned_project(session, asset.project_id, principal.subject)
@@ -301,11 +302,9 @@ async def list_documents(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[Document]:
-    # Keep tenant filtering inside PostgreSQL so another user's Document rows never need to be
-    # materialized in this request merely to be discarded by Python afterwards.
     result = await session.execute(
         select(Document)
-        .where(Document.metadata_json["owner_subject"].astext == principal.subject)
+        .where(Document.keycloak_subject == principal.subject)
         .order_by(Document.created_at.desc())
     )
     return list(result.scalars())
@@ -318,7 +317,7 @@ async def get_document(
     session: AsyncSession = Depends(get_session),
 ) -> Document:
     document = await session.get(Document, document_id)
-    if not document or str((document.metadata_json or {}).get("owner_subject") or "") != principal.subject:
+    if not document or document.keycloak_subject != principal.subject:
         raise HTTPException(status_code=404, detail="Document not found")
     return document
 
@@ -368,6 +367,8 @@ async def internal_document_source(
     asset = await session.get(Asset, document.asset_id) if document else None
     if document is None or asset is None:
         raise HTTPException(status_code=410, detail="Document source asset is unavailable")
+    if asset.keycloak_subject != document.keycloak_subject:
+        raise HTTPException(status_code=409, detail="Document source ownership binding is stale")
     return {
         "document_id": str(document.id),
         "document_version_id": str(version.id),
