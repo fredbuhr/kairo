@@ -9,11 +9,12 @@ import {
   type ProjectRecord,
   type TaskRecord,
 } from '../../lib/api'
+import { AgentsWorkspace } from './AgentsWorkspace'
 import { CalendarWorkspace } from './CalendarWorkspace'
 import { KnowledgeWorkspace } from './KnowledgeWorkspace'
 import { TaskPlanningWorkspace } from './TaskPlanningWorkspace'
 
-export type CoreWorkspaceMode = 'projects' | 'tasks' | 'knowledge' | 'calendar'
+export type CoreWorkspaceMode = 'projects' | 'tasks' | 'knowledge' | 'calendar' | 'agents'
 
 function shortDate(value: string) {
   try {
@@ -154,6 +155,9 @@ export function CoreWorkspace({
   }
   if (mode === 'calendar') {
     return <CalendarWorkspace projects={projects} onExploreEntity={onExploreEntity} />
+  }
+  if (mode === 'agents') {
+    return <AgentsWorkspace projects={projects} onExploreEntity={onExploreEntity} />
   }
   return <ProjectsWorkspace projects={projects} tasks={tasks} onExploreEntity={onExploreEntity} />
 }
