@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { getAuthSnapshot } from '../../lib/authSession'
 import {
   createToolServer,
   fetchToolServers,
@@ -65,7 +66,7 @@ function ServerCard({
   )
 }
 
-function RegisterServer() {
+function RegisterServer({ canManage }: { canManage: boolean }) {
   const client = useQueryClient()
   const [open, setOpen] = useState(false)
   const [key, setKey] = useState('')
@@ -92,8 +93,12 @@ function RegisterServer() {
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    if (!key.trim() || !namespace.trim() || !title.trim() || !endpoint.trim() || mutation.isPending) return
+    if (!canManage || !key.trim() || !namespace.trim() || !title.trim() || !endpoint.trim() || mutation.isPending) return
     mutation.mutate()
+  }
+
+  if (!canManage) {
+    return <small className="tools-register-note">Les serveurs MCP partagés sont gérés par un administrateur KAIRO.</small>
   }
 
   if (!open) {
@@ -122,10 +127,12 @@ function RegisterServer() {
 function ToolCard({
   tool,
   serverEnabled,
+  canManage,
   onInspect,
 }: {
   tool: ToolDefinitionRecord
   serverEnabled: boolean
+  canManage: boolean
   onInspect: () => void
 }) {
   const client = useQueryClient()
@@ -154,15 +161,21 @@ function ToolCard({
           <span>{money(tool.estimated_cost_usd)}</span>
         </div>
       </button>
-      <button
-        type="button"
-        className={`tools-policy-toggle ${tool.enabled ? 'tools-policy-toggle-on' : ''}`}
-        disabled={mutation.isPending || (!tool.enabled && !canEnable)}
-        onClick={() => mutation.mutate()}
-        title={!serverEnabled ? 'Activez d’abord le serveur MCP' : !tool.available ? 'Outil absent du dernier catalogue' : undefined}
-      >
-        {mutation.isPending ? '…' : tool.enabled ? 'Autorisé' : 'Interdit'}
-      </button>
+      {canManage ? (
+        <button
+          type="button"
+          className={`tools-policy-toggle ${tool.enabled ? 'tools-policy-toggle-on' : ''}`}
+          disabled={mutation.isPending || (!tool.enabled && !canEnable)}
+          onClick={() => mutation.mutate()}
+          title={!serverEnabled ? 'Activez d’abord le serveur MCP' : !tool.available ? 'Outil absent du dernier catalogue' : undefined}
+        >
+          {mutation.isPending ? '…' : tool.enabled ? 'Autorisé' : 'Interdit'}
+        </button>
+      ) : (
+        <span className={`tools-policy-toggle ${tool.enabled ? 'tools-policy-toggle-on' : ''}`} title="Politique MCP gérée par un administrateur KAIRO">
+          {tool.enabled ? 'Autorisé' : 'Interdit'}
+        </span>
+      )}
       {mutation.isError && <small className="workspace-error">{mutation.error instanceof Error ? mutation.error.message : 'Politique impossible.'}</small>}
     </article>
   )
@@ -198,6 +211,8 @@ function ToolInspector({ tool }: { tool: ToolDefinitionRecord }) {
 
 export function ToolsWorkspace() {
   const client = useQueryClient()
+  const auth = getAuthSnapshot()
+  const canManage = !auth.enabled || auth.roles.includes('kairo-admin')
   const serversQuery = useQuery({
     queryKey: ['tool-servers'],
     queryFn: fetchToolServers,
@@ -270,23 +285,23 @@ export function ToolsWorkspace() {
         {servers.length === 0
           ? <div className="workspace-empty"><strong>Aucun serveur MCP enregistré.</strong><span>Le registre reste vide plutôt que de simuler des outils.</span></div>
           : servers.map((server) => <ServerCard key={server.id} server={server} selected={server.key === serverKey} onSelect={() => { setServerKey(server.key); setSelectedToolKey('') }} />)}
-        <RegisterServer />
+        <RegisterServer canManage={canManage} />
       </aside>
 
       <section className="tools-main">
         {selectedServer ? (
           <>
             <header className="workspace-title tools-title">
-              <div><span className="kairo-kicker">OUTILS</span><h1>{selectedServer.title}</h1><p>{selectedServer.endpoint_url} · namespace {selectedServer.namespace} · génération de catalogue {selectedServer.catalog_generation}</p></div>
+              <div><span className="kairo-kicker">OUTILS</span><h1>{selectedServer.title}</h1><p>namespace {selectedServer.namespace} · {selectedServer.transport} · génération de catalogue {selectedServer.catalog_generation}</p></div>
               <strong>{tools.filter((tool) => tool.enabled).length}/{tools.length}</strong>
             </header>
             <div className="tools-server-actions">
               <div>
                 <i className={selectedServer.enabled ? 'tools-server-live' : ''} />
                 <span>{selectedServer.enabled ? 'Serveur autorisé' : 'Serveur désactivé'}</span>
-                <small>Catalogue reçu via la passerelle MCP de confiance.</small>
+                <small>{canManage ? 'Catalogue reçu via la passerelle MCP de confiance.' : 'Politique et transport gérés par l’administrateur KAIRO.'}</small>
               </div>
-              <button type="button" disabled={serverPolicy.isPending} className={selectedServer.enabled ? 'tools-disable-server' : ''} onClick={() => serverPolicy.mutate(!selectedServer.enabled)}>{serverPolicy.isPending ? '…' : selectedServer.enabled ? 'Désactiver' : 'Activer'}</button>
+              {canManage && <button type="button" disabled={serverPolicy.isPending} className={selectedServer.enabled ? 'tools-disable-server' : ''} onClick={() => serverPolicy.mutate(!selectedServer.enabled)}>{serverPolicy.isPending ? '…' : selectedServer.enabled ? 'Désactiver' : 'Activer'}</button>}
             </div>
             {serverPolicy.isError && <small className="workspace-error">{serverPolicy.error instanceof Error ? serverPolicy.error.message : 'Politique serveur impossible.'}</small>}
             <div className="tools-toolbar">
@@ -295,9 +310,9 @@ export function ToolsWorkspace() {
             </div>
             {visibleTools.length === 0
               ? <div className="workspace-empty"><strong>Aucun outil dans ce filtre.</strong><span>{selectedServer.catalog_generation === 0 ? 'Le catalogue n’a pas encore été reçu par KAIRO.' : 'Modifiez le filtre ou vérifiez le dernier catalogue MCP.'}</span></div>
-              : <div className="tools-tool-list">{visibleTools.map((tool) => <ToolCard key={tool.id} tool={tool} serverEnabled={selectedServer.enabled} onInspect={() => setSelectedToolKey(tool.key)} />)}</div>}
+              : <div className="tools-tool-list">{visibleTools.map((tool) => <ToolCard key={tool.id} tool={tool} serverEnabled={selectedServer.enabled} canManage={canManage} onInspect={() => setSelectedToolKey(tool.key)} />)}</div>}
           </>
-        ) : <div className="workspace-empty"><strong>Enregistrez ou sélectionnez un serveur MCP.</strong></div>}
+        ) : <div className="workspace-empty"><strong>{canManage ? 'Enregistrez ou sélectionnez un serveur MCP.' : 'Aucun outil partagé n’est disponible.'}</strong></div>}
       </section>
 
       <aside className="tools-inspector">{selectedTool ? <ToolInspector tool={selectedTool} /> : <div className="workspace-empty"><strong>Aucun contrat sélectionné.</strong></div>}</aside>
