@@ -83,9 +83,15 @@ class MemoryProjectionEventConsumer:
             return response.json()
 
     async def _run_task(self, task_id: str) -> None:
+        """Start a Core-created deterministic Task through the Worker-only trust boundary.
+
+        Public `/v1/tasks/.../run` requires a user bearer token and must never be used as an internal
+        service backdoor. The Worker authenticates with the existing internal service token instead.
+        """
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(
-                f"{settings.kairo_core_url.rstrip('/')}/v1/tasks/{task_id}/run"
+                f"{settings.kairo_core_url.rstrip('/')}/internal/v1/tasks/{task_id}/run",
+                headers=self._headers(),
             )
             if response.status_code == 409:
                 # Core returns 409 only when the deterministic Task is already completed.
