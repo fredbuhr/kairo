@@ -152,11 +152,12 @@ class SecretReferenceProvision(BaseModel):
 
 
 class SecretReferenceRead(BaseModel):
+    """Public vault-handle metadata; the deployment-owned OpenBao path stays inside Core."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     name: str
-    provider_path: str
     purpose: str
     created_at: datetime
     updated_at: datetime
