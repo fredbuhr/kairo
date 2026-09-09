@@ -1,5 +1,6 @@
 export * from './types'
 export * from './projection'
+export * from './mindmap'
 export * from './activityStore'
 export * from './adaptiveQuality'
 export { type MyceliumViewportProps } from './MyceliumViewport'
