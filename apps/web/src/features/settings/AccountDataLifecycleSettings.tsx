@@ -1,8 +1,10 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   fetchAccountErasurePreflight,
   fetchAccountExportManifest,
+  purgeDerivedMemory,
   type AccountDataInventory,
 } from '../../lib/accountApi'
 
@@ -29,6 +31,20 @@ function formatBytes(bytes: number) {
   return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${units[index]}`
 }
 
+function shortDateTime(value?: string | null) {
+  if (!value) return '—'
+  try {
+    return new Intl.DateTimeFormat('fr-FR', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value))
+  } catch {
+    return value
+  }
+}
+
 function downloadJson(filename: string, value: unknown) {
   const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -42,19 +58,45 @@ function downloadJson(filename: string, value: unknown) {
 }
 
 export function AccountDataLifecycleSettings() {
+  const client = useQueryClient()
+  const [purgePolling, setPurgePolling] = useState(false)
   const preflightQuery = useQuery({
     queryKey: ['account-erasure-preflight'],
     queryFn: fetchAccountErasurePreflight,
     staleTime: 10_000,
+    refetchInterval: purgePolling ? 2500 : false,
   })
   const manifestMutation = useMutation({
     mutationFn: fetchAccountExportManifest,
     onSuccess: (manifest) => downloadJson('kairo-account-export-manifest.json', manifest),
   })
+  const purgeMutation = useMutation({
+    mutationFn: purgeDerivedMemory,
+    onSuccess: async () => {
+      setPurgePolling(true)
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ['account-erasure-preflight'] }),
+        client.invalidateQueries({ queryKey: ['agent-executions'] }),
+      ])
+    },
+  })
 
   const preflight = preflightQuery.data
   const inventory = preflight?.inventory
-  const error = preflightQuery.error || manifestMutation.error
+  const derived = inventory?.derived_projections
+  const error = preflightQuery.error || manifestMutation.error || purgeMutation.error
+
+  useEffect(() => {
+    if (purgePolling && derived?.purge_current) setPurgePolling(false)
+  }, [derived?.purge_current, purgePolling])
+
+  function requestPurge() {
+    if (!derived || purgeMutation.isPending || derived.purge_current) return
+    const confirmed = window.confirm(
+      'Purger la mémoire dérivée Mem0 / Graphiti ?\n\nLes conversations canoniques resteront intactes. Seules les projections reconstruisibles seront supprimées.',
+    )
+    if (confirmed) purgeMutation.mutate()
+  }
 
   return (
     <section className="account-lifecycle-settings">
@@ -88,9 +130,34 @@ export function AccountDataLifecycleSettings() {
             </div>
             <div>
               <span>Projections mémoire</span>
-              <strong>{inventory.derived_projections.memory_projection_records}</strong>
+              <strong>{derived?.memory_projection_records || 0}</strong>
             </div>
           </div>
+
+          {derived && (
+            <div className={`derived-memory-control ${derived.purge_current ? 'derived-memory-current' : ''}`}>
+              <div>
+                <span className="kairo-kicker">MÉMOIRE DÉRIVÉE</span>
+                <strong>{derived.purge_current ? 'Projection purgée au dernier état canonique' : 'Projection à purger'}</strong>
+                <small>
+                  Dernier message : {shortDateTime(derived.latest_canonical_message_at)} · dernier cutoff purgé : {shortDateTime(derived.latest_completed_purge_cutoff_at)}
+                </small>
+              </div>
+              <button
+                type="button"
+                disabled={!derived.purge_adapter_available || derived.purge_current || purgeMutation.isPending || purgePolling}
+                onClick={requestPurge}
+              >
+                {purgeMutation.isPending || purgePolling ? 'Purge en cours…' : derived.purge_current ? 'À jour' : 'Purger Mem0 / Graphiti'}
+              </button>
+              <p>
+                Cette opération supprime uniquement les projections reconstruisibles. Les messages et conversations canoniques restent dans KAIRO.
+              </p>
+              {purgeMutation.data && (
+                <small>Task {purgeMutation.data.task_id.slice(0, 8)}… · {purgeMutation.data.already_running ? 'exécution déjà active' : 'exécution demandée'}</small>
+              )}
+            </div>
+          )}
 
           <div className="account-lifecycle-actions">
             <button
