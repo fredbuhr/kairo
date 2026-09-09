@@ -1,174 +1,222 @@
 # KAIRO implementation status
 
-Last updated: 2026-09-08
+Last updated: 2026-09-09
 
 ## Current phase
 
-**Block 2 — intelligence, memory and safe autonomy.**
+KAIRO is transitioning from **Block 2 — intelligence, memory and safe autonomy** into the permanent **Block 3 — Cockpit / Test Interface v1**.
 
-Block 1 is complete and its exit conditions are covered by end-to-end CI proofs. The former OpenClaw/filesystem V0 remains useful history, but it is no longer the target runtime. Its lessons are carried into the PostgreSQL/Temporal/NATS architecture rather than maintaining two parallel systems.
+The canonical substrate is already in place. The current work is no longer a dashboard prototype: the active Block 3 branch builds the product shell and spatial world model that is intended to remain the daily-use test interface while later work fills Projects, Knowledge, Tasks, Calendar, Agents, Finance and other specialist areas.
 
-Block 2 now has seven active pieces rather than only planned contracts: KAIRO-owned policy/approval enforcement, replay-safe and canonically accounted model calls through LiteLLM, the canonical conversational command kernel, a durable PydanticAI semantic-routing tier constrained to registered KAIRO capabilities, rebuildable Mem0 + Graphiti/Neo4j projections driven from canonical conversation events, versioned canonical document ingestion/chunk provenance, and Langfuse correlation derived from KAIRO execution identity.
+Three stacked pull requests must remain in order:
 
-## Foundation decisions now active
+1. **PR #36 — durable multi-slot Research synthesis** (`feat/research-synthesis-checkpoints` → `main`);
+2. **PR #37 — Research through the Command Kernel** (`feat/research-command-handoff` → PR #36);
+3. **PR #39 — KAIRO Test Interface v1** (`feat/kairo-test-interface-v1` → PR #37).
 
-- PostgreSQL + pgvector is the canonical domain/state store;
-- SeaweedFS is canonical object storage;
-- Temporal is durable workflow execution;
-- NATS JetStream is the event bus, fed by a transactional outbox;
-- canonical Conversation/Message/Command records own conversational continuity and routing history;
-- KAIRO-owned Capability contracts sit above replaceable specialist engines;
-- deterministic high-confidence command routing is the first tier;
-- PydanticAI provides a second-tier semantic route proposal only when deterministic routing has no match;
-- semantic PydanticAI provider access goes through the same replay-safe/accounted LiteLLM Worker gateway as other model calls;
-- Neo4j + Graphiti and Mem0 are rebuildable projections, never canonical state;
-- Mem0 uses an isolated PostgreSQL `mem0` database rather than writing vector tables into KAIRO's canonical schema;
-- LiteLLM is the model-provider gateway and model-observability fan-out point;
-- Langfuse + ClickHouse are non-authoritative AI observability stores correlated from KAIRO IDs;
-- PydanticAI is the agent framework;
-- Keycloak and OpenBao are identity/secrets boundaries;
-- Hocuspocus/Yjs provides realtime collaboration without becoming the domain store;
-- Activepieces and MCP provide external tool/automation integration;
-- specialist engines are declared in the component registry from the beginning.
+All three are intentionally unmerged while GitHub Actions issue **#38** prevents GitHub-hosted jobs from receiving a runner. A red check with `runner_id=0` / no executed steps is an infrastructure failure, not a substitute for validation. The stacked PRs must receive real `ubuntu-latest` runs before merge.
 
-## Block 1 complete
+## Canonical architecture active
 
-The permanent platform substrate now includes:
+- PostgreSQL + pgvector is the canonical domain/state store.
+- SeaweedFS is canonical object storage.
+- Temporal owns durable workflow execution and replay/recovery.
+- NATS JetStream is the event bus, fed by a transactional PostgreSQL outbox.
+- Keycloak and OpenBao define identity/secrets boundaries.
+- canonical Conversation / Message / Command records own conversational continuity.
+- KAIRO-owned Capability contracts sit above replaceable specialist engines.
+- deterministic routing is the first command-routing tier; constrained PydanticAI semantic routing is second tier.
+- LiteLLM is the model gateway; canonical model usage/budget accounting remains in PostgreSQL.
+- Langfuse is observability only and is correlated from KAIRO execution identity.
+- Mem0 and Graphiti/Neo4j are rebuildable projections, never canonical state.
+- Docling-backed document ingestion produces canonical Documents / Versions / Chunks with provenance.
+- MCP tools are registered and executed through KAIRO-owned policy/contract boundaries.
+- specialist engines remain replaceable behind KAIRO adapters.
 
-- Alembic migrations for canonical projects, tasks, relationships, workflow executions, artifacts, assets, devices, secret references, audit and outbox records;
-- Core-owned domain mutations through PostgreSQL;
-- transactional outbox relay from PostgreSQL to NATS JetStream;
-- deterministic Temporal Workflow IDs and conservative `start_unknown` handling for ambiguous starts;
-- Worker mutations returning through internal KAIRO Core endpoints rather than writing canonical state directly;
-- idempotent task completion with one canonical artifact per workflow execution;
-- separate Temporal workflow and activity modules so network libraries are not imported into the workflow sandbox;
-- different heartbeat budgets for short foundation work and longer intelligence work;
-- Keycloak JWT validation through JWKS/RS256 with the signed `sub` as the canonical device owner;
-- authenticated device registration and KAIRO-owned current-identity contract;
-- OpenBao secret references/status that expose metadata and key names without returning secret values;
-- authenticated SeaweedFS asset upload/download/delete with digest verification;
-- separate substrate readiness and trust-boundary health endpoints;
-- development-only Keycloak/OpenBao bootstrap isolated from the production trust-boundary overlay;
-- Restic backup/restore commands for the four durable Block 1 stores: PostgreSQL, NATS, SeaweedFS and OpenBao.
+## Block 1 — platform substrate
 
-## Block 1 proof status
+**Implementation: complete.**
 
-The completion gate contains independent CI jobs that continue to pass together:
+The permanent substrate includes canonical Projects, Tasks, Relationships, WorkflowExecutions, Artifacts, Assets, Devices, SecretReferences, Audit and Outbox records; deterministic Temporal workflow identity; internal Worker → Core mutation handoff; transactional event delivery; authenticated resource ownership; SeaweedFS digest verification; OpenBao secret-reference non-disclosure; and Restic backup/restore coverage for PostgreSQL, NATS, SeaweedFS and OpenBao.
 
-1. `validate` — development, production and operations Compose topologies; TypeScript/Python builds; deterministic capability/model/news contracts;
-2. `block1-integration` — create canonical entities, start a durable Temporal workflow, hard-stop the Worker, restart it, resume execution, finish exactly once and drain the transactional outbox;
-3. `resource-integration` — reject unauthenticated access, obtain a real Keycloak token, bind resources to the signed subject, prove OpenBao non-disclosure and perform a SeaweedFS asset round-trip;
-4. `backup-restore-integration` — seed independent markers in PostgreSQL, NATS, SeaweedFS and OpenBao, create and verify a Restic snapshot, delete the live markers, destructively restore all four volumes and prove every marker returns.
+The repository contains independent Foundation integration proofs for interruption/restart, resources/trust boundaries and backup/restore. They previously established the Block 1 invariants. Current GitHub-hosted reruns are blocked before execution by issue #38, so no new head should be treated as validated until runners resume.
 
-This closes the Block 1 exit requirement: KAIRO can create/read canonical entities, publish domain events, store assets, survive service interruption and restore its durable substrate from backup.
+## Block 2 — intelligence and safe autonomy
 
-## Block 2 safe-autonomy kernel already present
+### Policy, approvals and model accounting
 
-- KAIRO Core owns approval requests and policy authorization;
-- authority ceilings and hard task budgets are checked before guarded activities;
-- approved actions receive short-lived signed policy capability tokens;
-- Temporal workflows can suspend for approval and resume after a decision;
-- LiteLLM model calls are authorized and recorded in the canonical PostgreSQL usage ledger;
-- model usage records support stable idempotency keys;
-- paid model calls keep replay checkpoints through Temporal heartbeats and refuse blind provider replay when the prior outcome is ambiguous;
-- retries can replay known results or repeat only the idempotent accounting handoff rather than silently double-spending.
+**Implemented.**
 
-## Canonical Command Kernel and semantic routing
+- KAIRO Core owns approval requests and policy authorization.
+- authority ceilings and hard Task budgets gate guarded activities.
+- approved actions receive short-lived signed capability tokens.
+- Temporal workflows can wait for and resume after approvals.
+- LiteLLM calls are canonically accounted in PostgreSQL.
+- stable idempotency/checkpoint rules prevent blind paid-provider replay after ambiguous outcomes.
 
-KAIRO has a server-side conversational front door rather than a browser-only command field.
+### Command Kernel
 
-- canonical `Conversation`, `ConversationMessage`, `Command` and `Capability` records;
-- versioned capability metadata with input/output schemas, authority level, cost class and runtime;
-- `POST /v1/assistant/commands` as the universal command entry point;
-- deterministic high-confidence routing for proven intents without a model call;
-- ambiguous commands create a canonical `assistant.route.semantic` Task instead of being guessed synchronously;
-- PydanticAI validates a typed route proposal but has no direct provider/tool authority;
-- `FunctionModel` delegates the single semantic model turn to the existing KAIRO `model_gateway`;
-- semantic routing defaults to the `local-fast` LiteLLM alias and carries its own hard Task budget;
-- Core sends only capabilities explicitly marked `routable=true` and independently re-validates the returned key, confidence and input schema;
-- malformed/low-confidence/invented routes become `unsupported` rather than side effects;
-- semantic final Task IDs are deterministic so retries reuse an existing capability invocation;
-- stable Command → routing Task → final Task/Workflow correlation;
-- a persisted `conversation_id` reused by the web Command Center across requests;
-- the Web Command Center follows asynchronous semantic routing before attaching to the final capability Task;
-- `GET /v1/capabilities`, Conversation/Message reads and Command inspection.
+**Implemented on the current stacked Block 2 head.**
 
-The first user-routable capability remains `news.brief`. `assistant.route.semantic` is internal and cannot itself be proposed by the model.
+- canonical Conversation, ConversationMessage, Command and Capability records;
+- `POST /v1/assistant/commands` as the universal conversational entry point;
+- deterministic high-confidence routing first;
+- durable PydanticAI semantic proposal only when deterministic routing has no match;
+- semantic model access through the same KAIRO model gateway/accounting boundary;
+- fail-closed capability/schema/confidence validation;
+- deterministic final Task identities for replay-safe handoff;
+- persistent conversation read model and Command inspection.
 
-## Rebuildable memory and temporal context
+### News Intelligence
 
-Conversation memory now starts from the same canonical `ConversationMessage` rows used by the Command Kernel rather than from a specialist memory database.
+**Implemented and integrated as `news.brief`.**
 
-- inserting a canonical message writes a `conversation.message.created` outbox record in the same PostgreSQL transaction;
-- the event contains stable message/conversation references but not a duplicate copy of message text;
-- a durable JetStream Worker consumer turns the event into a deterministic `memory.project` Task;
-- Core tracks one `mem0` and one `graphiti` projection row per canonical message/source version;
-- Mem0 stores raw message memory with `infer=False` and local FastEmbed embeddings, so this slice does not introduce a hidden generative provider call;
-- Mem0 vector tables live in a separate PostgreSQL `mem0` database that can be destroyed independently of canonical KAIRO state;
-- Graphiti writes the canonical message as a temporal `EpisodicNode` in Neo4j using the message UUID as its stable episode UUID;
-- Graphiti entity/fact extraction is deliberately deferred until its model calls can be routed through KAIRO's replay-safe/accounted model gateway;
-- projection generation numbers make a real rebuild possible after a previous Temporal Task has completed;
-- stale generation events/reports are ignored rather than rolling a rebuilt projection backwards;
-- `POST /internal/v1/memory/rebuild` reconstructs selected or all conversation-message projections from canonical Core data;
-- `GET /v1/memory/projections/conversation-messages/{message_id}` exposes projection state without making Mem0/Neo4j authoritative;
-- CI uses deterministic projectors when intelligence extras are absent and proves initial projection, generation-2 rebuild, stale-delivery rejection and unchanged canonical message data.
+- SearXNG discovery;
+- transient Trafilatura extraction with internal-network blocking;
+- LiteLLM synthesis with deterministic fallback;
+- sourced canonical Artifact output;
+- market-impact mode;
+- optional local Kokoro speech synthesis;
+- durable Task/Temporal execution.
 
-ADR-019 records the rule that Mem0/Graphiti are disposable views and that future generative extraction must remain behind KAIRO's model/accounting boundary.
+### Memory and temporal context
 
-## Canonical document ingestion and provenance
+**Implemented as rebuildable projections.**
 
-Documents are now durable KAIRO domain objects rather than transient parser outputs.
+- canonical ConversationMessage rows emit projection events transactionally;
+- Mem0 uses its own disposable PostgreSQL database and non-generative local embeddings in the current slice;
+- Graphiti writes canonical messages as temporal episodes in Neo4j;
+- Graphiti generative entity/fact extraction remains deliberately deferred until it can use KAIRO's replay-safe/accounted model boundary;
+- projection generation/rebuild logic prevents stale deliveries from rolling state backwards.
 
-- an uploaded SeaweedFS `Asset` remains the immutable source object and retains its SHA-256 digest;
-- `Document` binds one source Asset to a stable KAIRO document identity and project boundary;
-- unscoped assets are explicitly attached to the system `KAIRO Documents` workspace when they become Documents, so document Tasks never execute with a null project boundary;
-- every parse creates a new `DocumentVersion` generation instead of overwriting previous extraction state;
-- `DocumentChunk` rows retain deterministic ordinal/content hashes and version-level provenance;
-- `document.ingest` runs as a canonical Task through Temporal and the Worker;
-- Docling is the preferred parser when the intelligence extras are installed, while a deterministic text fallback keeps CI/substrate installations functional for text-like media;
-- the Worker verifies the downloaded SeaweedFS bytes against the canonical Asset SHA-256 before parsing;
-- activity retries do not expose false terminal document failures: only the canonical workflow failure path marks a DocumentVersion `failed` after Temporal has exhausted execution;
-- late failure of an older generation cannot downgrade a newer document generation;
-- CI proves upload → document → Temporal → chunks → generation-2 reingestion and the unscoped-asset workspace fallback.
+### Canonical documents
 
-ADR-020 records the rule that Asset, Document, DocumentVersion and derived chunks have distinct ownership/provenance roles.
+**Implemented.**
 
-## Correlated model observability
+- Asset remains the immutable source object;
+- Document is the stable KAIRO identity;
+- DocumentVersion preserves generations;
+- DocumentChunk preserves deterministic content/ordinal provenance;
+- `document.ingest` runs durably through Temporal;
+- source SHA-256 is verified before parsing;
+- Docling is the preferred parser, with deterministic text fallback for substrate/CI installations.
 
-Langfuse observability is now correlated directly from KAIRO's durable execution identity rather than inventing separate trace identifiers.
+### MCP tool boundary
 
-- every outbound LiteLLM model request carries a stable W3C-compatible 32-hex trace ID derived from the canonical KAIRO correlation UUID, with a deterministic fallback when needed;
-- workflow execution ID is used as the Langfuse session ID when available;
-- task ID, workflow execution ID, logical model-call key and model alias are attached as correlation-only metadata;
-- custom trace metadata does not duplicate prompt/message bodies;
-- LiteLLM's `langfuse_otel` callback is the single model telemetry fan-out path;
-- self-hosted Langfuse receives headless organization/project/API-key initialization in both development and production Compose overlays;
-- the same project keys are supplied to LiteLLM's OTEL exporter, so a fresh self-hosted stack does not require UI bootstrap before tracing;
-- Langfuse has no role in policy authorization, approval, provider replay decisions or canonical spend accounting;
-- KAIRO deliberately does not make LiteLLM depend on Langfuse service readiness.
+**Implemented.**
 
-ADR-021 records the observability-only boundary. The deterministic model-gateway contract proves trace correlation alongside the existing replay/accounting invariants.
+- KAIRO-owned MCP registry and explicit enablement;
+- typed input/output contract metadata;
+- deny-by-default policy boundary;
+- Worker live-server contract revalidation before execution on the PR #36 head;
+- autonomous tool calls become separate canonical child Tasks / invocations.
 
-## News Intelligence already present
+### Autonomous Research
 
-News Intelligence is a first-class KAIRO capability (`news.brief`) rather than a separate application.
+**Implemented in two layers; final synthesis/handoff awaits CI validation before merge.**
 
-- SearXNG discovers current news and general web sources through a private metasearch service;
-- Trafilatura transiently extracts main article text from accessible public pages for better summarization without persisting full copyrighted article bodies;
-- enrichment blocks localhost, private/non-global IP destinations and redirects toward internal services;
-- LiteLLM creates sourced text/spoken briefings and is replaceable by provider/model alias;
-- deterministic fallback summaries remain available when the model gateway is unavailable;
-- `market_impact` mode combines a deterministic relevance signal with model synthesis while keeping sources and uncertainty visible;
-- each request is a canonical Task in the `KAIRO News` workspace;
-- each completed briefing is an Artifact with source metadata and provenance;
-- Kokoro-FastAPI provides local French speech synthesis under the optional `voice` Compose profile;
-- the web application has a News Intelligence workspace with local/general/market modes, source list, progress state and audio playback;
-- CI has a deterministic News Intelligence contract proof that does not depend on the public internet or paid model credentials.
+Already on `main`, the first bounded Research agent plans against the Core-supplied read-only tool catalog while Core remains authoritative over every tool execution.
 
-## Next major milestone
+PR #36 adds multi-slot replay-safe model checkpoints and evidence-backed synthesis whose factual findings must cite canonical MCP invocation IDs.
 
-Continue Block 2 with the canonical MCP tool registry and typed tool-execution boundary, then build the first tool-bearing research workflow. Semantic retrieval over Mem0/Graphiti and document chunks can then be connected to agent context without changing their status as derived/rebuildable data.
+PR #37 makes `research.autonomous` a real Command capability and projects final results/failures back into the canonical Conversation idempotently. These changes are code-complete but must not merge until GitHub runners execute their validation suites.
 
-The target Block 2 exit remains: an approved autonomous workflow can research, use tools, create canonical artefacts, survive interruption, respect authority/cost limits and explain what it did.
+## Block 3 — KAIRO Test Interface v1
 
-Production deployment hardening is still a later concern. Block 1 completion does not imply that the current web/runtime exposure is production-ready; TLS, reverse proxy/private-network policy, hardened untrusted execution and verified encrypted off-host recovery remain later hardening work.
+**Active implementation: PR #39.**
+
+The old `App.tsx` technical dashboard/grid is being replaced once, not iterated through multiple disposable frontends. `docs/interface-v1.md` is the structural interface contract.
+
+### Product shell
+
+Implemented on the Block 3 branch:
+
+- stable left primary navigation;
+- central spatial workspace where the mycelium is the workspace rather than a card;
+- collapsible contextual right rail;
+- compact always-available KAIRO command dock;
+- contextual assistant drawer preserving working Command / News / Research behavior;
+- universal canonical graph search;
+- accessible non-3D graph projection;
+- explicit unavailable states for future workspaces instead of fake sample data.
+
+### Canonical spatial graph
+
+Implemented on the Block 3 branch:
+
+- `GET /v1/graph/home`;
+- `GET /v1/graph/neighborhood/{entity_type}/{entity_id}`;
+- `GET /v1/graph/search`;
+- canonical `relationships` rows exposed as `canonical_relationship` edges;
+- canonical foreign-key structure exposed as `canonical_fk` edges;
+- presentation-only importance, activity, recency, degree, cluster hints and LOD;
+- no Graphiti/Mem0 relationship is silently promoted to canonical visual truth.
+
+### Mycelium product renderer
+
+Implemented as the single engine for Home and KAIRO Brain:
+
+- custom React Three Fiber / Three.js renderer;
+- deterministic Web Worker layout;
+- instanced node rendering;
+- batched multi-strand curved filaments;
+- project/context gravity wells without type-based pseudo-clusters;
+- bounded importance-ranked spatial labels;
+- semantic zoom / visual LOD;
+- hover/selection neighborhood emphasis;
+- explicit branch isolation and type/relation filters;
+- stable per-context pose caches and Worker warm starts so refresh/navigation preserves spatial familiarity;
+- restrained focus camera transitions;
+- reduced-motion support;
+- Auto/High/Balanced/Eco quality framework, including measured frame-budget adaptation for Auto.
+
+ADR-027 defines the canonical graph boundary. ADR-028 defines the stable/batched spatial-rendering rules.
+
+### Live graph activity
+
+Implemented on the Block 3 branch:
+
+- sanitized `GET /v1/graph/activity/stream` SSE derived from canonical Outbox rows;
+- no raw domain-event payload is exposed through the graph stream;
+- browser subscription coalesces graph query invalidation;
+- short-lived active entity keys drive bounded instanced pulses;
+- semantic pulses therefore correspond to real recent KAIRO activity rather than random decorative traffic.
+
+### Natural-language spatial navigation
+
+Implemented deterministically/read-only:
+
+- `POST /v1/graph/directives/resolve`;
+- `focus_entity` and `isolate_entity` directives;
+- unambiguous canonical resolution only;
+- ambiguous targets fall back to search rather than arbitrary selection;
+- typed target phrases such as `Ouvre le projet …` / `Montre-moi la tâche …` narrow resolution;
+- non-navigation text continues to the normal Command Kernel;
+- models never receive direct Three.js authority.
+
+## What is not yet complete
+
+The stable shell exists, but specialist/product workspaces still need to be filled with real capabilities rather than placeholders. Major remaining areas include:
+
+- Projects workspace beyond the canonical graph representation;
+- Tasks / Today prioritization workspace;
+- Calendar and external calendar integration;
+- Knowledge workspace and deeper document retrieval UX;
+- full 2D mind map / deeper KAIRO Brain tooling;
+- simple but capable Gantt workspace;
+- Agents and Automations operational views;
+- Tauri desktop capability bridge (microphone/files/clipboard/capture/notifications) reusing the same web UI;
+- Voice interaction;
+- Finance / Crypto portfolio, analysis and signing-isolation UX;
+- Developer / browser/computer-use specialist capabilities;
+- Activepieces operational integration and broader connectors;
+- production hardening (TLS/reverse proxy/private-network policy, untrusted execution isolation, verified encrypted off-host recovery).
+
+## Next implementation milestone
+
+1. Resolve GitHub Actions runner allocation issue #38 and execute the stacked #36 → #37 → #39 validation chain on real runners.
+2. While the infrastructure blocker remains external, continue completing Test Interface v1 without creating a second frontend.
+3. Fill the stable Cockpit in coherent feature slices, beginning with Projects / Tasks / Knowledge and then Calendar / Gantt / Agents.
+4. Reuse the same graph model and shell for all specialist workspaces rather than creating parallel applications.
+
+The Block 3 goal is not "a pretty graph". It is a stable KAIRO environment in which every visible object, relationship, activity pulse and specialist workspace remains traceable to KAIRO-owned canonical state and policy boundaries.
