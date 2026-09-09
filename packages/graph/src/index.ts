@@ -1,4 +1,5 @@
 export * from './types'
 export * from './projection'
 export * from './activityStore'
+export * from './adaptiveQuality'
 export * from './MyceliumViewport'
