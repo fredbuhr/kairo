@@ -34,6 +34,83 @@ export type TaskRecord = {
   updated_at: string
 }
 
+export type AssetRecord = {
+  id: string
+  project_id?: string | null
+  bucket: string
+  object_key: string
+  mime_type?: string | null
+  size_bytes: number
+  sha256?: string | null
+  metadata_json: Record<string, unknown>
+  created_at: string
+}
+
+export type DocumentRecord = {
+  id: string
+  asset_id: string
+  project_id: string
+  title: string
+  media_type?: string | null
+  source_sha256?: string | null
+  status: string
+  metadata_json: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export type DocumentVersionRecord = {
+  id: string
+  document_id: string
+  generation: number
+  task_id?: string | null
+  parser: string
+  parser_version?: string | null
+  source_sha256?: string | null
+  status: string
+  chunk_count: number
+  metadata_json: Record<string, unknown>
+  last_error?: string | null
+  created_at: string
+  completed_at?: string | null
+}
+
+export type DocumentChunkRecord = {
+  id: string
+  document_version_id: string
+  ordinal: number
+  text: string
+  content_sha256: string
+  metadata_json: Record<string, unknown>
+  created_at: string
+}
+
+export type DocumentRunRecord = {
+  document: DocumentRecord
+  version: DocumentVersionRecord
+  workflow_execution_id: string
+  workflow_id: string
+  workflow_status: string
+}
+
+export type KnowledgeSearchHit = {
+  document_id: string
+  document_title: string
+  project_id: string
+  media_type?: string | null
+  version_id: string
+  generation: number
+  chunk_id: string
+  ordinal: number
+  excerpt: string
+  metadata: Record<string, unknown>
+}
+
+export type KnowledgeSearchResult = {
+  query: string
+  results: KnowledgeSearchHit[]
+}
+
 export type ProjectCreateInput = {
   name: string
   status?: string
@@ -128,5 +205,42 @@ export function createTask(input: TaskCreateInput): Promise<TaskRecord> {
       budget_usd: input.budget_usd ?? null,
       input: input.input || {},
     }),
+  })
+}
+
+export function fetchDocuments(): Promise<DocumentRecord[]> {
+  return apiJson('/v1/documents')
+}
+
+export function fetchDocumentVersions(documentId: string): Promise<DocumentVersionRecord[]> {
+  return apiJson(`/v1/documents/${encodeURIComponent(documentId)}/versions`)
+}
+
+export function fetchDocumentChunks(versionId: string): Promise<DocumentChunkRecord[]> {
+  return apiJson(`/v1/document-versions/${encodeURIComponent(versionId)}/chunks`)
+}
+
+export function searchKnowledge(query: string, limit = 24): Promise<KnowledgeSearchResult> {
+  return apiJson(`/v1/knowledge/search?q=${encodeURIComponent(query)}&limit=${limit}`)
+}
+
+export function uploadAsset(file: File, projectId?: string | null): Promise<AssetRecord> {
+  const body = new FormData()
+  body.set('file', file)
+  if (projectId) body.set('project_id', projectId)
+  return apiJson('/v1/assets', { method: 'POST', body })
+}
+
+export function createDocument(assetId: string, title?: string | null): Promise<DocumentRunRecord> {
+  return apiJson('/v1/documents', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ asset_id: assetId, title: title || null }),
+  })
+}
+
+export function reingestDocument(documentId: string): Promise<DocumentRunRecord> {
+  return apiJson(`/v1/documents/${encodeURIComponent(documentId)}/reingest`, {
+    method: 'POST',
   })
 }
