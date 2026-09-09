@@ -24,6 +24,14 @@ export type AccountDataInventory = {
     latest_completed_purge_cutoff_at?: string | null
     purge_current: boolean
   }
+  evidence: {
+    subject_owned_audit_records: number
+    shared_audit_actor_references: number
+    subject_owned_outbox_events: number
+    unpublished_subject_outbox_events: number
+    data_subject_addressable: boolean
+    retention_action_available: boolean
+  }
   boundaries: AccountRetentionBoundary[]
 }
 
