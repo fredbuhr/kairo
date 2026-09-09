@@ -17,6 +17,7 @@ from .auth import (
     Principal,
     authenticate_authorization_header,
     principal_is_kairo_user,
+    require_kairo_admin,
     require_kairo_user,
 )
 from .automations import router as automations_router
@@ -243,12 +244,16 @@ async def trust_readiness() -> SystemReadiness:
 
 
 @app.get("/v1/system/components")
-async def components() -> dict:
+async def components(
+    _principal: Principal = Depends(require_kairo_admin),
+) -> dict:
     return load_component_registry()
 
 
 @app.get("/v1/system/architecture")
-async def architecture() -> dict[str, object]:
+async def architecture(
+    _principal: Principal = Depends(require_kairo_admin),
+) -> dict[str, object]:
     return {
         "canonical_state": "postgresql",
         "canonical_objects": "seaweedfs-filer",
@@ -298,7 +303,9 @@ async def architecture() -> dict[str, object]:
 
 @app.get("/v1/system/outbox", response_model=OutboxStats)
 async def outbox_stats(
-    request: Request, session: AsyncSession = Depends(get_session)
+    request: Request,
+    _principal: Principal = Depends(require_kairo_admin),
+    session: AsyncSession = Depends(get_session),
 ) -> OutboxStats:
     pending = await session.scalar(
         select(func.count()).select_from(OutboxEvent).where(OutboxEvent.published_at.is_(None))
