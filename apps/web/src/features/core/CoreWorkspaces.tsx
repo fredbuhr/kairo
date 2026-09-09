@@ -13,11 +13,12 @@ import {
 import { AgentsWorkspace } from './AgentsWorkspace'
 import { AutomationsWorkspace } from './AutomationsWorkspace'
 import { CalendarWorkspace } from './CalendarWorkspace'
+import { FinanceWorkspace } from './FinanceWorkspace'
 import { KnowledgeWorkspace } from './KnowledgeWorkspace'
 import { TaskPlanningWorkspace } from './TaskPlanningWorkspace'
 import { ToolsWorkspace } from './ToolsWorkspace'
 
-export type CoreWorkspaceMode = 'projects' | 'tasks' | 'knowledge' | 'calendar' | 'agents' | 'automations' | 'tools'
+export type CoreWorkspaceMode = 'projects' | 'tasks' | 'knowledge' | 'calendar' | 'agents' | 'automations' | 'finance' | 'tools'
 
 function shortDate(value: string) {
   try {
@@ -270,6 +271,9 @@ export function CoreWorkspace({
   }
   if (mode === 'automations') {
     return <AutomationsWorkspace projects={projects} onExploreEntity={onExploreEntity} />
+  }
+  if (mode === 'finance') {
+    return <FinanceWorkspace projects={projects} />
   }
   return <ProjectsWorkspace projects={projects} tasks={tasks} onExploreEntity={onExploreEntity} />
 }
