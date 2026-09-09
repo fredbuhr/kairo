@@ -1,14 +1,17 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
   AUTH_CONFIGURATION,
   getAuthSnapshot,
   logoutKairo,
   subscribeAuthSession,
+  type KairoAuthSnapshot,
 } from '../../lib/authSession'
 
 export function AuthIdentitySettings() {
-  const auth = useSyncExternalStore(subscribeAuthSession, getAuthSnapshot, getAuthSnapshot)
+  const [auth, setAuth] = useState<KairoAuthSnapshot>(() => getAuthSnapshot())
+
+  useEffect(() => subscribeAuthSession(() => setAuth(getAuthSnapshot())), [])
 
   return (
     <section className="auth-identity-settings">
