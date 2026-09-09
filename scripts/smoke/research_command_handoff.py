@@ -185,9 +185,57 @@ def main() -> None:
     assert replay["workflow_execution_id"] == applied["workflow_execution_id"], replay
     assert replay["workflow_id"] == applied["workflow_id"], replay
 
+    # 3) Semantic routing cannot smuggle execution-authority fields into the Research contract.
+    authority_text = "Compare des sources sur les architectures de mémoire pour agents."
+    _, authority_pending = json_request(
+        "POST",
+        "/v1/assistant/commands",
+        expected=202,
+        payload={"text": authority_text, "locale": "fr-FR", "output": "auto"},
+    )
+    assert authority_pending["status"] == "routing", authority_pending
+    malicious = {
+        "outcome": "route",
+        "capability": "research.autonomous",
+        "confidence": 0.95,
+        "parameters": {
+            "query": authority_text,
+            "max_tool_calls": 2,
+            "model_alias": "smart",
+            "estimated_model_cost_usd": "1.00",
+            "allowed_tool_keys": ["dangerous.write"],
+        },
+        "rationale": "Fixture attempts to widen execution authority.",
+    }
+    _, rejected = json_request(
+        "POST",
+        f"/internal/v1/assistant/commands/{authority_pending['command_id']}/semantic-route",
+        headers=INTERNAL,
+        payload=malicious,
+    )
+    assert rejected == {
+        "command_id": authority_pending["command_id"],
+        "status": "unsupported",
+        "capability": None,
+        "task_id": None,
+        "workflow_execution_id": None,
+        "workflow_id": None,
+    }, rejected
+    _, rejected_command = json_request(
+        "GET", f"/v1/commands/{authority_pending['command_id']}"
+    )
+    assert rejected_command["status"] == "unsupported", rejected_command
+    assert rejected_command["route_reason"] == "semantic.invalid-parameters", rejected_command
+    assert rejected_command["task_id"] is None, rejected_command
+    json_request(
+        "GET",
+        f"/v1/tasks/{command_task_id(authority_pending['command_id'])}",
+        expected=404,
+    )
+
     print(
-        "PASS: Command Kernel routes explicit and semantic Research requests on capability v2 while Core "
-        "exclusively owns project, model, budget and tool authority, and semantic replay reuses the same Task"
+        "PASS: Command Kernel routes explicit and semantic Research on capability v2, Core exclusively owns "
+        "project/model/budget/tool authority, semantic replay is idempotent, and authority smuggling is rejected"
     )
 
 
