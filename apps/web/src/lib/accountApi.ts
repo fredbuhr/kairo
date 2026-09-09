@@ -111,6 +111,16 @@ export type EvidenceRetentionResult = {
   remaining_shared_actor_references: number
 }
 
+export type AccountWriteFreeze = {
+  frozen: boolean
+  operation_id?: string | null
+  reason?: string | null
+  frozen_at?: string | null
+  updated_at?: string | null
+  blocks_public_mutations: true
+  keycloak_identity_changed: false
+}
+
 export function fetchAccountDataInventory(): Promise<AccountDataInventory> {
   return apiJson('/v1/account/data-inventory')
 }
@@ -131,6 +141,24 @@ export function applyEvidenceRetention(): Promise<EvidenceRetentionResult> {
   return apiJson('/v1/account/evidence/retention/apply', {
     method: 'POST',
     body: JSON.stringify({ confirmation: 'MINIMIZE_ACCOUNT_EVIDENCE' }),
+  })
+}
+
+export function fetchAccountWriteFreeze(): Promise<AccountWriteFreeze> {
+  return apiJson('/v1/account/erasure/write-freeze')
+}
+
+export function freezeAccountWrites(reason = 'account_erasure_preparation'): Promise<AccountWriteFreeze> {
+  return apiJson('/v1/account/erasure/write-freeze', {
+    method: 'POST',
+    body: JSON.stringify({ confirmation: 'FREEZE_ACCOUNT_WRITES', reason }),
+  })
+}
+
+export function cancelAccountWriteFreeze(): Promise<AccountWriteFreeze> {
+  return apiJson('/v1/account/erasure/write-freeze/cancel', {
+    method: 'POST',
+    body: JSON.stringify({ confirmation: 'UNFREEZE_ACCOUNT_WRITES' }),
   })
 }
 
