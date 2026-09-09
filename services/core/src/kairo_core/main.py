@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import __version__
 from .account_lifecycle import router as account_lifecycle_router
+from .account_memory import internal_router as account_memory_internal_router
+from .account_memory import router as account_memory_router
 from .approval_signals import router as approval_signals_router
 from .assistant import router as assistant_router
 from .assets import router as assets_router
@@ -139,6 +141,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(account_lifecycle_router)
+app.include_router(account_memory_router)
+app.include_router(account_memory_internal_router)
 app.include_router(workflow_router)
 app.include_router(memory_router)
 app.include_router(documents_router)
