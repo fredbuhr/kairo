@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import __version__
+from .account_lifecycle import router as account_lifecycle_router
 from .approval_signals import router as approval_signals_router
 from .assistant import router as assistant_router
 from .assets import router as assets_router
@@ -137,6 +138,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(account_lifecycle_router)
 app.include_router(workflow_router)
 app.include_router(memory_router)
 app.include_router(documents_router)
