@@ -1,0 +1,77 @@
+name: Desktop validation
+
+on:
+  push:
+    paths:
+      - 'apps/desktop/**'
+      - 'apps/web/package.json'
+      - 'apps/web/src/lib/desktopBridge.ts'
+      - 'apps/web/src/features/desktop/**'
+      - 'apps/web/src/app/KairoCockpit.tsx'
+      - 'apps/web/src/desktop-runtime.css'
+      - 'apps/web/src/main.tsx'
+      - 'package.json'
+      - 'docs/decisions/ADR-038-desktop-reuses-cockpit-and-bounds-native-capabilities.md'
+      - '.github/workflows/desktop.yml'
+  pull_request:
+    paths:
+      - 'apps/desktop/**'
+      - 'apps/web/package.json'
+      - 'apps/web/src/lib/desktopBridge.ts'
+      - 'apps/web/src/features/desktop/**'
+      - 'apps/web/src/app/KairoCockpit.tsx'
+      - 'apps/web/src/desktop-runtime.css'
+      - 'apps/web/src/main.tsx'
+      - 'package.json'
+      - 'docs/decisions/ADR-038-desktop-reuses-cockpit-and-bounds-native-capabilities.md'
+      - '.github/workflows/desktop.yml'
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Install Linux Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install JS dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Typecheck shared KAIRO Web
+        run: pnpm --filter @kairo/web typecheck
+
+      - name: Build shared KAIRO Web
+        run: pnpm --filter @kairo/web build
+
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
+
+      - name: Check Tauri native bridge
+        run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+      - name: Build Tauri app without installer bundle
+        run: pnpm --filter @kairo/desktop tauri build --debug --no-bundle
