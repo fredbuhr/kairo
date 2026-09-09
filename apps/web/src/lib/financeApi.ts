@@ -93,11 +93,11 @@ export type FinanceTransactionProposalCreate = {
   network: string
   asset_key: string
   symbol: string
-  amount: number
+  amount: string | number
   destination: string
   memo?: string | null
   estimated_fee_asset?: string | null
-  estimated_fee_amount?: number | null
+  estimated_fee_amount?: string | number | null
   simulation?: Record<string, unknown>
 }
 
