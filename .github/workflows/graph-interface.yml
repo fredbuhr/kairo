@@ -11,12 +11,16 @@ on:
       - 'scripts/smoke/knowledge_workspace.py'
       - 'scripts/smoke/task_planning.py'
       - 'scripts/smoke/agent_operations.py'
+      - 'scripts/smoke/project_lifecycle.py'
+      - 'scripts/smoke/tool_management.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
       - 'docs/decisions/ADR-029-specialist-workspaces-share-canonical-state.md'
       - 'docs/decisions/ADR-030-explicit-task-planning-drives-today-and-gantt.md'
       - 'docs/decisions/ADR-031-human-work-and-capability-executions-share-task-table-not-workspace.md'
+      - 'docs/decisions/ADR-032-fail-closed-mcp-server-registration.md'
+      - 'docs/decisions/ADR-033-2d-mind-map-is-a-canonical-graph-projection.md'
       - '.github/workflows/graph-interface.yml'
   pull_request:
     paths:
@@ -28,12 +32,16 @@ on:
       - 'scripts/smoke/knowledge_workspace.py'
       - 'scripts/smoke/task_planning.py'
       - 'scripts/smoke/agent_operations.py'
+      - 'scripts/smoke/project_lifecycle.py'
+      - 'scripts/smoke/tool_management.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
       - 'docs/decisions/ADR-029-specialist-workspaces-share-canonical-state.md'
       - 'docs/decisions/ADR-030-explicit-task-planning-drives-today-and-gantt.md'
       - 'docs/decisions/ADR-031-human-work-and-capability-executions-share-task-table-not-workspace.md'
+      - 'docs/decisions/ADR-032-fail-closed-mcp-server-registration.md'
+      - 'docs/decisions/ADR-033-2d-mind-map-is-a-canonical-graph-projection.md'
       - '.github/workflows/graph-interface.yml'
 
 concurrency:
@@ -74,7 +82,7 @@ jobs:
       - name: Validate Core cockpit sources
         run: |
           uv build --package kairo-core
-          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py scripts/smoke/task_planning.py scripts/smoke/agent_operations.py
+          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py scripts/smoke/task_planning.py scripts/smoke/agent_operations.py scripts/smoke/project_lifecycle.py scripts/smoke/tool_management.py
 
   graph-projection-integration:
     needs: validate
@@ -103,6 +111,12 @@ jobs:
 
       - name: Prove Agents execution boundary
         run: python scripts/smoke/agent_operations.py
+
+      - name: Prove Project lifecycle and hierarchy
+        run: python scripts/smoke/project_lifecycle.py
+
+      - name: Prove fail-closed MCP management
+        run: python scripts/smoke/tool_management.py
 
       - name: Dump graph state on failure
         if: failure()
