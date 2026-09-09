@@ -96,6 +96,28 @@ def _run_response(task: Task, execution: WorkflowExecution) -> TaskRunResponse:
     )
 
 
+async def _research_owner_subject(
+    body: ResearchRunCreate,
+    session: AsyncSession,
+    *,
+    actor_type: str,
+    actor_id: str | None,
+    owner_subject: str | None,
+) -> str:
+    if owner_subject:
+        return owner_subject
+    if actor_type not in {"worker", "system"} and actor_id:
+        return actor_id
+
+    # Internal semantic routing has a worker audit identity (`semantic-router`) but executes inside
+    # the already owner-scoped Assistant Project. Recover the user-world owner from that canonical
+    # Project instead of mistaking the worker name for a Keycloak subject.
+    project = await session.get(Project, body.project_id)
+    if project is not None and project.keycloak_subject not in {"", "__kairo_system__"}:
+        return project.keycloak_subject
+    return DEVELOPMENT_SUBJECT
+
+
 async def start_research_run(
     body: ResearchRunCreate,
     session: AsyncSession,
@@ -109,7 +131,13 @@ async def start_research_run(
 ) -> TaskRunResponse:
     """Start Research independently of HTTP/Command transport with deterministic replay support."""
 
-    subject = owner_subject or actor_id or DEVELOPMENT_SUBJECT
+    subject = await _research_owner_subject(
+        body,
+        session,
+        actor_type=actor_type,
+        actor_id=actor_id,
+        owner_subject=owner_subject,
+    )
     project = await owned_project(session, body.project_id, subject)
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
