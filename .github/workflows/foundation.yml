@@ -275,7 +275,7 @@ jobs:
         if: always()
         run: |
           docker compose --env-file .env -f compose.yaml -f compose.override.yaml -f compose.ops.yaml --profile ops run --rm ops-cleanup || true
-          docker compose --env-file .env -f compose.yaml -f compose.production.yaml -f compose.ops.yaml --profile ops down -v --remove-orphans
+          docker compose --env-file .env -f compose.yaml -f compose.override.yaml -f compose.ops.yaml --profile ops down -v --remove-orphans
           rm -rf backups/restic .kairo-backup-staging
 
   block2-policy-integration:
