@@ -368,6 +368,10 @@ async def perform_memory_purge(payload: dict[str, Any]) -> dict[str, Any]:
 
     context = await _fetch_purge_context(task_id)
     mode = memory_projector_mode()
+    if mode == "stub" and bool(context.get("requires_real_projectors")):
+        raise RuntimeError(
+            "Real Mem0/Graphiti projection evidence exists; KAIRO refuses to clear it in stub mode"
+        )
     group_ids = [str(value) for value in context.get("graphiti_group_ids") or []]
 
     if mode == "real":
