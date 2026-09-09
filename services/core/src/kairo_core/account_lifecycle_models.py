@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import DateTime, Index, String, func
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import Boolean, DateTime, Index, String, Text, func, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -34,3 +35,41 @@ class AccountWriteFreeze(Base):
     )
 
     __table_args__ = (Index("ix_account_write_freezes_frozen_at", "frozen_at"),)
+
+
+class AccountErasureOperation(Base):
+    """Durable preparation ledger for one attempted full-account erasure.
+
+    This table deliberately records preparation and blockers before any irreversible account deletion
+    exists. It gives KAIRO one replayable identity for the future state machine instead of letting a
+    sequence of browser buttons become the deletion protocol.
+    """
+
+    __tablename__ = "account_erasure_operations"
+
+    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    keycloak_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="preparing")
+    phase: Mapped[str] = mapped_column(String(64), nullable=False, default="write_freeze")
+    freeze_operation_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    owns_write_freeze: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    blocker_snapshot_json: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
+    note: Mapped[str | None] = mapped_column(Text)
+    irreversible_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_account_erasure_subject_created", "keycloak_subject", "created_at"),
+        Index(
+            "uq_account_erasure_active_subject",
+            "keycloak_subject",
+            unique=True,
+            postgresql_where=text("status IN ('preparing', 'ready')"),
+        ),
+    )
