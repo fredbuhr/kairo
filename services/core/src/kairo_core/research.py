@@ -13,6 +13,7 @@ from .auth import Principal, require_kairo_user
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Artifact, Project, Task, WorkflowExecution
+from .ownership import DEVELOPMENT_SUBJECT, owned_project, owned_task
 from .schemas import ArtifactRead, TaskRunResponse
 from .security import require_internal_token
 from .tool_models import ToolDefinition, ToolInvocation, ToolServer
@@ -101,18 +102,22 @@ async def start_research_run(
     *,
     actor_type: str = "user",
     actor_id: str | None = None,
+    owner_subject: str | None = None,
     correlation_id: uuid.UUID | None = None,
     command_id: uuid.UUID | None = None,
     task_id: uuid.UUID | None = None,
 ) -> TaskRunResponse:
     """Start Research independently of HTTP/Command transport with deterministic replay support."""
 
-    project = await session.get(Project, body.project_id)
+    subject = owner_subject or actor_id or DEVELOPMENT_SUBJECT
+    project = await owned_project(session, body.project_id, subject)
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
     if task_id is not None:
-        existing = await session.get(Task, task_id)
+        existing = await owned_task(session, task_id, subject)
+        if existing is None and await session.get(Task, task_id) is not None:
+            raise HTTPException(status_code=409, detail="Deterministic task ID is already in use")
         if existing is not None:
             existing_input = _research_task_input(existing)
             if existing.project_id != body.project_id:
@@ -247,16 +252,21 @@ async def create_research_run(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> TaskRunResponse:
-    return await start_research_run(body, session, actor_id=principal.subject)
+    return await start_research_run(
+        body,
+        session,
+        actor_id=principal.subject,
+        owner_subject=principal.subject,
+    )
 
 
 @router.get("/v1/research/runs/{task_id}", response_model=ResearchRunRead)
 async def get_research_run(
     task_id: uuid.UUID,
-    _: Principal = Depends(require_kairo_user),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> ResearchRunRead:
-    task = await session.get(Task, task_id)
+    task = await owned_task(session, task_id, principal.subject)
     if task is None:
         raise HTTPException(status_code=404, detail="Research task not found")
     task_input = _research_task_input(task)
