@@ -38,13 +38,16 @@ Creating a relationship requires both endpoint entities to belong to the authent
 
 ### Directly owned canonical entities retain their explicit owner
 
-Some entities already have a natural direct owner:
+Some entities have a natural direct owner:
 
 - `Conversation.subject_ref`;
 - Document/Asset owner metadata in the current schema;
-- Calendar/Finance/Automation source records with their existing owner subject columns.
+- Calendar/Finance/Automation source records with their owner subject columns;
+- `SecretReference.keycloak_subject` for personal OpenBao handles.
 
-Their public APIs must use those direct bindings and, when they also point at a Project, keep the Project root aligned with the same owner.
+Their public APIs must use those direct bindings and, when they also point at a Project or another owned control-plane object, keep the owner aligned.
+
+`SecretReference` has an additional write-only vault rule described in ADR-041: authenticated clients receive a KAIRO-generated OpenBao path, cannot select arbitrary deployment paths, and never receive secret values back through the public API. AutomationDefinition and FinanceConnector use composite same-owner constraints when binding those references.
 
 ### System workspaces are per-user, not globally shared
 
@@ -71,17 +74,19 @@ The ownership rule applies to:
 - Documents and Assets;
 - Assistant conversations/messages/commands;
 - News and Research public runs;
+- SecretReference metadata/status/provisioning;
+- Automation and Finance connector configuration;
 - Graph Home, neighborhood and search;
 - typed natural-language graph directives;
 - graph SSE activity and related-entity pulses.
 
 The graph is not permitted to become a side channel around the underlying domain APIs.
 
-### Defense in depth for canonical project/task subroutes
+### Defense in depth for canonical project/task/control-plane bindings
 
 Core's public `/v1/*` bearer perimeter additionally checks UUID-shaped `/v1/projects/{id}/...` and `/v1/tasks/{id}/...` paths against the authenticated owner. This protects newly introduced subroutes from accidentally bypassing ownership if a handler forgets its local check.
 
-This middleware does not replace endpoint-level SQL scoping. It is an additional invariant.
+PostgreSQL also carries same-owner constraints for project-scoped Automation/Finance configuration and personal SecretReference bindings. These database invariants do not replace endpoint-level SQL scoping; they are final guards against future handler regressions.
 
 ### Internal execution remains a separate trust boundary
 
@@ -89,13 +94,19 @@ This middleware does not replace endpoint-level SQL scoping. It is an additional
 
 ### Shared control-plane records are not user-world records
 
-Some registries are intentionally deployment/control-plane state rather than personal world data, for example capability contracts and centrally managed tool metadata. Their authorization model may remain administrative/global when explicitly documented. They must not be silently mixed into a user's canonical graph as if they were owned personal entities.
+Some registries are intentionally deployment/control-plane state rather than personal world data, for example capability contracts and centrally managed MCP ToolServer/ToolDefinition metadata. Their authorization model may remain administrative/global when explicitly documented. They must not be silently mixed into a user's canonical graph as if they were owned personal entities.
 
 ## Migration
 
 Migration `0013_canonical_project_relationship_ownership` adds non-null ownership columns and indexes to canonical Projects and explicit Relationships.
 
-Historical rows are assigned to the isolated development subject, with known migration/system workspaces reserved as `__kairo_system__`. New authenticated user data is never attached to those shared system rows.
+Migration `0014_project_scoped_control_plane_ownership` adds database-level same-owner Project constraints for AutomationDefinition and FinanceConnector and a guard for nullable Finance transaction-proposal Project bindings.
+
+Migration `0015_secret_reference_ownership` assigns SecretReferences to a subject and adds same-owner Automation/Finance secret bindings. It refuses migration if a legacy SecretReference is already shared by multiple authenticated subjects rather than guessing which tenant should own it.
+
+Migration `0016_automation_idempotency_scope` scopes caller-selected Automation invocation idempotency to one AutomationDefinition instead of creating a deployment-global user-controlled namespace.
+
+Historical rows are assigned to the isolated development subject where ownership can be determined safely, with known migration/system workspaces reserved as `__kairo_system__`. New authenticated user data is never attached to those shared system rows.
 
 ## Validation
 
@@ -105,7 +116,9 @@ Two real Keycloak identities are required in the development realm for isolation
 
 `multi_user_conversation_ownership.py` proves isolation for Assistant conversations/commands, News results, Memory projection inspection, Research project binding and the generic Task run subroute.
 
-These tests intentionally use one Core and one PostgreSQL database. Passing only single-user tests is insufficient evidence for this ADR.
+`multi_user_secret_ownership.py` proves personal SecretReference list/read/write isolation, write-only OpenBao provisioning, foreign Project/Secret rejection for Automations and Finance connectors, and per-Automation idempotency scope across two tenants.
+
+These tests intentionally use one Core, one PostgreSQL database and — for the secret proof — one OpenBao instance. Passing only single-user tests is insufficient evidence for this ADR.
 
 ## Consequences
 
@@ -113,16 +126,18 @@ These tests intentionally use one Core and one PostgreSQL database. Passing only
 
 - An authenticated user sees one KAIRO world rather than a globally shared database.
 - Mycelium nodes, labels and activity pulses cannot reveal another user's project/task identity through the Graph API.
+- Personal connector metadata and vault handles are no longer deployment-global user-visible state.
 - System capability work can still use deterministic Temporal/Task identities without sharing a Project owner.
-- Foreign UUID probing does not reveal whether an entity exists.
+- Foreign UUID probing does not reveal whether an entity exists on covered user-world APIs.
 - Future specialist workspaces have a clear ownership rule to follow.
 
 ### Trade-offs
 
-- More queries join Project to enforce ownership.
+- More queries join Project or filter direct owner columns to enforce ownership.
 - Legacy local fixtures may require per-user system-workspace migration on first mutation/reingestion.
 - Shared/team Projects are not implemented by this ADR; they require an explicit membership/ACL model rather than weakening subject ownership.
-- Administrative control-plane access remains a distinct concern from user-world ownership.
+- Administrative deployment-control-plane access remains a distinct concern from user-world ownership.
+- Ownership still requires endpoint-by-endpoint review as new modules appear; database constraints are defense in depth, not a substitute for that review.
 
 ## Rejected alternatives
 
