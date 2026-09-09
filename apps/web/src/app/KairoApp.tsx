@@ -14,6 +14,7 @@ import {
 
 import { AssistantDrawer } from '../features/assistant/AssistantDrawer'
 import { useAssistant } from '../features/assistant/useAssistant'
+import { CoreWorkspace, type CoreWorkspaceMode } from '../features/core/CoreWorkspaces'
 import {
   fetchGraphHome,
   fetchGraphNeighborhood,
@@ -33,10 +34,10 @@ type NavigationItem = {
 const NAVIGATION: NavigationItem[] = [
   { key: 'home', label: 'Accueil', glyph: '⌂', available: true },
   { key: 'assistant', label: 'Assistant', glyph: '◌', available: true },
-  { key: 'projects', label: 'Projets', glyph: '◇', available: false },
+  { key: 'projects', label: 'Projets', glyph: '◇', available: true },
   { key: 'knowledge', label: 'Connaissances', glyph: '□', available: false },
   { key: 'brain', label: 'Cerveau KAIRO', glyph: '◎', available: true },
-  { key: 'tasks', label: 'Tâches', glyph: '✓', available: false },
+  { key: 'tasks', label: 'Tâches', glyph: '✓', available: true },
   { key: 'calendar', label: 'Calendrier', glyph: '▦', available: false },
   { key: 'agents', label: 'Agents', glyph: '⌘', available: false },
   { key: 'automations', label: 'Automatisations', glyph: '↯', available: false },
@@ -210,6 +211,7 @@ export default function KairoApp() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('home')
+  const [workspaceMode, setWorkspaceMode] = useState<CoreWorkspaceMode | null>(null)
   const [focus, setFocus] = useState<KairoGraphEntityRef | null>(null)
   const [history, setHistory] = useState<Array<KairoGraphEntityRef | null>>([])
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -281,6 +283,7 @@ export default function KairoApp() {
 
   function focusEntity(entity: KairoGraphEntityRef, isolate = false) {
     const key = graphEntityKey(entity)
+    setWorkspaceMode(null)
     setHistory((current) => [...current, focus])
     setFocus(entity)
     setSelectedKey(key)
@@ -310,6 +313,7 @@ export default function KairoApp() {
   }
 
   function recenter(mode: ViewMode = viewMode) {
+    setWorkspaceMode(null)
     setViewMode(mode)
     setFocus(null)
     setHistory([])
@@ -317,10 +321,18 @@ export default function KairoApp() {
     setIsolatedKey(null)
   }
 
+  function openWorkspace(mode: CoreWorkspaceMode) {
+    setWorkspaceMode(mode)
+    setFiltersOpen(false)
+    setAssistantOpen(false)
+    setSearch('')
+  }
+
   function activateNavigation(item: NavigationItem) {
     if (!item.available) return
     if (item.key === 'home') recenter('home')
     if (item.key === 'brain') recenter('brain')
+    if (item.key === 'projects' || item.key === 'tasks') openWorkspace(item.key)
     if (item.key === 'assistant') setAssistantOpen(true)
     if (item.key === 'settings') setSettingsOpen(true)
   }
@@ -342,6 +354,7 @@ export default function KairoApp() {
         return
       }
       if (resolution.outcome === 'ambiguous' || resolution.outcome === 'not_found') {
+        setWorkspaceMode(null)
         setSearch(resolution.query)
         assistant.setCommand('')
         setAssistantOpen(false)
@@ -357,8 +370,9 @@ export default function KairoApp() {
   }
 
   const searchResults = search.trim().length >= 2 ? searchQuery.data?.nodes || [] : []
-  const activeNavigation = viewMode === 'brain' ? 'brain' : 'home'
+  const activeNavigation = workspaceMode || (viewMode === 'brain' ? 'brain' : 'home')
   const activeFilterCount = hiddenEntityTypes.length + hiddenRelations.length
+  const workspaceLabel = workspaceMode === 'projects' ? 'Projets' : workspaceMode === 'tasks' ? 'Tâches' : null
 
   return (
     <main className="kairo-app">
@@ -394,12 +408,14 @@ export default function KairoApp() {
       <section className="spatial-shell">
         <header className="top-bar">
           <div className="spatial-breadcrumbs">
-            {history.length > 0 || focus ? (
+            {workspaceMode ? (
+              <span>{workspaceLabel}</span>
+            ) : history.length > 0 || focus ? (
               <button type="button" onClick={goBack} className="ghost-button">← Retour</button>
             ) : (
               <span>{viewMode === 'brain' ? 'Cerveau KAIRO' : 'Accueil'}</span>
             )}
-            {focus && selected && <strong>{selected.label}</strong>}
+            {!workspaceMode && focus && selected && <strong>{selected.label}</strong>}
           </div>
 
           <div className="universal-search">
@@ -425,21 +441,25 @@ export default function KairoApp() {
           </div>
 
           <div className="top-actions">
-            <button
-              type="button"
-              className={`view-toggle ${filtersOpen || activeFilterCount > 0 ? 'view-toggle-active' : ''}`}
-              onClick={() => setFiltersOpen((value) => !value)}
-              aria-expanded={filtersOpen}
-            >
-              Filtres{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
-            </button>
-            <button type="button" className={`view-toggle ${listView ? 'view-toggle-active' : ''}`} onClick={() => setListView((value) => !value)}>
-              {listView ? '3D' : 'Liste'}
-            </button>
+            {!workspaceMode && (
+              <>
+                <button
+                  type="button"
+                  className={`view-toggle ${filtersOpen || activeFilterCount > 0 ? 'view-toggle-active' : ''}`}
+                  onClick={() => setFiltersOpen((value) => !value)}
+                  aria-expanded={filtersOpen}
+                >
+                  Filtres{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
+                </button>
+                <button type="button" className={`view-toggle ${listView ? 'view-toggle-active' : ''}`} onClick={() => setListView((value) => !value)}>
+                  {listView ? '3D' : 'Liste'}
+                </button>
+              </>
+            )}
             <button type="button" className="round-button" onClick={() => setSettingsOpen(true)} aria-label="Qualité et accessibilité">◐</button>
             <button type="button" className="round-button kairo-avatar" onClick={() => setAssistantOpen(true)} aria-label="Ouvrir KAIRO"><KairoMark compact /></button>
 
-            {filtersOpen && (
+            {!workspaceMode && filtersOpen && (
               <section className="graph-filter-panel" aria-label="Filtres du cerveau KAIRO">
                 <header>
                   <div><span className="kairo-kicker">VISIBILITÉ</span><strong>Filtrer temporairement</strong></div>
@@ -485,74 +505,84 @@ export default function KairoApp() {
         </header>
 
         <div className="spatial-stage">
-          {!listView && (
-            <MyceliumViewport
-              projection={displayProjection || null}
-              selectedKey={selectedKey}
-              quality={quality}
-              reducedMotion={reducedMotion}
-              className="mycelium-viewport"
-              onSelect={(node) => setSelectedKey(node ? graphNodeKey(node) : null)}
-              onExplore={explore}
-              onHover={(node, point) => setHovered(node && point ? { node, point } : null)}
-            />
-          )}
+          {workspaceMode ? (
+            <div className="core-workspace-surface">
+              <CoreWorkspace mode={workspaceMode} onExploreEntity={(entity) => focusEntity(entity)} />
+            </div>
+          ) : (
+            <>
+              {!listView && (
+                <MyceliumViewport
+                  projection={displayProjection || null}
+                  selectedKey={selectedKey}
+                  quality={quality}
+                  reducedMotion={reducedMotion}
+                  className="mycelium-viewport"
+                  onSelect={(node) => setSelectedKey(node ? graphNodeKey(node) : null)}
+                  onExplore={explore}
+                  onHover={(node, point) => setHovered(node && point ? { node, point } : null)}
+                />
+              )}
 
-          {listView && (
-            <div className="accessible-graph" aria-label="Vue accessible du graphe KAIRO">
-              <header>
-                <span className="kairo-kicker">PROJECTION CANONIQUE</span>
-                <h1>{focus && selected ? selected.label : viewMode === 'brain' ? 'Cerveau KAIRO' : 'Votre univers KAIRO'}</h1>
-                <p>Mêmes entités et mêmes relations que la vue spatiale, présentées sans dépendre du mouvement ou de la profondeur.</p>
-              </header>
-              <div className="accessible-node-list">
-                {displayProjection?.nodes.map((node) => (
-                  <button key={graphNodeKey(node)} type="button" onClick={() => setSelectedKey(graphNodeKey(node))} onDoubleClick={() => explore(node)}>
-                    <span className="node-type-dot" />
-                    <div><strong>{node.label}</strong><small>{entityLabel(node.entity_type)}{node.status ? ` · ${statusLabel(node.status)}` : ''} · {node.relationship_count} liens</small></div>
-                    <span>›</span>
-                  </button>
-                ))}
+              {listView && (
+                <div className="accessible-graph" aria-label="Vue accessible du graphe KAIRO">
+                  <header>
+                    <span className="kairo-kicker">PROJECTION CANONIQUE</span>
+                    <h1>{focus && selected ? selected.label : viewMode === 'brain' ? 'Cerveau KAIRO' : 'Votre univers KAIRO'}</h1>
+                    <p>Mêmes entités et mêmes relations que la vue spatiale, présentées sans dépendre du mouvement ou de la profondeur.</p>
+                  </header>
+                  <div className="accessible-node-list">
+                    {displayProjection?.nodes.map((node) => (
+                      <button key={graphNodeKey(node)} type="button" onClick={() => setSelectedKey(graphNodeKey(node))} onDoubleClick={() => explore(node)}>
+                        <span className="node-type-dot" />
+                        <div><strong>{node.label}</strong><small>{entityLabel(node.entity_type)}{node.status ? ` · ${statusLabel(node.status)}` : ''} · {node.relationship_count} liens</small></div>
+                        <span>›</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {graphQuery.isLoading && (
+                <div className="stage-state"><KairoMark /><span>Construction de votre contexte…</span></div>
+              )}
+              {graphQuery.isError && (
+                <div className="stage-state stage-error"><strong>Le cerveau KAIRO n’est pas disponible.</strong><span>{graphQuery.error instanceof Error ? graphQuery.error.message : 'Erreur de projection.'}</span><button type="button" onClick={() => void graphQuery.refetch()}>Réessayer</button></div>
+              )}
+              {!graphQuery.isLoading && !graphQuery.isError && displayProjection?.nodes.length === 0 && (
+                <div className="stage-state stage-empty"><KairoMark /><strong>Votre univers KAIRO est encore calme.</strong><span>Les projets, tâches, documents et relations réels apparaîtront ici à mesure qu’ils sont créés.</span></div>
+              )}
+
+              {hovered && !listView && (
+                <div className="node-tooltip" style={{ left: hovered.point.x + 16, top: hovered.point.y + 14 }}>
+                  <small>{entityLabel(hovered.node.entity_type)}</small>
+                  <strong>{hovered.node.label}</strong>
+                  <span>{hovered.node.relationship_count} lien{hovered.node.relationship_count === 1 ? '' : 's'}</span>
+                </div>
+              )}
+
+              <div className="stage-caption">
+                <span>{displayProjection?.nodes.length || 0} entités · {displayProjection?.edges.length || 0} relations</span>
+                {isolatedKey && <span>Branche isolée · profondeur 1</span>}
+                {activeFilterCount > 0 && <span>{activeFilterCount} filtre{activeFilterCount === 1 ? '' : 's'} actif{activeFilterCount === 1 ? '' : 's'}</span>}
+                {displayProjection?.truncated && <span>Projection contextuelle · réseau plus vaste</span>}
               </div>
-            </div>
+            </>
           )}
-
-          {graphQuery.isLoading && (
-            <div className="stage-state"><KairoMark /><span>Construction de votre contexte…</span></div>
-          )}
-          {graphQuery.isError && (
-            <div className="stage-state stage-error"><strong>Le cerveau KAIRO n’est pas disponible.</strong><span>{graphQuery.error instanceof Error ? graphQuery.error.message : 'Erreur de projection.'}</span><button type="button" onClick={() => void graphQuery.refetch()}>Réessayer</button></div>
-          )}
-          {!graphQuery.isLoading && !graphQuery.isError && displayProjection?.nodes.length === 0 && (
-            <div className="stage-state stage-empty"><KairoMark /><strong>Votre univers KAIRO est encore calme.</strong><span>Les projets, tâches, documents et relations réels apparaîtront ici à mesure qu’ils sont créés.</span></div>
-          )}
-
-          {hovered && !listView && (
-            <div className="node-tooltip" style={{ left: hovered.point.x + 16, top: hovered.point.y + 14 }}>
-              <small>{entityLabel(hovered.node.entity_type)}</small>
-              <strong>{hovered.node.label}</strong>
-              <span>{hovered.node.relationship_count} lien{hovered.node.relationship_count === 1 ? '' : 's'}</span>
-            </div>
-          )}
-
-          <div className="stage-caption">
-            <span>{displayProjection?.nodes.length || 0} entités · {displayProjection?.edges.length || 0} relations</span>
-            {isolatedKey && <span>Branche isolée · profondeur 1</span>}
-            {activeFilterCount > 0 && <span>{activeFilterCount} filtre{activeFilterCount === 1 ? '' : 's'} actif{activeFilterCount === 1 ? '' : 's'}</span>}
-            {displayProjection?.truncated && <span>Projection contextuelle · réseau plus vaste</span>}
-          </div>
         </div>
 
-        <ContextRail
-          projection={displayProjection}
-          selected={selected}
-          selectedKey={selectedKey}
-          isolatedKey={isolatedKey}
-          collapsed={contextCollapsed}
-          onToggle={() => setContextCollapsed((value) => !value)}
-          onExplore={explore}
-          onToggleIsolation={(key) => setIsolatedKey((current) => current === key ? null : key)}
-        />
+        {!workspaceMode && (
+          <ContextRail
+            projection={displayProjection}
+            selected={selected}
+            selectedKey={selectedKey}
+            isolatedKey={isolatedKey}
+            collapsed={contextCollapsed}
+            onToggle={() => setContextCollapsed((value) => !value)}
+            onExplore={explore}
+            onToggleIsolation={(key) => setIsolatedKey((current) => current === key ? null : key)}
+          />
+        )}
 
         <form className="command-dock" onSubmit={submitCommand}>
           <button type="button" className="dock-kairo" onClick={() => setAssistantOpen(true)} aria-label="Ouvrir la conversation KAIRO"><KairoMark compact /></button>
