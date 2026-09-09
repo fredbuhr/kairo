@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "KAIRO",
+  "version": "0.1.0",
+  "identifier": "com.kairo.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm --dir ../.. --filter @kairo/web dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "pnpm --dir ../.. --filter @kairo/web build",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "KAIRO",
+        "width": 1500,
+        "height": 940,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://localhost:8000 http://localhost:1234 ws://localhost:1234"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all"
+  }
+}
