@@ -3,7 +3,6 @@ import { apiJson } from './api'
 export type SecretReferenceRecord = {
   id: string
   name: string
-  provider_path: string
   purpose: string
   created_at: string
   updated_at: string
