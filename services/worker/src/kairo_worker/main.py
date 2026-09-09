@@ -9,7 +9,7 @@ from .config import settings
 from .document_ingestion import perform_document_ingestion
 from .finance_connector_runtime import perform_finance_rotki_sync
 from .memory_events import MemoryProjectionEventConsumer
-from .memory_projection import perform_memory_projection
+from .memory_projection import perform_memory_projection, perform_memory_purge
 from .news_activity import perform_news_brief
 from .policy_activities import check_policy_gate
 from .research_agent import perform_autonomous_research
@@ -35,6 +35,7 @@ async def serve() -> None:
             perform_semantic_route,
             perform_autonomous_research,
             perform_memory_projection,
+            perform_memory_purge,
             perform_document_ingestion,
             perform_tool_invocation,
             fail_tool_invocation,
