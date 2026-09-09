@@ -1,6 +1,23 @@
 services:
   kairo-core:
     environment:
-      # The Graph cockpit integration job starts only the canonical substrate, not Keycloak.
+      # The Graph cockpit integration jobs start only the canonical substrate, not Keycloak.
       # Disable user auth only in this CI overlay; production explicitly forces auth on.
       KAIRO_AUTH_ENABLED: "false"
+      # Development OpenBao runs with the explicit dev root token from .env. Production replaces
+      # this with its separate OPENBAO_TOKEN workload credential in compose.production.yaml.
+      OPENBAO_TOKEN: ${OPENBAO_DEV_TOKEN}
+      # Full-stack Automation tests point the fixed Activepieces origin at a controlled webhook
+      # fixture. KAIRO still receives only a secret path and cannot turn it into an arbitrary URL.
+      ACTIVEPIECES_URL: http://automation-webhook:8089
+
+  automation-webhook:
+    image: python:3.12-alpine
+    restart: unless-stopped
+    working_dir: /workspace
+    command: ["python", "/workspace/scripts/smoke/fake_automation_webhook.py"]
+    volumes:
+      - ./scripts/smoke:/workspace/scripts/smoke:ro
+    ports:
+      - "127.0.0.1:8089:8089"
+    networks: [kairo]
