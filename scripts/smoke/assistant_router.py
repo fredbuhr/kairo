@@ -27,6 +27,7 @@ def main() -> None:
     research_schema = research.input_model.model_json_schema()
     properties = research_schema["properties"]
     assert set(properties) == {"query", "max_tool_calls"}, research_schema
+    assert research_schema.get("additionalProperties") is False, research_schema
     for authority_field in (
         "project_id",
         "allowed_tool_keys",
@@ -98,8 +99,8 @@ def main() -> None:
     assert unsupported is None
 
     print(
-        "ASSISTANT ROUTER PASS: versioned authority-free Research v2, News priority, research routing, "
-        "Paris locality, market impact, spoken output, time ranges and unsupported routing are deterministic"
+        "ASSISTANT ROUTER PASS: versioned authority-free Research v2 forbids extra fields; News priority, "
+        "research routing, locality, market impact, spoken output and unsupported routing are deterministic"
     )
 
 
