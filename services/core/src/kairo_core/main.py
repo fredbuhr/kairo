@@ -24,7 +24,7 @@ from .autonomy import router as autonomy_router
 from .calendar_external import router as calendar_external_router
 from .components import load_component_registry
 from .config import settings
-from .db import get_session, ping_database
+from .db import SessionFactory, get_session, ping_database
 from .documents import router as documents_router
 from .events import append_audit, enqueue_domain_event
 from .finance import router as finance_router
@@ -39,7 +39,7 @@ from .news import router as news_router
 from .openbao import openbao_client
 from .operations import router as operations_router
 from .outbox import OutboxRelay
-from .ownership import owned_task, require_owned_project, require_same_owner_entities
+from .ownership import owned_project, owned_task, require_owned_project, require_same_owner_entities
 from .planning import router as planning_router
 from .project_management import router as project_management_router
 from .research import router as research_router
@@ -76,6 +76,25 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="KAIRO Core", version=__version__, lifespan=lifespan)
 
 
+async def _owned_path_guard(path: str, subject: str) -> str | None:
+    """Protect canonical project/task subroutes even if a new handler forgets its local scope check."""
+
+    parts = [part for part in path.split("/") if part]
+    if len(parts) < 3 or parts[0] != "v1" or parts[1] not in {"projects", "tasks"}:
+        return None
+    try:
+        entity_id = uuid.UUID(parts[2])
+    except ValueError:
+        return None
+
+    async with SessionFactory() as session:
+        if parts[1] == "projects":
+            owned = await owned_project(session, entity_id, subject)
+            return None if owned is not None else "Project not found"
+        owned = await owned_task(session, entity_id, subject)
+        return None if owned is not None else "Task not found"
+
+
 @app.middleware("http")
 async def authenticated_public_api_perimeter(request: Request, call_next):
     """Fail closed for every public `/v1` route, including newly added routers.
@@ -99,6 +118,10 @@ async def authenticated_public_api_perimeter(request: Request, call_next):
 
     if not principal_is_kairo_user(principal):
         return JSONResponse(status_code=403, content={"detail": "KAIRO user role required"})
+
+    ownership_error = await _owned_path_guard(request.url.path, principal.subject)
+    if ownership_error is not None:
+        return JSONResponse(status_code=404, content={"detail": ownership_error})
 
     request.state.principal = principal
     return await call_next(request)
