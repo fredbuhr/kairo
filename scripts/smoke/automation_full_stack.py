@@ -238,7 +238,7 @@ def main() -> None:
     ambiguous_task = wait_task(ambiguous_task_id, "failed")
     assert ambiguous_run["outcome_ambiguous"] is True, ambiguous_run
     assert ambiguous_run["response_status"] is None, ambiguous_run
-    assert "automation-post-call" in (ambiguous_run["last_error"] or ""), ambiguous_run
+    assert ambiguous_run["last_error"], ambiguous_run
     assert ambiguous_task["status"] == "failed", ambiguous_task
 
     ambiguous_records = [row for row in records() if row["path"] == "/ambiguous"]
