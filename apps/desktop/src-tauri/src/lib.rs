@@ -1,7 +1,10 @@
 use serde::Serialize;
 use tauri::{plugin::PermissionState, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_notification::NotificationExt;
+
+const SUMMON_SHORTCUT: &str = "CmdOrCtrl+Shift+Space";
 
 #[derive(Debug, Serialize)]
 struct DesktopCapabilities {
@@ -16,6 +19,7 @@ struct DesktopCapabilities {
     screenshots: bool,
     microphone: bool,
     summon_shortcut: bool,
+    summon_shortcut_label: &'static str,
 }
 
 #[tauri::command]
@@ -33,7 +37,8 @@ fn desktop_capabilities(app: tauri::AppHandle) -> DesktopCapabilities {
         notifications: true,
         screenshots: false,
         microphone: false,
-        summon_shortcut: false,
+        summon_shortcut: true,
+        summon_shortcut_label: SUMMON_SHORTCUT,
     }
 }
 
@@ -91,6 +96,26 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.unminimize();
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                })
+                .build(),
+        )
+        .setup(|app| {
+            // One fixed summon shortcut is registered by Rust. The frontend receives no generic
+            // register/unregister permission, so UI/model code cannot claim arbitrary OS hotkeys.
+            app.global_shortcut().register(SUMMON_SHORTCUT)?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             desktop_capabilities,
             desktop_read_clipboard,
