@@ -1,0 +1,41 @@
+.auth-startup-error {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 28px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(48, 157, 151, .12), transparent 34%),
+    #031016;
+  color: #b9cfcc;
+  text-align: center;
+}
+.auth-startup-mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(95, 225, 213, .20);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(71, 207, 197, .16), rgba(4, 30, 35, .32));
+  color: #8fd3cb;
+  font-size: 16px;
+  font-weight: 300;
+}
+.auth-startup-error > span { color: #577b7f; font-size: 7px; letter-spacing: .14em; }
+.auth-startup-error h1 { margin: 0; color: #d4e7e4; font-size: 22px; font-weight: 320; letter-spacing: -.025em; }
+.auth-startup-error p { max-width: 520px; margin: 0; color: #789399; font-size: 9px; line-height: 1.55; }
+.auth-startup-error small { color: #4d686d; font-size: 7px; }
+.auth-startup-error button {
+  min-width: 120px;
+  min-height: 34px;
+  margin-top: 6px;
+  border: 1px solid rgba(91, 225, 209, .20);
+  border-radius: 9px;
+  background: rgba(35, 116, 108, .10);
+  color: #9bc3be;
+  font-size: 8px;
+  cursor: pointer;
+}
+.auth-startup-error button:hover { border-color: rgba(105, 234, 217, .36); color: #d6ece9; }
