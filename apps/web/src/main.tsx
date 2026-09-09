@@ -10,6 +10,7 @@ import './graph-controls.css'
 import './graph-filters.css'
 import './core-workspaces.css'
 import './knowledge-workspace.css'
+import './task-planning.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
