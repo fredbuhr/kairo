@@ -15,16 +15,16 @@ One user may have material spread across several trust/storage boundaries:
 - OpenBao connector secret values;
 - Mem0 and Graphiti/Neo4j rebuildable projections;
 - Keycloak identity state;
-- shared audit/outbox evidence;
+- Audit/Outbox evidence and JetStream transport copies;
 - encrypted historical backups.
 
-Some of those stores are canonical, some are rebuildable, some are external identity/security systems and some intentionally have shared retention semantics. Claiming “account deleted” after removing only PostgreSQL rows would therefore be false.
+Some stores are canonical, some rebuildable, some external identity/security systems and some intentionally have retention semantics. Claiming “account deleted” after removing only PostgreSQL rows would therefore be false.
 
 The same problem affects export: secret values must not be pulled back through the browser merely because the user requested an export, and shared deployment/control-plane state must not be mixed into a personal bundle.
 
 ## Decision
 
-Account lifecycle is implemented as an explicit cross-store contract. The current slice is **inventory + export manifest + erasure preflight + explicit derived-memory purge**, not destructive account deletion.
+Account lifecycle is an explicit cross-store contract. The current implementation contains **inventory + export manifest + erasure preflight + derived-memory purge + Audit/Outbox evidence retention**. It still does **not** expose destructive full-account deletion.
 
 ### Subject-scoped inventory
 
@@ -34,11 +34,12 @@ Account lifecycle is implemented as an explicit cross-store contract. The curren
 - tracked SeaweedFS Asset object count and bytes;
 - count of canonical memory projection-ledger rows;
 - latest canonical conversation-message time and latest completed memory-purge cutoff;
-- explicit declarations for data that sits behind derived/shared/external retention boundaries.
+- subject-owned and shared-actor Audit/Outbox evidence counts;
+- explicit declarations for data behind derived/shared/external retention boundaries.
 
 The read model intentionally does not return the Keycloak subject identifier, OpenBao provider paths, secret values or deployment MCP endpoint topology.
 
-The inventory follows the canonical ownership rules already defined in ADR-040 through ADR-043. It never scans another subject's rows and filters them in the browser.
+The inventory follows the canonical ownership rules already defined in ADR-040 through ADR-043 and the evidence ownership rule in ADR-045. It never sends another subject's rows to the browser for client-side filtering.
 
 ### Export manifest before export bundle
 
@@ -49,9 +50,9 @@ The first implementation is deliberately `manifest_only` and advertises `bundle_
 The manifest states what a future bundle may contain and what is deliberately excluded. In particular:
 
 - OpenBao secret **values are never exported**;
-- Mem0/Graphiti payloads are derived and should be rebuilt from canonical content rather than treated as authoritative export state;
+- Mem0/Graphiti payloads are derived and rebuilt from canonical content rather than treated as authoritative export state;
 - shared MCP registry transport details are deployment state, not personal data;
-- shared audit/outbox streams require their own retention/redaction policy;
+- raw Audit/Outbox evidence is not exported by the current manifest; the retention path minimizes/removes it instead;
 - Keycloak credentials/tokens are outside the KAIRO canonical export boundary.
 
 ### Erasure preflight
@@ -67,11 +68,13 @@ Complete-erasure blockers include, when applicable:
 
 - remaining SecretReferences/credential material requiring explicit revocation;
 - stale/not-yet-run Mem0/Graphiti purge relative to the latest canonical message;
-- audit/outbox retention not yet fully subject-addressable;
+- remaining Audit/Outbox evidence requiring the ADR-047 retention action;
 - Keycloak identity deletion not yet implemented through KAIRO;
 - backup expiry/restore-after-erasure semantics not yet formally verified.
 
-The response advertises `destructive_endpoint_available=false` until the remaining boundaries are implemented and validated. This is intentional product truthfulness, not a missing button.
+`audit_outbox_retention_required` is now a user-resolvable blocker. It disappears only when the subject-owned Audit/Outbox evidence and shared Audit actor references counted by account lifecycle have been removed/minimized/redacted by the explicit retention action.
+
+The response still advertises `destructive_endpoint_available=false` because evidence retention does not solve Keycloak identity, backup/tombstone, SeaweedFS/canonical deletion ordering or an account freeze. This is intentional product truthfulness, not a missing button.
 
 ### Derived-memory purge
 
@@ -82,20 +85,37 @@ The Task captures a `purge_cutoff_at` equal to the latest canonical conversation
 - no canonical conversation message exists; or
 - a completed purge cutoff is at least as new as the latest canonical message **and** the canonical MemoryProjectionRecord ledger has no remaining rows for the subject.
 
-This makes races conservative. A new message created after a purge request makes the purge stale even if an external delete happened to catch it; KAIRO asks for another purge rather than overstating deletion.
+This makes races conservative. A new message after a purge request makes the purge stale even if an external delete happened to catch it; KAIRO asks for another purge rather than overstating deletion.
 
 The Worker boundary is deliberately idempotent/retryable:
 
-- Mem0 uses `Memory.delete_all(user_id=<subject scope>)` and then verifies `get_all(filters={user_id: ...})` returns no memories;
-- current Graphiti projection uses one non-generative EpisodicNode per canonical message and groups nodes by `conversation:<id>`; the purge deletes every owned group and verifies `get_by_group_ids(..., limit=1)` returns nothing;
+- Mem0 deletes by the KAIRO owner scope and verifies it is empty;
+- current Graphiti projection deletes every owned `conversation:<id>` group and verifies none remain;
 - only after both projector operations report verified success does Core delete the subject's MemoryProjectionRecord ledger rows;
 - the ordinary Task completion Artifact remains the durable execution receipt.
 
 KAIRO currently has Graphiti generative entity/fact extraction disabled. Enabling it in the future is forbidden until this purge boundary is widened to remove generated entity/community/edge material for the same owner groups.
 
-`stub` projector mode cannot clear evidence of a real projection. Core marks a subject as requiring real projector cleanup when current projection metadata names a non-stub backend; both Worker and Core then refuse a stub purge. This prevents changing runtime configuration from silently converting a real-data purge into a ledger-only deletion.
+`stub` projector mode cannot clear evidence of a real projection. Core marks a subject as requiring real projector cleanup when current projection metadata names a non-stub backend; both Worker and Core then refuse a stub purge.
 
 The user-facing Settings action explicitly states that canonical Conversations/Messages are preserved. Purging derived memory is therefore reversible in the architectural sense: canonical state can later re-seed Mem0/Graphiti through the existing rebuild pipeline.
+
+### Audit / Outbox evidence retention
+
+ADR-045 gives user-world Audit/Outbox rows a data-subject identity distinct from actor identity. ADR-046 bounds JetStream retention and records exact publication receipts. ADR-047 now implements the cross-store evidence-retention primitive.
+
+`GET /v1/account/evidence/retention` exposes only aggregate readiness/count facts for the authenticated subject. `POST /v1/account/evidence/retention/apply` requires explicit typed confirmation.
+
+The operation is ordered:
+
+1. active/reconciling work must be terminal;
+2. subject Outbox must have no unpublished or malformed receipt rows;
+3. exact JetStream receipt messages are deleted, or historical unreceipted messages must have aged beyond verified max-age plus safety grace;
+4. only then are reconciled PostgreSQL Outbox rows removed;
+5. after the subject Outbox is empty, subject Audit rows are minimized and shared administrative actor references are redacted;
+6. one deployment-neutral aggregate receipt is retained without a subject identifier/hash.
+
+It is batched and retryable. It does not freeze the account. Any later KAIRO activity creates fresh evidence and the preflight becomes blocked again. A future destructive state machine must therefore freeze/disable the identity before its final retention pass.
 
 ### SeaweedFS
 
@@ -105,9 +125,13 @@ Asset ownership is first-class after ADR-043, so object inventory is determinist
 
 ADR-041 remains authoritative: values are write-only to the browser and destruction is a separate explicit action. Account erasure may orchestrate those existing destruction primitives later, but must never first read secret values into canonical state.
 
-### Audit, outbox and backups
+### Keycloak and backups
 
-Audit/outbox and backup policy are not silently treated as ordinary user tables. Commercial retention requirements may require bounded retention, pseudonymization or delayed expiry instead of immediate destructive deletion. That policy must be explicit before `complete_erasure_ready` can ever become true.
+Keycloak identity and historical backups remain independent blockers.
+
+A complete destructive flow needs an identity freeze/disable/delete contract so new authenticated writes cannot race the final cross-store cleanup. Backup semantics must guarantee that restoring a snapshot cannot resurrect an erased subject without reapplying a durable erasure tombstone/ledger.
+
+Until these contracts exist and are validated, `complete_erasure_ready` cannot truthfully become true solely because canonical rows, secrets, projections and current evidence have been cleaned.
 
 ## Validation
 
@@ -118,13 +142,16 @@ Audit/outbox and backup policy are not silently treated as ordinary user tables.
 - A's active-work erasure blocker changes without affecting B;
 - export manifests mirror only their own inventory;
 - the public lifecycle payload does not expose the username/subject or `provider_path`;
-- no destructive endpoint is advertised and complete erasure remains blocked while other cross-store contracts are incomplete.
+- Audit/Outbox retention is advertised as an explicit user-resolvable blocker rather than an unimplemented policy;
+- no destructive full-account endpoint is advertised while other cross-store contracts remain incomplete.
 
-`scripts/smoke/memory_projection.py` now extends the existing durable projection/rebuild proof with a `memory.purge` execution in deterministic stub mode. It verifies that projection ledger rows disappear, `purge_current` becomes true and the canonical Conversation/Message is byte-for-byte unchanged through the public read model.
+`scripts/smoke/evidence_retention_contract.py` checks the static retention invariants introduced by ADR-047.
 
-`scripts/smoke/memory_purge_provider_contract.py` imports the pinned `mem0ai==2.0.20` and `graphiti-core==0.29.3` APIs and fails fast if the required subject/group delete and verification signatures drift. The Foundation validation job runs this contract with the Worker `intelligence` extra.
+`scripts/smoke/memory_projection.py` extends the durable projection/rebuild proof with a `memory.purge` execution in deterministic stub mode. It verifies that projection ledger rows disappear, `purge_current` becomes true and the canonical Conversation/Message is unchanged through the public read model.
 
-These proofs are committed to the relevant workflows. Current GitHub-hosted CI still fails before runner allocation under issue #38, so the contract is implemented but not yet current-head validated.
+`scripts/smoke/memory_purge_provider_contract.py` imports the pinned Mem0/Graphiti APIs and fails fast if the required subject/group delete and verification signatures drift.
+
+These proofs are committed to the relevant workflows. Current GitHub-hosted CI still fails before runner allocation under issue #38, so the contracts are implemented but not yet current-head validated.
 
 ## Consequences
 
@@ -134,10 +161,9 @@ These proofs are committed to the relevant workflows. Current GitHub-hosted CI s
 - the product can show users what data it currently knows it holds without leaking another tenant;
 - future export has a stable versioned contract instead of ad hoc table dumps;
 - secret values remain outside export/readback paths;
-- Mem0/Graphiti now have an explicit, durable, owner-scoped purge path without deleting canonical conversation history;
-- purge freshness is tied to a canonical message cutoff instead of a vague “last purge” flag;
-- a runtime configured in stub mode cannot erase evidence that real derived memory still needs deletion;
-- destructive account deletion remains blocked until the remaining external/shared-retention boundaries are real.
+- Mem0/Graphiti have an explicit durable owner-scoped purge path without deleting canonical conversation history;
+- Audit/Outbox now have an explicit transport-first retention action rather than only addressability;
+- destructive account deletion remains blocked until the remaining identity/storage/recovery boundaries are real.
 
 ### Trade-offs
 
@@ -145,7 +171,8 @@ These proofs are committed to the relevant workflows. Current GitHub-hosted CI s
 - complete export remains a later bundle/streaming implementation;
 - the inventory performs multiple owner-scoped count queries and should eventually be optimized/cached for very large accounts;
 - the Graphiti purge contract is valid only while generative extraction remains disabled;
-- audit/outbox/backups and Keycloak identity lifecycle still need explicit commercial policies/contracts.
+- evidence retention may need to be repeated if new activity occurs before a future account freeze;
+- Keycloak identity lifecycle and backup/tombstone semantics still need explicit contracts.
 
 ## Rejected alternatives
 
@@ -169,6 +196,6 @@ Rejected because runtime configuration must not weaken retention guarantees.
 
 Rejected because a portability request must not turn KAIRO into a secret-exfiltration/readback API.
 
-### Claim complete erasure while backups or shared-retention streams remain
+### Claim complete erasure after evidence cleanup alone
 
-Rejected because the user-facing state must describe the real retention boundary rather than a convenient database state.
+Rejected because Keycloak identity, SeaweedFS/canonical destruction ordering and restore-after-erasure semantics are independent parts of the real lifecycle.
