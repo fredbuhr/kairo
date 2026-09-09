@@ -93,8 +93,19 @@ def main() -> None:
     assert server["key"] == "fixture.tools-workspace", server
     assert server["namespace"] == "fixture-tools-workspace", server
     assert server["transport"] == "mcp_streamable_http", server
+    assert server["endpoint_url"] == "https://mcp.fixture.invalid/mcp", server
+    assert server["metadata_json"]["purpose"] == "smoke", server
     assert server["enabled"] is False, server
     assert int(server["catalog_generation"]) == 0, server
+
+    # Ordinary registry reads intentionally expose only the shared logical identity/policy summary.
+    # Deployment endpoint URLs and server metadata remain visible only on admin mutation responses
+    # and internal execution context, not on the user-facing shared registry list.
+    _, servers = json_request("GET", "/v1/tool-servers")
+    listed = next(item for item in servers if item["key"] == "fixture.tools-workspace")
+    assert listed["enabled"] is False, listed
+    assert "endpoint_url" not in listed, listed
+    assert "metadata_json" not in listed, listed
 
     # Registration is unique and must not mutate the existing record on conflict.
     duplicate = server_payload(
@@ -104,10 +115,6 @@ def main() -> None:
         endpoint_url="https://other.invalid/mcp",
     )
     json_request("POST", "/v1/tool-servers", expected=409, payload=duplicate)
-
-    _, servers = json_request("GET", "/v1/tool-servers")
-    listed = next(item for item in servers if item["key"] == "fixture.tools-workspace")
-    assert listed["enabled"] is False, listed
 
     _, enabled = json_request(
         "PATCH",
@@ -131,7 +138,7 @@ def main() -> None:
         payload={"enabled": True},
     )
 
-    print("KAIRO fail-closed MCP server registration + policy proof passed")
+    print("KAIRO fail-closed MCP server registration + sanitized summary + policy proof passed")
 
 
 if __name__ == "__main__":
