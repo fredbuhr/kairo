@@ -35,10 +35,6 @@ class KnowledgeSearchRead(BaseModel):
     results: list[KnowledgeSearchHitRead]
 
 
-def _owned(document: Document, principal: Principal) -> bool:
-    return str((document.metadata_json or {}).get("owner_subject") or "") == principal.subject
-
-
 def _excerpt(text: str, query: str, *, radius: int = 220) -> str:
     compact = re.sub(r"\s+", " ", text).strip()
     if len(compact) <= radius * 2:
@@ -85,31 +81,26 @@ async def search_knowledge(
             ),
         )
         .join(Document, Document.id == DocumentVersion.document_id)
+        .where(Document.metadata_json["owner_subject"].astext == principal.subject)
         .where(DocumentChunk.text.ilike(f"%{query}%"))
         .order_by(Document.updated_at.desc(), DocumentChunk.ordinal.asc())
-        .limit(limit * 3)
+        .limit(limit)
     )
     rows = await session.execute(statement)
 
-    results: list[KnowledgeSearchHitRead] = []
-    for chunk, version, document in rows:
-        if not _owned(document, principal):
-            continue
-        results.append(
-            KnowledgeSearchHitRead(
-                document_id=document.id,
-                document_title=document.title,
-                project_id=document.project_id,
-                media_type=document.media_type,
-                version_id=version.id,
-                generation=version.generation,
-                chunk_id=chunk.id,
-                ordinal=chunk.ordinal,
-                excerpt=_excerpt(chunk.text, query),
-                metadata=dict(chunk.metadata_json or {}),
-            )
+    results = [
+        KnowledgeSearchHitRead(
+            document_id=document.id,
+            document_title=document.title,
+            project_id=document.project_id,
+            media_type=document.media_type,
+            version_id=version.id,
+            generation=version.generation,
+            chunk_id=chunk.id,
+            ordinal=chunk.ordinal,
+            excerpt=_excerpt(chunk.text, query),
+            metadata=dict(chunk.metadata_json or {}),
         )
-        if len(results) >= limit:
-            break
-
+        for chunk, version, document in rows
+    ]
     return KnowledgeSearchRead(query=query, results=results)
