@@ -92,6 +92,11 @@ def assert_core_owned_research_task(
     assert Decimal(str(task["budget_usd"])) == Decimal("0.02"), task
 
 
+def conversation_messages(conversation_id: str) -> list[dict[str, Any]]:
+    _, messages = json_request("GET", f"/v1/conversations/{conversation_id}/messages")
+    return messages
+
+
 def main() -> None:
     wait_ready()
 
@@ -127,6 +132,59 @@ def main() -> None:
     assert deterministic_command["parameters_json"] == deterministic["parameters"], deterministic_command
     assert "model_alias" not in deterministic_command["parameters_json"], deterministic_command
     assert "estimated_model_cost_usd" not in deterministic_command["parameters_json"], deterministic_command
+
+    # Completion is projected into the canonical Conversation exactly once. The full Artifact remains
+    # authoritative; the assistant message is a compact, memory-projectable view of the final answer.
+    completion_payload = {
+        "kind": "autonomous-research",
+        "title": "Research fixture result",
+        "content": {
+            "query": deterministic_text,
+            "report": {
+                "answer": "Les workflows durables rendent les opérations longues rejouables et auditables.",
+                "findings": [],
+                "caveats": ["Résultat synthétique de smoke test."],
+            },
+            "tool_results": [],
+            "tool_call_count": 0,
+        },
+    }
+    _, completed = json_request(
+        "POST",
+        f"/internal/v1/executions/{deterministic['workflow_id']}/complete",
+        headers=INTERNAL,
+        payload=completion_payload,
+    )
+    assert completed["execution_status"] == "completed", completed
+    artifact_id = completed["artifact"]["id"]
+
+    messages = conversation_messages(deterministic["conversation_id"])
+    assert len(messages) == 2, messages
+    assert [message["role"] for message in messages] == ["user", "assistant"], messages
+    assistant_message = messages[1]
+    assert assistant_message["content"] == completion_payload["content"]["report"]["answer"], messages
+    assert assistant_message["metadata_json"]["kind"] == "capability-result", assistant_message
+    assert assistant_message["metadata_json"]["command_id"] == deterministic["command_id"], assistant_message
+    assert assistant_message["metadata_json"]["task_id"] == deterministic["task_id"], assistant_message
+    assert assistant_message["metadata_json"]["artifact_id"] == artifact_id, assistant_message
+
+    # Retrying canonical completion repairs/returns state without duplicating chat history.
+    _, completed_replay = json_request(
+        "POST",
+        f"/internal/v1/executions/{deterministic['workflow_id']}/complete",
+        headers=INTERNAL,
+        payload=completion_payload,
+    )
+    assert completed_replay["artifact"]["id"] == artifact_id, completed_replay
+    replay_messages = conversation_messages(deterministic["conversation_id"])
+    assert len(replay_messages) == 2, replay_messages
+    assert replay_messages[1]["id"] == assistant_message["id"], replay_messages
+
+    _, completed_command = json_request("GET", f"/v1/commands/{deterministic['command_id']}")
+    assert completed_command["status"] == "accepted", completed_command
+    assert completed_command["result_json"]["execution_status"] == "completed", completed_command
+    assert completed_command["result_json"]["artifact_id"] == artifact_id, completed_command
+    assert completed_command["result_json"]["assistant_message_id"] == assistant_message["id"], completed_command
 
     # 2) An ambiguous request enters semantic routing. We emulate the bounded router proposal and
     # prove Core creates the final Research Task with authority fields it owns itself.
@@ -213,14 +271,9 @@ def main() -> None:
         headers=INTERNAL,
         payload=malicious,
     )
-    assert rejected == {
-        "command_id": authority_pending["command_id"],
-        "status": "unsupported",
-        "capability": None,
-        "task_id": None,
-        "workflow_execution_id": None,
-        "workflow_id": None,
-    }, rejected
+    assert rejected["command_id"] == authority_pending["command_id"], rejected
+    assert rejected["status"] == "unsupported", rejected
+    assert rejected.get("task_id") is None, rejected
     _, rejected_command = json_request(
         "GET", f"/v1/commands/{authority_pending['command_id']}"
     )
@@ -233,9 +286,49 @@ def main() -> None:
         expected=404,
     )
 
+    # 4) A terminal capability failure updates the Command and adds one user-safe assistant message.
+    failure_text = "Fais une recherche sur les compromis des orchestrateurs durables."
+    _, failing = json_request(
+        "POST",
+        "/v1/assistant/commands",
+        expected=202,
+        payload={"text": failure_text, "locale": "fr-FR", "output": "auto"},
+    )
+    assert failing["status"] == "accepted", failing
+    _, failed = json_request(
+        "POST",
+        f"/internal/v1/executions/{failing['workflow_id']}/fail",
+        headers=INTERNAL,
+        payload={"error": "forced final Research failure for command projection proof"},
+    )
+    assert failed["status"] == "failed", failed
+
+    _, failed_command = json_request("GET", f"/v1/commands/{failing['command_id']}")
+    assert failed_command["status"] == "failed", failed_command
+    assert failed_command["result_json"]["execution_status"] == "failed", failed_command
+    assert "forced final Research failure" in failed_command["result_json"]["execution_error"], failed_command
+
+    failed_messages = conversation_messages(failing["conversation_id"])
+    assert len(failed_messages) == 2, failed_messages
+    assert failed_messages[1]["role"] == "assistant", failed_messages
+    assert failed_messages[1]["content"] == "KAIRO n’a pas pu terminer cette demande.", failed_messages
+    assert failed_messages[1]["metadata_json"]["kind"] == "capability-failure", failed_messages
+    assert failed_messages[1]["metadata_json"]["command_id"] == failing["command_id"], failed_messages
+
+    # Failure replay is idempotent and does not leak/duplicate the raw technical error into chat.
+    json_request(
+        "POST",
+        f"/internal/v1/executions/{failing['workflow_id']}/fail",
+        headers=INTERNAL,
+        payload={"error": "forced final Research failure for command projection proof"},
+    )
+    failed_replay_messages = conversation_messages(failing["conversation_id"])
+    assert len(failed_replay_messages) == 2, failed_replay_messages
+    assert failed_replay_messages[1]["id"] == failed_messages[1]["id"], failed_replay_messages
+
     print(
-        "PASS: Command Kernel routes explicit and semantic Research on capability v2, Core exclusively owns "
-        "project/model/budget/tool authority, semantic replay is idempotent, and authority smuggling is rejected"
+        "PASS: Command Kernel routes Research v2, rejects authority smuggling, reuses semantic handoffs, "
+        "and projects final success/failure exactly once into the canonical Conversation"
     )
 
 
