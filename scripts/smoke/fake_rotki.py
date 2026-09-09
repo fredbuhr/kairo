@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, urlparse
 HOST = "0.0.0.0"
 PORT = 8090
 
-_lock = threading.Lock()
+_lock = threading.RLock()
 _state: dict[str, Any] = {
     "username": "kairo-smoke",
     "password": "correct-horse-battery-staple",
@@ -157,11 +157,12 @@ class Handler(BaseHTTPRequestHandler):
             if body.get("async_query") is not True:
                 self._json(400, {"result": None, "message": "async_query required"})
                 return
+            balances = _balances()
             with _lock:
                 task_id = int(_state["next_task_id"])
                 _state["next_task_id"] = task_id + 1
                 _state["refresh_count"] = int(_state["refresh_count"]) + 1
-                _state["tasks"][task_id] = _balances()
+                _state["tasks"][task_id] = balances
             self._json(200, {"result": {"task_id": task_id}, "message": ""})
             return
 
