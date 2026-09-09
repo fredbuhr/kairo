@@ -41,6 +41,8 @@ Initial product areas:
 
 Availability is capability-driven. Unimplemented or disabled specialist areas should be hidden or explicitly unavailable rather than populated with fake content.
 
+Projects and Tasks are the first non-spatial product areas activated in Test Interface v1. They remain part of the same shell and are backed directly by canonical KAIRO records.
+
 ### Specialist workspaces
 
 Specialist workspaces do not create a second application shell. Projects, Tasks, Knowledge, Calendar, Gantt, Agents, Finance and later tools occupy the same central surface while preserving the primary navigation, universal search, command dock, assistant access and KAIRO identity.
