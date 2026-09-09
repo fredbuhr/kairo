@@ -11,6 +11,7 @@ import './graph-filters.css'
 import './core-workspaces.css'
 import './knowledge-workspace.css'
 import './task-planning.css'
+import './gantt-workspace.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
