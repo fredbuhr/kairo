@@ -94,7 +94,7 @@ SEMANTIC_ROUTE = CapabilitySpec(
 
 AUTONOMOUS_RESEARCH = CapabilitySpec(
     key="research.autonomous",
-    version=1,
+    version=2,
     title="Autonomous read-only research",
     description=(
         "Research a question through explicitly enabled read-only A1 MCP tools. "
