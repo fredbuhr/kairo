@@ -1,3 +1,10 @@
+.settings-panel {
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(85, 220, 213, .14) transparent;
+}
+
 .desktop-runtime-settings {
   display: grid;
   gap: 9px;
