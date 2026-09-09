@@ -22,11 +22,6 @@ depends_on = None
 
 _DEVELOPMENT_SUBJECT = "development-user"
 _SYSTEM_SUBJECT = "__kairo_system__"
-_SYSTEM_PROJECT_IDS = (
-    "91d3685b-02fb-4fb8-8778-9b9769f3739e",  # legacy Assistant workspace
-    "b8d9cccf-257b-4b48-b58e-4fe63a4398b2",  # legacy News workspace
-    "a8da482d-fb63-52b5-a687-0f65d64b10ad",  # legacy Documents workspace
-)
 
 
 def upgrade() -> None:
@@ -45,9 +40,13 @@ def upgrade() -> None:
             """
             UPDATE projects
                SET keycloak_subject = :system_subject
-             WHERE id = ANY(CAST(:system_ids AS uuid[]))
+             WHERE id IN (
+               '91d3685b-02fb-4fb8-8778-9b9769f3739e'::uuid,
+               'b8d9cccf-257b-4b48-b58e-4fe63a4398b2'::uuid,
+               'a8da482d-fb63-52b5-a687-0f65d64b10ad'::uuid
+             )
             """
-        ).bindparams(system_subject=_SYSTEM_SUBJECT, system_ids=list(_SYSTEM_PROJECT_IDS))
+        ).bindparams(system_subject=_SYSTEM_SUBJECT)
     )
     op.execute(
         sa.text(
