@@ -132,13 +132,18 @@ def _activity_from_outbox(row: OutboxEvent) -> GraphActivityEventRead | None:
     )
 
 
-async def _cursor_from_request(request: Request) -> tuple[datetime, uuid.UUID]:
+async def _cursor_from_request(request: Request, subject: str) -> tuple[datetime, uuid.UUID]:
     last_event_id = request.headers.get("last-event-id")
     if last_event_id:
         parsed = _uuid(last_event_id)
         if parsed:
             async with SessionFactory() as session:
-                row = await session.get(OutboxEvent, parsed)
+                row = await session.scalar(
+                    select(OutboxEvent).where(
+                        OutboxEvent.id == parsed,
+                        OutboxEvent.keycloak_subject == subject,
+                    )
+                )
             if row is not None:
                 created_at = row.created_at
                 if created_at.tzinfo is None:
@@ -152,6 +157,9 @@ async def _owned_activity(
     activity: GraphActivityEventRead,
     subject: str,
 ) -> GraphActivityEventRead | None:
+    # Keep entity-level validation as defense in depth even though Outbox rows are now first-filtered
+    # by their canonical data subject. This protects the graph if a future event constructor is bound
+    # to the wrong aggregate or carries a stale related UUID.
     if not await entity_belongs_to_subject(
         session,
         activity.entity.entity_type,
@@ -178,12 +186,13 @@ async def stream_graph_activity(
     principal: Principal = Depends(require_kairo_user),
 ) -> StreamingResponse:
     async def event_stream():
-        cursor_time, cursor_id = await _cursor_from_request(request)
+        cursor_time, cursor_id = await _cursor_from_request(request, principal.subject)
         idle_ticks = 0
         while not await request.is_disconnected():
             async with SessionFactory() as session:
                 rows = await session.execute(
                     select(OutboxEvent)
+                    .where(OutboxEvent.keycloak_subject == principal.subject)
                     .where(
                         or_(
                             OutboxEvent.created_at > cursor_time,
