@@ -112,9 +112,17 @@ function semanticBandForDistance(distance: number): SemanticBand {
   return 3
 }
 
+function projectionCacheKey(projection: KairoGraphProjection): string {
+  const focus = projection.context.focus
+  if (!focus) return `home:${projection.context.requested_limit}`
+  return `focus:${graphEntityKey(focus)}:d${projection.context.depth}:${projection.context.requested_limit}`
+}
+
 function useGraphLayout(projection: KairoGraphProjection | null) {
   const [poses, setPoses] = useState<Map<string, KairoGraphPose>>(new Map())
   const requestId = useRef(0)
+  const cache = useRef(new Map<string, Map<string, KairoGraphPose>>())
+  const lastPoses = useRef(new Map<string, KairoGraphPose>())
 
   useEffect(() => {
     if (!projection) {
@@ -122,17 +130,49 @@ function useGraphLayout(projection: KairoGraphProjection | null) {
       return
     }
 
+    const contextKey = projectionCacheKey(projection)
     const focusKey = projection.context.focus ? graphEntityKey(projection.context.focus) : null
-    const immediate = new Map(
-      projection.nodes.map((node, index) => [graphNodeKey(node), fallbackPose(node, index, focusKey)]),
-    )
-    setPoses(immediate)
+    const saved = cache.current.get(contextKey)
+    const source = saved || lastPoses.current
+    const focusPrevious = focusKey ? source.get(focusKey) : undefined
 
-    if (typeof Worker === 'undefined') return
+    const immediate = new Map<string, KairoGraphPose>()
+    projection.nodes.forEach((node, index) => {
+      const key = graphNodeKey(node)
+      const previous = source.get(key)
+      if (previous) {
+        if (!saved && focusPrevious) {
+          immediate.set(key, {
+            x: previous.x - focusPrevious.x,
+            y: previous.y - focusPrevious.y,
+            z: previous.z - focusPrevious.z,
+          })
+        } else {
+          immediate.set(key, previous)
+        }
+      } else {
+        immediate.set(key, fallbackPose(node, index, focusKey))
+      }
+    })
+    if (focusKey) immediate.set(focusKey, { x: 0, y: 0, z: 0 })
+
+    setPoses(immediate)
+    lastPoses.current = immediate
+
+    if (typeof Worker === 'undefined') {
+      cache.current.set(contextKey, immediate)
+      return
+    }
+
     const id = ++requestId.current
     const worker = new Worker(new URL('./layout.worker.ts', import.meta.url), { type: 'module' })
     worker.onmessage = (event: MessageEvent<LayoutResponse>) => {
-      if (event.data.id === id) setPoses(new Map(event.data.poses))
+      if (event.data.id === id) {
+        const next = new Map(event.data.poses)
+        cache.current.set(contextKey, next)
+        lastPoses.current = next
+        setPoses(next)
+      }
       worker.terminate()
     }
     worker.onerror = () => worker.terminate()
@@ -141,6 +181,7 @@ function useGraphLayout(projection: KairoGraphProjection | null) {
       nodes: projection.nodes,
       edges: projection.edges,
       focusKey,
+      initialPoses: Array.from(immediate.entries()),
     })
     return () => worker.terminate()
   }, [projection])
