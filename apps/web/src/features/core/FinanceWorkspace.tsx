@@ -9,6 +9,7 @@ import {
   type FinanceAccountRecord,
   type FinancePositionRecord,
 } from '../../lib/financeApi'
+import { FinanceConnectorsPanel } from './FinanceConnectorsPanel'
 
 function numberValue(value?: string | number | null) {
   const parsed = Number(value ?? 0)
@@ -256,7 +257,7 @@ export function FinanceWorkspace({ projects }: { projects: ProjectRecord[] }) {
         </div>
 
         {positions.length === 0 ? (
-          <div className="workspace-empty"><strong>Aucune position financière observée.</strong><span>Le Cockpit n’invente pas de portefeuille. Un connecteur Rotki/exchange/wallet alimentera ce read model via la frontière normalisée KAIRO.</span></div>
+          <div className="workspace-empty"><strong>Aucune position financière observée.</strong><span>Le Cockpit n’invente pas de portefeuille. Configurez un connecteur Rotki dans le panneau latéral pour alimenter le read model Finance KAIRO.</span></div>
         ) : (
           <div className="finance-position-list">
             {positions.map((position) => <PositionRow key={position.id} position={position} allocation={positiveTotal > 0 ? Math.max(0, numberValue(position.value_usd)) / positiveTotal * 100 : 0} />)}
@@ -270,6 +271,7 @@ export function FinanceWorkspace({ projects }: { projects: ProjectRecord[] }) {
       </section>
 
       <aside className="finance-side">
+        <FinanceConnectorsPanel projects={projects} />
         <ProposalForm projects={projects} accounts={accounts} positions={positions} />
         <section className="finance-proposals">
           <header><div><span className="kairo-kicker">PROPOSITIONS</span><strong>Transferts préparés</strong></div><b>{proposalsQuery.data?.length || 0}</b></header>
