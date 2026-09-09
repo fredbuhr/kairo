@@ -9,6 +9,7 @@ import './brand.css'
 import './graph-controls.css'
 import './graph-filters.css'
 import './core-workspaces.css'
+import './knowledge-workspace.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
