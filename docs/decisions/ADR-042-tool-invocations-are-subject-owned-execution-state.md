@@ -87,6 +87,14 @@ Downgrade may intentionally fail if different subjects have subsequently reused 
 
 `tool_invocation_ownership_contract.py` is a cheap fail-fast source/migration proof: it checks that every current ToolInvocation constructor propagates ownership, the subject-local unique constraint is present and the database owner trigger exists.
 
+`multi_user_tool_invocation_ownership.py` is the runtime isolation proof. It provisions one shared read-only MCP contract, then uses two real Keycloak users to verify that:
+
+- both subjects can reuse the same caller-selected idempotency string without colliding;
+- the resulting ToolInvocation and Task identities are distinct;
+- same-subject replay resolves to the same invocation;
+- same-subject rebinding with changed input fails;
+- each subject receives 404 for the other subject's invocation ID.
+
 The MCP management proof also checks that the ordinary ToolServer list omits `endpoint_url` and `metadata_json` while admin creation still returns the full registered record.
 
-Current-head hosted CI is still blocked before runner assignment by issue #38, so these changes are implemented but not claimed as executed successfully on the current head. A dedicated two-user runtime proof for subject-local ToolInvocation idempotency remains required before this tranche is fully validated.
+All three proofs are committed to the relevant validation workflows. Current-head hosted CI is still blocked before runner assignment by issue #38, so they are **implemented but not yet executed/validated on the current head**.
