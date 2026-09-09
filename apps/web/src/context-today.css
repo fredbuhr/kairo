@@ -1,0 +1,27 @@
+.context-today-list .today-dot {
+  width: 5px;
+  height: 5px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: #65dfe0;
+  box-shadow: 0 0 7px rgba(101, 223, 224, .32);
+}
+.context-today-list .today-dot-overdue {
+  background: #c98b96;
+  box-shadow: 0 0 7px rgba(201, 139, 150, .28);
+}
+.context-today-list .today-dot-due {
+  background: #b8efcf;
+  box-shadow: 0 0 7px rgba(184, 239, 207, .34);
+}
+.context-today-list .today-dot-planned {
+  background: #5edfe3;
+  box-shadow: 0 0 7px rgba(94, 223, 227, .36);
+}
+.context-today-list .today-dot-important {
+  background: #86dfc4;
+  box-shadow: 0 0 7px rgba(134, 223, 196, .34);
+}
+.context-today .context-empty {
+  min-height: 26px;
+}
