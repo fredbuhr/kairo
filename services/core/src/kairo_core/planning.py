@@ -20,6 +20,7 @@ router = APIRouter(tags=["planning"])
 _OPEN_EXCLUDED = {"completed", "done", "cancelled", "archived"}
 _TERMINAL = {"completed", "done", "cancelled"}
 _ACTIVE = {"running", "in_progress"}
+_DATETIME_FIELDS = ("planned_start_at", "planned_end_at", "due_at")
 
 
 class TaskPlanningRead(BaseModel):
@@ -55,7 +56,15 @@ class TaskPlanningUpdate(BaseModel):
     due_at: datetime | None = None
 
     @model_validator(mode="after")
-    def validate_interval(self) -> "TaskPlanningUpdate":
+    def validate_planning(self) -> "TaskPlanningUpdate":
+        if "title" in self.model_fields_set and self.title is not None and not self.title.strip():
+            raise ValueError("title cannot be blank")
+        for field_name in _DATETIME_FIELDS:
+            if field_name not in self.model_fields_set:
+                continue
+            value = getattr(self, field_name)
+            if value is not None and value.utcoffset() is None:
+                raise ValueError(f"{field_name} must include a timezone offset")
         if (
             "planned_start_at" in self.model_fields_set
             and "planned_end_at" in self.model_fields_set
@@ -90,13 +99,27 @@ def _open_clause():
     return ~Task.status.in_(sorted(_OPEN_EXCLUDED))
 
 
+def _human_work_clause():
+    # Capability-backed Tasks are durable execution records. They belong in Agent/Activity views,
+    # not in the human Today/Gantt work surface merely because they share the canonical Task table.
+    return ~Task.input.has_key("capability")  # type: ignore[attr-defined]  # PostgreSQL JSONB ? operator
+
+
+def _is_execution_task(task: Task) -> bool:
+    return isinstance(task.input, dict) and isinstance(task.input.get("capability"), str)
+
+
 @router.get("/v1/planning/tasks", response_model=list[TaskPlanningRead])
 async def list_planning_tasks(
     project_id: uuid.UUID | None = None,
     include_closed: bool = False,
     session: AsyncSession = Depends(get_session),
 ) -> list[Task]:
-    statement = select(Task).order_by(Task.priority.desc(), Task.updated_at.desc())
+    statement = (
+        select(Task)
+        .where(_human_work_clause())
+        .order_by(Task.priority.desc(), Task.updated_at.desc())
+    )
     if project_id is not None:
         statement = statement.where(Task.project_id == project_id)
     if not include_closed:
@@ -114,6 +137,11 @@ async def update_task_planning(
     task = await session.scalar(select(Task).where(Task.id == task_id).with_for_update())
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
+    if _is_execution_task(task):
+        raise HTTPException(
+            status_code=409,
+            detail="Capability execution Tasks are managed by KAIRO workflows, not the human planning surface",
+        )
 
     fields = body.model_fields_set
     if not fields:
@@ -198,6 +226,7 @@ async def today(
     start, end = _day_bounds(timezone_offset_minutes)
     result = await session.execute(
         select(Task)
+        .where(_human_work_clause())
         .where(_open_clause())
         .where(
             or_(
