@@ -26,7 +26,9 @@ def main() -> None:
     adapter = text("services/core/src/kairo_core/keycloak_management.py")
     config = text("services/core/src/kairo_core/config.py")
     env = text(".env.example")
-    compose = text("compose.override.yaml")
+    production_env = text(".env.production.example")
+    development_compose = text("compose.override.yaml")
+    production_compose = text("compose.production.yaml")
     decision = text(
         "docs/decisions/ADR-048-keycloak-identity-management-is-a-separate-least-privilege-adapter.md"
     )
@@ -48,11 +50,18 @@ def main() -> None:
     forbid(adapter, 'params={"username"', "username search target")
     forbid(adapter, 'params={"email"', "email search target")
 
-    require(env, "KEYCLOAK_MANAGEMENT_CLIENT_ID=kairo-identity-manager", "deployment management client id")
+    require(env, "KEYCLOAK_MANAGEMENT_CLIENT_ID=kairo-identity-manager", "development management client id")
     require(env, "KEYCLOAK_MANAGEMENT_CLIENT_SECRET=\n", "empty development management secret")
-    require(compose, "KEYCLOAK_MANAGEMENT_CLIENT_ID: ${KEYCLOAK_MANAGEMENT_CLIENT_ID}", "Core management client id wiring")
-    require(compose, "KEYCLOAK_MANAGEMENT_CLIENT_SECRET: ${KEYCLOAK_MANAGEMENT_CLIENT_SECRET}", "Core management secret wiring")
-    forbid(compose, "KEYCLOAK_MANAGEMENT_CLIENT_SECRET: ${KEYCLOAK_ADMIN_PASSWORD}", "bootstrap admin reuse")
+    require(production_env, "KEYCLOAK_MANAGEMENT_CLIENT_ID=kairo-identity-manager", "production management client id")
+    require(production_env, "KEYCLOAK_MANAGEMENT_CLIENT_SECRET=CHANGE_ME_", "production management secret placeholder")
+
+    for compose, label in (
+        (development_compose, "development Core"),
+        (production_compose, "production Core"),
+    ):
+        require(compose, "KEYCLOAK_MANAGEMENT_CLIENT_ID: ${KEYCLOAK_MANAGEMENT_CLIENT_ID}", f"{label} management client id wiring")
+        require(compose, "KEYCLOAK_MANAGEMENT_CLIENT_SECRET: ${KEYCLOAK_MANAGEMENT_CLIENT_SECRET}", f"{label} management secret wiring")
+        forbid(compose, "KEYCLOAK_MANAGEMENT_CLIENT_SECRET: ${KEYCLOAK_ADMIN_PASSWORD}", f"{label} bootstrap admin reuse")
 
     require(decision, "Separate confidential workload identity", "least-privilege workload decision")
     require(decision, "No public self-lockout", "no premature public identity mutation")
