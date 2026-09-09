@@ -1,7 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 
 import {
-  fetchAccountDataInventory,
   fetchAccountErasurePreflight,
   fetchAccountExportManifest,
   type AccountDataInventory,
@@ -43,11 +42,6 @@ function downloadJson(filename: string, value: unknown) {
 }
 
 export function AccountDataLifecycleSettings() {
-  const inventoryQuery = useQuery({
-    queryKey: ['account-data-inventory'],
-    queryFn: fetchAccountDataInventory,
-    staleTime: 10_000,
-  })
   const preflightQuery = useQuery({
     queryKey: ['account-erasure-preflight'],
     queryFn: fetchAccountErasurePreflight,
@@ -58,9 +52,9 @@ export function AccountDataLifecycleSettings() {
     onSuccess: (manifest) => downloadJson('kairo-account-export-manifest.json', manifest),
   })
 
-  const inventory = inventoryQuery.data
   const preflight = preflightQuery.data
-  const error = inventoryQuery.error || preflightQuery.error || manifestMutation.error
+  const inventory = preflight?.inventory
+  const error = preflightQuery.error || manifestMutation.error
 
   return (
     <section className="account-lifecycle-settings">
@@ -77,7 +71,7 @@ export function AccountDataLifecycleSettings() {
         Une suppression complète n’est jamais assimilée à un simple effacement SQL.
       </p>
 
-      {inventoryQuery.isLoading || preflightQuery.isLoading ? (
+      {preflightQuery.isLoading ? (
         <span className="account-lifecycle-muted">Construction de l’inventaire personnel…</span>
       ) : inventory ? (
         <>
