@@ -173,6 +173,30 @@ def main() -> None:
         "entity_id": project["id"],
     }, focus_directive
 
+    _, typed_project = json_request(
+        "POST",
+        "/v1/graph/directives/resolve",
+        payload={"text": "Ouvre le projet Spatial Graph Smoke Project"},
+    )
+    assert typed_project["outcome"] == "directive", typed_project
+    assert typed_project["query"] == "Spatial Graph Smoke Project", typed_project
+    assert typed_project["directive"]["entity"] == {
+        "entity_type": "project",
+        "entity_id": project["id"],
+    }, typed_project
+
+    _, typed_task = json_request(
+        "POST",
+        "/v1/graph/directives/resolve",
+        payload={"text": "Montre-moi la tâche Prove spatial graph read model"},
+    )
+    assert typed_task["outcome"] == "directive", typed_task
+    assert typed_task["query"] == "Prove spatial graph read model", typed_task
+    assert typed_task["directive"]["entity"] == {
+        "entity_type": "task",
+        "entity_id": task["id"],
+    }, typed_task
+
     _, isolate_directive = json_request(
         "POST",
         "/v1/graph/directives/resolve",
