@@ -54,6 +54,7 @@ export function DesktopRuntimeSettings() {
   }
 
   const desktop = capabilities.runtime === 'tauri'
+  const actionError = notify.error || copyDiagnostic.error
 
   return (
     <section className="desktop-runtime-settings">
@@ -87,11 +88,9 @@ export function DesktopRuntimeSettings() {
           </button>
         </div>
       )}
-      {(notify.isError || copyDiagnostic.isError) && (
+      {actionError && (
         <small className="workspace-error">
-          {(notify.error || copyDiagnostic.error) instanceof Error
-            ? (notify.error || copyDiagnostic.error as Error).message
-            : 'La capacité locale a été refusée.'}
+          {actionError instanceof Error ? actionError.message : 'La capacité locale a été refusée.'}
         </small>
       )}
     </section>
