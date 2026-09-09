@@ -10,9 +10,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import Principal, require_kairo_user
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
-from .models import Task
+from .models import Project, Task
+from .ownership import owned_task, require_owned_project
 
 
 router = APIRouter(tags=["planning"])
@@ -113,10 +115,15 @@ def _is_execution_task(task: Task) -> bool:
 async def list_planning_tasks(
     project_id: uuid.UUID | None = None,
     include_closed: bool = False,
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[Task]:
+    if project_id is not None:
+        await require_owned_project(session, project_id, principal.subject)
     statement = (
         select(Task)
+        .join(Project, Project.id == Task.project_id)
+        .where(Project.keycloak_subject == principal.subject)
         .where(_human_work_clause())
         .order_by(Task.priority.desc(), Task.updated_at.desc())
     )
@@ -132,9 +139,10 @@ async def list_planning_tasks(
 async def update_task_planning(
     task_id: uuid.UUID,
     body: TaskPlanningUpdate,
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> Task:
-    task = await session.scalar(select(Task).where(Task.id == task_id).with_for_update())
+    task = await owned_task(session, task_id, principal.subject, lock=True)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     if _is_execution_task(task):
@@ -203,7 +211,7 @@ async def update_task_planning(
     await append_audit(
         session,
         actor_type="user",
-        actor_id=task.owner_ref,
+        actor_id=principal.subject,
         action="task.plan.update",
         resource_type="task",
         resource_id=str(task.id),
@@ -221,11 +229,14 @@ async def update_task_planning(
 async def today(
     timezone_offset_minutes: int = Query(default=0, ge=-840, le=840),
     limit_per_group: int = Query(default=24, ge=4, le=80),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> TodayRead:
     start, end = _day_bounds(timezone_offset_minutes)
     result = await session.execute(
         select(Task)
+        .join(Project, Project.id == Task.project_id)
+        .where(Project.keycloak_subject == principal.subject)
         .where(_human_work_clause())
         .where(_open_clause())
         .where(
