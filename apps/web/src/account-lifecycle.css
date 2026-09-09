@@ -84,6 +84,28 @@
   white-space: nowrap;
 }
 
+.account-evidence-note {
+  display: grid;
+  gap: 4px;
+  padding: 8px 9px;
+  border: 1px solid rgba(91, 201, 216, .07);
+  border-radius: 9px;
+  background: rgba(8, 31, 39, .25);
+}
+
+.account-evidence-note > p {
+  margin: 0;
+  color: #647b80;
+  font-size: 6.4px;
+  line-height: 1.45;
+}
+
+.account-evidence-note > small {
+  color: #526c71;
+  font-size: 6px;
+  line-height: 1.4;
+}
+
 .derived-memory-control {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
