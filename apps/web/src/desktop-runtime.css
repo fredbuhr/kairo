@@ -122,11 +122,19 @@
 .secret-vault-field > button { width: 28px; min-height: 28px; padding: 0; }
 .secret-vault-value-actions { display: grid; grid-template-columns: auto minmax(120px, 1fr); gap: 6px; }
 .secret-vault-value-actions > button:last-child { justify-self: stretch; }
+.secret-vault-retention { display: grid; gap: 7px; padding: 9px; border: 1px solid rgba(176, 116, 126, .10); border-radius: 10px; background: rgba(32, 13, 18, .18); }
+.secret-vault-retention > div:first-child { display: grid; gap: 2px; }
+.secret-vault-retention strong { color: #a99b9d; font-size: 7.2px; font-weight: 520; }
+.secret-vault-retention small { color: #6f6065; font-size: 6.2px; line-height: 1.45; }
+.secret-vault-retention-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.secret-vault-settings .secret-vault-retention-actions .secret-vault-danger { border-color: rgba(207, 125, 140, .22); background: rgba(123, 45, 61, .10); color: #b98e96; }
+.secret-vault-settings .secret-vault-retention-actions .secret-vault-danger:hover:not(:disabled) { border-color: rgba(224, 139, 153, .38); color: #d9abb3; }
 
 @media (max-width: 720px) {
   .desktop-runtime-actions,
   .secret-vault-status,
-  .secret-vault-value-actions { grid-template-columns: 1fr; }
+  .secret-vault-value-actions,
+  .secret-vault-retention-actions { grid-template-columns: 1fr; }
   .secret-vault-field { grid-template-columns: 1fr 28px; }
   .secret-vault-field input[type='password'] { grid-column: 1 / -1; grid-row: 2; }
 }
