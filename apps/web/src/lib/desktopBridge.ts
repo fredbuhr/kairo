@@ -12,6 +12,7 @@ export type KairoDesktopCapabilities = {
   screenshots: boolean
   microphone: boolean
   summon_shortcut: boolean
+  summon_shortcut_label?: string | null
 }
 
 const WEB_CAPABILITIES: KairoDesktopCapabilities = {
@@ -26,6 +27,7 @@ const WEB_CAPABILITIES: KairoDesktopCapabilities = {
   screenshots: false,
   microphone: false,
   summon_shortcut: false,
+  summon_shortcut_label: null,
 }
 
 export function isKairoDesktopRuntime() {
