@@ -33,7 +33,7 @@ class ToolServer(Base):
     title: Mapped[str] = mapped_column(String(240), nullable=False)
     transport: Mapped[str] = mapped_column(String(64), nullable=False, default="mcp_streamable_http")
     endpoint_url: Mapped[str] = mapped_column(String(2048), nullable=False)
-    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     catalog_generation: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(
