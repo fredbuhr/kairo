@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'services/core/**'
+      - 'services/worker/**'
       - 'infrastructure/keycloak/**'
       - 'infrastructure/openbao/**'
       - 'scripts/smoke/multi_user_ownership.py'
@@ -15,6 +16,8 @@ on:
       - 'scripts/smoke/tool_invocation_ownership_contract.py'
       - 'scripts/smoke/asset_document_ownership_contract.py'
       - 'scripts/smoke/evidence_subject_contract.py'
+      - 'scripts/smoke/outbox_jetstream_retention_contract.py'
+      - 'scripts/smoke/internal_task_start_contract.py'
       - 'scripts/smoke/openbao_policy_contract.py'
       - 'scripts/smoke/control_plane_visibility.py'
       - 'compose.yaml'
@@ -26,10 +29,12 @@ on:
       - 'docs/decisions/ADR-043-assets-and-documents-have-first-class-subject-ownership.md'
       - 'docs/decisions/ADR-044-account-erasure-is-a-cross-store-state-machine.md'
       - 'docs/decisions/ADR-045-audit-and-outbox-track-data-subject-separately-from-actor.md'
+      - 'docs/decisions/ADR-046-domain-event-transport-retention-is-bounded-and-receipted.md'
       - '.github/workflows/ownership.yml'
   pull_request:
     paths:
       - 'services/core/**'
+      - 'services/worker/**'
       - 'infrastructure/keycloak/**'
       - 'infrastructure/openbao/**'
       - 'scripts/smoke/multi_user_ownership.py'
@@ -41,6 +46,8 @@ on:
       - 'scripts/smoke/tool_invocation_ownership_contract.py'
       - 'scripts/smoke/asset_document_ownership_contract.py'
       - 'scripts/smoke/evidence_subject_contract.py'
+      - 'scripts/smoke/outbox_jetstream_retention_contract.py'
+      - 'scripts/smoke/internal_task_start_contract.py'
       - 'scripts/smoke/openbao_policy_contract.py'
       - 'scripts/smoke/control_plane_visibility.py'
       - 'compose.yaml'
@@ -52,6 +59,7 @@ on:
       - 'docs/decisions/ADR-043-assets-and-documents-have-first-class-subject-ownership.md'
       - 'docs/decisions/ADR-044-account-erasure-is-a-cross-store-state-machine.md'
       - 'docs/decisions/ADR-045-audit-and-outbox-track-data-subject-separately-from-actor.md'
+      - 'docs/decisions/ADR-046-domain-event-transport-retention-is-bounded-and-receipted.md'
       - '.github/workflows/ownership.yml'
 
 concurrency:
@@ -70,9 +78,9 @@ jobs:
           cp .env.example .env
           echo 'KAIRO_WORKER_EXTRAS=' >> .env
 
-      - name: Compile ownership-sensitive Core and proofs
+      - name: Compile ownership-sensitive Core, Worker and proofs
         run: |
-          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py scripts/smoke/multi_user_tool_invocation_ownership.py scripts/smoke/multi_user_asset_document_ownership.py scripts/smoke/multi_user_account_lifecycle.py scripts/smoke/tool_invocation_ownership_contract.py scripts/smoke/asset_document_ownership_contract.py scripts/smoke/evidence_subject_contract.py scripts/smoke/openbao_policy_contract.py scripts/smoke/control_plane_visibility.py
+          python -m compileall services/core/src services/core/migrations/versions services/worker/src scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py scripts/smoke/multi_user_tool_invocation_ownership.py scripts/smoke/multi_user_asset_document_ownership.py scripts/smoke/multi_user_account_lifecycle.py scripts/smoke/tool_invocation_ownership_contract.py scripts/smoke/asset_document_ownership_contract.py scripts/smoke/evidence_subject_contract.py scripts/smoke/outbox_jetstream_retention_contract.py scripts/smoke/internal_task_start_contract.py scripts/smoke/openbao_policy_contract.py scripts/smoke/control_plane_visibility.py
 
       - name: Prove least-privilege OpenBao workload policy
         run: python scripts/smoke/openbao_policy_contract.py
@@ -85,6 +93,12 @@ jobs:
 
       - name: Prove Audit/Outbox data-subject contract
         run: python scripts/smoke/evidence_subject_contract.py
+
+      - name: Prove bounded JetStream retention and publication receipts
+        run: python scripts/smoke/outbox_jetstream_retention_contract.py
+
+      - name: Prove Worker uses the internal Task start trust boundary
+        run: python scripts/smoke/internal_task_start_contract.py
 
       - name: Start one shared database with two real Keycloak identities
         run: |
