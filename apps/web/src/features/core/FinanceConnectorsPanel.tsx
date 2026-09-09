@@ -126,7 +126,7 @@ export function FinanceConnectorsPanel({ projects }: { projects: ProjectRecord[]
 
       {creating && (
         <form className="finance-connector-form" onSubmit={submit}>
-          <p>Les identifiants Rotki restent dans OpenBao. KAIRO ne stocke ici qu’une référence vers le secret.</p>
+          <p>Les identifiants Rotki restent dans OpenBao. Créez d’abord un SecretReference dont le secret contient les champs utilisateur/mot de passe indiqués ci-dessous ; KAIRO ne stocke ici que cette référence.</p>
           <label><span>Projet</span><select value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">Choisir…</option>{projects.filter((project) => project.status !== 'archived').map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
           <label><span>Nom</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>
           <label><span>Clé KAIRO</span><input value={key} onChange={(event) => setKey(event.target.value)} /></label>
