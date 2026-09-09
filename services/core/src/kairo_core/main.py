@@ -21,6 +21,7 @@ from .events import append_audit, enqueue_domain_event
 from .graph import router as graph_router
 from .graph_activity import router as graph_activity_router
 from .graph_directives import router as graph_directives_router
+from .knowledge import router as knowledge_router
 from .memory import router as memory_router
 from .models import OutboxEvent, Project, RelationshipRecord, Task
 from .news import router as news_router
@@ -67,6 +68,7 @@ app.add_middleware(
 app.include_router(workflow_router)
 app.include_router(memory_router)
 app.include_router(documents_router)
+app.include_router(knowledge_router)
 app.include_router(graph_router)
 app.include_router(graph_activity_router)
 app.include_router(graph_directives_router)
@@ -179,6 +181,7 @@ async def architecture() -> dict[str, object]:
         "conversation_state": "postgresql",
         "canonical_documents": "postgresql-document-version-chunks",
         "document_parser": "docling",
+        "knowledge_retrieval": "kairo-core-latest-canonical-document-chunks",
         "capability_registry": "kairo-core",
         "tool_registry": "kairo-core-postgresql",
         "tool_transport": "mcp-streamable-http",
