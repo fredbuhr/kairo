@@ -17,6 +17,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    keycloak_subject: Mapped[str] = mapped_column(String(255), nullable=False)
     asset_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("assets.id", ondelete="RESTRICT"), nullable=False, unique=True
     )
@@ -38,7 +39,10 @@ class Document(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
-    __table_args__ = (Index("ix_documents_project_status", "project_id", "status"),)
+    __table_args__ = (
+        Index("ix_documents_project_status", "project_id", "status"),
+        Index("ix_documents_subject_status_updated", "keycloak_subject", "status", "updated_at"),
+    )
 
 
 class DocumentVersion(Base):
