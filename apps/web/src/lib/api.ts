@@ -185,6 +185,13 @@ export type ProjectCreateInput = {
   parent_id?: string | null
 }
 
+export type ProjectUpdateInput = {
+  name?: string
+  status?: string
+  summary?: string | null
+  parent_id?: string | null
+}
+
 export type TaskCreateInput = {
   project_id: string
   title: string
@@ -251,6 +258,14 @@ export function createProject(input: ProjectCreateInput): Promise<ProjectRecord>
       summary: input.summary || null,
       parent_id: input.parent_id || null,
     }),
+  })
+}
+
+export function updateProject(projectId: string, input: ProjectUpdateInput): Promise<ProjectRecord> {
+  return apiJson(`/v1/projects/${encodeURIComponent(projectId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
   })
 }
 
