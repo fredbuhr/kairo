@@ -25,6 +25,7 @@ from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project, Task
 from .news import start_news_brief
+from .research import ResearchCommandInput, ResearchRunCreate, start_research_run
 from .schemas import (
     AssistantCommandCreate,
     AssistantCommandResponse,
@@ -45,6 +46,8 @@ router = APIRouter()
 ASSISTANT_PROJECT_ID = uuid.UUID("91d51873-3aa5-4fbc-a6df-cf474239682f")
 SEMANTIC_ROUTE_BUDGET_USD = Decimal("0.02")
 SEMANTIC_ROUTE_CONFIDENCE_FLOOR = 0.80
+RESEARCH_COMMAND_MODEL_BUDGET_USD = Decimal("0.02")
+RESEARCH_COMMAND_MODEL_ALIAS = "local-fast"
 
 _NEWS_TERMS = (
     "actualite",
@@ -117,6 +120,29 @@ _AUDIO_TERMS = (
     "read me",
     "speak",
 )
+_RESEARCH_TERMS = (
+    "fais une recherche",
+    "faire une recherche",
+    "recherche approfondie",
+    "recherche detaillee",
+    "analyse approfondie",
+    "enquete sur",
+    "cherche et compare",
+    "cherche puis compare",
+    "recoupe les sources",
+    "recouper les sources",
+    "research this",
+    "deep dive",
+    "investigate",
+)
+_DEEP_RESEARCH_TERMS = (
+    "recherche approfondie",
+    "recherche detaillee",
+    "analyse approfondie",
+    "recoupe les sources",
+    "recouper les sources",
+    "deep dive",
+)
 _CITY_PATTERN = re.compile(
     r"\bville\s+d(?:e|['’])\s+([^?!,.;:]{2,80})",
     flags=re.IGNORECASE,
@@ -151,6 +177,19 @@ def route_command(body: AssistantCommandCreate) -> CommandRoute | None:
     has_news = any(term in text for term in _NEWS_TERMS)
     has_market = any(term in text for term in _MARKET_TERMS)
     asks_market_impact = has_market and any(term in text for term in _MARKET_IMPACT_TERMS)
+    asks_research = any(term in text for term in _RESEARCH_TERMS)
+
+    # Explicit news/market commands retain priority. A phrase such as "recherche les news" must not
+    # silently switch from the sourced News capability to the generic MCP research planner.
+    if asks_research and not has_news and not asks_market_impact:
+        max_tool_calls = 5 if any(term in text for term in _DEEP_RESEARCH_TERMS) else 3
+        request = ResearchCommandInput(query=body.text, max_tool_calls=max_tool_calls)
+        return CommandRoute(
+            capability="research.autonomous",
+            confidence=0.98,
+            route_reason="deterministic.research",
+            parameters=request.model_dump(mode="json"),
+        )
 
     if not has_news and not asks_market_impact:
         return None
@@ -418,24 +457,44 @@ async def _execute_route(
     capability = get_capability(route.capability)
     if capability is None or not is_routable_capability(route.capability):
         raise HTTPException(status_code=422, detail="Capability is not routable")
-    if capability.key != "news.brief":
-        raise HTTPException(status_code=501, detail="Capability adapter is not implemented")
 
-    news_request = NewsBriefCreate.model_validate(route.parameters)
-    deterministic_task_id = (
-        uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:command:{command.id}:{capability.key}:v1")
-        if semantic
-        else None
+    deterministic_task_id = uuid.uuid5(
+        uuid.NAMESPACE_URL, f"kairo:command:{command.id}:{capability.key}:v1"
     )
-    execution = await start_news_brief(
-        news_request,
-        session,
-        actor_type="user",
-        actor_id=conversation.subject_ref,
-        correlation_id=command.correlation_id,
-        command_id=command.id,
-        task_id=deterministic_task_id,
-    )
+
+    if capability.key == "news.brief":
+        news_request = NewsBriefCreate.model_validate(route.parameters)
+        execution = await start_news_brief(
+            news_request,
+            session,
+            actor_type="user",
+            actor_id=conversation.subject_ref,
+            correlation_id=command.correlation_id,
+            command_id=command.id,
+            task_id=deterministic_task_id if semantic else None,
+        )
+    elif capability.key == "research.autonomous":
+        routed = ResearchCommandInput.model_validate(route.parameters)
+        project = await _ensure_assistant_project(session)
+        research_request = ResearchRunCreate(
+            project_id=project.id,
+            query=routed.query,
+            max_tool_calls=routed.max_tool_calls,
+            allowed_tool_keys=[],
+            model_alias=RESEARCH_COMMAND_MODEL_ALIAS,
+            estimated_model_cost_usd=RESEARCH_COMMAND_MODEL_BUDGET_USD,
+        )
+        execution = await start_research_run(
+            research_request,
+            session,
+            actor_type="worker" if semantic else "user",
+            actor_id="semantic-router" if semantic else conversation.subject_ref,
+            correlation_id=command.correlation_id,
+            command_id=command.id,
+            task_id=deterministic_task_id,
+        )
+    else:
+        raise HTTPException(status_code=501, detail="Capability adapter is not implemented")
 
     command = await session.get(CommandRecord, command.id)
     if command is None:
@@ -443,6 +502,8 @@ async def _execute_route(
     command.capability_key = capability.key
     command.confidence = Decimal(str(route.confidence))
     command.route_reason = route.route_reason
+    # Persist only the route-owned contract. Core-injected project/model/budget/tool-policy fields live
+    # on the final Task and are never represented as if they were model/user routing parameters.
     command.parameters_json = route.parameters
     command.status = "accepted"
     command.task_id = execution.task_id
