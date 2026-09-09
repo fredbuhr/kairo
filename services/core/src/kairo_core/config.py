@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://kairo:kairo@postgres:5432/kairo"
     nats_url: str = "nats://nats:4222"
     nats_domain_stream: str = "KAIRO_DOMAIN"
+    # JetStream is transport retention, not canonical history. Seven days gives consumers time to
+    # recover while keeping account-erasure semantics bounded; production may shorten this but must
+    # not make the stream effectively infinite without revisiting ADR-044/045.
+    nats_domain_retention_seconds: int = 7 * 24 * 60 * 60
     outbox_batch_size: int = 100
     outbox_poll_interval_seconds: float = 0.5
     outbox_retry_interval_seconds: float = 2.0
