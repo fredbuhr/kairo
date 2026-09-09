@@ -11,15 +11,16 @@ Implemented now:
 - Tauri v2 shell loading `apps/web` in development and bundling the same web build for desktop;
 - a small KAIRO-owned IPC bridge that reports local capabilities;
 - explicit clipboard read/write commands;
-- explicit local notification command;
+- explicit local notification command with permission requested only when the user actually invokes it;
+- fixed native summon shortcut `CmdOrCtrl+Shift+Space`, registered in Rust and limited to restoring/showing/focusing the KAIRO window;
 - browser/WebView file input remains the only file-import path, so broad filesystem permissions are **not** granted;
-- Settings displays the actual runtime and never claims screenshot, microphone or global-shortcut support before those bridges exist.
+- Settings displays the actual runtime and capability state.
 
 Not enabled yet:
 
 - screenshot/capture bridge;
 - microphone / VAD / wake word / transcription;
-- global summon shortcut;
+- user-configurable global shortcuts;
 - arbitrary filesystem access;
 - privileged local command execution.
 
@@ -44,6 +45,6 @@ pnpm build:desktop
 
 ## Trust model
 
-The browser-compatible React application owns UI interaction state only. Native capabilities are invoked through typed, bounded Tauri commands. The frontend does not receive a generic Rust command channel, shell execution authority, unrestricted filesystem scopes or signing material.
+The browser-compatible React application owns UI interaction state only. Native capabilities are invoked through typed, bounded Tauri commands. The frontend does not receive a generic Rust command channel, shell execution authority, unrestricted filesystem scopes, shortcut-registration authority or signing material.
 
 The desktop shell is therefore an extension of the permanent Cockpit, not a place to bypass KAIRO Core policy. Future device actions that can affect external state must still cross the appropriate KAIRO policy/approval boundary.
