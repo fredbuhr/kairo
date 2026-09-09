@@ -10,11 +10,13 @@ on:
       - 'scripts/smoke/graph_projection.py'
       - 'scripts/smoke/knowledge_workspace.py'
       - 'scripts/smoke/task_planning.py'
+      - 'scripts/smoke/agent_operations.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
       - 'docs/decisions/ADR-029-specialist-workspaces-share-canonical-state.md'
       - 'docs/decisions/ADR-030-explicit-task-planning-drives-today-and-gantt.md'
+      - 'docs/decisions/ADR-031-human-work-and-capability-executions-share-task-table-not-workspace.md'
       - '.github/workflows/graph-interface.yml'
   pull_request:
     paths:
@@ -25,11 +27,13 @@ on:
       - 'scripts/smoke/graph_projection.py'
       - 'scripts/smoke/knowledge_workspace.py'
       - 'scripts/smoke/task_planning.py'
+      - 'scripts/smoke/agent_operations.py'
       - 'docs/interface-v1.md'
       - 'docs/decisions/ADR-027-kairo-spatial-graph-projection.md'
       - 'docs/decisions/ADR-028-stable-spatial-rendering.md'
       - 'docs/decisions/ADR-029-specialist-workspaces-share-canonical-state.md'
       - 'docs/decisions/ADR-030-explicit-task-planning-drives-today-and-gantt.md'
+      - 'docs/decisions/ADR-031-human-work-and-capability-executions-share-task-table-not-workspace.md'
       - '.github/workflows/graph-interface.yml'
 
 concurrency:
@@ -70,7 +74,7 @@ jobs:
       - name: Validate Core cockpit sources
         run: |
           uv build --package kairo-core
-          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py scripts/smoke/task_planning.py
+          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/graph_projection.py scripts/smoke/knowledge_workspace.py scripts/smoke/task_planning.py scripts/smoke/agent_operations.py
 
   graph-projection-integration:
     needs: validate
@@ -96,6 +100,9 @@ jobs:
 
       - name: Prove explicit Today planning
         run: python scripts/smoke/task_planning.py
+
+      - name: Prove Agents execution boundary
+        run: python scripts/smoke/agent_operations.py
 
       - name: Dump graph state on failure
         if: failure()
