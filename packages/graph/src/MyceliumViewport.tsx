@@ -46,6 +46,13 @@ type QualitySettings = {
 
 type SemanticBand = 1 | 2 | 3
 
+type CameraTransition = {
+  from: THREE.Vector3
+  to: THREE.Vector3
+  startedAt: number
+  durationMs: number
+}
+
 function hash(value: string): number {
   let h = 2166136261
   for (let index = 0; index < value.length; index += 1) {
@@ -223,9 +230,19 @@ function KairoAnchor({ reducedMotion }: { reducedMotion: boolean }) {
   )
 }
 
-function CameraRig({ focusPose }: { focusPose?: KairoGraphPose | null }) {
+function CameraRig({
+  focusPose,
+  focusId,
+  reducedMotion,
+}: {
+  focusPose?: KairoGraphPose | null
+  focusId: string
+  reducedMotion: boolean
+}) {
   const { camera, gl } = useThree()
   const controls = useRef<OrbitControls | null>(null)
+  const previousFocusId = useRef(focusId)
+  const transition = useRef<CameraTransition | null>(null)
   const desiredTarget = useMemo(
     () => new THREE.Vector3(focusPose?.x || 0, focusPose?.y || 0, focusPose?.z || 0),
     [focusPose?.x, focusPose?.y, focusPose?.z],
@@ -246,12 +263,47 @@ function CameraRig({ focusPose }: { focusPose?: KairoGraphPose | null }) {
     instance.target.copy(desiredTarget)
     controls.current = instance
     return () => instance.dispose()
-  }, [camera, desiredTarget, gl.domElement])
+  }, [camera, gl.domElement])
+
+  useEffect(() => {
+    const instance = controls.current
+    if (!instance || previousFocusId.current === focusId) return
+    previousFocusId.current = focusId
+
+    const direction = camera.position.clone().sub(instance.target)
+    if (direction.lengthSq() < 0.001) direction.set(0, 0.25, 1)
+    direction.normalize()
+    const targetDistance = focusId === 'home' ? 20 : 13.5
+    const destination = desiredTarget.clone().add(direction.multiplyScalar(targetDistance))
+
+    if (reducedMotion) {
+      camera.position.copy(destination)
+      instance.target.copy(desiredTarget)
+      transition.current = null
+      return
+    }
+
+    transition.current = {
+      from: camera.position.clone(),
+      to: destination,
+      startedAt: performance.now(),
+      durationMs: 820,
+    }
+  }, [camera, desiredTarget, focusId, reducedMotion])
 
   useFrame(() => {
     const instance = controls.current
     if (!instance) return
-    instance.target.lerp(desiredTarget, 0.075)
+
+    const active = transition.current
+    if (active) {
+      const raw = Math.min(1, (performance.now() - active.startedAt) / active.durationMs)
+      const eased = raw * raw * (3 - 2 * raw)
+      camera.position.lerpVectors(active.from, active.to, eased)
+      if (raw >= 1) transition.current = null
+    }
+
+    instance.target.lerp(desiredTarget, active ? 0.14 : 0.075)
     instance.update()
   })
 
@@ -337,7 +389,11 @@ function GraphScene({
       <ambientLight intensity={0.26} />
       <pointLight position={[8, 12, 10]} color="#58e7ef" intensity={8} distance={32} decay={2} />
       <pointLight position={[-10, -4, -12]} color="#65e9c6" intensity={5} distance={30} decay={2} />
-      <CameraRig focusPose={focusPose} />
+      <CameraRig
+        focusPose={focusPose}
+        focusId={focusKey || 'home'}
+        reducedMotion={reducedMotion}
+      />
 
       {!focusKey && <KairoAnchor reducedMotion={reducedMotion} />}
 
