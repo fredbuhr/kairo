@@ -16,9 +16,11 @@ on:
       - 'apps/web/src/auth.css'
       - 'apps/web/src/main.tsx'
       - 'infrastructure/keycloak/kairo-realm.json'
+      - 'compose.override.yaml'
       - '.env.example'
       - 'package.json'
       - 'docs/decisions/ADR-038-desktop-reuses-cockpit-and-bounds-native-capabilities.md'
+      - 'docs/decisions/ADR-039-web-and-desktop-share-in-memory-keycloak-session.md'
       - '.github/workflows/desktop.yml'
   pull_request:
     paths:
@@ -35,9 +37,11 @@ on:
       - 'apps/web/src/auth.css'
       - 'apps/web/src/main.tsx'
       - 'infrastructure/keycloak/kairo-realm.json'
+      - 'compose.override.yaml'
       - '.env.example'
       - 'package.json'
       - 'docs/decisions/ADR-038-desktop-reuses-cockpit-and-bounds-native-capabilities.md'
+      - 'docs/decisions/ADR-039-web-and-desktop-share-in-memory-keycloak-session.md'
       - '.github/workflows/desktop.yml'
 
 concurrency:
