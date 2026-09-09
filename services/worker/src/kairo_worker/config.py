@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     searxng_url: str = "http://searxng:8080"
     nats_url: str = "nats://nats:4222"
     nats_domain_stream: str = "KAIRO_DOMAIN"
+    nats_domain_retention_seconds: int = 7 * 24 * 60 * 60
     neo4j_uri: str = "bolt://neo4j:7687"
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
