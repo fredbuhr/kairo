@@ -60,6 +60,10 @@ class Task(Base):
     authority_ceiling: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
     input: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=2, server_default="2")
+    planned_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    planned_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
@@ -69,7 +73,11 @@ class Task(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
-    __table_args__ = (Index("ix_tasks_project_status", "project_id", "status"),)
+    __table_args__ = (
+        Index("ix_tasks_project_status", "project_id", "status"),
+        Index("ix_tasks_status_due_priority", "status", "due_at", "priority"),
+        Index("ix_tasks_planned_start", "planned_start_at"),
+    )
 
 
 class RelationshipRecord(Base):
