@@ -9,6 +9,14 @@ export type SecretReferenceRecord = {
   updated_at: string
 }
 
+export type SecretReferenceStatus = {
+  reference_id: string
+  provider: 'openbao'
+  exists: boolean
+  keys: string[]
+  version?: number | null
+}
+
 export type AutomationRecord = {
   id: string
   project_id: string
@@ -112,4 +120,27 @@ export function fetchAutomationRuns(automationId?: string): Promise<AutomationRu
 
 export function fetchSecretReferences(): Promise<SecretReferenceRecord[]> {
   return apiJson('/v1/secret-references')
+}
+
+export function createSecretReference(name: string, purpose: string): Promise<SecretReferenceRecord> {
+  return apiJson('/v1/secret-references', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, purpose }),
+  })
+}
+
+export function fetchSecretReferenceStatus(referenceId: string): Promise<SecretReferenceStatus> {
+  return apiJson(`/v1/secret-references/${encodeURIComponent(referenceId)}/status`)
+}
+
+export function provisionSecretReference(
+  referenceId: string,
+  values: Record<string, string>,
+): Promise<SecretReferenceStatus> {
+  return apiJson(`/v1/secret-references/${encodeURIComponent(referenceId)}/values`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values }),
+  })
 }
