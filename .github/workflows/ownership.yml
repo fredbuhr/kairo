@@ -8,6 +8,7 @@ on:
       - 'scripts/smoke/multi_user_ownership.py'
       - 'scripts/smoke/multi_user_conversation_ownership.py'
       - 'scripts/smoke/multi_user_secret_ownership.py'
+      - 'scripts/smoke/multi_user_tool_invocation_ownership.py'
       - 'scripts/smoke/tool_invocation_ownership_contract.py'
       - 'scripts/smoke/control_plane_visibility.py'
       - 'compose.yaml'
@@ -24,6 +25,7 @@ on:
       - 'scripts/smoke/multi_user_ownership.py'
       - 'scripts/smoke/multi_user_conversation_ownership.py'
       - 'scripts/smoke/multi_user_secret_ownership.py'
+      - 'scripts/smoke/multi_user_tool_invocation_ownership.py'
       - 'scripts/smoke/tool_invocation_ownership_contract.py'
       - 'scripts/smoke/control_plane_visibility.py'
       - 'compose.yaml'
@@ -52,7 +54,7 @@ jobs:
 
       - name: Compile ownership-sensitive Core and proofs
         run: |
-          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py scripts/smoke/tool_invocation_ownership_contract.py scripts/smoke/control_plane_visibility.py
+          python -m compileall services/core/src services/core/migrations/versions scripts/smoke/multi_user_ownership.py scripts/smoke/multi_user_conversation_ownership.py scripts/smoke/multi_user_secret_ownership.py scripts/smoke/multi_user_tool_invocation_ownership.py scripts/smoke/tool_invocation_ownership_contract.py scripts/smoke/control_plane_visibility.py
 
       - name: Prove ToolInvocation ownership contract
         run: python scripts/smoke/tool_invocation_ownership_contract.py
@@ -72,6 +74,9 @@ jobs:
 
       - name: Prove SecretReference/Automation/Finance ownership isolation
         run: python scripts/smoke/multi_user_secret_ownership.py
+
+      - name: Prove ToolInvocation owner/idempotency isolation
+        run: python scripts/smoke/multi_user_tool_invocation_ownership.py
 
       - name: Dump ownership stack on failure
         if: failure()
