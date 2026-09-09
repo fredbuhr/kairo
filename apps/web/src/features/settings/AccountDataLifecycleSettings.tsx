@@ -3,10 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   applyEvidenceRetention,
+  cancelAccountWriteFreeze,
   fetchAccountErasurePreflight,
   fetchAccountExportManifest,
   fetchAccountLifecycleTask,
+  fetchAccountWriteFreeze,
   fetchEvidenceRetentionPlan,
+  freezeAccountWrites,
   purgeDerivedMemory,
   type AccountDataInventory,
 } from '../../lib/accountApi'
@@ -74,6 +77,12 @@ export function AccountDataLifecycleSettings() {
     queryFn: fetchAccountErasurePreflight,
     staleTime: 10_000,
   })
+  const freezeQuery = useQuery({
+    queryKey: ['account-write-freeze'],
+    queryFn: fetchAccountWriteFreeze,
+    staleTime: 3000,
+    retry: false,
+  })
   const evidencePlanQuery = useQuery({
     queryKey: ['account-evidence-retention'],
     queryFn: fetchEvidenceRetentionPlan,
@@ -83,6 +92,26 @@ export function AccountDataLifecycleSettings() {
   const manifestMutation = useMutation({
     mutationFn: fetchAccountExportManifest,
     onSuccess: (manifest) => downloadJson('kairo-account-export-manifest.json', manifest),
+  })
+  const freezeMutation = useMutation({
+    mutationFn: () => freezeAccountWrites(),
+    onSuccess: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ['account-write-freeze'] }),
+        client.invalidateQueries({ queryKey: ['account-erasure-preflight'] }),
+        client.invalidateQueries({ queryKey: ['account-evidence-retention'] }),
+      ])
+    },
+  })
+  const unfreezeMutation = useMutation({
+    mutationFn: cancelAccountWriteFreeze,
+    onSuccess: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ['account-write-freeze'] }),
+        client.invalidateQueries({ queryKey: ['account-erasure-preflight'] }),
+        client.invalidateQueries({ queryKey: ['account-evidence-retention'] }),
+      ])
+    },
   })
   const purgeMutation = useMutation({
     mutationFn: purgeDerivedMemory,
@@ -115,12 +144,16 @@ export function AccountDataLifecycleSettings() {
 
   const preflight = preflightQuery.data
   const inventory = preflight?.inventory
+  const freeze = freezeQuery.data
   const derived = inventory?.derived_projections
   const evidencePlan = evidencePlanQuery.data
   const purgeTaskStatus = purgeTaskQuery.data?.status
   const error = preflightQuery.error
+    || freezeQuery.error
     || evidencePlanQuery.error
     || manifestMutation.error
+    || freezeMutation.error
+    || unfreezeMutation.error
     || purgeMutation.error
     || evidenceMutation.error
     || purgeTaskQuery.error
@@ -139,6 +172,22 @@ export function AccountDataLifecycleSettings() {
       void client.invalidateQueries({ queryKey: ['account-erasure-preflight'] })
     }
   }, [client, purgePolling, purgeTaskStatus])
+
+  function requestFreeze() {
+    if (freeze?.frozen || freezeMutation.isPending) return
+    const confirmed = window.confirm(
+      'Geler les écritures de ce compte ?\n\nLes lectures resteront disponibles, mais les créations et modifications ordinaires seront refusées avec HTTP 423. Le gel est réversible tant que la suppression complète n’existe pas.',
+    )
+    if (confirmed) freezeMutation.mutate()
+  }
+
+  function requestUnfreeze() {
+    if (!freeze?.frozen || unfreezeMutation.isPending) return
+    const confirmed = window.confirm(
+      'Réactiver les écritures ?\n\nCette action recrée de la traçabilité et invalide toute préparation de suppression précédente.',
+    )
+    if (confirmed) unfreezeMutation.mutate()
+  }
 
   function requestPurge() {
     if (!derived || purgeMutation.isPending || derived.purge_current) return
@@ -195,6 +244,36 @@ export function AccountDataLifecycleSettings() {
               <strong>{evidenceCount(inventory)} · {inventory.evidence.unpublished_subject_outbox_events} en transit</strong>
             </div>
           </div>
+
+          {freeze && (
+            <div className={`account-write-freeze ${freeze.frozen ? 'account-write-freeze-active' : ''}`}>
+              <div>
+                <span className="kairo-kicker">GEL DES ÉCRITURES</span>
+                <strong>{freeze.frozen ? 'Écritures utilisateur gelées' : 'Compte actif'}</strong>
+                <small>
+                  {freeze.frozen
+                    ? `Depuis ${shortDateTime(freeze.frozen_at)} · opération ${freeze.operation_id?.slice(0, 8) || '—'}…`
+                    : 'Les mutations ordinaires du Cockpit sont autorisées.'}
+                </small>
+              </div>
+              <button
+                type="button"
+                disabled={freezeMutation.isPending || unfreezeMutation.isPending}
+                onClick={freeze.frozen ? requestUnfreeze : requestFreeze}
+              >
+                {freezeMutation.isPending
+                  ? 'Gel…'
+                  : unfreezeMutation.isPending
+                    ? 'Réactivation…'
+                    : freeze.frozen
+                      ? 'Réactiver les écritures'
+                      : 'Geler les écritures'}
+              </button>
+              <p>
+                Ce gel local bloque immédiatement les nouveaux POST/PUT/PATCH/DELETE issus du bearer utilisateur, y compris si Keycloak avait déjà émis ce token. Les lectures et les primitives bornées de préparation à l’effacement restent disponibles. Il ne supprime aucune donnée et ne désactive pas encore l’identité Keycloak.
+              </p>
+            </div>
+          )}
 
           <div className="account-evidence-note">
             <span className="kairo-kicker">AUDIT & ÉVÉNEMENTS</span>
