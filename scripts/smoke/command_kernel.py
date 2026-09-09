@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Any
 
 CORE = "http://localhost:8000"
+INTERNAL = {"X-Kairo-Internal-Token": "CHANGE_ME_INTERNAL_TOKEN"}
 
 
 def json_request(
@@ -60,10 +61,14 @@ def main() -> None:
 
     _, capabilities = json_request("GET", "/v1/capabilities")
     news = next(item for item in capabilities if item["key"] == "news.brief")
+    research = next(item for item in capabilities if item["key"] == "research.autonomous")
     semantic = next(item for item in capabilities if item["key"] == "assistant.route.semantic")
     assert news["runtime"] == "temporal", news
     assert news["authority_level"] == 1, news
     assert news["metadata"]["routable"] is True, news
+    assert research["version"] == 2, research
+    assert research["metadata"]["routable"] is True, research
+    assert research["input_schema"]["additionalProperties"] is False, research
     assert semantic["runtime"] == "temporal", semantic
     assert semantic["metadata"]["routable"] is False, semantic
     assert semantic["metadata"]["agent_framework"] == "pydantic-ai", semantic
@@ -108,6 +113,54 @@ def main() -> None:
     assert task["input"]["capability"] == "news.brief", task
     assert task["input"]["command_id"] == command_id, task
 
+    # The rich News Artifact remains authoritative, while its summary is projected once into the
+    # canonical Conversation as the assistant's compact answer.
+    completion_payload = {
+        "kind": "news-brief",
+        "title": "Paris news fixture",
+        "content": {
+            "query": routed["parameters"]["query"],
+            "mode": "local",
+            "summary": "Paris dispose aujourd’hui d’un briefing local déterministe de smoke test.",
+            "sources": [],
+        },
+    }
+    _, completed = json_request(
+        "POST",
+        f"/internal/v1/executions/{routed['workflow_id']}/complete",
+        headers=INTERNAL,
+        payload=completion_payload,
+    )
+    artifact_id = completed["artifact"]["id"]
+    assert completed["execution_status"] == "completed", completed
+
+    _, messages = json_request("GET", f"/v1/conversations/{conversation_id}/messages")
+    assert len(messages) == 2, messages
+    assert [message["role"] for message in messages] == ["user", "assistant"], messages
+    news_answer = messages[1]
+    assert news_answer["content"] == completion_payload["content"]["summary"], news_answer
+    assert news_answer["metadata_json"]["kind"] == "capability-result", news_answer
+    assert news_answer["metadata_json"]["capability"] == "news.brief", news_answer
+    assert news_answer["metadata_json"]["artifact_id"] == artifact_id, news_answer
+
+    # Completion replay cannot duplicate the projected assistant answer.
+    _, completed_replay = json_request(
+        "POST",
+        f"/internal/v1/executions/{routed['workflow_id']}/complete",
+        headers=INTERNAL,
+        payload=completion_payload,
+    )
+    assert completed_replay["artifact"]["id"] == artifact_id, completed_replay
+    _, replay_messages = json_request("GET", f"/v1/conversations/{conversation_id}/messages")
+    assert len(replay_messages) == 2, replay_messages
+    assert replay_messages[1]["id"] == news_answer["id"], replay_messages
+
+    _, completed_command = json_request("GET", f"/v1/commands/{command_id}")
+    assert completed_command["status"] == "accepted", completed_command
+    assert completed_command["result_json"]["execution_status"] == "completed", completed_command
+    assert completed_command["result_json"]["artifact_id"] == artifact_id, completed_command
+    assert completed_command["result_json"]["assistant_message_id"] == news_answer["id"], completed_command
+
     # With no Worker in this test, an ambiguous command must still be persisted and handed to a
     # durable semantic-routing Task. The command must not be guessed or executed synchronously.
     _, pending = json_request(
@@ -145,20 +198,23 @@ def main() -> None:
         "POST",
         f"/internal/v1/executions/{pending['routing_workflow_id']}/fail",
         payload={"error": "forced semantic routing failure for smoke proof"},
-        headers={"X-Kairo-Internal-Token": "CHANGE_ME_INTERNAL_TOKEN"},
+        headers=INTERNAL,
     )
     _, failed_command = json_request("GET", f"/v1/commands/{pending['command_id']}")
     assert failed_command["status"] == "failed", failed_command
     assert failed_command["route_reason"] == "semantic.execution-failed", failed_command
     assert "semantic_error" in failed_command["result_json"], failed_command
 
+    # The second user command is present, but a semantic routing infrastructure failure is not a
+    # capability result and therefore does not masquerade as an assistant answer.
     _, messages = json_request("GET", f"/v1/conversations/{conversation_id}/messages")
-    assert len(messages) == 2, messages
+    assert len(messages) == 3, messages
+    assert [message["role"] for message in messages] == ["user", "assistant", "user"], messages
 
     print(
-        "COMMAND KERNEL INTEGRATION PASS: registered capability boundaries, canonical conversation "
-        "state, deterministic Task handoff, durable semantic fallback and terminal failure propagation "
-        "are proven."
+        "COMMAND KERNEL INTEGRATION PASS: registered capability boundaries, canonical user/assistant "
+        "conversation state, deterministic News handoff/result projection, durable semantic fallback and "
+        "terminal routing failure propagation are proven."
     )
 
 
