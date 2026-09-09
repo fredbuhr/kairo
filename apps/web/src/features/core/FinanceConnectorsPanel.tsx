@@ -126,11 +126,11 @@ export function FinanceConnectorsPanel({ projects }: { projects: ProjectRecord[]
 
       {creating && (
         <form className="finance-connector-form" onSubmit={submit}>
-          <p>Les identifiants Rotki restent dans OpenBao. Créez d’abord un SecretReference dont le secret contient les champs utilisateur/mot de passe indiqués ci-dessous ; KAIRO ne stocke ici que cette référence.</p>
+          <p>Les identifiants Rotki restent dans OpenBao. Créez d’abord une référence de coffre contenant les champs utilisateur/mot de passe indiqués ci-dessous ; KAIRO ne stocke ici que son identifiant logique.</p>
           <label><span>Projet</span><select value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">Choisir…</option>{projects.filter((project) => project.status !== 'archived').map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
           <label><span>Nom</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>
           <label><span>Clé KAIRO</span><input value={key} onChange={(event) => setKey(event.target.value)} /></label>
-          <label><span>SecretReference</span><select value={secretReferenceId} onChange={(event) => setSecretReferenceId(event.target.value)}><option value="">Choisir…</option>{secrets.map((secret) => <option key={secret.id} value={secret.id}>{secret.name} · {secret.provider_path}</option>)}</select></label>
+          <label><span>SecretReference</span><select value={secretReferenceId} onChange={(event) => setSecretReferenceId(event.target.value)}><option value="">Choisir…</option>{secrets.map((secret) => <option key={secret.id} value={secret.id}>{secret.name} · {secret.purpose}</option>)}</select></label>
           <div className="finance-connector-secret-keys">
             <label><span>Champ utilisateur</span><input value={usernameKey} onChange={(event) => setUsernameKey(event.target.value)} /></label>
             <label><span>Champ mot de passe</span><input value={passwordKey} onChange={(event) => setPasswordKey(event.target.value)} /></label>
