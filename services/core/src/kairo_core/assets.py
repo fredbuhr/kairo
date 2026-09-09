@@ -143,11 +143,16 @@ async def list_assets(
 ) -> list[Asset]:
     if project_id is not None:
         await require_owned_project(session, project_id, principal.subject)
-    statement = select(Asset).order_by(Asset.created_at)
+    # Tenant scoping belongs in SQL, not as an after-the-fact Python filter. This keeps foreign Asset
+    # rows out of the request process entirely and scales with the authenticated user's world rather
+    # than the installation-wide Asset table.
+    statement = select(Asset).where(
+        Asset.metadata_json["owner_subject"].astext == principal.subject
+    ).order_by(Asset.created_at)
     if project_id is not None:
         statement = statement.where(Asset.project_id == project_id)
     result = await session.execute(statement)
-    return [asset for asset in result.scalars() if _owned(asset, principal)]
+    return list(result.scalars())
 
 
 @router.get("/v1/assets/{asset_id}", response_model=AssetRead)
