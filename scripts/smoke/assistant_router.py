@@ -17,6 +17,37 @@ def main() -> None:
     assert news.authority_level == 1
     assert news.metadata["model_gateway"] == "litellm"
 
+    research = get_capability("research.autonomous")
+    assert research is not None
+    assert research.runtime == "temporal"
+    assert research.authority_level == 1
+    assert research.metadata["tool_risk_ceiling"] == "read"
+    research_schema = research.input_model.model_json_schema()
+    properties = research_schema["properties"]
+    assert set(properties) == {"query", "max_tool_calls"}, research_schema
+    for authority_field in (
+        "project_id",
+        "allowed_tool_keys",
+        "model_alias",
+        "estimated_model_cost_usd",
+    ):
+        assert authority_field not in properties, research_schema
+
+    deep = route("Fais une recherche approfondie sur les architectures d'agents durables.")
+    assert deep is not None
+    assert deep.capability == "research.autonomous", deep
+    assert deep.route_reason == "deterministic.research", deep
+    assert deep.confidence >= 0.98, deep
+    assert deep.parameters == {
+        "query": "Fais une recherche approfondie sur les architectures d'agents durables.",
+        "max_tool_calls": 5,
+    }, deep
+
+    ordinary_research = route("Fais une recherche sur les outils MCP pour les assistants personnels.")
+    assert ordinary_research is not None
+    assert ordinary_research.capability == "research.autonomous", ordinary_research
+    assert ordinary_research.parameters["max_tool_calls"] == 3, ordinary_research
+
     paris = route("Quelles sont les nouvelles du jour sur la ville de Paris ?")
     assert paris is not None
     assert paris.capability == "news.brief"
@@ -34,6 +65,12 @@ def main() -> None:
     assert markets.parameters["time_range"] == "day"
     assert markets.parameters["output"] == "text"
     assert markets.confidence >= 0.99
+
+    # News remains the specialist route even if the user phrases it as a research request.
+    researched_news = route("Fais une recherche sur les actualités qui peuvent impacter la bourse.")
+    assert researched_news is not None
+    assert researched_news.capability == "news.brief", researched_news
+    assert researched_news.parameters["mode"] == "market_impact", researched_news
 
     spoken = route("Lis-moi les nouvelles qui risquent d'impacter les marchés aujourd'hui.")
     assert spoken is not None
@@ -59,8 +96,8 @@ def main() -> None:
     assert unsupported is None
 
     print(
-        "ASSISTANT ROUTER PASS: registered capability metadata, Paris locality, market impact, "
-        "spoken output, time ranges and conservative unsupported routing are deterministic"
+        "ASSISTANT ROUTER PASS: News priority, research routing, authority-free research contracts, "
+        "Paris locality, market impact, spoken output, time ranges and unsupported routing are deterministic"
     )
 
 
