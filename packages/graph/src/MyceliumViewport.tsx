@@ -3,12 +3,12 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
+import { ActivityPulseField } from './ActivityPulseField'
 import { useGraphActivityKeys } from './activityStore'
 import { BatchedFilamentField } from './BatchedFilamentField'
 import { ClusterField } from './ClusterField'
 import { InstancedNodeField } from './InstancedNodeField'
 import type {
-  KairoGraphEdge,
   KairoGraphNode,
   KairoGraphPose,
   KairoGraphProjection,
@@ -214,52 +214,6 @@ function CameraRig({ focusPose }: { focusPose?: KairoGraphPose | null }) {
   return null
 }
 
-function edgeCurve(edge: KairoGraphEdge, source: KairoGraphPose, target: KairoGraphPose) {
-  const start = new THREE.Vector3(source.x, source.y, source.z)
-  const end = new THREE.Vector3(target.x, target.y, target.z)
-  const midpoint = start.clone().add(end).multiplyScalar(0.5)
-  const direction = end.clone().sub(start)
-  const tangent = new THREE.Vector3(-direction.z, direction.x * 0.27, direction.x)
-  if (tangent.lengthSq() < 0.0001) tangent.set(1, 0, 0)
-  tangent.normalize()
-  const curveOffset = (0.45 + direction.length() * 0.05) * signed(edge.id, 31)
-  midpoint.add(tangent.multiplyScalar(curveOffset))
-  midpoint.y += signed(edge.id, 32) * 0.48
-  return new THREE.CatmullRomCurve3([start, midpoint, end], false, 'centripetal', 0.35)
-}
-
-function ActivityPulse({
-  edge,
-  source,
-  target,
-  index,
-  reducedMotion,
-}: {
-  edge: KairoGraphEdge
-  source: KairoGraphPose
-  target: KairoGraphPose
-  index: number
-  reducedMotion: boolean
-}) {
-  const mesh = useRef<THREE.Mesh>(null)
-  const curve = useMemo(() => edgeCurve(edge, source, target), [edge, source, target])
-  const phase = ((hash(edge.id) % 1000) / 1000 + index * 0.17) % 1
-  useFrame(({ clock }) => {
-    if (!mesh.current) return
-    const progress = reducedMotion
-      ? phase
-      : (phase + clock.elapsedTime * (0.055 + edge.strength * 0.035)) % 1
-    const point = curve.getPointAt(progress)
-    mesh.current.position.copy(point)
-  })
-  return (
-    <mesh ref={mesh}>
-      <sphereGeometry args={[0.05, 8, 8]} />
-      <meshBasicMaterial color="#d4fff6" transparent opacity={0.82} depthWrite={false} />
-    </mesh>
-  )
-}
-
 function GraphScene({
   projection,
   poses,
@@ -292,10 +246,6 @@ function GraphScene({
   )
   const semanticBandRef = useRef<SemanticBand>(1)
   const [semanticBand, setSemanticBand] = useState<SemanticBand>(1)
-  const nodeMap = useMemo(
-    () => new Map(projection.nodes.map((node) => [graphNodeKey(node), node])),
-    [projection.nodes],
-  )
   const activityKeySet = useMemo(() => new Set(activityKeys), [activityKeys])
   const emphasisKey = selectedKey || hoveredKey || null
 
@@ -336,22 +286,6 @@ function GraphScene({
     return keys
   }, [activityKeySet, focusKey, hoveredKey, neighborKeys, projection.nodes, selectedKey, semanticBand])
 
-  const pulseEdges = useMemo(
-    () => projection.edges
-      .filter((edge) => {
-        const sourceKey = graphEntityKey(edge.source)
-        const targetKey = graphEntityKey(edge.target)
-        if (!visibleKeys.has(sourceKey) || !visibleKeys.has(targetKey)) return false
-        if (!activityKeySet.has(sourceKey) && !activityKeySet.has(targetKey)) return false
-        if (emphasisKey && sourceKey !== emphasisKey && targetKey !== emphasisKey) return false
-        const source = nodeMap.get(sourceKey)
-        const target = nodeMap.get(targetKey)
-        return Boolean(source && target)
-      })
-      .slice(0, settings.pulseLimit),
-    [activityKeySet, emphasisKey, nodeMap, projection.edges, settings.pulseLimit, visibleKeys],
-  )
-
   return (
     <>
       <color attach="background" args={['#02070b']} />
@@ -380,21 +314,15 @@ function GraphScene({
         strands={settings.filamentStrands}
       />
 
-      {pulseEdges.map((edge, index) => {
-        const source = poses.get(graphEntityKey(edge.source))
-        const target = poses.get(graphEntityKey(edge.target))
-        if (!source || !target) return null
-        return (
-          <ActivityPulse
-            key={`pulse:${edge.id}`}
-            edge={edge}
-            source={source}
-            target={target}
-            index={index}
-            reducedMotion={reducedMotion}
-          />
-        )
-      })}
+      <ActivityPulseField
+        edges={projection.edges}
+        poses={poses}
+        activeKeys={activityKeySet}
+        visibleKeys={visibleKeys}
+        emphasisKey={emphasisKey}
+        limit={settings.pulseLimit}
+        reducedMotion={reducedMotion}
+      />
 
       <InstancedNodeField
         nodes={projection.nodes}
