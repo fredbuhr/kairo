@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     keycloak_jwks_url: str = "http://keycloak:8080/realms/kairo/protocol/openid-connect/certs"
 
     activepieces_url: str = "http://activepieces:80"
+    # Provider origins are deployment-owned rather than user-supplied so connector credentials
+    # cannot turn KAIRO Core into an arbitrary HTTP client. Rotki's current API base is /api/1/.
+    rotki_url: str = "http://rotki:80/api/1"
 
     kokoro_tts_url: str = "http://kokoro-tts:8880"
     kokoro_default_voice: str = "ff_siwis"
