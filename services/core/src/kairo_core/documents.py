@@ -17,6 +17,7 @@ from .db import get_session
 from .document_models import DOCUMENTS_PROJECT_ID, Document, DocumentChunk, DocumentVersion
 from .events import append_audit, enqueue_domain_event
 from .models import Asset, Task
+from .ownership import ensure_system_project, owned_project, require_owned_project
 from .security import require_internal_token
 from .workflows import run_task
 
@@ -103,6 +104,39 @@ def _task_id(version_id: uuid.UUID) -> uuid.UUID:
 
 def _chunk_id(version_id: uuid.UUID, ordinal: int) -> uuid.UUID:
     return uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:document-chunk:{version_id}:{ordinal}")
+
+
+async def _documents_project(session: AsyncSession, subject: str):
+    project, created = await ensure_system_project(
+        session,
+        subject=subject,
+        key="documents",
+        name="KAIRO Documents",
+        summary="Per-user system workspace for canonical documents imported without an explicit Project.",
+        legacy_development_id=DOCUMENTS_PROJECT_ID,
+    )
+    if created:
+        correlation_id = uuid.uuid4()
+        await enqueue_domain_event(
+            session,
+            event_type="project.created",
+            aggregate_type="project",
+            aggregate_id=project.id,
+            correlation_id=correlation_id,
+            payload={"project_id": str(project.id), "name": project.name, "status": project.status},
+        )
+        await append_audit(
+            session,
+            actor_type="system",
+            actor_id="document-ingestion",
+            action="project.create",
+            resource_type="project",
+            resource_id=str(project.id),
+            authority_level=0,
+            correlation_id=correlation_id,
+            request_json={"reason": "initialize owner-scoped Documents workspace", "subject": subject},
+        )
+    return project
 
 
 async def _start_version(
@@ -199,10 +233,15 @@ async def create_document(
     if existing is not None:
         raise HTTPException(status_code=409, detail="Asset is already bound to a document")
 
+    if asset.project_id is not None:
+        project = await require_owned_project(session, asset.project_id, principal.subject)
+    else:
+        project = await _documents_project(session, principal.subject)
+
     title = (body.title or (asset.metadata_json or {}).get("filename") or "Document").strip()
     document = Document(
         asset_id=asset.id,
-        project_id=asset.project_id or DOCUMENTS_PROJECT_ID,
+        project_id=project.id,
         title=title[:320],
         media_type=asset.mime_type,
         source_sha256=asset.sha256,
@@ -231,8 +270,18 @@ async def reingest_document(
     if not document or str((document.metadata_json or {}).get("owner_subject") or "") != principal.subject:
         raise HTTPException(status_code=404, detail="Document not found")
     asset = await session.get(Asset, document.asset_id)
-    if asset is None:
+    if asset is None or not _owned_asset(asset, principal):
         raise HTTPException(status_code=410, detail="Source asset metadata is missing")
+
+    # Legacy unscoped documents may still point at the migration-owned historical Documents project.
+    # Move only this explicitly owner-tagged Document into that user's deterministic system workspace.
+    if await owned_project(session, document.project_id, principal.subject) is None:
+        if asset.project_id is not None:
+            project = await require_owned_project(session, asset.project_id, principal.subject)
+        else:
+            project = await _documents_project(session, principal.subject)
+        document.project_id = project.id
+
     generation = int(
         (await session.scalar(select(func.max(DocumentVersion.generation)).where(DocumentVersion.document_id == document.id)))
         or 0
