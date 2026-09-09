@@ -10,11 +10,13 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import Principal, require_kairo_user
 from .command_models import Conversation, ConversationMessage
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .memory_models import MemoryProjectionRecord
 from .models import Project, Task
+from .ownership import DEVELOPMENT_SUBJECT, ensure_system_project
 from .security import require_internal_token
 
 router = APIRouter()
@@ -51,23 +53,16 @@ def _projection_snapshot(row: MemoryProjectionRecord) -> dict[str, Any]:
     }
 
 
-async def _ensure_memory_project(session: AsyncSession) -> Project:
-    inserted_id = await session.scalar(
-        pg_insert(Project)
-        .values(
-            id=MEMORY_PROJECT_ID,
-            name="KAIRO Memory",
-            status="active",
-            summary="System workspace for rebuildable Mem0 and Graphiti projections.",
-            parent_id=None,
-        )
-        .on_conflict_do_nothing(index_elements=[Project.id])
-        .returning(Project.id)
+async def _ensure_memory_project(session: AsyncSession, subject: str) -> Project:
+    project, created = await ensure_system_project(
+        session,
+        subject=subject,
+        key="memory",
+        name="KAIRO Memory",
+        summary="Per-user system workspace for rebuildable Mem0 and Graphiti projections.",
+        legacy_development_id=MEMORY_PROJECT_ID,
     )
-    project = await session.get(Project, MEMORY_PROJECT_ID)
-    if project is None:
-        raise RuntimeError("KAIRO Memory workspace could not be initialized")
-    if inserted_id is not None:
+    if created:
         correlation_id = uuid.uuid4()
         await enqueue_domain_event(
             session,
@@ -86,7 +81,7 @@ async def _ensure_memory_project(session: AsyncSession) -> Project:
             resource_id=str(project.id),
             authority_level=0,
             correlation_id=correlation_id,
-            request_json={"reason": "initialize rebuildable memory workspace"},
+            request_json={"reason": "initialize owner-scoped rebuildable memory workspace", "subject": subject},
         )
     return project
 
@@ -146,6 +141,19 @@ async def _seed_projection_rows(
     return created
 
 
+async def _conversation_for_message(
+    session: AsyncSession,
+    message_id: uuid.UUID,
+) -> tuple[ConversationMessage, Conversation]:
+    message = await session.get(ConversationMessage, message_id)
+    if message is None:
+        raise HTTPException(status_code=404, detail="Conversation message not found")
+    conversation = await session.get(Conversation, message.conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return message, conversation
+
+
 @router.get(
     "/internal/v1/memory/sources/conversation-messages/{message_id}",
     dependencies=[Depends(require_internal_token)],
@@ -154,12 +162,7 @@ async def canonical_memory_source(
     message_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    message = await session.get(ConversationMessage, message_id)
-    if message is None:
-        raise HTTPException(status_code=404, detail="Conversation message not found")
-    conversation = await session.get(Conversation, message.conversation_id)
-    if conversation is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+    message, conversation = await _conversation_for_message(session, message_id)
     return {
         "source_type": MEMORY_SOURCE_TYPE,
         "source_version": MEMORY_SOURCE_VERSION,
@@ -183,9 +186,8 @@ async def ensure_memory_projection(
     body: dict[str, Any],
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    message = await session.get(ConversationMessage, message_id)
-    if message is None:
-        raise HTTPException(status_code=404, detail="Conversation message not found")
+    _message, conversation = await _conversation_for_message(session, message_id)
+    subject = conversation.subject_ref or DEVELOPMENT_SUBJECT
 
     try:
         requested_generation = max(1, int(body.get("generation") or 1))
@@ -229,7 +231,7 @@ async def ensure_memory_projection(
             "task_id": rows[0].task_id,
         }
 
-    project = await _ensure_memory_project(session)
+    project = await _ensure_memory_project(session, subject)
     task_id = _task_id(message_id, requested_generation)
     inserted_task_id = await session.scalar(
         pg_insert(Task)
@@ -263,6 +265,8 @@ async def ensure_memory_projection(
     task = await session.get(Task, task_id)
     if task is None:
         raise RuntimeError("Memory projection Task could not be initialized")
+    if task.project_id != project.id:
+        raise HTTPException(status_code=409, detail="Memory projection Task ownership binding is stale")
 
     for row in rows:
         if row.generation == requested_generation:
@@ -445,9 +449,11 @@ async def report_memory_projection(
 @router.get("/v1/memory/projections/conversation-messages/{message_id}")
 async def get_memory_projections(
     message_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    if await session.get(ConversationMessage, message_id) is None:
+    _message, conversation = await _conversation_for_message(session, message_id)
+    if conversation.subject_ref != principal.subject:
         raise HTTPException(status_code=404, detail="Conversation message not found")
     rows = await _projection_rows(session, message_id)
     return {
