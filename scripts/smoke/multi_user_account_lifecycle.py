@@ -125,6 +125,7 @@ def main() -> None:
     # The exact published/unpublished split may change while the relay is running; total ownership
     # must be stable and user B must not absorb A's evidence.
     assert after_a["evidence"]["data_subject_addressable"] is True
+    assert after_a["evidence"]["retention_action_available"] is True
     assert after_a["evidence"]["subject_owned_audit_records"] >= before_a["evidence"]["subject_owned_audit_records"] + 2
     assert after_a["evidence"]["subject_owned_outbox_events"] >= before_a["evidence"]["subject_owned_outbox_events"] + 2
     assert after_b["evidence"]["subject_owned_audit_records"] == before_b["evidence"]["subject_owned_audit_records"]
@@ -132,9 +133,11 @@ def main() -> None:
 
     assert blocker_count(after_preflight_a, "active_tasks") == blocker_count(preflight_a, "active_tasks") + 1
     assert blocker_count(after_preflight_b, "active_tasks") == blocker_count(preflight_b, "active_tasks")
-    assert "audit_outbox_retention_policy_not_applied" in {
-        row["code"] for row in after_preflight_a["blockers"]
-    }
+    evidence_blocker = next(
+        row for row in after_preflight_a["blockers"] if row["code"] == "audit_outbox_retention_required"
+    )
+    assert evidence_blocker["resolvable_by_user"] is True
+    assert int(evidence_blocker["count"] or 0) >= 4
     assert after_preflight_a["destructive_endpoint_available"] is False
     assert after_preflight_b["destructive_endpoint_available"] is False
     assert after_preflight_a["complete_erasure_ready"] is False
