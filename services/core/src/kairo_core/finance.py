@@ -20,7 +20,7 @@ from .finance_models import (
     FinanceSource,
     FinanceTransactionProposal,
 )
-from .models import Project
+from .ownership import require_owned_project
 from .security import require_internal_token
 
 
@@ -743,8 +743,8 @@ async def create_finance_transaction_proposal(
     session: AsyncSession = Depends(get_session),
 ) -> FinanceTransactionProposalRead:
     account, _source = await _owned_account(session, body.from_account_id, principal)
-    if body.project_id is not None and await session.get(Project, body.project_id) is None:
-        raise HTTPException(status_code=404, detail="Project not found")
+    if body.project_id is not None:
+        await require_owned_project(session, body.project_id, principal.subject)
     if account.network and body.network != account.network:
         raise HTTPException(
             status_code=409,
