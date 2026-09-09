@@ -116,7 +116,7 @@ Implemented:
 - explicit Web/Tauri CORS origins;
 - identity/logout surface in Settings.
 
-### Ownership migrations
+### Ownership / evidence migrations
 
 Current branch contains:
 
@@ -125,9 +125,10 @@ Current branch contains:
 - `0015_secret_reference_ownership` — personal SecretReference ownership + same-owner connector bindings;
 - `0016_automation_idempotency_scope` — Automation idempotency scoped to one AutomationDefinition;
 - `0017_tool_invocation_ownership` — ToolInvocation owner + subject-local idempotency + Task/Project owner trigger;
-- `0018_asset_document_ownership` — first-class indexed Asset/Document owners + Project/Asset/Document owner triggers.
+- `0018_asset_document_ownership` — first-class indexed Asset/Document owners + Project/Asset/Document owner triggers;
+- `0019_audit_outbox_data_subject` — nullable indexed user-world data-subject ownership for Audit/Outbox evidence, distinct from actor identity.
 
-ADR-040 through ADR-043 record canonical-world ownership, personal vault semantics, ToolInvocation ownership and first-class Asset/Document ownership.
+ADR-040 through ADR-045 record canonical-world ownership, personal vault semantics, ToolInvocation ownership, Asset/Document ownership, cross-store account lifecycle and Audit/Outbox data-subject semantics.
 
 ### Personal vault / OpenBao
 
@@ -163,6 +164,22 @@ Implemented first-class ownership:
 - PostgreSQL triggers reject future cross-owner Project/Asset/Document bindings;
 - internal document source resolution verifies Document/Asset owner consistency before returning a Worker source.
 
+### Audit / Outbox evidence addressing
+
+Implemented subject addressing without conflating ownership and actor:
+
+- `AuditRecord.keycloak_subject` identifies the owner of the audited user-world resource;
+- `OutboxEvent.keycloak_subject` identifies the owner of the user-world aggregate;
+- shared deployment/control-plane rows remain NULL even when an administrator is the actor;
+- shared Audit rows that reference a user as `actor_id` are counted separately for later redaction/retention;
+- `event_ownership.resolve_data_subject(...)` centrally resolves known canonical user-world aggregate/resource owners;
+- normal `enqueue_domain_event(...)` / `append_audit(...)` calls use the resolver automatically;
+- the direct transactional ConversationMessage Outbox listener writes `Conversation.subject_ref` explicitly;
+- migration 0019 backfills resolvable historical evidence without guessing ambiguous/shared rows;
+- Graph activity SSE now starts with `OutboxEvent.keycloak_subject == Principal.subject` and applies the same predicate to Last-Event-ID lookup before retaining entity-level ownership checks as defense in depth.
+
+The final Audit/Outbox delete/redact/retain policy is intentionally still separate from mere addressability.
+
 ### Deployment diagnostics
 
 Installation-wide diagnostics are admin-only:
@@ -177,29 +194,41 @@ Normal users receive 403; `kairo-admin` retains access. Health/readiness remain 
 
 ADR-044 defines account erasure as a **cross-store state machine**, not a Project/database cascade.
 
-Implemented first slice:
+Implemented current slice:
 
-- `GET /v1/account/data-inventory` — subject-scoped aggregate canonical counts, tracked Asset object count/bytes, projection-ledger count and explicit retention boundaries;
+- `GET /v1/account/data-inventory` — subject-scoped canonical counts, tracked Asset object count/bytes, derived-memory purge freshness and Audit/Outbox evidence counts;
 - `GET /v1/account/export/manifest` — versioned `kairo.account-export-manifest.v1`, currently truthful `manifest_only` with `bundle_export_available=false`;
 - `GET /v1/account/erasure/preflight` — canonical blockers vs complete-erasure blockers;
-- Settings surface showing the same inventory/preflight and allowing local JSON manifest download;
+- `POST /v1/account/derived-memory/purge` — durable owner-scoped Temporal Task that purges rebuildable Mem0/Graphiti state while preserving canonical Conversations;
+- Settings surface showing inventory, evidence, memory-purge state, export manifest and preflight;
 - no destructive account endpoint is advertised while complete cross-store erasure cannot be guaranteed.
+
+### Derived-memory purge
+
+The purge Task snapshots the latest canonical ConversationMessage timestamp as `purge_cutoff_at`.
+
+- Mem0 deletion is subject-scoped through its KAIRO user scope and verified empty;
+- current non-generative Graphiti projection deletes all owned `conversation:<id>` groups and verifies none remain;
+- the canonical `MemoryProjectionRecord` ledger is cleared only after projector success is verified;
+- stub mode cannot clear evidence of a prior real projection;
+- a new canonical message after the purge cutoff makes the purge stale and the preflight asks for another purge;
+- generative Graphiti extraction remains prohibited until its future entity/community/edge material is included in the purge contract.
 
 Canonical deletion is blocked while Tasks, Workflows, Approvals, AutomationInvocations or ToolInvocations remain active.
 
 Complete erasure is still blocked by some combination of:
 
 - remaining personal SecretReferences/credential material;
-- missing subject-wide Mem0/Graphiti purge adapter;
-- audit/outbox retention not yet fully subject-addressable;
+- stale derived-memory purge relative to the latest canonical message;
+- Audit/Outbox retention action not yet applied despite subject addressability;
 - Keycloak identity deletion contract not yet implemented through KAIRO;
 - backup expiry/restore-after-erasure semantics not yet formally verified.
 
-Secret values are deliberately excluded from export; export must never become a secret-readback path.
+Secret values are deliberately excluded from export; export must never become a secret-readback path. Raw retained Audit/Outbox payloads also remain excluded until the evidence-retention/export policy is finalized.
 
 ## Validation code committed
 
-The dedicated Ownership workflow now compiles/schedules proof code for:
+The dedicated Ownership/Foundation workflows now compile/schedule proof code for:
 
 - canonical Project/Task/Graph two-user isolation;
 - Assistant/News/Memory/Research two-user isolation;
@@ -208,7 +237,10 @@ The dedicated Ownership workflow now compiles/schedules proof code for:
 - ToolInvocation source/migration invariants + two-user idempotency/read isolation;
 - least-privilege OpenBao policy;
 - admin-only deployment diagnostics;
-- account inventory/export/preflight two-user isolation.
+- account inventory/export/preflight two-user isolation including Audit/Outbox evidence ownership;
+- Audit/Outbox source/migration/Graph-SSE data-subject contract;
+- pinned Mem0/Graphiti purge-provider API contract;
+- durable memory projection/rebuild/purge lifecycle with canonical Conversation preservation.
 
 Graph Interface, Desktop, Research, MCP, Document, Automation and Finance validation suites remain committed as well.
 
@@ -225,12 +257,11 @@ These proofs are **implemented but not claimed as passed on the current head** b
 
 ### Account lifecycle / commercial multi-user
 
-- subject-wide idempotent Mem0/Graphiti purge with evidence;
-- formal audit/outbox subject indexing, retention/redaction or justified bounded retention;
+- define and implement Audit/Outbox delete/redact/retain action now that rows are subject-addressable;
 - Keycloak account deletion/disable contract;
-- verified backup expiry and restore-after-erasure semantics;
+- verified backup expiry and restore-after-erasure/tombstone semantics;
 - full portable canonical export bundle beyond the current manifest;
-- eventual replay-safe destructive deletion ledger spanning PostgreSQL, SeaweedFS and OpenBao.
+- replay-safe destructive deletion ledger spanning PostgreSQL, SeaweedFS, OpenBao and external identity/projection actions.
 
 ### Provider work
 
@@ -261,7 +292,7 @@ These proofs are **implemented but not claimed as passed on the current head** b
 
 ## Current implementation order
 
-1. **Finish cross-store lifecycle/retention boundaries without changing the Cockpit architecture.**
+1. **Finish Audit/Outbox retention + Keycloak/backup lifecycle contracts without changing the Cockpit architecture.**
 2. **Restore real CI execution and validate the entire stacked baseline.**
 3. **Freeze Test Interface v1 as the coherent daily-use test baseline.**
 4. Connect real Calendar / Rotki / Activepieces providers.
