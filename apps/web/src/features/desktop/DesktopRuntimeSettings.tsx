@@ -9,6 +9,7 @@ import {
   writeDesktopClipboard,
 } from '../../lib/desktopBridge'
 import { AuthIdentitySettings } from '../auth/AuthIdentitySettings'
+import { AccountDataLifecycleSettings } from '../settings/AccountDataLifecycleSettings'
 import { SecretVaultSettings } from '../settings/SecretVaultSettings'
 
 function availability(value: boolean) {
@@ -124,6 +125,7 @@ export function DesktopRuntimeSettings() {
     <>
       <AuthIdentitySettings />
       <SecretVaultSettings />
+      <AccountDataLifecycleSettings />
       {runtimePanel}
     </>
   )
