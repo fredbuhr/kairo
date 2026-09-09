@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end proof that KAIRO memory projections are derived and rebuildable."""
+"""End-to-end proof that KAIRO memory projections are rebuildable and safely purgeable."""
 
 from __future__ import annotations
 
@@ -33,10 +33,12 @@ def json_request(
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             status = response.status
-            body = json.loads(response.read().decode("utf-8"))
+            raw = response.read().decode("utf-8")
+            body = json.loads(raw) if raw else None
     except urllib.error.HTTPError as exc:
         status = exc.code
-        body = json.loads(exc.read().decode("utf-8"))
+        raw = exc.read().decode("utf-8")
+        body = json.loads(raw) if raw else None
     if status != expected:
         raise AssertionError(f"{method} {path}: expected {expected}, got {status}: {body}")
     return status, body
@@ -87,6 +89,27 @@ def wait_for_projection(message_id: str, generation: int) -> list[dict[str, Any]
     raise RuntimeError(
         f"Memory projection did not reach generation {generation} for {message_id}: {last}"
     )
+
+
+def wait_for_task(task_id: str, expected_status: str = "completed") -> dict[str, Any]:
+    deadline = time.time() + 90
+    last: Any = None
+    while time.time() < deadline:
+        try:
+            _, body = json_request("GET", f"/v1/tasks/{task_id}")
+            last = body
+            if body.get("status") == expected_status:
+                return body
+            if body.get("status") in {"failed", "cancelled"} and body.get("status") != expected_status:
+                raise RuntimeError(f"Task {task_id} became terminal: {body}")
+        except Exception as exc:  # noqa: BLE001
+            last = exc
+        time.sleep(0.5)
+    raise RuntimeError(f"Task {task_id} did not reach {expected_status}: {last}")
+
+
+def blocker_codes(preflight: dict[str, Any]) -> set[str]:
+    return {str(item.get("code") or "") for item in preflight.get("blockers") or []}
 
 
 def main() -> None:
@@ -163,6 +186,31 @@ def main() -> None:
     assert stale["generation"] == 2, stale
     assert stale["should_run"] is False, stale
 
+    _, preflight_before_purge = json_request("GET", "/v1/account/erasure/preflight")
+    assert preflight_before_purge["inventory"]["derived_projections"]["purge_adapter_available"] is True
+    assert preflight_before_purge["inventory"]["derived_projections"]["purge_current"] is False
+    assert "derived_projection_purge_required" in blocker_codes(preflight_before_purge)
+
+    # The user-facing purge runs through the same durable Task/Temporal execution substrate. In this
+    # integration stack the projectors are deterministic stubs, so the proof exercises lifecycle,
+    # owner binding, ledger clearing and canonical preservation without needing Mem0/Neo4j binaries.
+    _, purge = json_request("POST", "/v1/account/derived-memory/purge", expected=202)
+    purge_task = wait_for_task(purge["task_id"])
+    assert purge_task["input"]["capability"] == "memory.purge", purge_task
+    assert purge_task["input"]["policy_scope"]["canonical_conversations_preserved"] is True
+
+    _, purged_projection = json_request(
+        "GET", f"/v1/memory/projections/conversation-messages/{message_id}"
+    )
+    assert purged_projection["projectors"] == [], purged_projection
+
+    _, preflight_after_purge = json_request("GET", "/v1/account/erasure/preflight")
+    derived = preflight_after_purge["inventory"]["derived_projections"]
+    assert derived["memory_projection_records"] == 0, derived
+    assert derived["purge_current"] is True, derived
+    assert derived["latest_completed_purge_cutoff_at"] is not None, derived
+    assert "derived_projection_purge_required" not in blocker_codes(preflight_after_purge)
+
     _, after_messages = json_request(
         "GET", f"/v1/conversations/{conversation_id}/messages"
     )
@@ -174,7 +222,8 @@ def main() -> None:
     print(
         "MEMORY PROJECTION INTEGRATION PASS: canonical ConversationMessage events drive "
         "deterministic Temporal projection Tasks, Mem0/Graphiti projections rebuild by generation, "
-        "stale deliveries cannot roll state back, and canonical conversation data is unchanged."
+        "stale deliveries cannot roll state back, derived memory can be purged through a durable "
+        "user action, and canonical conversation data remains unchanged."
     )
 
 
