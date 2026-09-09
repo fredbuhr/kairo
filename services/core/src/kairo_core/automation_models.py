@@ -76,7 +76,7 @@ class AutomationInvocation(Base):
     workflow_execution_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("workflow_executions.id", ondelete="SET NULL")
     )
-    idempotency_key: Mapped[str] = mapped_column(String(240), nullable=False, unique=True)
+    idempotency_key: Mapped[str] = mapped_column(String(240), nullable=False)
     correlation_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     input_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
@@ -94,6 +94,11 @@ class AutomationInvocation(Base):
     )
 
     __table_args__ = (
+        UniqueConstraint(
+            "automation_id",
+            "idempotency_key",
+            name="uq_automation_invocation_definition_idempotency",
+        ),
         Index("ix_automation_invocations_automation_created", "automation_id", "created_at"),
         Index("ix_automation_invocations_status_created", "status", "created_at"),
         Index("ix_automation_invocations_correlation", "correlation_id"),
