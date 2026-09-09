@@ -58,6 +58,15 @@ export interface KairoGraphSearchResult {
   nodes: KairoGraphNode[]
 }
 
+export interface KairoGraphActivityEvent {
+  id: string
+  event_type: string
+  entity: KairoGraphEntityRef
+  related: KairoGraphEntityRef[]
+  correlation_id: string
+  occurred_at: string
+}
+
 export interface KairoGraphPose {
   x: number
   y: number
