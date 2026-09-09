@@ -159,8 +159,9 @@ Implemented as the single engine for Home and KAIRO Brain:
 - custom React Three Fiber / Three.js renderer;
 - deterministic Web Worker layout;
 - instanced node rendering;
-- batched multi-strand curved filaments;
+- batched multi-strand curved filaments with screen-space core/glow/highlight weight;
 - project/context gravity wells without type-based pseudo-clusters;
+- cluster atmosphere rendered as sparse organic density wisps rather than enclosing bubbles;
 - bounded importance-ranked spatial labels;
 - semantic zoom / visual LOD;
 - hover/selection neighborhood emphasis;
@@ -194,14 +195,25 @@ Implemented deterministically/read-only:
 - non-navigation text continues to the normal Command Kernel;
 - models never receive direct Three.js authority.
 
+### First operational cockpit workspaces
+
+Implemented on the Block 3 branch without creating a parallel UI:
+
+- **Projects** is now an active navigation area backed directly by `GET/POST /v1/projects`;
+- Projects lists canonical projects, shows real open/total task counts, supports parent project selection on creation, and can jump directly back into the same project node in KAIRO Brain;
+- **Tasks** is now an active navigation area backed directly by `GET/POST /v1/tasks`;
+- Tasks supports canonical project/status filtering, creation inside a real project, and direct jump back to the corresponding task node in the spatial graph;
+- creating Projects or Tasks invalidates both the operational lists and canonical graph queries so the same entities appear in the mycelium without a second data model;
+- these views use the permanent left navigation, top bar, command dock and assistant rather than a separate application shell.
+
 ## What is not yet complete
 
-The stable shell exists, but specialist/product workspaces still need to be filled with real capabilities rather than placeholders. Major remaining areas include:
+The stable shell and first operational Project/Task slices exist, but specialist/product workspaces still need to be filled with real capabilities rather than placeholders. Major remaining areas include:
 
-- Projects workspace beyond the canonical graph representation;
-- Tasks / Today prioritization workspace;
-- Calendar and external calendar integration;
+- richer Project editing/status/lifecycle actions beyond current canonical create/read support;
+- richer Task lifecycle/prioritization/Today actions beyond current canonical create/read support;
 - Knowledge workspace and deeper document retrieval UX;
+- Calendar and external calendar integration;
 - full 2D mind map / deeper KAIRO Brain tooling;
 - simple but capable Gantt workspace;
 - Agents and Automations operational views;
@@ -216,7 +228,7 @@ The stable shell exists, but specialist/product workspaces still need to be fill
 
 1. Resolve GitHub Actions runner allocation issue #38 and execute the stacked #36 → #37 → #39 validation chain on real runners.
 2. While the infrastructure blocker remains external, continue completing Test Interface v1 without creating a second frontend.
-3. Fill the stable Cockpit in coherent feature slices, beginning with Projects / Tasks / Knowledge and then Calendar / Gantt / Agents.
+3. Complete the next coherent cockpit slice around **Knowledge + document retrieval**, then add **Today/prioritization + Calendar/Gantt** on top of the same canonical Project/Task model.
 4. Reuse the same graph model and shell for all specialist workspaces rather than creating parallel applications.
 
 The Block 3 goal is not "a pretty graph". It is a stable KAIRO environment in which every visible object, relationship, activity pulse and specialist workspace remains traceable to KAIRO-owned canonical state and policy boundaries.
