@@ -181,17 +181,25 @@ async def entity_belongs_to_subject(
             is not None
         )
     if normalized == "document":
-        row = await session.get(Document, entity_id)
-        metadata = row.metadata_json if row is not None and isinstance(row.metadata_json, dict) else {}
-        return row is not None and metadata.get("owner_subject") == subject
+        return (
+            await session.scalar(
+                select(Document.id).where(
+                    Document.id == entity_id,
+                    Document.keycloak_subject == subject,
+                )
+            )
+            is not None
+        )
     if normalized == "asset":
-        row = await session.get(Asset, entity_id)
-        if row is None:
-            return False
-        metadata = row.metadata_json if isinstance(row.metadata_json, dict) else {}
-        if metadata.get("owner_subject") == subject:
-            return True
-        return row.project_id is not None and await owned_project(session, row.project_id, subject) is not None
+        return (
+            await session.scalar(
+                select(Asset.id).where(
+                    Asset.id == entity_id,
+                    Asset.keycloak_subject == subject,
+                )
+            )
+            is not None
+        )
     if normalized == "artifact":
         return (
             await session.scalar(
