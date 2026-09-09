@@ -8,7 +8,7 @@ This review distinguishes **implemented in code** from **executed and validated 
 
 KAIRO is no longer primarily a backend prototype. The active branch contains the intended daily-use Test Interface architecture and most of the first operational Cockpit: spatial Home/Brain, Projects, Knowledge, Tasks/Today/Gantt, Calendar, Agents/Approvals, Automations, Tools, Finance/Crypto, the Assistant surface and an initial Tauri desktop boundary.
 
-The dominant Block 3 risk is now **trust-boundary completion rather than missing UI**. Authentication existed before every user-world/read-model/control-plane path had explicit tenant semantics, so the current tranche is deliberately closing ownership, idempotency and connector-boundary gaps before adding more large specialist modules.
+The dominant Block 3 risk is now **trust-boundary completion rather than missing UI**. Authentication existed before every user-world/read-model/control-plane path had explicit tenant semantics, so the current tranche is deliberately closing ownership, idempotency, disclosure and secret-retention gaps before adding more large specialist modules.
 
 Migrations `0013`–`0017` plus ADR-040/041/042 now cover Project/Relationship ownership, project-scoped control-plane consistency, personal SecretReference ownership, Automation idempotency scope and ToolInvocation execution ownership.
 
@@ -78,7 +78,7 @@ Migrations `0013`–`0017` plus ADR-040/041/042 now cover Project/Relationship o
 - explicit CORS origins for Web/Tauri;
 - identity and logout controls in Settings.
 
-## Ownership hardening added during this review
+## Ownership and control-plane hardening added during this review
 
 ### Canonical root ownership
 
@@ -96,11 +96,23 @@ Migration `0014_project_scoped_control_plane_ownership` adds database ownership 
 
 The corresponding public Finance proposal handler is now also owner-scoped: an optional `project_id` must pass `require_owned_project(...)` before the draft is created. The API therefore returns the intended 404 for a foreign Project rather than depending on PostgreSQL as the final product-level guard.
 
-### Personal secret vault handles
+### Personal secret vault handles and retention
 
 Migration `0015_secret_reference_ownership` and ADR-041 establish subject-owned SecretReferences, generated KAIRO-managed OpenBao paths, bounded write-only provisioning, same-owner Automation/Finance connector bindings and normal-user management of personal connector credentials without global admin rights.
 
-The permanent Settings panel includes the personal `Connexions & secrets` surface. Secret values are held only while being submitted and are cleared after successful provisioning.
+The retention boundary is now explicit as well:
+
+- `DELETE /v1/secret-references/{id}/values` is the deliberate irreversible KV-v2 destruction action;
+- it removes OpenBao metadata/all versions and records only previous key names/version/existence;
+- another subject receives 404 and cannot revoke the credential;
+- credential destruction is allowed even while a connector references the handle so a user can revoke access immediately;
+- deleting the PostgreSQL SecretReference is refused while Automation/Finance records still use it;
+- deleting the PostgreSQL SecretReference is also refused while OpenBao still reports values;
+- if OpenBao is unavailable, Core refuses metadata deletion because it cannot prove provider material is absent.
+
+The permanent Settings `Connexions & secrets` surface exposes value destruction and reference deletion as separate confirmed actions. It never offers secret-value readback.
+
+The two-user SecretReference proof now includes a dedicated unused credential lifecycle: provision → foreign-destruction refusal → reference-delete refusal while populated → explicit value destruction → empty status → reference deletion.
 
 ### Automation idempotency tenant boundary
 
@@ -131,6 +143,18 @@ The MCP management smoke proof checks that split explicitly: admin creation retu
 
 The Tools Cockpit follows the same boundary. Ordinary `kairo-user` sessions may inspect shared contracts and current authorization state but are no longer shown server-registration or policy-mutation controls that would only fail with 403. Auth-disabled development and `kairo-admin` sessions retain management controls.
 
+### Deployment diagnostics are admin-only
+
+A route review found three installation-wide diagnostics that were authenticated but still visible to every `kairo-user`:
+
+- `/v1/system/components`;
+- `/v1/system/architecture`;
+- `/v1/system/outbox`.
+
+These endpoints describe global deployment components, trust-boundary architecture or installation-wide event-delivery counts rather than one user's world. They now require `kairo-admin` explicitly. Health/readiness probes remain separate orchestrator endpoints rather than becoming a user-world data surface.
+
+`scripts/smoke/control_plane_visibility.py` uses the two development Keycloak identities to require 200 for the admin identity and 403 for the ordinary user on all three deployment diagnostics.
+
 ### Two-user validation fixtures
 
 The local Keycloak realm contains two deterministic development identities:
@@ -138,7 +162,7 @@ The local Keycloak realm contains two deterministic development identities:
 - `kairo-dev` (user/admin);
 - `kairo-alt` (user only).
 
-Committed runtime proofs use both identities against the same services for canonical Project/Task/Graph isolation, Assistant/News/Memory/Research isolation, and SecretReference/Automation/Finance connector isolation. The Ownership workflow also runs the ToolInvocation static ownership contract before starting the integration stack.
+Committed runtime proofs use both identities against the same services for canonical Project/Task/Graph isolation, Assistant/News/Memory/Research isolation, SecretReference/Automation/Finance connector isolation and deployment-diagnostic visibility. The Ownership workflow also runs the ToolInvocation static ownership contract before starting the integration stack.
 
 ## Implemented but not yet proven on the current head
 
@@ -148,9 +172,10 @@ All of the following have proof/build code committed, but current hosted CI has 
 - migrations `0013`–`0017`;
 - Graph Interface build/integration jobs;
 - existing two-user isolation proofs;
+- explicit OpenBao value destruction/reference-retention proof;
+- admin-only deployment diagnostics proof;
 - ToolInvocation source/migration contract on a hosted runner and a future two-user runtime ToolInvocation proof;
 - sanitized MCP shared registry response;
-- personal OpenBao provisioning boundary;
 - Desktop Rust/Tauri build;
 - current Research synthesis/handoff stack;
 - current MCP / Document / Automation / Finance controlled integration proofs.
@@ -167,13 +192,13 @@ The correct status is therefore **implemented, awaiting real-runner validation**
 
 ### Ownership/control-plane audit still open
 
-The broad user-world ownership paths, personal connector secrets, shared MCP disclosure and two concrete idempotency namespaces are now covered, but commercial multi-user readiness still requires a final route-by-route classification:
+The broad user-world ownership paths, personal connector secrets/retention, shared MCP disclosure, deployment diagnostics and two concrete idempotency namespaces are now covered. The final commercial multi-user audit is narrower:
 
-- confirm every public object is either subject-owned, Project-root-owned or explicitly shared control-plane state;
-- review global operational endpoints such as outbox/component status for the minimum information a normal user should receive;
-- add a real two-user ToolInvocation idempotency/read-isolation proof;
+- finish route-by-route classification of every remaining public object as subject-owned, Project-root-owned or intentionally shared control-plane state;
+- add a real two-user ToolInvocation idempotency/read-isolation proof once the integration environment can execute it;
 - keep handler-level 404 behavior aligned with database constraints for every newly added Project-bound route;
-- review deletion/retention semantics for personal OpenBao values when a SecretReference is removed.
+- confirm the production OpenBao workload policy grants only the KAIRO-managed data/metadata operations required by provisioning/status/destruction;
+- define account-deletion/export retention semantics across PostgreSQL, SeaweedFS, OpenBao and rebuildable projections rather than treating per-secret deletion as the whole data-lifecycle policy.
 
 Centrally managed MCP ToolServer/ToolDefinition records remain intentionally deployment-global/admin-controlled; they must remain shared control-plane state rather than personal graph entities unless a future personal-MCP ownership model is explicitly introduced.
 
@@ -217,7 +242,7 @@ Centrally managed MCP ToolServer/ToolDefinition records remain intentionally dep
 
 Still required before commercial multi-user deployment:
 
-- close the remaining ownership/control-plane/retention audit and add regression proofs;
+- close the remaining ownership/data-lifecycle audit and add regression proofs;
 - TLS/reverse proxy and private-network policy;
 - least-privilege production OpenBao workload policy for the managed KAIRO user-secret prefix;
 - untrusted execution isolation;
@@ -228,7 +253,7 @@ Still required before commercial multi-user deployment:
 
 ## Current implementation order
 
-1. Finish the remaining ownership/control-plane/retention audit without changing the Cockpit architecture.
+1. Finish the remaining route/data-lifecycle audit without changing the Cockpit architecture.
 2. Obtain real GitHub-hosted CI execution and fix only actual executed failures.
 3. Validate the current Test Interface stack as one coherent baseline before adding another large module.
 4. Connect real external providers to boundaries that already exist: Calendar, Rotki and Activepieces.
