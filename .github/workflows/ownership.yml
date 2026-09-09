@@ -21,6 +21,7 @@ on:
       - 'docs/decisions/ADR-040-canonical-world-is-scoped-by-authenticated-subject.md'
       - 'docs/decisions/ADR-041-secret-references-are-subject-owned-write-only-vault-handles.md'
       - 'docs/decisions/ADR-042-tool-invocations-are-subject-owned-execution-state.md'
+      - 'docs/decisions/ADR-043-assets-and-documents-have-first-class-subject-ownership.md'
       - '.github/workflows/ownership.yml'
   pull_request:
     paths:
@@ -42,6 +43,7 @@ on:
       - 'docs/decisions/ADR-040-canonical-world-is-scoped-by-authenticated-subject.md'
       - 'docs/decisions/ADR-041-secret-references-are-subject-owned-write-only-vault-handles.md'
       - 'docs/decisions/ADR-042-tool-invocations-are-subject-owned-execution-state.md'
+      - 'docs/decisions/ADR-043-assets-and-documents-have-first-class-subject-ownership.md'
       - '.github/workflows/ownership.yml'
 
 concurrency:
