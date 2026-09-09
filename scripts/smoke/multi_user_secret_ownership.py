@@ -140,11 +140,13 @@ def main() -> None:
     rotki_a = secret(token_a, f"Rotki A {nonce}", "Identifiants Rotki")
     rotki_b = secret(token_b, f"Rotki B {nonce}", "Identifiants Rotki")
     for reference in (ap_a, ap_b, rotki_a, rotki_b):
-        assert reference["provider_path"].startswith("secret/data/kairo/users/"), reference
-        assert USER_A not in reference["provider_path"] and USER_B not in reference["provider_path"], reference
+        # Public vault handles deliberately omit KAIRO's deployment-owned OpenBao path.
+        assert "provider_path" not in reference, reference
 
     refs_a = request_json("GET", "/v1/secret-references", token=token_a)
     refs_b = request_json("GET", "/v1/secret-references", token=token_b)
+    assert all("provider_path" not in reference for reference in refs_a), refs_a
+    assert all("provider_path" not in reference for reference in refs_b), refs_b
     assert ap_a["id"] in ids(refs_a) and ap_b["id"] not in ids(refs_a), refs_a
     assert ap_b["id"] in ids(refs_b) and ap_a["id"] not in ids(refs_b), refs_b
     assert rotki_a["id"] in ids(refs_a) and rotki_b["id"] not in ids(refs_a), refs_a
