@@ -22,6 +22,7 @@ import './finance-workspace.css'
 import './tools-workspace.css'
 import './brain-mind-map.css'
 import './desktop-runtime.css'
+import './account-lifecycle.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
