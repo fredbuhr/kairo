@@ -35,7 +35,7 @@ const NAVIGATION: NavigationItem[] = [
   { key: 'home', label: 'Accueil', glyph: '⌂', available: true },
   { key: 'assistant', label: 'Assistant', glyph: '◌', available: true },
   { key: 'projects', label: 'Projets', glyph: '◇', available: true },
-  { key: 'knowledge', label: 'Connaissances', glyph: '□', available: false },
+  { key: 'knowledge', label: 'Connaissances', glyph: '□', available: true },
   { key: 'brain', label: 'Cerveau KAIRO', glyph: '◎', available: true },
   { key: 'tasks', label: 'Tâches', glyph: '✓', available: true },
   { key: 'calendar', label: 'Calendrier', glyph: '▦', available: false },
@@ -332,7 +332,7 @@ export default function KairoApp() {
     if (!item.available) return
     if (item.key === 'home') recenter('home')
     if (item.key === 'brain') recenter('brain')
-    if (item.key === 'projects' || item.key === 'tasks') openWorkspace(item.key)
+    if (item.key === 'projects' || item.key === 'tasks' || item.key === 'knowledge') openWorkspace(item.key)
     if (item.key === 'assistant') setAssistantOpen(true)
     if (item.key === 'settings') setSettingsOpen(true)
   }
@@ -372,7 +372,13 @@ export default function KairoApp() {
   const searchResults = search.trim().length >= 2 ? searchQuery.data?.nodes || [] : []
   const activeNavigation = workspaceMode || (viewMode === 'brain' ? 'brain' : 'home')
   const activeFilterCount = hiddenEntityTypes.length + hiddenRelations.length
-  const workspaceLabel = workspaceMode === 'projects' ? 'Projets' : workspaceMode === 'tasks' ? 'Tâches' : null
+  const workspaceLabel = workspaceMode === 'projects'
+    ? 'Projets'
+    : workspaceMode === 'tasks'
+      ? 'Tâches'
+      : workspaceMode === 'knowledge'
+        ? 'Connaissances'
+        : null
 
   return (
     <main className="kairo-app">
