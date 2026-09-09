@@ -7,6 +7,7 @@ from temporalio.exceptions import ApplicationError
 
 with workflow.unsafe.imports_passed_through():
     from .activities import begin_execution, complete_execution, fail_execution, perform_foundation_work
+    from .automation_runtime import fail_automation_invocation, perform_automation_invocation
     from .document_ingestion import perform_document_ingestion
     from .memory_projection import perform_memory_projection
     from .news_activity import perform_news_brief
@@ -21,6 +22,7 @@ ACTIVITY_RETRY = RetryPolicy(
     maximum_interval=timedelta(seconds=10),
     maximum_attempts=10,
 )
+AUTOMATION_NO_RETRY = RetryPolicy(maximum_attempts=1)
 
 
 @workflow.defn
@@ -89,7 +91,7 @@ class TaskExecutionWorkflow:
         authority_level = int(task_input.get("authority_level") or 1)
         estimated_cost_usd = str(task_input.get("estimated_cost_usd") or "0")
         resource_type = "tool" if capability == "tool.invoke" else "capability"
-        resource_id = str(task_input.get("tool_key") or capability)
+        resource_id = str(task_input.get("tool_key") or task_input.get("automation_id") or capability)
         gate_payload = {
             "task_id": payload["task_id"],
             "workflow_execution_id": payload.get("workflow_execution_id"),
@@ -103,8 +105,10 @@ class TaskExecutionWorkflow:
             or f"KAIRO workflow requests authority level {authority_level} for {capability}",
         }
 
+        policy_passed = False
         try:
             await self._await_policy(gate_payload)
+            policy_passed = True
             if capability == "news.brief":
                 result = await workflow.execute_activity(
                     perform_news_brief,
@@ -152,6 +156,17 @@ class TaskExecutionWorkflow:
                     heartbeat_timeout=timedelta(seconds=60),
                     retry_policy=ACTIVITY_RETRY,
                 )
+            elif capability == "automation.invoke":
+                # Activepieces webhooks can cross an irreversible side-effect boundary. Unlike a
+                # read-only/retry-safe activity, a lost response cannot justify replaying the POST.
+                # One Temporal activity attempt is therefore deliberate; ambiguous outcomes are
+                # surfaced canonically for explicit user reconciliation.
+                result = await workflow.execute_activity(
+                    perform_automation_invocation,
+                    work_payload,
+                    start_to_close_timeout=timedelta(minutes=6),
+                    retry_policy=AUTOMATION_NO_RETRY,
+                )
             else:
                 result = await workflow.execute_activity(
                     perform_foundation_work,
@@ -175,10 +190,23 @@ class TaskExecutionWorkflow:
                     start_to_close_timeout=timedelta(seconds=30),
                     retry_policy=ACTIVITY_RETRY,
                 )
+            elif capability == "automation.invoke":
+                rendered_error = str(exc)
+                outcome_ambiguous = policy_passed and "automation-pre-call:" not in rendered_error
+                await workflow.execute_activity(
+                    fail_automation_invocation,
+                    {
+                        "task_input": task_input,
+                        "error": rendered_error,
+                        "outcome_ambiguous": outcome_ambiguous,
+                    },
+                    start_to_close_timeout=timedelta(seconds=30),
+                    retry_policy=ACTIVITY_RETRY,
+                )
             await workflow.execute_activity(
                 fail_execution,
                 {"workflow_id": workflow_id, "error": str(exc)},
-                start_to_close_timeout=timedelta(seconds=30),
+                start_to_close_timeout=timelta(seconds=30) if False else timedelta(seconds=30),
                 retry_policy=ACTIVITY_RETRY,
             )
             raise
