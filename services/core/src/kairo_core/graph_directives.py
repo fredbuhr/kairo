@@ -26,6 +26,15 @@ _FOCUS_PATTERN = re.compile(
     r"^\s*(?:montre(?:[- ]moi)?|affiche|ouvre|va\s+[àa]|focus(?:se)?\s+sur|zoome\s+sur|show\s+me|open)\s+(.+?)\s*[?!.]*$",
     flags=re.IGNORECASE,
 )
+_TYPE_PREFIXES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"^(?:(?:le|un)\s+)?(?:projet|project)\s+(.+)$", re.IGNORECASE), "project"),
+    (re.compile(r"^(?:(?:la|une)\s+)?t[âa]che\s+(.+)$", re.IGNORECASE), "task"),
+    (re.compile(r"^(?:(?:le|un)\s+)?document\s+(.+)$", re.IGNORECASE), "document"),
+    (re.compile(r"^(?:(?:la|une)\s+)?conversation\s+(.+)$", re.IGNORECASE), "conversation"),
+    (re.compile(r"^(?:(?:l['’]|une?\s+))?approbation\s+(.+)$", re.IGNORECASE), "approval"),
+    (re.compile(r"^(?:(?:le|un)\s+)?(?:fichier|file)\s+(.+)$", re.IGNORECASE), "asset"),
+    (re.compile(r"^(?:(?:l['’]|un\s+))?(?:artefact|artifact)\s+(.+)$", re.IGNORECASE), "artifact"),
+)
 
 
 def _normalize(value: str) -> str:
@@ -33,16 +42,27 @@ def _normalize(value: str) -> str:
     return "".join(char for char in decomposed if not unicodedata.combining(char)).casefold().strip()
 
 
-def _parse_navigation(text: str) -> tuple[str, str] | None:
+def _typed_query(value: str) -> tuple[str, str | None]:
+    query = value.strip(" \t\r\n'\"“”‘’")
+    for pattern, entity_type in _TYPE_PREFIXES:
+        matched = pattern.match(query)
+        if matched:
+            stripped = matched.group(1).strip(" \t\r\n'\"“”‘’")
+            if len(stripped) >= 2:
+                return stripped, entity_type
+    return query, None
+
+
+def _parse_navigation(text: str) -> tuple[str, str, str | None] | None:
     isolated = _ISOLATE_PATTERN.match(text)
     if isolated:
-        query = isolated.group(1).strip(" \t\r\n'\"“”‘’")
-        return ("isolate_entity", query) if len(query) >= 2 else None
+        query, entity_type = _typed_query(isolated.group(1))
+        return ("isolate_entity", query, entity_type) if len(query) >= 2 else None
 
     focused = _FOCUS_PATTERN.match(text)
     if focused:
-        query = focused.group(1).strip(" \t\r\n'\"“”‘’")
-        return ("focus_entity", query) if len(query) >= 2 else None
+        query, entity_type = _typed_query(focused.group(1))
+        return ("focus_entity", query, entity_type) if len(query) >= 2 else None
     return None
 
 
@@ -55,22 +75,25 @@ async def resolve_graph_ui_directive(
     if parsed is None:
         return GraphUIDirectiveResolveRead(outcome="not_navigation")
 
-    kind, query = parsed
-    search = await graph_search(q=query, limit=8, session=session)
-    if not search.nodes:
+    kind, query, entity_type = parsed
+    search = await graph_search(q=query, limit=12, session=session)
+    candidates = [
+        node for node in search.nodes if entity_type is None or node.entity_type == entity_type
+    ]
+    if not candidates:
         return GraphUIDirectiveResolveRead(outcome="not_found", query=query)
 
     normalized_query = _normalize(query)
-    exact = [node for node in search.nodes if _normalize(node.label) == normalized_query]
+    exact = [node for node in candidates if _normalize(node.label) == normalized_query]
     if len(exact) == 1:
         chosen = exact[0]
-    elif len(search.nodes) == 1:
-        chosen = search.nodes[0]
+    elif len(candidates) == 1:
+        chosen = candidates[0]
     else:
         return GraphUIDirectiveResolveRead(
             outcome="ambiguous",
             query=query,
-            candidates=search.nodes[:6],
+            candidates=candidates[:6],
         )
 
     return GraphUIDirectiveResolveRead(
