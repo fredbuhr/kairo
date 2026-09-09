@@ -18,6 +18,7 @@ from .config import settings
 from .db import get_session, ping_database
 from .documents import router as documents_router
 from .events import append_audit, enqueue_domain_event
+from .graph import router as graph_router
 from .memory import router as memory_router
 from .models import OutboxEvent, Project, RelationshipRecord, Task
 from .news import router as news_router
@@ -64,6 +65,7 @@ app.add_middleware(
 app.include_router(workflow_router)
 app.include_router(memory_router)
 app.include_router(documents_router)
+app.include_router(graph_router)
 app.include_router(tools_router)
 app.include_router(research_router)
 app.include_router(news_router)
@@ -179,6 +181,7 @@ async def architecture() -> dict[str, object]:
         "tool_policy": "deny-by-default-explicit-enable",
         "autonomous_research": "pydanticai-planner-policy-bound-mcp-child-tasks",
         "command_routing": "deterministic-first-semantic-later",
+        "spatial_graph_projection": "kairo-core-canonical-read-model",
         "derived_context_graph": "graphiti-neo4j",
         "derived_memory": "mem0",
         "model_gateway": "litellm",
