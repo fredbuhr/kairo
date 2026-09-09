@@ -350,6 +350,8 @@ services:
       SEAWEED_S3_ENDPOINT: http://seaweedfs:8333
       LITELLM_URL: http://litellm:4000
       OPENBAO_ADDR: http://openbao:8200
+      OPENBAO_TOKEN: ${OPENBAO_DEV_TOKEN}
+      ACTIVEPIECES_URL: http://activepieces:80
       KEYCLOAK_URL: http://keycloak:8080
       KOKORO_TTS_URL: http://kokoro-tts:8880
       KOKORO_DEFAULT_VOICE: ${KOKORO_DEFAULT_VOICE}
