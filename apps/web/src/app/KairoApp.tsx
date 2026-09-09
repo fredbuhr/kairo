@@ -14,7 +14,12 @@ import {
 
 import { AssistantDrawer } from '../features/assistant/AssistantDrawer'
 import { useAssistant } from '../features/assistant/useAssistant'
-import { fetchGraphHome, fetchGraphNeighborhood, searchGraph } from '../lib/api'
+import {
+  fetchGraphHome,
+  fetchGraphNeighborhood,
+  resolveGraphDirective,
+  searchGraph,
+} from '../lib/api'
 
 type ViewMode = 'home' | 'brain'
 
@@ -246,13 +251,13 @@ export default function KairoApp() {
   )
   const displayProjection = useMemo(() => {
     if (!projection) return undefined
-    const isolated = isolateGraphProjection(projection, isolatedKey, 1)
     const preserved = [selectedKey, focus ? graphEntityKey(focus) : null].filter((value): value is string => Boolean(value))
-    return filterGraphProjection(isolated, {
+    const filtered = filterGraphProjection(projection, {
       hiddenEntityTypes,
       hiddenRelations,
       preserveKeys: preserved,
     })
+    return isolateGraphProjection(filtered, isolatedKey, 1)
   }, [focus, hiddenEntityTypes, hiddenRelations, isolatedKey, projection, selectedKey])
   const selected = useMemo(
     () => projection?.nodes.find((node) => graphNodeKey(node) === selectedKey) || null,
@@ -274,13 +279,18 @@ export default function KairoApp() {
     setHiddenRelations([])
   }
 
-  function explore(node: KairoGraphNode) {
-    const next = { entity_type: node.entity_type, entity_id: node.id }
+  function focusEntity(entity: KairoGraphEntityRef, isolate = false) {
+    const key = graphEntityKey(entity)
     setHistory((current) => [...current, focus])
-    setFocus(next)
-    setSelectedKey(graphNodeKey(node))
-    setIsolatedKey(null)
+    setFocus(entity)
+    setSelectedKey(key)
+    setIsolatedKey(isolate ? key : null)
     setSearch('')
+    setFiltersOpen(false)
+  }
+
+  function explore(node: KairoGraphNode) {
+    focusEntity({ entity_type: node.entity_type, entity_id: node.id })
   }
 
   function goBack() {
@@ -317,7 +327,31 @@ export default function KairoApp() {
 
   async function submitCommand(event: FormEvent) {
     event.preventDefault()
-    if (!assistant.command.trim()) return
+    const text = assistant.command.trim()
+    if (!text) return
+
+    try {
+      const resolution = await resolveGraphDirective(text)
+      if (resolution.outcome === 'directive' && resolution.directive) {
+        focusEntity(
+          resolution.directive.entity,
+          resolution.directive.kind === 'isolate_entity',
+        )
+        assistant.setCommand('')
+        setAssistantOpen(false)
+        return
+      }
+      if (resolution.outcome === 'ambiguous' || resolution.outcome === 'not_found') {
+        setSearch(resolution.query)
+        assistant.setCommand('')
+        setAssistantOpen(false)
+        return
+      }
+    } catch {
+      // Spatial navigation is a progressive deterministic front door. If it is unavailable,
+      // preserve the user's request and continue through the canonical Command Kernel.
+    }
+
     setAssistantOpen(true)
     await assistant.sendCommand()
   }
