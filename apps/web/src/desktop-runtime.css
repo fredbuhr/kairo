@@ -5,7 +5,8 @@
   scrollbar-color: rgba(85, 220, 213, .14) transparent;
 }
 
-.desktop-runtime-settings {
+.desktop-runtime-settings,
+.secret-vault-settings {
   display: grid;
   gap: 9px;
   margin-top: 12px;
@@ -14,14 +15,17 @@
   border-radius: 12px;
   background: rgba(3, 17, 23, .42);
 }
-.desktop-runtime-settings > header {
+.desktop-runtime-settings > header,
+.secret-vault-settings > header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
-.desktop-runtime-settings > header > div { display: grid; gap: 3px; }
-.desktop-runtime-settings > header strong { color: #bfd3d0; font-size: 10px; font-weight: 520; }
+.desktop-runtime-settings > header > div,
+.secret-vault-settings > header > div { display: grid; gap: 3px; }
+.desktop-runtime-settings > header strong,
+.secret-vault-settings > header strong { color: #bfd3d0; font-size: 10px; font-weight: 520; }
 .desktop-runtime-settings > header b {
   padding: 4px 6px;
   border: 1px solid rgba(94, 222, 211, .13);
@@ -31,7 +35,8 @@
   font-weight: 560;
   letter-spacing: .05em;
 }
-.desktop-runtime-settings > p { margin: 0; color: #617f84; font-size: 7px; line-height: 1.5; }
+.desktop-runtime-settings > p,
+.secret-vault-settings > p { margin: 0; color: #617f84; font-size: 7px; line-height: 1.5; }
 .desktop-runtime-settings dl { display: grid; gap: 4px; margin: 0; }
 .desktop-runtime-settings dl > div {
   display: grid;
@@ -58,7 +63,8 @@
 .desktop-runtime-check strong { color: #92ada9; font-size: 7px; font-weight: 520; }
 .desktop-runtime-check small { color: #566f73; font-size: 6.2px; line-height: 1.45; }
 .desktop-runtime-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-.desktop-runtime-actions button {
+.desktop-runtime-actions button,
+.secret-vault-settings button {
   min-height: 31px;
   border: 1px solid rgba(91, 225, 209, .14);
   border-radius: 8px;
@@ -67,12 +73,60 @@
   font-size: 6.8px;
   cursor: pointer;
 }
-.desktop-runtime-actions button:hover:not(:disabled) { border-color: rgba(105, 232, 216, .30); color: #d0e7e4; }
-.desktop-runtime-actions button:disabled { opacity: .35; cursor: default; }
+.desktop-runtime-actions button:hover:not(:disabled),
+.secret-vault-settings button:hover:not(:disabled) { border-color: rgba(105, 232, 216, .30); color: #d0e7e4; }
+.desktop-runtime-actions button:disabled,
+.secret-vault-settings button:disabled { opacity: .35; cursor: default; }
 .desktop-runtime-error { border-color: rgba(211, 142, 152, .14); }
 .desktop-runtime-error strong { color: #c5989d; font-size: 8px; }
 .desktop-runtime-error span { color: #765f65; font-size: 7px; }
 
+.secret-vault-settings > header > button { min-height: 25px; padding: 0 8px; }
+.secret-vault-create,
+.secret-vault-values { display: grid; gap: 7px; padding: 9px; border: 1px solid rgba(83, 210, 206, .065); border-radius: 10px; background: rgba(2, 14, 19, .34); }
+.secret-vault-create label,
+.secret-vault-selector { display: grid; gap: 4px; }
+.secret-vault-create label > span,
+.secret-vault-selector > span { color: #58767b; font-size: 6.4px; text-transform: uppercase; letter-spacing: .04em; }
+.secret-vault-create input,
+.secret-vault-create select,
+.secret-vault-selector select,
+.secret-vault-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid rgba(83, 207, 204, .09);
+  border-radius: 8px;
+  outline: none;
+  background: rgba(1, 11, 15, .52);
+  color: #b8cecb;
+  font-size: 7px;
+}
+.secret-vault-create input:focus,
+.secret-vault-create select:focus,
+.secret-vault-selector select:focus,
+.secret-vault-field input:focus { border-color: rgba(91, 226, 215, .27); }
+.secret-vault-muted { color: #607d81; font-size: 7px; }
+.secret-vault-empty { display: grid; gap: 3px; padding: 8px; border: 1px dashed rgba(83, 210, 206, .08); border-radius: 9px; }
+.secret-vault-empty strong { color: #829d9a; font-size: 7.2px; font-weight: 520; }
+.secret-vault-empty span { color: #566f73; font-size: 6.4px; line-height: 1.45; }
+.secret-vault-status { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.secret-vault-status > div { min-width: 0; display: grid; gap: 2px; padding: 7px; border: 1px solid rgba(83, 210, 206, .055); border-radius: 8px; background: rgba(4, 24, 29, .29); }
+.secret-vault-status span { color: #526f73; font-size: 5.9px; text-transform: uppercase; }
+.secret-vault-status strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #8aa5a2; font-size: 6.7px; font-weight: 500; }
+.secret-vault-values-head { display: grid; gap: 2px; }
+.secret-vault-values-head strong { color: #94aaa7; font-size: 7.3px; font-weight: 520; }
+.secret-vault-values-head small { color: #526c70; font-size: 6.2px; line-height: 1.4; }
+.secret-vault-field { display: grid; grid-template-columns: minmax(80px, .7fr) minmax(120px, 1.3fr) 28px; gap: 5px; align-items: center; }
+.secret-vault-field > button { width: 28px; min-height: 28px; padding: 0; }
+.secret-vault-value-actions { display: grid; grid-template-columns: auto minmax(120px, 1fr); gap: 6px; }
+.secret-vault-value-actions > button:last-child { justify-self: stretch; }
+
 @media (max-width: 720px) {
-  .desktop-runtime-actions { grid-template-columns: 1fr; }
+  .desktop-runtime-actions,
+  .secret-vault-status,
+  .secret-vault-value-actions { grid-template-columns: 1fr; }
+  .secret-vault-field { grid-template-columns: 1fr 28px; }
+  .secret-vault-field input[type='password'] { grid-column: 1 / -1; grid-row: 2; }
 }
