@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .command_models import CapabilityRecord
@@ -15,6 +15,12 @@ from .schemas import (
     SemanticRouteProposal,
     TaskRunResponse,
 )
+
+
+class ResearchRoutingInput(ResearchCommandInput):
+    """Fail closed when semantic routing tries to smuggle execution-authority fields."""
+
+    model_config = ConfigDict(extra="forbid")
 
 
 @dataclass(frozen=True)
@@ -104,7 +110,7 @@ AUTONOMOUS_RESEARCH = CapabilitySpec(
     authority_level=1,
     cost_class="metered-model-and-tools",
     runtime="temporal",
-    input_model=ResearchCommandInput,
+    input_model=ResearchRoutingInput,
     output_model=TaskRunResponse,
     metadata={
         "domain": "research",
