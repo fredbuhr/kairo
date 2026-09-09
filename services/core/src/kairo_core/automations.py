@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .auth import Principal, require_kairo_admin, require_kairo_user
+from .auth import Principal, require_kairo_user
 from .automation_models import AutomationDefinition, AutomationInvocation
 from .config import settings
 from .db import get_session
@@ -153,6 +153,22 @@ class InternalAutomationFail(BaseModel):
     result: dict[str, Any] = Field(default_factory=dict)
 
 
+async def _project_owned(
+    project_id: uuid.UUID,
+    principal: Principal,
+    session: AsyncSession,
+) -> Project:
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.keycloak_subject == principal.subject,
+        )
+    )
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
 async def _automation_owned(
     automation_id: uuid.UUID,
     principal: Principal,
@@ -172,8 +188,17 @@ async def _automation_owned(
     return automation
 
 
-async def _secret_reference(reference_id: uuid.UUID, session: AsyncSession) -> SecretReference:
-    reference = await session.get(SecretReference, reference_id)
+async def _secret_reference(
+    reference_id: uuid.UUID,
+    owner_subject: str,
+    session: AsyncSession,
+) -> SecretReference:
+    reference = await session.scalar(
+        select(SecretReference).where(
+            SecretReference.id == reference_id,
+            SecretReference.keycloak_subject == owner_subject,
+        )
+    )
     if reference is None:
         raise HTTPException(status_code=404, detail="Secret reference not found")
     return reference
@@ -182,9 +207,10 @@ async def _secret_reference(reference_id: uuid.UUID, session: AsyncSession) -> S
 async def _validate_secret_binding(
     reference_id: uuid.UUID,
     key: str,
+    owner_subject: str,
     session: AsyncSession,
 ) -> None:
-    reference = await _secret_reference(reference_id, session)
+    reference = await _secret_reference(reference_id, owner_subject, session)
     try:
         provider_status = await openbao_client.secret_status(reference.provider_path)
     except (httpx.HTTPError, OSError, ValueError) as exc:
@@ -230,6 +256,7 @@ async def _internal_invocation(
         str(task_input.get("automation_id") or "") != str(automation.id)
         or str(task_input.get("automation_invocation_id") or "") != str(invocation.id)
         or str(task_input.get("capability") or "") != "automation.invoke"
+        or task.project_id != automation.project_id
     ):
         raise HTTPException(status_code=409, detail="Automation invocation task binding is stale")
     return invocation, automation, task
@@ -238,13 +265,11 @@ async def _internal_invocation(
 @router.post("/v1/automations", response_model=AutomationRead, status_code=status.HTTP_201_CREATED)
 async def create_automation(
     body: AutomationCreate,
-    principal: Principal = Depends(require_kairo_admin),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> AutomationDefinition:
-    project = await session.get(Project, body.project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-    await _secret_reference(body.webhook_secret_reference_id, session)
+    await _project_owned(body.project_id, principal, session)
+    await _secret_reference(body.webhook_secret_reference_id, principal.subject, session)
 
     automation = AutomationDefinition(
         keycloak_subject=principal.subject,
@@ -323,7 +348,7 @@ async def list_automations(
 async def update_automation(
     automation_id: uuid.UUID,
     body: AutomationUpdate,
-    principal: Principal = Depends(require_kairo_admin),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> AutomationDefinition:
     automation = await _automation_owned(automation_id, principal, session, lock=True)
@@ -346,13 +371,18 @@ async def update_automation(
         if "enabled" in fields and body.enabled is not None
         else automation.enabled
     )
-    await _secret_reference(next_reference_id, session)
+    await _secret_reference(next_reference_id, principal.subject, session)
 
     # Changing a secret reference/key on an already enabled automation must be just as strict as
     # enabling it for the first time. Otherwise the UI could leave an apparently active definition
     # bound to an invalid webhook until the Worker eventually failed at execution time.
     if next_enabled:
-        await _validate_secret_binding(next_reference_id, next_secret_key, session)
+        await _validate_secret_binding(
+            next_reference_id,
+            next_secret_key,
+            principal.subject,
+            session,
+        )
 
     if "name" in fields and body.name is not None:
         automation.name = body.name
@@ -418,14 +448,17 @@ async def invoke_automation(
 
     idempotency_key = body.idempotency_key or str(uuid.uuid4())
     existing = await session.scalar(
-        select(AutomationInvocation).where(AutomationInvocation.idempotency_key == idempotency_key)
+        select(AutomationInvocation).where(
+            AutomationInvocation.automation_id == automation.id,
+            AutomationInvocation.idempotency_key == idempotency_key,
+        )
     )
     if existing is not None:
-        if existing.automation_id != automation.id or existing.input_json != body.input:
+        if existing.input_json != body.input:
             raise HTTPException(status_code=409, detail="Idempotency key is bound to another automation request")
         task = await session.get(Task, existing.task_id)
-        if task is None:
-            raise HTTPException(status_code=409, detail="Automation invocation task is missing")
+        if task is None or task.project_id != automation.project_id:
+            raise HTTPException(status_code=409, detail="Automation invocation task is missing or stale")
         if task.status not in {"completed", "failed", "cancelled"}:
             run = await run_task(task.id, session)
             await session.refresh(existing)
@@ -478,7 +511,11 @@ async def invoke_automation(
         input_json=body.input,
     )
     session.add(invocation)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=409, detail="Automation invocation idempotency conflict") from exc
     await enqueue_domain_event(
         session,
         event_type="automation.invocation.created",
@@ -555,7 +592,11 @@ async def internal_automation_context(
     if not automation.enabled:
         raise HTTPException(status_code=409, detail="Automation authorization is no longer active")
 
-    reference = await _secret_reference(automation.webhook_secret_reference_id, session)
+    reference = await _secret_reference(
+        automation.webhook_secret_reference_id,
+        automation.keycloak_subject,
+        session,
+    )
     try:
         secret_path = await openbao_client.read_secret_value(
             reference.provider_path,
