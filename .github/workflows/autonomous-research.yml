@@ -18,6 +18,8 @@ jobs:
         run: uv run --project services/core python -c "from kairo_core.main import app; assert app.title == 'KAIRO Core'"
       - name: Prove bounded PydanticAI research planner and grounded synthesis
         run: uv run --project services/worker python scripts/smoke/research_agent_contract.py
+      - name: Prove canonical document-context query contract
+        run: uv run --project services/core python scripts/smoke/research_document_context_contract.py
       - name: Prove first-party Web MCP read-only contract
         run: uv run --project services/worker python scripts/smoke/web_mcp_contract.py
       - name: Compile crash/replay fixtures
