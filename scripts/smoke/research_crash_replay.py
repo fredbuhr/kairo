@@ -96,6 +96,16 @@ def mcp_metrics() -> dict[str, Any]:
     return request("GET", MCP_METRICS + "/metrics")
 
 
+def one_planner_call() -> dict[str, int] | None:
+    metrics = model_metrics()
+    return metrics if metrics.get("planning") == 1 else None
+
+
+def one_blocked_mcp_call() -> dict[str, Any] | None:
+    metrics = mcp_metrics()
+    return metrics if metrics.get("calls") == 1 and metrics.get("completions") == 0 else None
+
+
 def invocation_result(invocation_id: uuid.UUID) -> dict[str, Any] | None:
     try:
         return core_request(
@@ -107,6 +117,13 @@ def invocation_result(invocation_id: uuid.UUID) -> dict[str, Any] | None:
         if "got 404" in str(exc):
             return None
         raise
+
+
+def completed_research_run(task_id: uuid.UUID) -> dict[str, Any] | None:
+    run = core_request("GET", f"/v1/research/runs/{task_id}")
+    if run.get("status") == "completed" and run.get("artifact_id"):
+        return run
+    return None
 
 
 def postgres_scalar(sql: str) -> str:
@@ -124,7 +141,11 @@ def postgres_scalar(sql: str) -> str:
 
 def main() -> None:
     wait_core_ready()
-    wait_until("fake model fixture", lambda: model_metrics() == {"planning": 0, "synthesis": 0, "unexpected": 0}, timeout=30)
+    wait_until(
+        "fake model fixture",
+        lambda: model_metrics() == {"planning": 0, "synthesis": 0, "unexpected": 0},
+        timeout=30,
+    )
     wait_until("fake MCP fixture", lambda: mcp_metrics().get("calls") == 0, timeout=30)
 
     project = core_request(
@@ -201,16 +222,8 @@ def main() -> None:
         f"kairo:research:{task_id}:slot:0:crash.search",
     )
 
-    wait_until(
-        "one planner call",
-        lambda: model_metrics() if model_metrics().get("planning") == 1 else None,
-        timeout=30,
-    )
-    wait_until(
-        "one blocked MCP call",
-        lambda: mcp_metrics() if mcp_metrics().get("calls") == 1 else None,
-        timeout=30,
-    )
+    wait_until("one planner call", one_planner_call, timeout=30)
+    wait_until("one blocked MCP call", one_blocked_mcp_call, timeout=30)
 
     # Give the parent activity enough time to observe the child as running and emit at least one
     # replay-preserving `tool-wait` heartbeat. Releasing immediately after the call arrives would
@@ -239,20 +252,17 @@ def main() -> None:
     if before_model.get("synthesis") != 0:
         raise AssertionError(f"Synthesis started before the intended crash window: {before_model}")
 
-    print("CRASH CHECKPOINT: child invocation is canonical/completed; sending SIGKILL to kairo-worker", flush=True)
+    print(
+        "CRASH CHECKPOINT: child invocation is canonical/completed; sending SIGKILL to kairo-worker",
+        flush=True,
+    )
     subprocess.run([*COMPOSE, "kill", "-s", "SIGKILL", "kairo-worker"], check=True)
     time.sleep(1.0)
     subprocess.run([*COMPOSE, "up", "-d", "kairo-worker"], check=True)
 
     completed = wait_until(
         "Research completion after Worker restart",
-        lambda: (
-            run
-            if (run := core_request("GET", f"/v1/research/runs/{task_id}"))
-            .get("status") == "completed"
-            and run.get("artifact_id")
-            else None
-        ),
+        lambda: completed_research_run(task_id),
         timeout=180,
         interval=1.0,
     )
@@ -274,9 +284,7 @@ def main() -> None:
         )
     )
     usage_count = int(
-        postgres_scalar(
-            f"select count(*) from model_usage_records where task_id='{task_id}'::uuid;"
-        )
+        postgres_scalar(f"select count(*) from model_usage_records where task_id='{task_id}'::uuid;")
     )
     invocation_count = int(
         postgres_scalar(
