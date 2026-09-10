@@ -16,5 +16,11 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Prove canonical owner-scoped workspace layout contract
         run: uv run --project services/core python scripts/smoke/workspace_layout_contract.py
-      - name: Compile Core workspace layout modules
-        run: python -m compileall services/core/src/kairo_core/ui_layouts.py services/core/src/kairo_core/ui_models.py
+      - name: Prove canonical Project ownership contract
+        run: uv run --project services/core python scripts/smoke/project_ownership_contract.py
+      - name: Compile Core UI ownership modules
+        run: >-
+          python -m compileall
+          services/core/src/kairo_core/ui_layouts.py
+          services/core/src/kairo_core/ui_models.py
+          services/core/src/kairo_core/project_access.py
