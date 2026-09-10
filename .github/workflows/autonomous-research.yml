@@ -20,6 +20,12 @@ jobs:
         run: uv run --project services/worker python scripts/smoke/research_agent_contract.py
       - name: Prove first-party Web MCP read-only contract
         run: uv run --project services/worker python scripts/smoke/web_mcp_contract.py
+      - name: Compile crash/replay fixtures
+        run: |
+          python -m py_compile \
+            scripts/smoke/fake_research_litellm.py \
+            scripts/smoke/fake_research_mcp.py \
+            scripts/smoke/research_crash_replay.py
       - name: Validate Web MCP Compose overlay
         run: |
           cp .env.example .env
