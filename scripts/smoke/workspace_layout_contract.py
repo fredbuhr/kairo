@@ -23,11 +23,13 @@ def main() -> None:
     else:
         raise AssertionError("Oversized workspace layout was accepted")
 
-    methods_by_path = {
-        route.path: set(route.methods or set())
-        for route in router.routes
-        if getattr(route, "path", None)
-    }
+    methods_by_path: dict[str, set[str]] = {}
+    for route in router.routes:
+        path = getattr(route, "path", None)
+        if not path:
+            continue
+        methods_by_path.setdefault(path, set()).update(route.methods or set())
+
     path = "/v1/ui/workspaces/{workspace_key}/layout"
     assert path in methods_by_path, methods_by_path
     assert {"GET", "PUT"}.issubset(methods_by_path[path]), methods_by_path[path]
