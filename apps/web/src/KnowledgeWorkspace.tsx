@@ -4,6 +4,7 @@ import { useKnowledgeChunkInspection } from './knowledgeChunkInspection'
 import { useKnowledgeDocumentActions } from './knowledgeDocumentActions'
 import { useKnowledgeDocumentDataLoading } from './knowledgeDocumentDataLoading'
 import { useKnowledgeIngestionTracking } from './knowledgeIngestionTracking'
+import KnowledgeIngestionView from './KnowledgeIngestionView'
 import {
   KnowledgeChunksView,
   KnowledgeDocumentsView,
@@ -184,30 +185,15 @@ export default function KnowledgeWorkspace({
 
       {!loading && !error && selectedProjectId && (
         <>
-          <form className="news-form" onSubmit={importDocument}>
-            <label className="query-field">
-              <span>Importer un Document</span>
-              <input
-                type="file"
-                onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
-                disabled={importing}
-              />
-            </label>
-            <div className="news-controls">
-              <button type="submit" disabled={importing || !selectedFile}>
-                {importing ? 'Import…' : 'Importer dans Knowledge'}
-              </button>
-            </div>
-          </form>
-
-          {importError && <div className="error-panel">{importError}</div>}
-          {trackingError && <div className="error-panel">Suivi ingestion · {trackingError}</div>}
-          {trackingDocumentId && !trackingError && (
-            <div className="progress-panel">
-              <strong>Ingestion canonique en cours.</strong>
-              <span>Knowledge actualise automatiquement le Document et ses versions.</span>
-            </div>
-          )}
+          <KnowledgeIngestionView
+            selectedFile={selectedFile}
+            importing={importing}
+            importError={importError}
+            trackingDocumentId={trackingDocumentId}
+            trackingError={trackingError}
+            onSelectFile={setSelectedFile}
+            onSubmit={importDocument}
+          />
 
           <KnowledgeDocumentsView
             documents={projectDocuments}
