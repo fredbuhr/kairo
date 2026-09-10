@@ -1,0 +1,22 @@
+services:
+  kairo-web-mcp:
+    build:
+      context: ./services/worker
+      args:
+        KAIRO_WORKER_EXTRAS: ""
+    restart: unless-stopped
+    command: ["python", "-m", "kairo_worker.web_mcp"]
+    environment:
+      SEARXNG_URL: http://searxng:8080
+    depends_on:
+      searxng:
+        condition: service_started
+    networks: [kairo]
+
+  kairo-worker:
+    environment:
+      KAIRO_WEB_MCP_URL: http://kairo-web-mcp:8090/mcp
+      KAIRO_ADMIN_TOKEN: ${KAIRO_ADMIN_TOKEN:-}
+    depends_on:
+      kairo-web-mcp:
+        condition: service_started
