@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 import json
 import os
 import time
@@ -238,7 +239,7 @@ def main() -> None:
     assert invocation["result"]["items"][0]["snippet"] == "Canonical provenance", invocation
     assert completed["planner_model_alias"] == "local-fast", completed
     assert completed["synthesis_model_alias"] == "local-fast", completed
-    assert completed["model_budget_usd"] == "0.01", completed
+    assert Decimal(completed["model_budget_usd"]) == Decimal("0.01"), completed
     assert completed["artifact_id"], completed
     assert completed["workflow_execution_id"] == parent_run["workflow_execution_id"], completed
     assert completed["workflow_id"] == parent_run["workflow_id"], completed
