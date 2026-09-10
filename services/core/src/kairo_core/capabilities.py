@@ -113,7 +113,10 @@ AUTONOMOUS_RESEARCH = CapabilitySpec(
         "tool_transport": "mcp",
         "tool_risk_ceiling": "read",
         "durable": True,
-        "routable": True,
+        # Repair Gate: the current Command adapter only executes news.brief. Keep Research
+        # available through /v1/research/runs, but do not advertise it to semantic routing until
+        # the route contract is narrowed to intent-only fields and the final Task is replay-safe.
+        "routable": False,
         "internal": False,
     },
 )
