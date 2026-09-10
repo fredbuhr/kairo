@@ -23,6 +23,10 @@ services:
       - "127.0.0.1:18766:8766"
     networks: [kairo]
 
+  kairo-core:
+    environment:
+      KAIRO_AUTH_ENABLED: "false"
+
   kairo-worker:
     environment:
       LITELLM_URL: http://fake-research-litellm:4000
