@@ -7,12 +7,17 @@ from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from mcp.server import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from .config import settings
 
 MAX_SEARCH_RESULTS = 10
+WEB_MCP_TRANSPORT_SECURITY = TransportSecuritySettings(
+    allowed_hosts=["kairo-web-mcp:8765"],
+    allowed_origins=[],
+)
 
 mcp = MCPServer(
     "KAIRO Web Research",
@@ -155,6 +160,7 @@ def main() -> None:
         streamable_http_path="/mcp",
         stateless_http=True,
         json_response=True,
+        transport_security=WEB_MCP_TRANSPORT_SECURITY,
     )
 
 
