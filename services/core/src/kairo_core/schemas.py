@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ProjectCreate(BaseModel):
@@ -30,6 +30,29 @@ class TaskCreate(BaseModel):
     authority_ceiling: int = Field(default=1, ge=0, le=5)
     budget_usd: Decimal | None = Field(default=None, ge=0)
     input: dict[str, Any] = Field(default_factory=dict)
+    priority: int = Field(default=2, ge=0, le=4)
+    planned_start_at: datetime | None = None
+    planned_end_at: datetime | None = None
+    due_at: datetime | None = None
+
+    @field_validator("planned_start_at", "planned_end_at", "due_at")
+    @classmethod
+    def require_planning_timezone(cls, value: datetime | None) -> datetime | None:
+        if value is not None and value.tzinfo is None:
+            raise ValueError("planning timestamps must include a timezone offset")
+        return value
+
+    @model_validator(mode="after")
+    def validate_planned_window(self) -> "TaskCreate":
+        if self.planned_end_at is not None and self.planned_start_at is None:
+            raise ValueError("planned_end_at requires planned_start_at")
+        if (
+            self.planned_start_at is not None
+            and self.planned_end_at is not None
+            and self.planned_end_at < self.planned_start_at
+        ):
+            raise ValueError("planned_end_at must be on or after planned_start_at")
+        return self
 
 
 class TaskRead(BaseModel):
@@ -45,6 +68,10 @@ class TaskRead(BaseModel):
     authority_ceiling: int
     budget_usd: Decimal | None
     input: dict[str, Any]
+    priority: int
+    planned_start_at: datetime | None
+    planned_end_at: datetime | None
+    due_at: datetime | None
     started_at: datetime | None
     completed_at: datetime | None
     created_at: datetime
