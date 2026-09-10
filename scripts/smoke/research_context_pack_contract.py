@@ -12,6 +12,7 @@ from kairo_worker.research_context_pack import (
     MAX_CONTEXT_PACK_CHARS,
     build_research_context_pack,
     context_pack_model_records,
+    context_pack_public_summary,
 )
 
 
@@ -66,7 +67,10 @@ DERIVED_CONTEXT = {
     ],
     "sources": {
         "mem0": {"status": "ok", "count": 1},
-        "graphiti": {"status": "ok", "count": 2},
+        "graphiti": {
+            "status": "unavailable",
+            "error": "Neo4jError: internal topology details must not enter the Temporal snapshot",
+        },
     },
 }
 
@@ -82,6 +86,12 @@ async def main() -> None:
     assert pack["items"][0]["authority"] == "canonical", pack
     assert {item["evidence_id"] for item in pack["items"]} == {"D1", "M1", "G2"}, pack
     assert "G1" not in {item["evidence_id"] for item in pack["items"]}, pack
+    assert pack["sources"]["graphiti"] == {"status": "unavailable"}, pack
+    assert "error" not in json.dumps(pack["sources"], ensure_ascii=False).lower(), pack
+
+    public_summary = context_pack_public_summary(pack)
+    assert public_summary["sources"]["graphiti"] == {"status": "unavailable"}, public_summary
+    assert public_summary["item_count"] == 3, public_summary
 
     records = context_pack_model_records(pack)
     document = next(item for item in records if item["evidence_id"] == "D1")
@@ -195,7 +205,7 @@ async def main() -> None:
 
     print(
         "PASS: Research Context Pack prioritizes canonical documents, deduplicates derived projections, "
-        "stays bounded, informs planning and supports evidence-bound context-only synthesis"
+        "strips backend errors, stays bounded, informs planning and supports context-only synthesis"
     )
 
 
