@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
+import { kairoFetch } from './lib/apiClient'
+
 type Project = {
   id: string
   name: string
@@ -87,7 +89,7 @@ export default function ResearchWorkspace({ apiUrl }: Props) {
 
     const loadProjects = async () => {
       try {
-        const response = await fetch(`${apiUrl}/v1/projects`)
+        const response = await kairoFetch(`${apiUrl}/v1/projects`)
         const data = await readJson<Project[]>(response)
         if (cancelled) return
         const active = data.filter((project) => project.status === 'active')
@@ -115,7 +117,7 @@ export default function ResearchWorkspace({ apiUrl }: Props) {
 
     const poll = async () => {
       try {
-        const response = await fetch(`${apiUrl}/v1/research/runs/${taskId}`)
+        const response = await kairoFetch(`${apiUrl}/v1/research/runs/${taskId}`)
         const data = await readJson<ResearchRun>(response)
         if (cancelled) return
         setRun(data)
@@ -144,7 +146,7 @@ export default function ResearchWorkspace({ apiUrl }: Props) {
     setRun(null)
     setTaskId(null)
     try {
-      const response = await fetch(`${apiUrl}/v1/research/runs`, {
+      const response = await kairoFetch(`${apiUrl}/v1/research/runs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
