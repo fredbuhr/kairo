@@ -1,5 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
+import {
+  type CapabilityTaskView,
+  isTerminalTaskStatus,
+  loadCapabilityTask,
+} from './taskTracking'
+
 const spaces = [
   'Command Center',
   'Today',
@@ -130,6 +136,8 @@ export default function App() {
   const [location, setLocation] = useState('Paris')
   const [output, setOutput] = useState<'text' | 'audio' | 'both'>('both')
   const [taskId, setTaskId] = useState<string | null>(null)
+  const [taskCapability, setTaskCapability] = useState<string | null>(null)
+  const [taskView, setTaskView] = useState<CapabilityTaskView | null>(null)
   const [brief, setBrief] = useState<NewsBrief | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [routing, setRouting] = useState(false)
@@ -160,6 +168,7 @@ export default function App() {
             parameters,
             task_id: state.task_id,
           })
+          setTaskCapability(state.capability_key)
           setTaskId(state.task_id)
           setQuery(parameters.query || command)
           if (parameters.mode) setMode(parameters.mode)
@@ -196,23 +205,25 @@ export default function App() {
   }, [pendingCommandId, command])
 
   useEffect(() => {
-    if (!taskId) return
+    if (!taskId || !taskCapability) return
     let cancelled = false
     let timer: number | undefined
 
     const poll = async () => {
       try {
-        const response = await fetch(`${API_URL}/v1/news/briefs/${taskId}`)
-        if (!response.ok) throw new Error(`KAIRO Core répond ${response.status}`)
-        const data = (await response.json()) as NewsBrief
+        const data = await loadCapabilityTask(API_URL, taskCapability, taskId)
         if (cancelled) return
-        setBrief(data)
-        if (!['completed', 'failed'].includes(data.status)) {
+        setTaskView(data)
+        setBrief(taskCapability === 'news.brief' ? (data.raw as NewsBrief) : null)
+        if (data.status === 'failed' && data.error) {
+          setError(data.error)
+        }
+        if (!isTerminalTaskStatus(data.status)) {
           timer = window.setTimeout(poll, 1200)
         }
       } catch (pollError) {
         if (!cancelled) {
-          setError(pollError instanceof Error ? pollError.message : 'Impossible de lire le briefing.')
+          setError(pollError instanceof Error ? pollError.message : 'Impossible de suivre la tâche KAIRO.')
         }
       }
     }
@@ -222,7 +233,7 @@ export default function App() {
       cancelled = true
       if (timer) window.clearTimeout(timer)
     }
-  }, [taskId])
+  }, [taskId, taskCapability])
 
   const sources = useMemo(() => brief?.artifact?.content.sources || [], [brief])
   const impact = brief?.artifact?.content.market_impact
@@ -234,6 +245,8 @@ export default function App() {
     setPendingCommandId(null)
     setError(null)
     setBrief(null)
+    setTaskView(null)
+    setTaskCapability(null)
     setTaskId(null)
     setLastRoute(null)
     try {
@@ -265,6 +278,7 @@ export default function App() {
       if (!run.task_id || !run.capability) {
         throw new Error('KAIRO a accepté la commande sans fournir de capacité finale.')
       }
+      setTaskCapability(run.capability)
       setTaskId(run.task_id)
       setQuery(run.parameters.query || command)
       if (run.parameters.mode) setMode(run.parameters.mode)
@@ -282,6 +296,8 @@ export default function App() {
     setSubmitting(true)
     setError(null)
     setBrief(null)
+    setTaskView(null)
+    setTaskCapability(null)
     setTaskId(null)
     setLastRoute(null)
     try {
@@ -304,6 +320,7 @@ export default function App() {
         throw new Error(`Impossible de lancer le briefing (${response.status}) : ${body}`)
       }
       const run = (await response.json()) as NewsRun
+      setTaskCapability('news.brief')
       setTaskId(run.task_id)
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Impossible de lancer le briefing.')
@@ -380,6 +397,20 @@ export default function App() {
         {conversationId && (
           <small className="conversation-chip">conversation {conversationId.slice(0, 8)}… persistée côté serveur</small>
         )}
+        {taskView && taskView.capability !== 'news.brief' && !error && (
+          <div className="progress-panel">
+            <strong>
+              {taskView.answer || taskView.title || `${taskView.capability} · ${taskView.status}`}
+            </strong>
+            <span>
+              {taskView.answer
+                ? `${taskView.capability} · ${taskView.status}`
+                : taskView.artifact
+                  ? `${taskView.artifact.title} · ${taskView.artifact.kind}`
+                  : `Tâche durable KAIRO · ${taskView.status}`}
+            </span>
+          </div>
+        )}
       </section>
 
       <section className="news-workspace" aria-labelledby="news-heading">
@@ -445,7 +476,7 @@ export default function App() {
           </div>
         )}
 
-        {taskId && !brief?.artifact && !error && (
+        {taskId && taskCapability === 'news.brief' && !brief?.artifact && !error && (
           <div className="progress-panel">
             <strong>KAIRO recherche et recoupe les sources.</strong>
             <span>La tâche est durable : elle peut reprendre après un redémarrage du Worker.</span>
