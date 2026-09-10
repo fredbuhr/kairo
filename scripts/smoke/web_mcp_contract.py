@@ -72,17 +72,21 @@ async def main() -> None:
 
             web_mcp.news._fetch_public_html = fake_fetch
             web_mcp.news.extract = lambda *_args, **_kwargs: (
-                "KAIRO keeps canonical state and durable workflows."
+                "KAIRO keeps canonical state and durable workflows. " * 200
             )
             fetch_result = _result_payload(
                 await client.call_tool(
-                    "fetch", {"url": "https://example.com/kairo", "max_chars": 4000}
+                    "fetch", {"url": "https://example.com/kairo", "max_chars": 1200}
                 )
             )
             assert not fetch_result.get("isError", fetch_result.get("is_error", False)), fetch_result
             fetched = fetch_result.get("structuredContent") or fetch_result.get("structured_content")
             assert fetched["final_url"] == "https://example.com/kairo", fetched
-            assert "durable workflows" in fetched["text"], fetched
+            assert "durable workflows" in fetched["excerpt"], fetched
+            assert len(fetched["excerpt"]) <= 1200, fetched
+            assert fetched["excerpt_char_limit"] == 1200, fetched
+            assert fetched["truncated"] is True, fetched
+            assert "text" not in fetched, fetched
     finally:
         web_mcp.news._search_searxng = original_search
         web_mcp.news._fetch_public_html = original_fetch
@@ -90,7 +94,7 @@ async def main() -> None:
 
     print(
         "PASS: first-party Web MCP exposes only the expected read-only search/fetch tools, "
-        "keeps private destinations blocked and returns structured evidence"
+        "keeps private destinations blocked and persists only bounded evidence excerpts"
     )
 
 
