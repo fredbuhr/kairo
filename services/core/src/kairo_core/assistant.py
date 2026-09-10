@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import Principal, require_kairo_user
 from .capabilities import (
+    ResearchRoutingInput,
     get_capability,
     is_routable_capability,
     list_capabilities,
@@ -26,6 +27,7 @@ from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project, Task
 from .news import start_news_brief
+from .research import ResearchRunCreate, start_research_run
 from .schemas import (
     AssistantCommandCreate,
     AssistantCommandResponse,
@@ -45,6 +47,8 @@ router = APIRouter()
 
 SEMANTIC_ROUTE_BUDGET_USD = Decimal("0.02")
 SEMANTIC_ROUTE_CONFIDENCE_FLOOR = 0.80
+RESEARCH_COMMAND_MODEL_BUDGET_USD = Decimal("0.02")
+RESEARCH_COMMAND_MODEL_ALIAS = "local-fast"
 
 _NEWS_TERMS = (
     "actualite",
@@ -459,24 +463,52 @@ async def _execute_route(
     capability = get_capability(route.capability)
     if capability is None or not is_routable_capability(route.capability):
         raise HTTPException(status_code=422, detail="Capability is not routable")
-    if capability.key != "news.brief":
-        raise HTTPException(status_code=501, detail="Capability adapter is not implemented")
 
-    news_request = NewsBriefCreate.model_validate(route.parameters)
-    deterministic_task_id = (
-        uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:command:{command.id}:{capability.key}:v1")
-        if semantic
-        else None
-    )
-    execution = await start_news_brief(
-        news_request,
-        session,
-        actor_type="user",
-        actor_id=conversation.subject_ref,
-        correlation_id=command.correlation_id,
-        command_id=command.id,
-        task_id=deterministic_task_id,
-    )
+    if capability.key == "news.brief":
+        news_request = NewsBriefCreate.model_validate(route.parameters)
+        deterministic_task_id = (
+            uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:command:{command.id}:{capability.key}:v1")
+            if semantic
+            else None
+        )
+        execution = await start_news_brief(
+            news_request,
+            session,
+            actor_type="user",
+            actor_id=conversation.subject_ref,
+            correlation_id=command.correlation_id,
+            command_id=command.id,
+            task_id=deterministic_task_id,
+        )
+    elif capability.key == "research.autonomous":
+        routed = ResearchRoutingInput.model_validate(route.parameters)
+        subject = str(conversation.subject_ref or "").strip()
+        project = await _ensure_assistant_project(session, subject)
+        research_request = ResearchRunCreate(
+            project_id=project.id,
+            query=routed.query,
+            max_tool_calls=routed.max_tool_calls,
+            allowed_tool_keys=[],
+            model_alias=RESEARCH_COMMAND_MODEL_ALIAS,
+            estimated_model_cost_usd=RESEARCH_COMMAND_MODEL_BUDGET_USD,
+        )
+        deterministic_task_id = uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"kairo:command:{command.id}:{capability.key}:v{capability.version}",
+        )
+        execution = await start_research_run(
+            research_request,
+            session,
+            project=project,
+            requester_subject=subject,
+            actor_type="worker" if semantic else "user",
+            actor_id="semantic-router" if semantic else subject,
+            correlation_id=command.correlation_id,
+            command_id=command.id,
+            task_id=deterministic_task_id,
+        )
+    else:
+        raise HTTPException(status_code=501, detail="Capability adapter is not implemented")
 
     command = await session.get(CommandRecord, command.id)
     if command is None:
