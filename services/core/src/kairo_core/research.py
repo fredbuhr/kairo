@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .auth import Principal, require_kairo_user
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
-from .models import Project, Task, WorkflowExecution
+from .models import Task, WorkflowExecution
+from .project_access import get_owned_project
 from .research_context import router as research_context_router
 from .schemas import TaskRunResponse
 from .security import require_internal_token
@@ -118,7 +119,7 @@ async def create_research_run(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> TaskRunResponse:
-    project = await session.get(Project, body.project_id)
+    project = await get_owned_project(session, body.project_id, principal)
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
