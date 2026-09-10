@@ -81,7 +81,7 @@ const PANEL_DEFINITIONS = {
   },
 } as const
 
-const RESERVED_PANEL_IDS = new Set(Object.values(PANEL_DEFINITIONS).map((item) => item.id))
+const RESERVED_PANEL_IDS = new Set<string>(Object.values(PANEL_DEFINITIONS).map((item) => item.id))
 const RESERVED_PANEL_KEYS = new Set(['command', 'news', 'research', 'extra'])
 
 function normalizeExtraPanels(extraPanels: CockpitExtraPanel[]): CockpitExtraPanel[] {
@@ -346,7 +346,6 @@ export default function CockpitShell({
         <div style={{ flex: 1, minHeight: 0 }}>
           <DockviewReact
             className="dockview-theme-abyss"
-            style={{ width: '100%', height: '100%' }}
             components={components}
             onReady={onReady}
           />
