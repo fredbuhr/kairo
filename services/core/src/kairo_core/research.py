@@ -13,6 +13,7 @@ from .auth import Principal, require_kairo_user
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project, Task, WorkflowExecution
+from .research_context import router as research_context_router
 from .schemas import TaskRunResponse
 from .security import require_internal_token
 from .tool_models import ToolDefinition, ToolInvocation, ToolServer
@@ -20,6 +21,7 @@ from .tools import _validate_tool_input
 from .workflows import run_task
 
 router = APIRouter()
+router.include_router(research_context_router)
 
 
 class ResearchRunCreate(BaseModel):
@@ -133,6 +135,7 @@ async def create_research_run(
         input={
             "capability": "research.autonomous",
             "query": body.query,
+            "requester_subject": principal.subject,
             "max_tool_calls": body.max_tool_calls,
             "allowed_tool_keys": body.allowed_tool_keys,
             "model_alias": body.model_alias,
