@@ -4,9 +4,11 @@ from decimal import Decimal
 
 from pydantic_ai import UnexpectedModelBehavior
 
+from kairo_worker.model_gateway import MODEL_CHECKPOINT_KIND, MODEL_CHECKPOINT_VERSION, ModelCheckpointLedger
 from kairo_worker.research_agent import (
     build_research_evidence,
     plan_research,
+    research_progress_snapshot,
     split_research_model_budget,
     synthesize_research,
 )
@@ -180,9 +182,50 @@ async def main() -> None:
     assert synthesis_budget == Decimal("0.005"), synthesis_budget
     assert planner_budget + synthesis_budget == Decimal("0.01")
 
+    # Research phase heartbeats must not overwrite the replay-critical model checkpoint bundle.
+    planner_key = "00000000-0000-0000-0000-000000000099"
+    ledger = ModelCheckpointLedger()
+    ledger.record(
+        {
+            "kind": MODEL_CHECKPOINT_KIND,
+            "version": MODEL_CHECKPOINT_VERSION,
+            "stage": "accounted",
+            "idempotency_key": planner_key,
+            "result": {
+                "content": "fixture research plan",
+                "usage": {
+                    "provider_model": "fixture/local-fast",
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                    "cost_usd": "0",
+                    "cost_reported": True,
+                    "litellm_call_id": planner_key,
+                },
+            },
+        }
+    )
+    heartbeat = research_progress_snapshot(
+        ledger,
+        phase="tool-wait",
+        planned_tool_calls=2,
+        active_slot=1,
+        completed_tool_slots=[0, 0],
+    )
+    assert heartbeat["research_progress"] == {
+        "phase": "tool-wait",
+        "completed_tool_slots": [0],
+        "planned_tool_calls": 2,
+        "active_slot": 1,
+    }, heartbeat
+    restored = ModelCheckpointLedger.from_heartbeat_details([heartbeat])
+    restored_planner = restored.checkpoint_for(planner_key)
+    assert restored_planner is not None and restored_planner["stage"] == "accounted", restored_planner
+    assert restored_planner["result"]["content"] == "fixture research plan", restored_planner
+
     print(
-        "PASS: research planning stays read-only and grounded synthesis requires evidence-bound claims "
-        "within the original model budget"
+        "PASS: research planning and synthesis stay evidence-bound, budgets remain bounded and "
+        "progress heartbeats preserve replay-critical model checkpoints"
     )
 
 
