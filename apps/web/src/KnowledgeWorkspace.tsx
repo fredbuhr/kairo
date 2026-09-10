@@ -48,6 +48,7 @@ type AssetUpload = {
 
 type DocumentImportRun = {
   document: CanonicalDocument
+  version: DocumentVersion
 }
 
 type Props = {
@@ -110,10 +111,12 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
   const [loadingVersions, setLoadingVersions] = useState(false)
   const [loadingChunks, setLoadingChunks] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [reingesting, setReingesting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [versionError, setVersionError] = useState<string | null>(null)
   const [chunkError, setChunkError] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [reingestError, setReingestError] = useState<string | null>(null)
   const [trackingError, setTrackingError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -193,6 +196,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
     setChunkOffset(0)
     setChunkError(null)
     setVersionError(null)
+    setReingestError(null)
     if (!documentId) {
       setLoadingVersions(false)
       return () => {
@@ -355,6 +359,45 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
     }
   }
 
+  async function reingestSelectedDocument() {
+    if (!selectedDocument || reingesting || trackingDocumentId) return
+
+    setReingesting(true)
+    setReingestError(null)
+    setTrackingError(null)
+    setChunks([])
+    setChunksLoaded(false)
+    setChunkOffset(0)
+    setChunkError(null)
+
+    try {
+      const response = await kairoFetch(
+        `${apiUrl}/v1/documents/${selectedDocument.id}/reingest`,
+        { method: 'POST' },
+      )
+      const run = await readJson<DocumentImportRun>(response)
+
+      setDocuments((current) => [
+        run.document,
+        ...current.filter((document) => document.id !== run.document.id),
+      ])
+      setVersions((current) => [
+        run.version,
+        ...current.filter((version) => version.id !== run.version.id),
+      ])
+      setSelectedVersionId(run.version.id)
+      setTrackingDocumentId(run.document.id)
+    } catch (reingestFailure) {
+      setReingestError(
+        reingestFailure instanceof Error
+          ? reingestFailure.message
+          : 'Impossible de relancer l’ingestion du Document.',
+      )
+    } finally {
+      setReingesting(false)
+    }
+  }
+
   async function loadChunkPage(offset: number) {
     if (!selectedVersion || loadingChunks) return
 
@@ -494,7 +537,21 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
                     ))}
                   </select>
                 </label>
+                <button
+                  type="button"
+                  onClick={() => void reingestSelectedDocument()}
+                  disabled={
+                    reingesting ||
+                    Boolean(trackingDocumentId) ||
+                    !selectedDocument ||
+                    ['pending', 'processing'].includes(selectedDocument.status)
+                  }
+                >
+                  {reingesting ? 'Reingest…' : 'Reingérer le Document'}
+                </button>
               </div>
+
+              {reingestError && <div className="error-panel">{reingestError}</div>}
 
               {selectedDocument && (
                 <article className="briefing" aria-label="Détail du Document sélectionné">
