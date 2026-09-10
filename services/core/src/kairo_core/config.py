@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     seaweed_filer_endpoint: str = "http://seaweedfs:8888"
 
     litellm_url: str = "http://litellm:4000"
+    kairo_web_mcp_url: str = "http://kairo-web-mcp:8765/mcp"
 
     openbao_addr: str = "http://openbao:8200"
     openbao_token: str = "development-only-change-me"
