@@ -262,11 +262,18 @@ async def list_projects(
 
 
 @app.post("/v1/tasks", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
-async def create_task(body: TaskCreate, session: AsyncSession = Depends(get_session)) -> Task:
-    if not await session.get(Project, body.project_id):
+async def create_task(
+    body: TaskCreate,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> Task:
+    if not await get_owned_project(session, body.project_id, principal):
         raise HTTPException(status_code=404, detail="Project not found")
     correlation_id = uuid.uuid4()
-    task = Task(**body.model_dump())
+    task_payload = body.model_dump()
+    if task_payload.get("owner_type") == "user":
+        task_payload["owner_ref"] = principal.subject
+    task = Task(**task_payload)
     session.add(task)
     await session.flush()
     await enqueue_domain_event(
@@ -280,7 +287,7 @@ async def create_task(body: TaskCreate, session: AsyncSession = Depends(get_sess
     await append_audit(
         session,
         actor_type="user",
-        actor_id=None,
+        actor_id=principal.subject,
         action="task.create",
         resource_type="task",
         resource_id=str(task.id),
@@ -294,15 +301,27 @@ async def create_task(body: TaskCreate, session: AsyncSession = Depends(get_sess
 
 
 @app.get("/v1/tasks", response_model=list[TaskRead])
-async def list_tasks(session: AsyncSession = Depends(get_session)) -> list[Task]:
-    rows = await session.execute(select(Task).order_by(Task.created_at.desc()))
+async def list_tasks(
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[Task]:
+    rows = await session.execute(
+        select(Task)
+        .join(Project, Project.id == Task.project_id)
+        .where(owned_project_clause(principal))
+        .order_by(Task.created_at.desc())
+    )
     return list(rows.scalars())
 
 
 @app.get("/v1/tasks/{task_id}", response_model=TaskRead)
-async def get_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_session)) -> Task:
+async def get_task(
+    task_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> Task:
     task = await session.get(Task, task_id)
-    if not task:
+    if not task or not await get_owned_project(session, task.project_id, principal):
         raise HTTPException(status_code=404, detail="Task not found")
     return task
 
