@@ -12,6 +12,7 @@ from . import __version__
 from .approval_signals import router as approval_signals_router
 from .assistant import router as assistant_router
 from .assets import router as assets_router
+from .auth import Principal, require_kairo_user
 from .autonomy import router as autonomy_router
 from .components import load_component_registry
 from .config import settings
@@ -23,6 +24,7 @@ from .models import OutboxEvent, Project, RelationshipRecord, Task
 from .news import router as news_router
 from .openbao import openbao_client
 from .outbox import OutboxRelay
+from .project_access import get_owned_project, owned_project_clause
 from .research import router as research_router
 from .research_results import router as research_results_router
 from .resources import router as resources_router
@@ -212,12 +214,14 @@ async def outbox_stats(
 
 @app.post("/v1/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 async def create_project(
-    body: ProjectCreate, session: AsyncSession = Depends(get_session)
+    body: ProjectCreate,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> Project:
     correlation_id = uuid.uuid4()
-    if body.parent_id and not await session.get(Project, body.parent_id):
+    if body.parent_id and not await get_owned_project(session, body.parent_id, principal):
         raise HTTPException(status_code=404, detail="Parent project not found")
-    project = Project(**body.model_dump())
+    project = Project(**body.model_dump(), owner_subject=principal.subject)
     session.add(project)
     await session.flush()
     await enqueue_domain_event(
@@ -231,7 +235,7 @@ async def create_project(
     await append_audit(
         session,
         actor_type="user",
-        actor_id=None,
+        actor_id=principal.subject,
         action="project.create",
         resource_type="project",
         resource_id=str(project.id),
@@ -245,8 +249,15 @@ async def create_project(
 
 
 @app.get("/v1/projects", response_model=list[ProjectRead])
-async def list_projects(session: AsyncSession = Depends(get_session)) -> list[Project]:
-    rows = await session.execute(select(Project).order_by(Project.created_at.desc()))
+async def list_projects(
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[Project]:
+    rows = await session.execute(
+        select(Project)
+        .where(owned_project_clause(principal))
+        .order_by(Project.created_at.desc())
+    )
     return list(rows.scalars())
 
 
