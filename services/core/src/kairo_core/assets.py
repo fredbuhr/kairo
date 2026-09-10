@@ -15,7 +15,8 @@ from .auth import Principal, require_kairo_user
 from .config import settings
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
-from .models import Asset, Project
+from .models import Asset
+from .project_access import get_owned_project
 from .schemas import AssetRead
 
 router = APIRouter()
@@ -51,7 +52,8 @@ async def upload_asset(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> Asset:
-    if project_id is not None and not await session.get(Project, project_id):
+    if project_id is not None and not await get_owned_project(session, project_id, principal):
+        # Missing and foreign Projects deliberately share the same surface.
         raise HTTPException(status_code=404, detail="Project not found")
 
     content = await file.read(settings.asset_max_bytes + 1)
