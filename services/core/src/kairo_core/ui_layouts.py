@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,17 +57,27 @@ def _read(row: WorkspaceLayout) -> WorkspaceLayoutRead:
     )
 
 
+async def _owned_layout(
+    session: AsyncSession, *, subject_ref: str, workspace_key: str
+) -> WorkspaceLayout | None:
+    return await session.scalar(
+        select(WorkspaceLayout).where(
+            WorkspaceLayout.subject_ref == subject_ref,
+            WorkspaceLayout.workspace_key == workspace_key,
+        )
+    )
+
+
 @router.get("/v1/ui/workspaces/{workspace_key}/layout", response_model=WorkspaceLayoutRead)
 async def get_workspace_layout(
     workspace_key: str = Path(pattern=WORKSPACE_KEY_PATTERN),
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> WorkspaceLayoutRead:
-    row = await session.scalar(
-        select(WorkspaceLayout).where(
-            WorkspaceLayout.subject_ref == principal.subject,
-            WorkspaceLayout.workspace_key == workspace_key,
-        )
+    row = await _owned_layout(
+        session,
+        subject_ref=principal.subject,
+        workspace_key=workspace_key,
     )
     if row is None:
         raise HTTPException(status_code=404, detail="Workspace layout not found")
@@ -96,10 +106,18 @@ async def put_workspace_layout(
             set_={
                 "schema_version": body.schema_version,
                 "layout_json": body.layout,
+                "updated_at": func.now(),
             },
         )
-        .returning(WorkspaceLayout)
     )
-    row = (await session.execute(statement)).scalar_one()
+    await session.execute(statement)
     await session.commit()
+
+    row = await _owned_layout(
+        session,
+        subject_ref=principal.subject,
+        workspace_key=workspace_key,
+    )
+    if row is None:
+        raise RuntimeError("Workspace layout upsert did not produce a readable row")
     return _read(row)
