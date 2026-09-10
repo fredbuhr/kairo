@@ -47,3 +47,65 @@ jobs:
       - name: Tear down research stack
         if: always()
         run: docker compose down -v --remove-orphans
+
+  research-crash-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare deterministic crash environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_AUTH_ENABLED=false' >> .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+
+      - name: Start Core, Temporal and Worker
+        run: |
+          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+
+      - name: Start deterministic model and search fixtures
+        run: |
+          docker run -d --name kairo-fake-research-litellm \
+            --network kairo_kairo \
+            --network-alias litellm \
+            -p 127.0.0.1:14000:4000 \
+            -v "$PWD/scripts/smoke/fake_research_litellm.py:/app/server.py:ro" \
+            python:3.12-alpine python /app/server.py
+          docker run -d --name kairo-fake-research-searxng \
+            --network kairo_kairo \
+            --network-alias searxng \
+            -p 127.0.0.1:18082:8080 \
+            -v "$PWD/scripts/smoke/fake_research_searxng.py:/app/server.py:ro" \
+            python:3.12-alpine python /app/server.py
+
+      - name: Start and explicitly register first-party Web MCP
+        run: |
+          docker compose -f compose.yaml -f compose.web-mcp.yaml up -d --no-deps kairo-web-mcp
+          for i in $(seq 1 30); do
+            if docker compose -f compose.yaml -f compose.web-mcp.yaml run --rm --no-deps kairo-worker \
+              python -m kairo_worker.web_mcp_bootstrap; then
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Hard-stop Worker mid-research and prove canonical recovery
+        run: python scripts/smoke/research_crash_recovery.py
+
+      - name: Dump Research crash state on failure
+        if: failure()
+        run: |
+          docker compose -f compose.yaml -f compose.web-mcp.yaml ps -a
+          docker logs kairo-fake-research-litellm || true
+          docker logs kairo-fake-research-searxng || true
+          docker compose -f compose.yaml -f compose.web-mcp.yaml logs --no-color --tail=700 postgres nats temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker kairo-web-mcp
+
+      - name: Tear down Research crash stack
+        if: always()
+        run: |
+          docker rm -f kairo-fake-research-litellm kairo-fake-research-searxng || true
+          docker compose -f compose.yaml -f compose.web-mcp.yaml down -v --remove-orphans
