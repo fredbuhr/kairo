@@ -105,6 +105,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
   const [chunksLoaded, setChunksLoaded] = useState(false)
   const [chunkOffset, setChunkOffset] = useState(0)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [trackingDocumentId, setTrackingDocumentId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingVersions, setLoadingVersions] = useState(false)
   const [loadingChunks, setLoadingChunks] = useState(false)
@@ -113,6 +114,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
   const [versionError, setVersionError] = useState<string | null>(null)
   const [chunkError, setChunkError] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [trackingError, setTrackingError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -237,6 +239,73 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
     setChunkError(null)
   }, [selectedVersionId])
 
+  useEffect(() => {
+    if (!trackingDocumentId) {
+      setTrackingError(null)
+      return
+    }
+
+    let cancelled = false
+    let timer: number | undefined
+
+    const pollIngestion = async () => {
+      try {
+        const documentResponse = await kairoFetch(`${apiUrl}/v1/documents/${trackingDocumentId}`)
+        const document = await readJson<CanonicalDocument>(documentResponse)
+        if (cancelled) return
+
+        setDocuments((current) => [
+          document,
+          ...current.filter((item) => item.id !== document.id),
+        ])
+        setTrackingError(null)
+
+        if (selectedDocumentId === document.id) {
+          try {
+            const versionsResponse = await kairoFetch(
+              `${apiUrl}/v1/documents/${document.id}/versions`,
+            )
+            const loadedVersions = await readJson<DocumentVersion[]>(versionsResponse)
+            if (!cancelled) {
+              setVersions(loadedVersions)
+              setVersionError(null)
+            }
+          } catch (versionsLoadError) {
+            if (!cancelled) {
+              setVersionError(
+                versionsLoadError instanceof Error
+                  ? versionsLoadError.message
+                  : 'Impossible d’actualiser les versions du Document.',
+              )
+            }
+          }
+        }
+
+        if (document.status === 'ready' || document.status === 'failed') {
+          setTrackingDocumentId(null)
+          return
+        }
+
+        timer = window.setTimeout(pollIngestion, 1200)
+      } catch (pollError) {
+        if (!cancelled) {
+          setTrackingError(
+            pollError instanceof Error
+              ? pollError.message
+              : 'Impossible de suivre l’ingestion du Document.',
+          )
+          timer = window.setTimeout(pollIngestion, 2000)
+        }
+      }
+    }
+
+    void pollIngestion()
+    return () => {
+      cancelled = true
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [apiUrl, selectedDocumentId, trackingDocumentId])
+
   async function importDocument(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!selectedProjectId || !selectedFile || importing) return
@@ -244,6 +313,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
     const formElement = event.currentTarget
     setImporting(true)
     setImportError(null)
+    setTrackingError(null)
 
     try {
       const formData = new FormData()
@@ -271,6 +341,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
         ...current.filter((document) => document.id !== run.document.id),
       ])
       setSelectedDocumentId(run.document.id)
+      setTrackingDocumentId(run.document.id)
       setSelectedFile(null)
       formElement.reset()
     } catch (importFailure) {
@@ -360,6 +431,13 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
           </form>
 
           {importError && <div className="error-panel">{importError}</div>}
+          {trackingError && <div className="error-panel">Suivi ingestion · {trackingError}</div>}
+          {trackingDocumentId && !trackingError && (
+            <div className="progress-panel">
+              <strong>Ingestion canonique en cours.</strong>
+              <span>Knowledge actualise automatiquement le Document et ses versions.</span>
+            </div>
+          )}
 
           <section className="sources" aria-label="Documents du projet sélectionné">
             <div className="sources-title">
