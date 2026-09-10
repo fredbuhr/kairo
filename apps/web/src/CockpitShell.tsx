@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -20,9 +21,19 @@ export type CockpitSlots = {
   research: ReactNode
 }
 
+export type CockpitExtraPanel = {
+  key: string
+  id: string
+  title: string
+  content: ReactNode
+  minimumWidth?: number
+  minimumHeight?: number
+}
+
 type CockpitShellProps = {
   apiUrl?: string
   slots: CockpitSlots
+  extraPanels?: CockpitExtraPanel[]
   workspaceKey?: string
 }
 
@@ -33,8 +44,11 @@ type WorkspaceLayoutEnvelope = {
 
 type CockpitApi = DockviewReadyEvent['api']
 type CockpitPanelKey = 'command' | 'news' | 'research'
+type CockpitContent = CockpitSlots & {
+  extras: Record<string, ReactNode>
+}
 
-const CockpitContentContext = createContext<CockpitSlots | null>(null)
+const CockpitContentContext = createContext<CockpitContent | null>(null)
 const dockPanelStyle = { height: '100%', overflow: 'auto' } as const
 const LAYOUT_SCHEMA_VERSION = 1
 const DEFAULT_WORKSPACE_KEY = 'cockpit.main'
@@ -65,6 +79,37 @@ const PANEL_DEFINITIONS = {
   },
 } as const
 
+const RESERVED_PANEL_IDS = new Set(Object.values(PANEL_DEFINITIONS).map((item) => item.id))
+const RESERVED_PANEL_KEYS = new Set(['command', 'news', 'research', 'extra'])
+
+function normalizeExtraPanels(extraPanels: CockpitExtraPanel[]): CockpitExtraPanel[] {
+  const keys = new Set<string>()
+  const ids = new Set<string>()
+
+  return extraPanels.filter((panel) => {
+    const key = panel.key.trim()
+    const id = panel.id.trim()
+    const title = panel.title.trim()
+    const invalid =
+      !key ||
+      !id ||
+      !title ||
+      RESERVED_PANEL_KEYS.has(key) ||
+      RESERVED_PANEL_IDS.has(id) ||
+      keys.has(key) ||
+      ids.has(id)
+
+    if (invalid) {
+      console.warn('KAIRO Cockpit ignored invalid or duplicate extra panel', panel)
+      return false
+    }
+
+    keys.add(key)
+    ids.add(id)
+    return true
+  })
+}
+
 function useCockpitContent() {
   const value = useContext(CockpitContentContext)
   if (!value) throw new Error('Cockpit panels must render inside CockpitShell')
@@ -83,10 +128,29 @@ function ResearchPanel(_props: IDockviewPanelProps) {
   return <div style={dockPanelStyle}>{useCockpitContent().research}</div>
 }
 
+function ExtraPanel(props: IDockviewPanelProps) {
+  const { extras } = useCockpitContent()
+  const rawParams = props.params as { panelKey?: unknown } | undefined
+  const panelKey = typeof rawParams?.panelKey === 'string' ? rawParams.panelKey : ''
+  const content = panelKey ? extras[panelKey] : undefined
+
+  return (
+    <div style={dockPanelStyle}>
+      {content ?? (
+        <div className="progress-panel">
+          <strong>Panneau KAIRO indisponible.</strong>
+          <span>Ce layout référence un module qui n’est pas enregistré dans cette version.</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const components = {
   command: CommandPanel,
   news: NewsPanel,
   research: ResearchPanel,
+  extra: ExtraPanel,
 }
 
 function createDefaultLayout(api: CockpitApi) {
@@ -105,6 +169,18 @@ function openPanel(api: CockpitApi, key: CockpitPanelKey) {
   const definition = PANEL_DEFINITIONS[key]
   if (api.getPanel(definition.id)) return
   api.addPanel(definition)
+}
+
+function openExtraPanel(api: CockpitApi, panel: CockpitExtraPanel) {
+  if (api.getPanel(panel.id)) return
+  api.addPanel({
+    id: panel.id,
+    component: 'extra',
+    title: panel.title,
+    minimumWidth: panel.minimumWidth ?? 320,
+    minimumHeight: panel.minimumHeight ?? 260,
+    params: { panelKey: panel.key },
+  })
 }
 
 async function loadWorkspaceLayout(apiUrl: string, workspaceKey: string) {
@@ -140,12 +216,22 @@ async function saveWorkspaceLayout(apiUrl: string, workspaceKey: string, layout:
 export default function CockpitShell({
   apiUrl = DEFAULT_API_URL,
   slots,
+  extraPanels = [],
   workspaceKey = DEFAULT_WORKSPACE_KEY,
 }: CockpitShellProps) {
   const disposedRef = useRef(false)
   const cleanupRef = useRef<(() => void) | null>(null)
   const apiRef = useRef<CockpitApi | null>(null)
   const [ready, setReady] = useState(false)
+
+  const normalizedExtras = useMemo(() => normalizeExtraPanels(extraPanels), [extraPanels])
+  const cockpitContent = useMemo<CockpitContent>(
+    () => ({
+      ...slots,
+      extras: Object.fromEntries(normalizedExtras.map((panel) => [panel.key, panel.content])),
+    }),
+    [slots, normalizedExtras],
+  )
 
   useEffect(() => {
     disposedRef.current = false
@@ -206,6 +292,11 @@ export default function CockpitShell({
     if (api) openPanel(api, key)
   }
 
+  const reopenExtra = (panel: CockpitExtraPanel) => {
+    const api = apiRef.current
+    if (api) openExtraPanel(api, panel)
+  }
+
   const resetLayout = () => {
     const api = apiRef.current
     if (!api) return
@@ -214,7 +305,7 @@ export default function CockpitShell({
   }
 
   return (
-    <CockpitContentContext.Provider value={slots}>
+    <CockpitContentContext.Provider value={cockpitContent}>
       <section
         className="cockpit-shell"
         aria-label="KAIRO Cockpit"
@@ -240,6 +331,11 @@ export default function CockpitShell({
           <button type="button" disabled={!ready} onClick={() => reopen('research')}>
             Research
           </button>
+          {normalizedExtras.map((panel) => (
+            <button key={panel.key} type="button" disabled={!ready} onClick={() => reopenExtra(panel)}>
+              {panel.title}
+            </button>
+          ))}
           <button type="button" disabled={!ready} onClick={resetLayout}>
             Réinitialiser la disposition
           </button>
