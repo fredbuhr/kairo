@@ -16,9 +16,9 @@ from temporalio.exceptions import ApplicationError
 
 from .config import settings
 from .model_gateway import (
+    ModelCheckpointLedger,
     chat_completion,
     deterministic_model_call_key,
-    read_activity_model_checkpoint,
 )
 from .semantic_router import render_provider_messages
 
@@ -115,6 +115,7 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
     task_id = str(payload["task_id"])
     execution_id = str(payload.get("workflow_execution_id") or "") or None
     correlation_id = str(payload.get("correlation_id") or "") or None
+    model_checkpoints = ModelCheckpointLedger.from_activity()
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         context = await _get_json(client, f"/internal/v1/research/tasks/{task_id}/context")
@@ -129,7 +130,6 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
             workflow_execution_id=execution_id,
             call_slot="research-plan-v1",
         )
-        resume_checkpoint = read_activity_model_checkpoint()
 
         async def accounted_completion(messages: list[dict[str, Any]]) -> str:
             result = await chat_completion(
@@ -139,7 +139,7 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
                 model_alias=model_alias,
                 messages=messages,
                 idempotency_key=call_key,
-                resume_checkpoint=resume_checkpoint,
+                checkpoint_ledger=model_checkpoints,
                 temperature=0.0,
                 estimated_cost_usd=estimated_cost,
                 timeout_seconds=45.0,
