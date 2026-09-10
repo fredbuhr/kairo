@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import Principal, require_kairo_user
 from .capabilities import (
     get_capability,
     is_routable_capability,
@@ -202,19 +203,36 @@ def route_command(body: AssistantCommandCreate) -> CommandRoute | None:
     )
 
 
+async def _owned_conversation(
+    conversation_id: uuid.UUID,
+    principal: Principal,
+    session: AsyncSession,
+) -> Conversation:
+    conversation = await session.get(Conversation, conversation_id)
+    if conversation is None or conversation.subject_ref != principal.subject:
+        # Deliberately return the same not-found response for missing and foreign conversations.
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conversation
+
+
 async def _conversation_for_command(
-    body: AssistantCommandCreate, session: AsyncSession
+    body: AssistantCommandCreate,
+    principal: Principal,
+    session: AsyncSession,
 ) -> Conversation:
     if body.conversation_id is not None:
-        conversation = await session.get(Conversation, body.conversation_id)
-        if conversation is None:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+        conversation = await _owned_conversation(body.conversation_id, principal, session)
         if conversation.status != "active":
             raise HTTPException(status_code=409, detail="Conversation is not active")
         return conversation
 
     title = re.sub(r"\s+", " ", body.text).strip()[:120]
-    conversation = Conversation(locale=body.locale, title=title or None, status="active")
+    conversation = Conversation(
+        subject_ref=principal.subject,
+        locale=body.locale,
+        title=title or None,
+        status="active",
+    )
     session.add(conversation)
     await session.flush()
     return conversation
@@ -501,10 +519,11 @@ async def capability_contracts() -> list[CapabilityContractRead]:
 )
 async def assistant_command(
     body: AssistantCommandCreate,
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> AssistantCommandResponse:
     await synchronize_capabilities(session)
-    conversation = await _conversation_for_command(body, session)
+    conversation = await _conversation_for_command(body, principal, session)
     correlation_id = uuid.uuid4()
 
     message = ConversationMessage(
@@ -614,12 +633,11 @@ async def apply_semantic_route(
 
 @router.get("/v1/conversations/{conversation_id}", response_model=ConversationRead)
 async def get_conversation(
-    conversation_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+    conversation_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> Conversation:
-    conversation = await session.get(Conversation, conversation_id)
-    if conversation is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    return conversation
+    return await _owned_conversation(conversation_id, principal, session)
 
 
 @router.get(
@@ -627,10 +645,11 @@ async def get_conversation(
     response_model=list[ConversationMessageRead],
 )
 async def get_conversation_messages(
-    conversation_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+    conversation_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> list[ConversationMessage]:
-    if await session.get(Conversation, conversation_id) is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+    await _owned_conversation(conversation_id, principal, session)
     result = await session.execute(
         select(ConversationMessage)
         .where(ConversationMessage.conversation_id == conversation_id)
@@ -641,9 +660,12 @@ async def get_conversation_messages(
 
 @router.get("/v1/commands/{command_id}", response_model=CommandRead)
 async def get_command(
-    command_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+    command_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> CommandRecord:
     command = await session.get(CommandRecord, command_id)
     if command is None:
         raise HTTPException(status_code=404, detail="Command not found")
+    await _owned_conversation(command.conversation_id, principal, session)
     return command
