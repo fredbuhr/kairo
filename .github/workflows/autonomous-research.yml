@@ -18,6 +18,8 @@ jobs:
         run: uv run --project services/core python -c "from kairo_core.main import app; assert app.title == 'KAIRO Core'"
       - name: Prove bounded PydanticAI research planner and grounded synthesis
         run: uv run --project services/worker python scripts/smoke/research_agent_contract.py
+      - name: Prove bounded multi-source Research Context Pack
+        run: uv run --project services/worker python scripts/smoke/research_context_pack_contract.py
       - name: Prove canonical document-context query contract
         run: uv run --project services/core python scripts/smoke/research_document_context_contract.py
       - name: Prove authoritative derived-memory scope contract
