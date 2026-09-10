@@ -1,0 +1,18 @@
+name: Web MCP validation
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: web-mcp-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-mcp-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Prove read-only Web MCP contract
+        run: uv run --project services/worker python scripts/smoke/web_mcp_contract.py
