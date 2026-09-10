@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -63,6 +64,12 @@ class Task(Base):
     authority_ceiling: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
     input: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    # Block 3 planning metadata lives on canonical Task rather than in opaque JSON so Today,
+    # Calendar and Gantt can all consume the same source of truth.
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=2, server_default="2")
+    planned_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    planned_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
@@ -72,7 +79,17 @@ class Task(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
-    __table_args__ = (Index("ix_tasks_project_status", "project_id", "status"),)
+    __table_args__ = (
+        Index("ix_tasks_project_status", "project_id", "status"),
+        Index("ix_tasks_due_status", "due_at", "status"),
+        Index("ix_tasks_planned_window", "planned_start_at", "planned_end_at"),
+        CheckConstraint("priority >= 0 AND priority <= 4", name="ck_tasks_priority_range"),
+        CheckConstraint(
+            "planned_end_at IS NULL OR "
+            "(planned_start_at IS NOT NULL AND planned_end_at >= planned_start_at)",
+            name="ck_tasks_planned_window",
+        ),
+    )
 
 
 class RelationshipRecord(Base):
