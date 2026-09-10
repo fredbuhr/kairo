@@ -32,9 +32,22 @@ type DocumentVersion = {
   completed_at?: string | null
 }
 
+type DocumentChunk = {
+  id: string
+  document_version_id: string
+  ordinal: number
+  text: string
+  content_sha256: string
+  metadata_json: Record<string, unknown>
+  created_at: string
+}
+
 type Props = {
   apiUrl: string
 }
+
+const MAX_CHUNK_PREVIEW_ITEMS = 20
+const MAX_CHUNK_PREVIEW_CHARS = 1200
 
 async function readJson<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => null)
@@ -68,15 +81,26 @@ function formatDate(value?: string | null) {
   }).format(date)
 }
 
+function chunkExcerpt(text: string) {
+  const value = text.trim()
+  if (value.length <= MAX_CHUNK_PREVIEW_CHARS) return value
+  return `${value.slice(0, MAX_CHUNK_PREVIEW_CHARS - 1)}…`
+}
+
 export default function KnowledgeWorkspace({ apiUrl }: Props) {
   const { selectedProjectId } = useProjectSelection()
   const [documents, setDocuments] = useState<CanonicalDocument[]>([])
   const [selectedDocumentId, setSelectedDocumentId] = useState('')
   const [versions, setVersions] = useState<DocumentVersion[]>([])
+  const [selectedVersionId, setSelectedVersionId] = useState('')
+  const [chunks, setChunks] = useState<DocumentChunk[]>([])
+  const [chunksLoaded, setChunksLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingVersions, setLoadingVersions] = useState(false)
+  const [loadingChunks, setLoadingChunks] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [versionError, setVersionError] = useState<string | null>(null)
+  const [chunkError, setChunkError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -120,6 +144,16 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
     [projectDocuments, selectedDocumentId],
   )
 
+  const selectedVersion = useMemo(
+    () => versions.find((version) => version.id === selectedVersionId) || null,
+    [versions, selectedVersionId],
+  )
+
+  const chunkPreview = useMemo(
+    () => chunks.slice(0, MAX_CHUNK_PREVIEW_ITEMS),
+    [chunks],
+  )
+
   useEffect(() => {
     setSelectedDocumentId((current) => {
       if (current && projectDocuments.some((document) => document.id === current)) return current
@@ -132,6 +166,10 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
     const documentId = selectedDocument?.id
 
     setVersions([])
+    setSelectedVersionId('')
+    setChunks([])
+    setChunksLoaded(false)
+    setChunkError(null)
     setVersionError(null)
     if (!documentId) {
       setLoadingVersions(false)
@@ -164,6 +202,42 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
       cancelled = true
     }
   }, [apiUrl, selectedDocument?.id])
+
+  useEffect(() => {
+    setSelectedVersionId((current) => {
+      if (current && versions.some((version) => version.id === current)) return current
+      return versions[0]?.id || ''
+    })
+  }, [versions])
+
+  useEffect(() => {
+    setChunks([])
+    setChunksLoaded(false)
+    setChunkError(null)
+  }, [selectedVersionId])
+
+  async function loadChunkPreview() {
+    if (!selectedVersion || loadingChunks) return
+
+    setLoadingChunks(true)
+    setChunkError(null)
+    setChunksLoaded(false)
+    try {
+      const response = await kairoFetch(
+        `${apiUrl}/v1/document-versions/${selectedVersion.id}/chunks`,
+      )
+      const loadedChunks = await readJson<DocumentChunk[]>(response)
+      setChunks(loadedChunks)
+      setChunksLoaded(true)
+    } catch (loadError) {
+      setChunks([])
+      setChunkError(
+        loadError instanceof Error ? loadError.message : 'Impossible de charger les chunks.',
+      )
+    } finally {
+      setLoadingChunks(false)
+    }
+  }
 
   return (
     <section className="news-workspace" aria-labelledby="knowledge-heading">
@@ -272,7 +346,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
               {loadingVersions && !versionError && (
                 <div className="progress-panel">
                   <strong>Chargement des versions canoniques.</strong>
-                  <span>Le contenu des chunks n’est pas chargé à cette étape.</span>
+                  <span>Le contenu des chunks n’est pas chargé automatiquement.</span>
                 </div>
               )}
 
@@ -321,6 +395,82 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
                     ))}
                   </div>
                 </section>
+              )}
+
+              {versions.length > 0 && (
+                <>
+                  <div className="news-controls">
+                    <label>
+                      <span>Version sélectionnée</span>
+                      <select
+                        value={selectedVersion?.id || ''}
+                        onChange={(event) => setSelectedVersionId(event.target.value)}
+                      >
+                        {versions.map((version) => (
+                          <option key={version.id} value={version.id}>
+                            v{version.generation} · {version.parser} · {statusLabel(version.status)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button type="button" onClick={loadChunkPreview} disabled={loadingChunks || !selectedVersion}>
+                      {loadingChunks ? 'Chargement…' : 'Charger l’aperçu des chunks'}
+                    </button>
+                  </div>
+
+                  {chunkError && <div className="error-panel">{chunkError}</div>}
+
+                  {selectedVersion && !chunksLoaded && !loadingChunks && !chunkError && (
+                    <div className="progress-panel">
+                      <strong>Chunks non chargés.</strong>
+                      <span>
+                        Sélectionnez la version puis chargez explicitement un aperçu read-only.
+                      </span>
+                    </div>
+                  )}
+
+                  {chunksLoaded && !chunkError && selectedVersion && (
+                    <section className="sources" aria-label="Aperçu des chunks de la version sélectionnée">
+                      <div className="sources-title">
+                        <strong>Aperçu des chunks · v{selectedVersion.generation}</strong>
+                        <span>
+                          {chunkPreview.length} affiché(s) sur {chunks.length}
+                          {chunks.length > MAX_CHUNK_PREVIEW_ITEMS
+                            ? ` · limite UI ${MAX_CHUNK_PREVIEW_ITEMS}`
+                            : ''}
+                        </span>
+                      </div>
+                      <div className="source-list">
+                        {chunkPreview.length === 0 && (
+                          <div className="source-card">
+                            <span className="source-id">0</span>
+                            <div>
+                              <strong>Aucun chunk disponible.</strong>
+                              <small>Cette version ne contient aucun contenu canonique inspectable.</small>
+                            </div>
+                          </div>
+                        )}
+
+                        {chunkPreview.map((chunk) => (
+                          <div className="source-card" key={chunk.id}>
+                            <span className="source-id">#{chunk.ordinal}</span>
+                            <div>
+                              <strong>Chunk canonique {chunk.ordinal}</strong>
+                              <small>{chunkExcerpt(chunk.text)}</small>
+                              <small>
+                                {formatDate(chunk.created_at)
+                                  ? `Créé le ${formatDate(chunk.created_at)}`
+                                  : 'Date de création indisponible'}
+                                {' · '}
+                                SHA-256 {chunk.content_sha256.slice(0, 16)}…
+                              </small>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                </>
               )}
             </>
           )}
