@@ -15,6 +15,8 @@ import {
 } from 'dockview-react'
 import 'dockview-react/dist/styles/dockview.css'
 
+import { kairoFetch } from './lib/apiClient'
+
 export type CockpitSlots = {
   command: ReactNode
   news: ReactNode
@@ -184,7 +186,7 @@ function openExtraPanel(api: CockpitApi, panel: CockpitExtraPanel) {
 }
 
 async function loadWorkspaceLayout(apiUrl: string, workspaceKey: string) {
-  const response = await fetch(
+  const response = await kairoFetch(
     `${apiUrl}/v1/ui/workspaces/${encodeURIComponent(workspaceKey)}/layout`,
   )
   if (response.status === 404) return null
@@ -202,7 +204,7 @@ async function loadWorkspaceLayout(apiUrl: string, workspaceKey: string) {
 }
 
 async function saveWorkspaceLayout(apiUrl: string, workspaceKey: string, layout: unknown) {
-  const response = await fetch(
+  const response = await kairoFetch(
     `${apiUrl}/v1/ui/workspaces/${encodeURIComponent(workspaceKey)}/layout`,
     {
       method: 'PUT',
