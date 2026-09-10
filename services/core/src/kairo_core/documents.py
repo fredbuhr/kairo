@@ -205,6 +205,50 @@ async def _repair_reingest_project(
     document.project_id = project.id
 
 
+async def _require_internal_source_binding(
+    version: DocumentVersion,
+    document: Document,
+    asset: Asset,
+    session: AsyncSession,
+) -> None:
+    document_subject = str((document.metadata_json or {}).get("owner_subject") or "").strip()
+    asset_subject = str((asset.metadata_json or {}).get("owner_subject") or "").strip()
+    if not document_subject or asset_subject != document_subject:
+        raise HTTPException(status_code=409, detail="Document source ownership binding is stale")
+
+    project = await session.get(Project, document.project_id)
+    if project is None:
+        raise HTTPException(status_code=410, detail="Document project metadata is missing")
+    if project.owner_subject != document_subject:
+        if settings.kairo_auth_enabled or project.owner_subject is not None:
+            raise HTTPException(status_code=409, detail="Document project ownership binding is stale")
+
+    if asset.project_id is not None and asset.project_id != document.project_id:
+        raise HTTPException(status_code=409, detail="Document source project binding is stale")
+
+    if version.task_id is None:
+        raise HTTPException(status_code=409, detail="Document version has no ingestion task binding")
+    task = await session.get(Task, version.task_id)
+    if task is None:
+        raise HTTPException(status_code=410, detail="Document ingestion task metadata is missing")
+
+    task_input = task.input or {}
+    expected_input = {
+        "capability": "document.ingest",
+        "document_id": str(document.id),
+        "document_version_id": str(version.id),
+        "asset_id": str(asset.id),
+    }
+    actual_input = {key: str(task_input.get(key) or "") for key in expected_input}
+    if (
+        task.project_id != document.project_id
+        or task.owner_type != "user"
+        or str(task.owner_ref or "") != document_subject
+        or actual_input != expected_input
+    ):
+        raise HTTPException(status_code=409, detail="Document version ingestion binding is stale")
+
+
 async def _start_version(
     document: Document,
     asset: Asset,
@@ -441,6 +485,8 @@ async def internal_document_source(
     asset = await session.get(Asset, document.asset_id) if document else None
     if document is None or asset is None:
         raise HTTPException(status_code=410, detail="Document source asset is unavailable")
+
+    await _require_internal_source_binding(version, document, asset, session)
     return {
         "document_id": str(document.id),
         "document_version_id": str(version.id),
