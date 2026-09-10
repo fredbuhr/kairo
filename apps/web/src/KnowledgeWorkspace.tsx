@@ -5,6 +5,7 @@ import {
   type DocumentVersion,
   useKnowledgeDocumentActions,
 } from './knowledgeDocumentActions'
+import { useKnowledgeDocumentDataLoading } from './knowledgeDocumentDataLoading'
 import { useKnowledgeIngestionTracking } from './knowledgeIngestionTracking'
 import { kairoFetch } from './lib/apiClient'
 import { useProjectSelection } from './lib/projectSelection'
@@ -107,35 +108,6 @@ export default function KnowledgeWorkspace({
   const [versionError, setVersionError] = useState<string | null>(null)
   const [chunkError, setChunkError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-
-    const loadDocuments = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const response = await kairoFetch(`${apiUrl}/v1/documents`)
-        const loadedDocuments = await readJson<CanonicalDocument[]>(response)
-        if (!cancelled) setDocuments(loadedDocuments)
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : 'Impossible de charger les documents canoniques.',
-          )
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    void loadDocuments()
-    return () => {
-      cancelled = true
-    }
-  }, [apiUrl])
-
   const projectDocuments = useMemo(
     () =>
       selectedProjectId
@@ -153,6 +125,18 @@ export default function KnowledgeWorkspace({
     () => versions.find((version) => version.id === selectedVersionId) || null,
     [versions, selectedVersionId],
   )
+
+  useKnowledgeDocumentDataLoading({
+    apiUrl,
+    documentId: selectedDocument?.id || null,
+    setDocuments,
+    setVersions,
+    setVersionsDocumentId,
+    setLoading,
+    setLoadingVersions,
+    setError,
+    setVersionError,
+  })
 
   const {
     trackingDocumentId,
@@ -239,52 +223,13 @@ export default function KnowledgeWorkspace({
   }, [loading, onSelectedDocumentIdChange, projectDocuments, selectedDocumentId])
 
   useEffect(() => {
-    let cancelled = false
-    const documentId = selectedDocument?.id
-
-    setVersions([])
-    setVersionsDocumentId(null)
     setSelectedVersionId('')
     setChunks([])
     setChunksLoaded(false)
     setChunkOffset(0)
     setFocusedChunkId(null)
     setChunkError(null)
-    setVersionError(null)
-    if (!documentId) {
-      setLoadingVersions(false)
-      return () => {
-        cancelled = true
-      }
-    }
-
-    const loadVersions = async () => {
-      setLoadingVersions(true)
-      try {
-        const response = await kairoFetch(`${apiUrl}/v1/documents/${documentId}/versions`)
-        const loadedVersions = await readJson<DocumentVersion[]>(response)
-        if (!cancelled) {
-          setVersions(loadedVersions)
-          setVersionsDocumentId(documentId)
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setVersionError(
-            loadError instanceof Error
-              ? loadError.message
-              : 'Impossible de charger les versions du Document.',
-          )
-        }
-      } finally {
-        if (!cancelled) setLoadingVersions(false)
-      }
-    }
-
-    void loadVersions()
-    return () => {
-      cancelled = true
-    }
-  }, [apiUrl, selectedDocument?.id])
+  }, [selectedDocument?.id])
 
   useEffect(() => {
     setSelectedVersionId((current) => {
