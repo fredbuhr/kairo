@@ -4,6 +4,7 @@ import asyncio
 from typing import Any
 
 import httpx
+from temporalio import activity
 
 from .config import settings
 from .research_memory_context import read_research_derived_memory_context
@@ -89,9 +90,6 @@ def _derived_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
 
-    # Mem0 and Graphiti currently both project the same canonical message. Keep only the highest
-    # ranked representation when both can be mapped back to that message, while preserving records
-    # that do not expose a canonical message id.
     candidates.sort(key=lambda item: (-float(item["rank"]), item["evidence_id"]))
     items: list[dict[str, Any]] = []
     seen_messages: set[str] = set()
@@ -204,3 +202,14 @@ async def load_research_context_pack(
         document_context=document_context,
         derived_context=derived_context,
     )
+
+
+@activity.defn(name="prepare_research_context_pack")
+async def prepare_research_context_pack(payload: dict[str, Any]) -> dict[str, Any]:
+    """Create one bounded context snapshot that Temporal records before Research model work begins."""
+
+    task_id = str(payload.get("task_id") or "").strip()
+    if not task_id:
+        raise ValueError("Research context preparation requires task_id")
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        return await load_research_context_pack(task_id=task_id, client=client)
