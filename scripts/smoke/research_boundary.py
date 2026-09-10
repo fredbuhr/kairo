@@ -114,6 +114,7 @@ def main() -> None:
             "input": {
                 "capability": "research.autonomous",
                 "query": "Find evidence about KAIRO",
+                "requester_subject": "development-user",
                 "max_tool_calls": 2,
                 "allowed_tool_keys": [],
                 "model_alias": "local-fast",
@@ -184,11 +185,15 @@ def main() -> None:
         "evidence": [
             {
                 "evidence_id": "E1",
+                "source_type": "tool",
+                "source": "researchsmoke.search",
+                "authority": "policy-bound-read-tool",
                 "slot": 0,
                 "tool_key": "researchsmoke.search",
                 "invocation_id": first["invocation_id"],
             }
         ],
+        "context_pack": {"item_count": 0, "character_count": 0, "sources": {}},
         "planner_model_alias": "local-fast",
         "synthesis_model_alias": "local-fast",
         "model_budget_usd": "0.01",
@@ -220,7 +225,9 @@ def main() -> None:
     assert completed["execution_status"] == "completed", completed
     assert completed["answer"] == synthetic_content["answer"], completed
     assert completed["synthesis"]["claims"][0]["evidence_ids"] == ["E1"], completed
+    assert completed["evidence"][0]["source_type"] == "tool", completed
     assert completed["evidence"][0]["invocation_id"] == first["invocation_id"], completed
+    assert completed["context_pack"]["item_count"] == 0, completed
     assert completed["tool_call_count"] == 1, completed
     assert len(completed["tool_invocations"]) == 1, completed
     invocation = completed["tool_invocations"][0]
@@ -238,7 +245,7 @@ def main() -> None:
     assert completed["correlation_id"], completed
 
     print(
-        "PASS: Core enforces read/A1 research tools, deterministic child slots and a stable typed "
+        "PASS: Core enforces read/A1 research tools, owner-scoped access and a stable multi-source "
         "research result contract"
     )
 
