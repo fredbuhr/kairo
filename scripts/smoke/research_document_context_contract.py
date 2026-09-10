@@ -16,19 +16,19 @@ def main() -> None:
         query="canonical provenance",
         limit=99,
     )
-    compiled = str(
-        statement.compile(
-            dialect=postgresql.dialect(),
-            compile_kwargs={"literal_binds": True},
-        )
-    )
-    lowered = compiled.lower()
-    assert "to_tsvector" in lowered, compiled
-    assert "plainto_tsquery" in lowered, compiled
-    assert "owner_subject" in lowered and "development-user" in compiled, compiled
-    assert "max(" in lowered and "document_versions" in lowered and "generation" in lowered, compiled
-    assert "completed" in lowered and "ready" in lowered, compiled
-    assert "limit 12" in lowered, compiled
+    compiled = statement.compile(dialect=postgresql.dialect())
+    rendered = str(compiled)
+    lowered = rendered.lower()
+    params = {str(value) for value in compiled.params.values()}
+
+    assert "to_tsvector" in lowered, rendered
+    assert "plainto_tsquery" in lowered, rendered
+    assert "owner_subject" in params, compiled.params
+    assert "development-user" in params, compiled.params
+    assert "canonical provenance" in params, compiled.params
+    assert "max(" in lowered and "document_versions" in lowered and "generation" in lowered, rendered
+    assert "completed" in params and "ready" in params, compiled.params
+    assert "12" in params, compiled.params
 
     long_text = (
         "prefix " * 500
