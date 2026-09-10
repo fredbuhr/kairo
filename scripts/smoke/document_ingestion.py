@@ -6,7 +6,6 @@ import urllib.request
 import uuid
 
 BASE = "http://127.0.0.1:8000"
-DOCUMENTS_PROJECT_ID = "a8da482d-fb63-52b5-a687-0f65d64b10ad"
 
 
 def request(method: str, path: str, payload: object | None = None, *, headers: dict[str, str] | None = None, body: bytes | None = None):
@@ -119,8 +118,8 @@ def main() -> None:
     assert [item["generation"] for item in versions[:2]] == [2, 1], versions
 
     # An uploaded asset is allowed to be unscoped, but document Tasks are not.
-    # Prove the canonical document explicitly falls back to KAIRO Documents and
-    # that the full Temporal ingestion still completes under that boundary.
+    # Prove the canonical document explicitly falls back to the owner-scoped
+    # KAIRO Documents workspace and that Temporal ingestion still completes.
     unscoped_asset = upload_text_asset("unscoped.txt", b"Unscoped assets still need a durable document workspace.")
     assert unscoped_asset["project_id"] is None, unscoped_asset
     unscoped_run = request(
@@ -129,7 +128,19 @@ def main() -> None:
         {"asset_id": unscoped_asset["id"], "title": "Unscoped proof"},
     )
     unscoped_document = unscoped_run["document"]
-    assert unscoped_document["project_id"] == DOCUMENTS_PROJECT_ID, unscoped_run
+    owner_subject = str((unscoped_document.get("metadata_json") or {}).get("owner_subject") or "").strip()
+    assert owner_subject, unscoped_run
+    expected_documents_project_id = str(
+        uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:project:documents:subject:{owner_subject}")
+    )
+    assert unscoped_document["project_id"] == expected_documents_project_id, unscoped_run
+    projects = request("GET", "/v1/projects")
+    documents_project = next(
+        (item for item in projects if item["id"] == expected_documents_project_id),
+        None,
+    )
+    assert documents_project is not None, projects
+    assert documents_project["name"] == "KAIRO Documents", documents_project
     unscoped_version = wait_version(unscoped_document["id"], 1)
     assert unscoped_version["status"] == "completed", unscoped_version
 
