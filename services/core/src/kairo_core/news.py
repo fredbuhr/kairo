@@ -117,6 +117,24 @@ async def _get_news_task(
     return task
 
 
+async def _get_news_artifact(task: Task, session: AsyncSession) -> Artifact | None:
+    """Return only an Artifact whose canonical task, project and execution bindings all agree."""
+
+    return await session.scalar(
+        select(Artifact)
+        .join(WorkflowExecution, WorkflowExecution.id == Artifact.workflow_execution_id)
+        .where(
+            Artifact.task_id == task.id,
+            Artifact.project_id == task.project_id,
+            Artifact.kind == "news-brief",
+            WorkflowExecution.task_id == task.id,
+            WorkflowExecution.workflow_id == f"kairo-task-{task.id}",
+        )
+        .order_by(Artifact.created_at.desc())
+        .limit(1)
+    )
+
+
 def _response_from_execution(
     task: Task, execution: WorkflowExecution, body: NewsBriefCreate
 ) -> NewsBriefRunResponse:
@@ -287,12 +305,7 @@ async def get_news_brief(
     session: AsyncSession = Depends(get_session),
 ) -> NewsBriefRead:
     task = await _get_news_task(task_id, session, requester_subject=principal.subject)
-    artifact = await session.scalar(
-        select(Artifact)
-        .where(Artifact.task_id == task.id, Artifact.kind == "news-brief")
-        .order_by(Artifact.created_at.desc())
-        .limit(1)
-    )
+    artifact = await _get_news_artifact(task, session)
     task_input = task.input or {}
     return NewsBriefRead(
         task_id=task.id,
@@ -314,12 +327,7 @@ async def news_brief_audio(
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     task = await _get_news_task(task_id, session, requester_subject=principal.subject)
-    artifact = await session.scalar(
-        select(Artifact)
-        .where(Artifact.task_id == task.id, Artifact.kind == "news-brief")
-        .order_by(Artifact.created_at.desc())
-        .limit(1)
-    )
+    artifact = await _get_news_artifact(task, session)
     if not artifact:
         raise HTTPException(status_code=409, detail="News brief is not completed yet")
 

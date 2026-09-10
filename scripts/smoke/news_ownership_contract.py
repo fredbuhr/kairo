@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Deterministic ownership contract proof for KAIRO News.
+"""Deterministic ownership and artifact-binding contract proof for KAIRO News.
 
 The contract exercises the Core boundary directly with lightweight fake sessions so ownership,
-authentication wiring and replay safety can be validated without Docker, Keycloak or a TTS service.
+authentication wiring, artifact integrity and replay safety can be validated without Docker,
+Keycloak or a TTS service.
 """
 
 from __future__ import annotations
@@ -10,12 +11,13 @@ from __future__ import annotations
 import asyncio
 import inspect
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import HTTPException
 
 from kairo_core import news as news_module
 from kairo_core.auth import Principal, require_kairo_user
-from kairo_core.models import Project, Task, WorkflowExecution
+from kairo_core.models import Artifact, Project, Task, WorkflowExecution
 from kairo_core.schemas import NewsBriefCreate, NewsBriefRunResponse
 
 
@@ -75,21 +77,69 @@ def news_task(
     )
 
 
-class OwnedTaskSession:
-    """Evaluate only the two SELECT shapes used by public News reads."""
+def workflow_execution(
+    task: Task,
+    *,
+    execution_id: uuid.UUID | None = None,
+    workflow_id: str | None = None,
+) -> WorkflowExecution:
+    return WorkflowExecution(
+        id=execution_id or uuid.uuid4(),
+        task_id=task.id,
+        workflow_id=workflow_id or f"kairo-task-{task.id}",
+        status="completed",
+        correlation_id=uuid.uuid4(),
+    )
 
-    def __init__(self, projects: list[Project], tasks: list[Task]) -> None:
+
+def news_artifact(
+    task: Task,
+    execution: WorkflowExecution,
+    *,
+    project_id: uuid.UUID | None = None,
+    task_id: uuid.UUID | None = None,
+    workflow_execution_id: uuid.UUID | None = None,
+) -> Artifact:
+    return Artifact(
+        id=uuid.uuid4(),
+        project_id=project_id or task.project_id,
+        task_id=task_id or task.id,
+        workflow_execution_id=workflow_execution_id or execution.id,
+        kind="news-brief",
+        title="Ownership contract News artifact",
+        content={
+            "summary": "Résumé de contrat.",
+            "spoken_summary": "Résumé oral de contrat.",
+        },
+        created_at=datetime.now(UTC),
+    )
+
+
+class OwnedTaskSession:
+    """Evaluate only the SELECT shapes used by public News reads."""
+
+    def __init__(
+        self,
+        projects: list[Project],
+        tasks: list[Task],
+        *,
+        executions: list[WorkflowExecution] | None = None,
+        artifacts: list[Artifact] | None = None,
+    ) -> None:
         self.projects = {project.id: project for project in projects}
         self.tasks = {task.id: task for task in tasks}
+        self.executions = {execution.id: execution for execution in executions or []}
+        self.artifacts = list(artifacts or [])
 
     async def scalar(self, statement):
         sql = " ".join(str(statement).lower().split())
+        params = {str(value) for value in statement.compile().params.values()}
+
         if "from tasks" in sql and "join projects" in sql:
             assert "projects.owner_subject" in sql, sql
             assert "tasks.owner_type" in sql, sql
             assert "tasks.owner_ref" in sql, sql
 
-            params = {str(value) for value in statement.compile().params.values()}
             task = next(
                 (candidate for task_id, candidate in self.tasks.items() if str(task_id) in params),
                 None,
@@ -118,6 +168,42 @@ class OwnedTaskSession:
             return None
 
         if "from artifacts" in sql:
+            assert "join workflow_executions" in sql, sql
+            assert "artifacts.task_id" in sql, sql
+            assert "artifacts.project_id" in sql, sql
+            assert "artifacts.workflow_execution_id" in sql, sql
+            assert "workflow_executions.task_id" in sql, sql
+            assert "workflow_executions.workflow_id" in sql, sql
+            assert "artifacts.kind" in sql, sql
+            assert "news-brief" in params, params
+
+            task = next(
+                (
+                    candidate
+                    for candidate in self.tasks.values()
+                    if str(candidate.id) in params and str(candidate.project_id) in params
+                ),
+                None,
+            )
+            assert task is not None, params
+            canonical_workflow_id = f"kairo-task-{task.id}"
+            assert canonical_workflow_id in params, params
+
+            for artifact in sorted(
+                self.artifacts,
+                key=lambda item: item.created_at or datetime.min.replace(tzinfo=UTC),
+                reverse=True,
+            ):
+                execution = self.executions.get(artifact.workflow_execution_id)
+                if (
+                    artifact.task_id == task.id
+                    and artifact.project_id == task.project_id
+                    and artifact.kind == "news-brief"
+                    and execution is not None
+                    and execution.task_id == task.id
+                    and execution.workflow_id == canonical_workflow_id
+                ):
+                    return artifact
             return None
 
         raise AssertionError(f"Unexpected scalar query: {sql}")
@@ -213,6 +299,78 @@ async def prove_public_read_boundaries(
         404,
         news_module.get_news_brief(foreign_project_task.id, principal=owner, session=session),
     )
+
+
+async def prove_artifact_binding(
+    body: NewsBriefCreate,
+    owner: Principal,
+    stranger: Principal,
+) -> None:
+    owner_project = news_project(owner.subject)
+    stranger_project = news_project(stranger.subject)
+    task = news_task(owner.subject, owner_project.id, body)
+    execution = workflow_execution(task)
+    valid = news_artifact(task, execution)
+    session = OwnedTaskSession(
+        [owner_project, stranger_project],
+        [task],
+        executions=[execution],
+        artifacts=[valid],
+    )
+
+    readable = await news_module.get_news_brief(task.id, principal=owner, session=session)
+    assert readable.artifact is not None, readable
+    assert readable.artifact.id == valid.id, readable
+    assert readable.audio_available is True, readable
+
+    wrong_project = news_artifact(task, execution, project_id=stranger_project.id)
+    session.artifacts = [wrong_project]
+    readable = await news_module.get_news_brief(task.id, principal=owner, session=session)
+    assert readable.artifact is None, readable
+    assert readable.audio_available is False, readable
+    await expect_http(409, news_module.news_brief_audio(task.id, principal=owner, session=session))
+
+    foreign_task = news_task(stranger.subject, stranger_project.id, body)
+    wrong_task = news_artifact(task, execution, task_id=foreign_task.id)
+    session.tasks[foreign_task.id] = foreign_task
+    session.artifacts = [wrong_task]
+    readable = await news_module.get_news_brief(task.id, principal=owner, session=session)
+    assert readable.artifact is None, readable
+    assert readable.audio_available is False, readable
+
+    foreign_execution = workflow_execution(foreign_task)
+    wrong_execution = news_artifact(
+        task,
+        execution,
+        workflow_execution_id=foreign_execution.id,
+    )
+    session.executions[foreign_execution.id] = foreign_execution
+    session.artifacts = [wrong_execution]
+    readable = await news_module.get_news_brief(task.id, principal=owner, session=session)
+    assert readable.artifact is None, readable
+    assert readable.audio_available is False, readable
+
+    wrong_workflow_id_execution = workflow_execution(task, workflow_id="not-the-canonical-workflow")
+    wrong_workflow_id = news_artifact(
+        task,
+        execution,
+        workflow_execution_id=wrong_workflow_id_execution.id,
+    )
+    session.executions[wrong_workflow_id_execution.id] = wrong_workflow_id_execution
+    session.artifacts = [wrong_workflow_id]
+    readable = await news_module.get_news_brief(task.id, principal=owner, session=session)
+    assert readable.artifact is None, readable
+    assert readable.audio_available is False, readable
+
+    missing_execution = news_artifact(
+        task,
+        execution,
+        workflow_execution_id=uuid.uuid4(),
+    )
+    session.artifacts = [missing_execution]
+    readable = await news_module.get_news_brief(task.id, principal=owner, session=session)
+    assert readable.artifact is None, readable
+    assert readable.audio_available is False, readable
 
 
 async def prove_replay_is_owner_and_parameter_bound(
@@ -327,11 +485,12 @@ async def main() -> None:
 
     await prove_create_is_bound_to_principal(body, owner)
     await prove_public_read_boundaries(body, owner, stranger)
+    await prove_artifact_binding(body, owner, stranger)
     await prove_replay_is_owner_and_parameter_bound(body, owner, stranger)
 
     print(
-        "PASS: News creation, reads, audio and deterministic replay are bound to the authenticated "
-        "requester; foreign and legacy/unowned access fails closed"
+        "PASS: News creation, reads, audio, artifacts and deterministic replay are bound to the "
+        "authenticated requester; foreign, legacy and inconsistent Artifact access fails closed"
     )
 
 
