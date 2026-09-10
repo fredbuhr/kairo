@@ -1,0 +1,21 @@
+name: Baseline reproducibility validation
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: reproducibility-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile reproducibility contract
+        run: python -m compileall scripts/smoke/reproducibility_contract.py
+
+      - name: Prove reproducibility baseline cannot drift silently
+        run: python scripts/smoke/reproducibility_contract.py
