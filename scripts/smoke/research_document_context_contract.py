@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from sqlalchemy.dialects import postgresql
 
-from kairo_core import research
 from kairo_core.research_context import (
     MAX_DOCUMENT_CONTEXT_EXCERPT_CHARS,
     _excerpt,
     build_document_context_statement,
+    router as research_context_router,
 )
 
 
@@ -41,12 +41,13 @@ def main() -> None:
     assert excerpt.startswith("…") and excerpt.endswith("…"), excerpt
     assert MAX_DOCUMENT_CONTEXT_EXCERPT_CHARS == 2000
 
-    paths = {getattr(route, "path", "") for route in research.router.routes}
+    paths = {getattr(route, "path", "") for route in research_context_router.routes}
     assert "/internal/v1/research/tasks/{task_id}/document-context" in paths, paths
+    assert "/internal/v1/research/tasks/{task_id}/derived-memory-scope" in paths, paths
 
     print(
         "PASS: Research document context is owner-scoped, latest-completed-version ranked, bounded, "
-        "and exposed only through the internal Research router"
+        "and registered on the dedicated internal Research Context router"
     )
 
 

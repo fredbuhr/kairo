@@ -27,6 +27,7 @@ from .openbao import openbao_client
 from .outbox import OutboxRelay
 from .project_access import get_owned_project, owned_project_clause
 from .research import router as research_router
+from .research_context import router as research_context_router
 from .research_results import router as research_results_router
 from .resources import router as resources_router
 from .schemas import (
@@ -72,6 +73,7 @@ app.include_router(documents_router)
 app.include_router(knowledge_router)
 app.include_router(tools_router)
 app.include_router(research_router)
+app.include_router(research_context_router)
 app.include_router(research_results_router)
 app.include_router(news_router)
 app.include_router(assistant_router)
