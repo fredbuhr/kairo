@@ -34,6 +34,7 @@ class Project(Base):
     name: Mapped[str] = mapped_column(String(240), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     summary: Mapped[str | None] = mapped_column(Text)
+    owner_subject: Mapped[str | None] = mapped_column(String(320))
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL")
     )
@@ -43,6 +44,8 @@ class Project(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+    __table_args__ = (Index("ix_projects_owner_status", "owner_subject", "status"),)
 
 
 class Task(Base):
