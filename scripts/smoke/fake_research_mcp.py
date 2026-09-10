@@ -59,13 +59,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
 
 
 def build_server() -> MCPServer:
-    server = MCPServer(
-        "KAIRO Research Crash Fixture",
-        transport_security=TransportSecuritySettings(
-            enable_dns_rebinding_protection=True,
-            allowed_hosts=["fake-research-mcp:8765", "localhost:8765", "127.0.0.1:8765"],
-        ),
-    )
+    server = MCPServer("KAIRO Research Crash Fixture")
 
     @server.tool(
         name="search",
@@ -112,12 +106,17 @@ def _serve_metrics() -> None:
 
 def main() -> None:
     threading.Thread(target=_serve_metrics, daemon=True, name="research-mcp-metrics").start()
+    security = TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=["fake-research-mcp:8765", "localhost:8765", "127.0.0.1:8765"],
+    )
     build_server().run(
         transport="streamable-http",
         host="0.0.0.0",
         port=8765,
         json_response=True,
         stateless_http=True,
+        transport_security=security,
     )
 
 

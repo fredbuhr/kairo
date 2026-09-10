@@ -258,7 +258,7 @@ def main() -> None:
     )
     subprocess.run([*COMPOSE, "kill", "-s", "SIGKILL", "kairo-worker"], check=True)
     time.sleep(1.0)
-    subprocess.run([*COMPOSE, "up", "-d", "kairo-worker"], check=True)
+    subprocess.run([*COMPOSE, "start", "kairo-worker"], check=True)
 
     completed = wait_until(
         "Research completion after Worker restart",
