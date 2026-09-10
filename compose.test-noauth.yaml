@@ -1,0 +1,6 @@
+# Explicit test-only overlay for integration proofs that exercise authenticated public APIs
+# without booting the Keycloak stack. Never include this overlay in production commands.
+services:
+  kairo-core:
+    environment:
+      KAIRO_AUTH_ENABLED: "false"
