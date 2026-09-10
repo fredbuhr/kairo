@@ -18,6 +18,7 @@ from .auth import Principal, require_kairo_admin, require_kairo_user
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project, Task, WorkflowExecution
+from .project_access import get_owned_project, get_owned_task
 from .security import require_internal_token
 from .tool_models import ToolDefinition, ToolInvocation, ToolServer
 
@@ -45,6 +46,22 @@ class ToolServerRead(BaseModel):
     enabled: bool
     catalog_generation: int
     metadata_json: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ToolServerSummaryRead(BaseModel):
+    """Shared MCP registry view without deployment transport details."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    key: str
+    namespace: str
+    title: str
+    transport: str
+    enabled: bool
+    catalog_generation: int
     created_at: datetime
     updated_at: datetime
 
@@ -223,6 +240,15 @@ async def _load_invocation_binding(
     if not tool or not server or not task:
         raise HTTPException(status_code=409, detail="Tool registry binding is incomplete")
 
+    project = await session.get(Project, task.project_id)
+    project_owner = (
+        project.owner_subject
+        if project is not None and project.owner_subject
+        else "development-user"
+    )
+    if project is None or project_owner != invocation.owner_subject:
+        raise HTTPException(status_code=409, detail="Tool invocation ownership binding is stale")
+
     if not require_current_authorization or invocation.status == "completed":
         return tool, server, task
     if invocation.status == "failed":
@@ -320,7 +346,7 @@ async def create_tool_server(
     return server
 
 
-@router.get("/v1/tool-servers", response_model=list[ToolServerRead])
+@router.get("/v1/tool-servers", response_model=list[ToolServerSummaryRead])
 async def list_tool_servers(
     _: Principal = Depends(require_kairo_user), session: AsyncSession = Depends(get_session)
 ) -> list[ToolServer]:
@@ -503,7 +529,7 @@ async def create_tool_invocation(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> ToolInvocationCreated:
-    project = await session.get(Project, body.project_id)
+    project = await get_owned_project(session, body.project_id, principal)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     tool = await session.scalar(select(ToolDefinition).where(ToolDefinition.key == body.tool_key))
@@ -515,10 +541,13 @@ async def create_tool_invocation(
         uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:tool:{invocation_id}:{tool.key}")
     )
     existing = await session.scalar(
-        select(ToolInvocation).where(ToolInvocation.idempotency_key == idempotency_key)
+        select(ToolInvocation).where(
+            ToolInvocation.owner_subject == principal.subject,
+            ToolInvocation.idempotency_key == idempotency_key,
+        )
     )
     if existing:
-        existing_task = await session.get(Task, existing.task_id)
+        existing_task = await get_owned_task(session, existing.task_id, principal)
         if (
             existing.tool_definition_id != tool.id
             or existing.input_json != body.input
@@ -566,6 +595,7 @@ async def create_tool_invocation(
     await session.flush()
     invocation = ToolInvocation(
         id=invocation_id,
+        owner_subject=principal.subject,
         tool_definition_id=tool.id,
         task_id=task.id,
         idempotency_key=idempotency_key,
@@ -605,11 +635,16 @@ async def create_tool_invocation(
 @router.get("/v1/tool-invocations/{invocation_id}", response_model=ToolInvocationRead)
 async def get_tool_invocation(
     invocation_id: uuid.UUID,
-    _: Principal = Depends(require_kairo_user),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> ToolInvocation:
-    invocation = await session.get(ToolInvocation, invocation_id)
-    if not invocation:
+    invocation = await session.scalar(
+        select(ToolInvocation).where(
+            ToolInvocation.id == invocation_id,
+            ToolInvocation.owner_subject == principal.subject,
+        )
+    )
+    if not invocation or await get_owned_task(session, invocation.task_id, principal) is None:
         raise HTTPException(status_code=404, detail="Tool invocation not found")
     return invocation
 
