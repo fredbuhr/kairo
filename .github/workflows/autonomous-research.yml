@@ -20,6 +20,10 @@ jobs:
         run: uv run --project services/worker python scripts/smoke/research_agent_contract.py
       - name: Prove canonical document-context query contract
         run: uv run --project services/core python scripts/smoke/research_document_context_contract.py
+      - name: Prove authoritative derived-memory scope contract
+        run: uv run --project services/core python scripts/smoke/research_memory_scope_contract.py
+      - name: Prove fault-tolerant derived-memory reader contract
+        run: uv run --project services/worker python scripts/smoke/research_memory_context_contract.py
       - name: Prove first-party Web MCP read-only contract
         run: uv run --project services/worker python scripts/smoke/web_mcp_contract.py
       - name: Compile crash/replay fixtures
