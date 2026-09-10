@@ -1,36 +1,12 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
+import {
+  type CanonicalDocument,
+  type DocumentVersion,
+  useKnowledgeDocumentActions,
+} from './knowledgeDocumentActions'
 import { kairoFetch } from './lib/apiClient'
 import { useProjectSelection } from './lib/projectSelection'
-
-type CanonicalDocument = {
-  id: string
-  asset_id: string
-  project_id: string
-  title: string
-  media_type?: string | null
-  source_sha256?: string | null
-  status: string
-  metadata_json: Record<string, unknown>
-  created_at: string
-  updated_at: string
-}
-
-type DocumentVersion = {
-  id: string
-  document_id: string
-  generation: number
-  task_id?: string | null
-  parser: string
-  parser_version?: string | null
-  source_sha256?: string | null
-  status: string
-  chunk_count: number
-  metadata_json: Record<string, unknown>
-  last_error?: string | null
-  created_at: string
-  completed_at?: string | null
-}
 
 type DocumentChunk = {
   id: string
@@ -40,15 +16,6 @@ type DocumentChunk = {
   content_sha256: string
   metadata_json: Record<string, unknown>
   created_at: string
-}
-
-type AssetUpload = {
-  id: string
-}
-
-type DocumentImportRun = {
-  document: CanonicalDocument
-  version: DocumentVersion
 }
 
 export type KnowledgeInspectionTarget = {
@@ -132,20 +99,13 @@ export default function KnowledgeWorkspace({
   const [chunksLoaded, setChunksLoaded] = useState(false)
   const [chunkOffset, setChunkOffset] = useState(0)
   const [focusedChunkId, setFocusedChunkId] = useState<string | null>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [trackingDocumentId, setTrackingDocumentId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingVersions, setLoadingVersions] = useState(false)
   const [loadingChunks, setLoadingChunks] = useState(false)
-  const [importing, setImporting] = useState(false)
-  const [reingesting, setReingesting] = useState(false)
-  const [openingSource, setOpeningSource] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [versionError, setVersionError] = useState<string | null>(null)
   const [chunkError, setChunkError] = useState<string | null>(null)
-  const [importError, setImportError] = useState<string | null>(null)
-  const [reingestError, setReingestError] = useState<string | null>(null)
-  const [sourceError, setSourceError] = useState<string | null>(null)
   const [trackingError, setTrackingError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -195,6 +155,53 @@ export default function KnowledgeWorkspace({
     [versions, selectedVersionId],
   )
 
+  const {
+    selectedFile,
+    setSelectedFile,
+    importing,
+    reingesting,
+    openingSource,
+    importError,
+    reingestError,
+    sourceError,
+    importDocument,
+    reingestSelectedDocument,
+    openSelectedSource,
+  } = useKnowledgeDocumentActions({
+    apiUrl,
+    selectedProjectId,
+    selectedDocument,
+    trackingDocumentId,
+    onTrackingReset: () => setTrackingError(null),
+    onImportComplete: (run) => {
+      setDocuments((current) => [
+        run.document,
+        ...current.filter((document) => document.id !== run.document.id),
+      ])
+      onSelectedDocumentIdChange(run.document.id)
+      setTrackingDocumentId(run.document.id)
+    },
+    onReingestBegin: () => {
+      setChunks([])
+      setChunksLoaded(false)
+      setChunkOffset(0)
+      setFocusedChunkId(null)
+      setChunkError(null)
+    },
+    onReingestComplete: (run) => {
+      setDocuments((current) => [
+        run.document,
+        ...current.filter((document) => document.id !== run.document.id),
+      ])
+      setVersions((current) => [
+        run.version,
+        ...current.filter((version) => version.id !== run.version.id),
+      ])
+      setSelectedVersionId(run.version.id)
+      setTrackingDocumentId(run.document.id)
+    },
+  })
+
   const chunkPreview = useMemo(
     () => chunks.slice(0, MAX_CHUNK_PREVIEW_ITEMS),
     [chunks],
@@ -231,8 +238,6 @@ export default function KnowledgeWorkspace({
     setFocusedChunkId(null)
     setChunkError(null)
     setVersionError(null)
-    setReingestError(null)
-    setSourceError(null)
     if (!documentId) {
       setLoadingVersions(false)
       return () => {
@@ -438,134 +443,6 @@ export default function KnowledgeWorkspace({
       if (timer) window.clearTimeout(timer)
     }
   }, [apiUrl, selectedDocumentId, trackingDocumentId])
-
-  async function importDocument(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!selectedProjectId || !selectedFile || importing) return
-
-    const formElement = event.currentTarget
-    setImporting(true)
-    setImportError(null)
-    setTrackingError(null)
-
-    try {
-      const formData = new FormData()
-      formData.append('file', selectedFile)
-      formData.append('project_id', selectedProjectId)
-
-      const assetResponse = await kairoFetch(`${apiUrl}/v1/assets`, {
-        method: 'POST',
-        body: formData,
-      })
-      const asset = await readJson<AssetUpload>(assetResponse)
-
-      const documentResponse = await kairoFetch(`${apiUrl}/v1/documents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          asset_id: asset.id,
-          title: selectedFile.name,
-        }),
-      })
-      const run = await readJson<DocumentImportRun>(documentResponse)
-
-      setDocuments((current) => [
-        run.document,
-        ...current.filter((document) => document.id !== run.document.id),
-      ])
-      onSelectedDocumentIdChange(run.document.id)
-      setTrackingDocumentId(run.document.id)
-      setSelectedFile(null)
-      formElement.reset()
-    } catch (importFailure) {
-      setImportError(
-        importFailure instanceof Error
-          ? importFailure.message
-          : 'Impossible d’importer ce Document dans Knowledge.',
-      )
-    } finally {
-      setImporting(false)
-    }
-  }
-
-  async function reingestSelectedDocument() {
-    if (!selectedDocument || reingesting || trackingDocumentId) return
-
-    setReingesting(true)
-    setReingestError(null)
-    setTrackingError(null)
-    setChunks([])
-    setChunksLoaded(false)
-    setChunkOffset(0)
-    setFocusedChunkId(null)
-    setChunkError(null)
-
-    try {
-      const response = await kairoFetch(
-        `${apiUrl}/v1/documents/${selectedDocument.id}/reingest`,
-        { method: 'POST' },
-      )
-      const run = await readJson<DocumentImportRun>(response)
-
-      setDocuments((current) => [
-        run.document,
-        ...current.filter((document) => document.id !== run.document.id),
-      ])
-      setVersions((current) => [
-        run.version,
-        ...current.filter((version) => version.id !== run.version.id),
-      ])
-      setSelectedVersionId(run.version.id)
-      setTrackingDocumentId(run.document.id)
-    } catch (reingestFailure) {
-      setReingestError(
-        reingestFailure instanceof Error
-          ? reingestFailure.message
-          : 'Impossible de relancer l’ingestion du Document.',
-      )
-    } finally {
-      setReingesting(false)
-    }
-  }
-
-  async function openSelectedSource() {
-    if (!selectedDocument || openingSource) return
-
-    const previewWindow = window.open('', '_blank')
-    if (!previewWindow) {
-      setSourceError('Le navigateur a bloqué l’ouverture du fichier source.')
-      return
-    }
-    previewWindow.opener = null
-
-    setOpeningSource(true)
-    setSourceError(null)
-    try {
-      const response = await kairoFetch(
-        `${apiUrl}/v1/assets/${selectedDocument.asset_id}/content`,
-      )
-      if (!response.ok) {
-        const body = await response.json().catch(() => null)
-        const detail = body?.detail
-        const message = typeof detail === 'string' ? detail : detail?.message
-        throw new Error(message || `Impossible d’ouvrir la source (${response.status}).`)
-      }
-
-      const blob = await response.blob()
-      const objectUrl = URL.createObjectURL(blob)
-      previewWindow.location.replace(objectUrl)
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120_000)
-    } catch (sourceFailure) {
-      previewWindow.close()
-      setSourceError(
-        sourceFailure instanceof Error
-          ? sourceFailure.message
-          : 'Impossible d’ouvrir le fichier source.',
-      )
-    } finally {
-      setOpeningSource(false)
-    }
-  }
 
   async function loadChunkPage(offset: number) {
     if (!selectedVersion || loadingChunks) return
