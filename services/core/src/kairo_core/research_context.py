@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from .command_models import Conversation
 from .db import get_session
 from .document_models import Document, DocumentChunk, DocumentVersion
 from .models import Task
@@ -20,6 +21,7 @@ router = APIRouter()
 DOCUMENT_CONTEXT_SOURCE = "postgresql-document-chunks"
 MAX_DOCUMENT_CONTEXT_ITEMS = 12
 MAX_DOCUMENT_CONTEXT_EXCERPT_CHARS = 2_000
+MAX_GRAPHITI_CONVERSATION_GROUPS = 100
 
 
 class CanonicalDocumentContextItem(BaseModel):
@@ -41,6 +43,16 @@ class ResearchDocumentContextRead(BaseModel):
     query: str
     source: Literal["postgresql-document-chunks"] = DOCUMENT_CONTEXT_SOURCE
     items: list[CanonicalDocumentContextItem] = Field(default_factory=list)
+    reason: str | None = None
+
+
+class ResearchDerivedMemoryScopeRead(BaseModel):
+    task_id: uuid.UUID
+    query: str
+    requester_subject: str | None = None
+    mem0_user_id: str | None = None
+    graphiti_group_ids: list[str] = Field(default_factory=list)
+    graphiti_groups_truncated: bool = False
     reason: str | None = None
 
 
@@ -126,6 +138,17 @@ def build_document_context_statement(*, requester_subject: str, query: str, limi
     )
 
 
+def build_graphiti_scope_statement(*, requester_subject: str):
+    """Return recent canonical conversation ids that authorize Graphiti group access."""
+
+    return (
+        select(Conversation.id)
+        .where(Conversation.subject_ref == requester_subject)
+        .order_by(Conversation.updated_at.desc(), Conversation.id)
+        .limit(MAX_GRAPHITI_CONVERSATION_GROUPS + 1)
+    )
+
+
 @router.get(
     "/internal/v1/research/tasks/{task_id}/document-context",
     response_model=ResearchDocumentContextRead,
@@ -186,4 +209,42 @@ async def get_research_document_context(
         query=query,
         items=items,
         reason=None if items else "no_matching_canonical_document_chunks",
+    )
+
+
+@router.get(
+    "/internal/v1/research/tasks/{task_id}/derived-memory-scope",
+    response_model=ResearchDerivedMemoryScopeRead,
+    dependencies=[Depends(require_internal_token)],
+)
+async def get_research_derived_memory_scope(
+    task_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+) -> ResearchDerivedMemoryScopeRead:
+    task = await session.get(Task, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Research task not found")
+    task_input = _research_input(task)
+    query = str(task_input.get("query") or "").strip()
+    requester_subject = str(task_input.get("requester_subject") or "").strip()
+    if not requester_subject:
+        return ResearchDerivedMemoryScopeRead(
+            task_id=task.id,
+            query=query,
+            reason="requester_subject_unavailable",
+        )
+
+    rows = (
+        await session.execute(build_graphiti_scope_statement(requester_subject=requester_subject))
+    ).scalars().all()
+    truncated = len(rows) > MAX_GRAPHITI_CONVERSATION_GROUPS
+    visible = rows[:MAX_GRAPHITI_CONVERSATION_GROUPS]
+    return ResearchDerivedMemoryScopeRead(
+        task_id=task.id,
+        query=query,
+        requester_subject=requester_subject,
+        mem0_user_id=f"subject:{requester_subject}",
+        graphiti_group_ids=[f"conversation:{conversation_id}" for conversation_id in visible],
+        graphiti_groups_truncated=truncated,
+        reason=None,
     )
