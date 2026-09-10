@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     temporal_task_queue: str = "kairo-default"
     kairo_core_url: str = "http://kairo-core:8000"
     kairo_internal_token: str = "development-only-change-me"
+    kairo_web_mcp_url: str = "http://kairo-web-mcp:8765/mcp"
     database_url: str = "postgresql+asyncpg://kairo:kairo@postgres:5432/kairo"
     # Empty means: derive a sibling `mem0` database from DATABASE_URL. Deployments may override
     # this when the derived vector store uses different credentials or a different PostgreSQL host.
