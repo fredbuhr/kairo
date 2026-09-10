@@ -233,6 +233,13 @@ async def _get_json(client: httpx.AsyncClient, path: str) -> dict[str, Any]:
     return response.json()
 
 
+def _heartbeat_research_progress(model_checkpoints: ModelCheckpointLedger) -> None:
+    """Keep the parent Activity live without discarding replay-safe model slot state."""
+
+    if activity.in_activity():
+        activity.heartbeat(model_checkpoints.snapshot())
+
+
 @activity.defn(name="perform_autonomous_research")
 async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]:
     task_id = str(payload["task_id"])
@@ -309,6 +316,7 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
 
             deadline = asyncio.get_running_loop().time() + 300.0
             while True:
+                _heartbeat_research_progress(model_checkpoints)
                 child = await _get_json(
                     client, f"/internal/v1/research/tool-invocations/{invocation_id}"
                 )
