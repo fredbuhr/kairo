@@ -12,6 +12,7 @@ with workflow.unsafe.imports_passed_through():
     from .news_activity import perform_news_brief
     from .policy_activities import check_policy_gate
     from .research_agent import perform_autonomous_research
+    from .research_context_pack import prepare_research_context_pack
     from .semantic_router import perform_semantic_route
     from .tool_runtime import fail_tool_invocation, perform_tool_invocation
 
@@ -122,9 +123,19 @@ class TaskExecutionWorkflow:
                     retry_policy=ACTIVITY_RETRY,
                 )
             elif capability == "research.autonomous":
+                # Context is a separate read-only activity so its bounded result is recorded in
+                # Temporal history before replay-sensitive model/tool work begins. Retries of the
+                # main Research activity therefore receive the exact same Context Pack snapshot.
+                context_pack = await workflow.execute_activity(
+                    prepare_research_context_pack,
+                    work_payload,
+                    start_to_close_timeout=timedelta(seconds=90),
+                    retry_policy=ACTIVITY_RETRY,
+                )
+                research_payload = {**work_payload, "research_context_pack": context_pack}
                 result = await workflow.execute_activity(
                     perform_autonomous_research,
-                    work_payload,
+                    research_payload,
                     start_to_close_timeout=timedelta(minutes=10),
                     # Research emits progress while waiting for child tools. Keep this above the
                     # longest individual model HTTP timeout (60s) so a slow provider does not turn
