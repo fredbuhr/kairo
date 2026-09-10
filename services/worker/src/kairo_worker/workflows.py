@@ -126,6 +126,7 @@ class TaskExecutionWorkflow:
                     perform_autonomous_research,
                     work_payload,
                     start_to_close_timeout=timedelta(minutes=10),
+                    heartbeat_timeout=timedelta(seconds=75),
                     retry_policy=ACTIVITY_RETRY,
                 )
             elif capability == "memory.project":
