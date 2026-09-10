@@ -124,6 +124,12 @@ def main() -> None:
         },
     )
 
+    pending = request("GET", f"/v1/research/runs/{parent['id']}")
+    assert pending["task_id"] == parent["id"], pending
+    assert pending["status"] == "todo", pending
+    assert pending["query"] == "Find evidence about KAIRO", pending
+    assert pending["artifact_id"] is None and pending["answer"] is None, pending
+
     context = request("GET", f"/internal/v1/research/tasks/{parent['id']}/context", headers=INTERNAL)
     keys = {tool["key"] for tool in context["tools"]}
     assert keys == {"researchsmoke.search"}, context
@@ -158,7 +164,73 @@ def main() -> None:
         headers=INTERNAL,
         payload={"tool_key": "researchsmoke.search", "input": {"query": "DIFFERENT"}, "slot": 0, "rationale": "slot rebinding must fail"},
     )
-    print("PASS: Core exposes only read/A1 tools and research child slots are deterministic")
+
+    parent_run = request("POST", f"/v1/tasks/{parent['id']}/run")
+    synthetic_content = {
+        "query": "Find evidence about KAIRO",
+        "answer": "KAIRO preserves canonical provenance for research results.",
+        "synthesis": {
+            "answer": "KAIRO preserves canonical provenance for research results.",
+            "claims": [
+                {
+                    "text": "The research result keeps a canonical tool invocation reference.",
+                    "evidence_ids": ["E1"],
+                    "confidence": "high",
+                }
+            ],
+            "uncertainties": [],
+        },
+        "evidence": [
+            {
+                "evidence_id": "E1",
+                "slot": 0,
+                "tool_key": "researchsmoke.search",
+                "invocation_id": first["invocation_id"],
+            }
+        ],
+        "planner_model_alias": "local-fast",
+        "synthesis_model_alias": "local-fast",
+        "model_budget_usd": "0.01",
+        "tool_results": [
+            {
+                "slot": 0,
+                "tool_key": "researchsmoke.search",
+                "input": {"query": "KAIRO"},
+                "invocation_id": first["invocation_id"],
+                "result": {"items": [{"title": "Fixture", "snippet": "Canonical provenance"}]},
+            }
+        ],
+        "tool_call_count": 1,
+    }
+    request(
+        "POST",
+        f"/internal/v1/executions/{parent_run['workflow_id']}/complete",
+        headers=INTERNAL,
+        payload={
+            "kind": "autonomous-research",
+            "title": "Research — Find evidence about KAIRO",
+            "content": synthetic_content,
+        },
+    )
+
+    completed = request("GET", f"/v1/research/runs/{parent['id']}")
+    assert completed["status"] == "completed", completed
+    assert completed["execution_status"] == "completed", completed
+    assert completed["answer"] == synthetic_content["answer"], completed
+    assert completed["synthesis"]["claims"][0]["evidence_ids"] == ["E1"], completed
+    assert completed["evidence"][0]["invocation_id"] == first["invocation_id"], completed
+    assert completed["tool_call_count"] == 1, completed
+    assert completed["planner_model_alias"] == "local-fast", completed
+    assert completed["synthesis_model_alias"] == "local-fast", completed
+    assert completed["artifact_id"], completed
+    assert completed["workflow_execution_id"] == parent_run["workflow_execution_id"], completed
+    assert completed["workflow_id"] == parent_run["workflow_id"], completed
+    assert completed["correlation_id"], completed
+
+    print(
+        "PASS: Core enforces read/A1 research tools, deterministic child slots and a stable canonical "
+        "research result contract"
+    )
 
 
 if __name__ == "__main__":
