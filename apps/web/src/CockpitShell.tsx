@@ -1,4 +1,11 @@
-import { createContext, useContext, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from 'react'
 import {
   DockviewReact,
   type DockviewReadyEvent,
@@ -13,11 +20,21 @@ export type CockpitSlots = {
 }
 
 type CockpitShellProps = {
+  apiUrl: string
   slots: CockpitSlots
+  workspaceKey?: string
+}
+
+type WorkspaceLayoutEnvelope = {
+  schema_version: number
+  layout: Record<string, unknown>
 }
 
 const CockpitContentContext = createContext<CockpitSlots | null>(null)
 const dockPanelStyle = { height: '100%', overflow: 'auto' } as const
+const LAYOUT_SCHEMA_VERSION = 1
+const DEFAULT_WORKSPACE_KEY = 'cockpit.main'
+const SAVE_DEBOUNCE_MS = 700
 
 function useCockpitContent() {
   const value = useContext(CockpitContentContext)
@@ -69,7 +86,91 @@ function createDefaultLayout(event: DockviewReadyEvent) {
   })
 }
 
-export default function CockpitShell({ slots }: CockpitShellProps) {
+async function loadWorkspaceLayout(apiUrl: string, workspaceKey: string) {
+  const response = await fetch(
+    `${apiUrl}/v1/ui/workspaces/${encodeURIComponent(workspaceKey)}/layout`,
+  )
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error(`KAIRO Core layout read failed (${response.status})`)
+  const value = (await response.json()) as WorkspaceLayoutEnvelope
+  if (value.schema_version !== LAYOUT_SCHEMA_VERSION || !value.layout) return null
+  return value.layout
+}
+
+async function saveWorkspaceLayout(
+  apiUrl: string,
+  workspaceKey: string,
+  layout: Record<string, unknown>,
+) {
+  const response = await fetch(
+    `${apiUrl}/v1/ui/workspaces/${encodeURIComponent(workspaceKey)}/layout`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ schema_version: LAYOUT_SCHEMA_VERSION, layout }),
+    },
+  )
+  if (!response.ok) throw new Error(`KAIRO Core layout save failed (${response.status})`)
+}
+
+export default function CockpitShell({
+  apiUrl,
+  slots,
+  workspaceKey = DEFAULT_WORKSPACE_KEY,
+}: CockpitShellProps) {
+  const disposedRef = useRef(false)
+  const cleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    disposedRef.current = false
+    return () => {
+      disposedRef.current = true
+      cleanupRef.current?.()
+      cleanupRef.current = null
+    }
+  }, [])
+
+  const onReady = useCallback(
+    (event: DockviewReadyEvent) => {
+      let saveTimer: number | undefined
+
+      const initialize = async () => {
+        let restored = false
+        try {
+          const saved = await loadWorkspaceLayout(apiUrl, workspaceKey)
+          if (disposedRef.current) return
+          if (saved) {
+            event.api.fromJSON(saved as ReturnType<typeof event.api.toJSON>)
+            restored = true
+          }
+        } catch (layoutError) {
+          console.warn('KAIRO Cockpit layout restore failed; using default layout', layoutError)
+        }
+
+        if (disposedRef.current) return
+        if (!restored) createDefaultLayout(event)
+
+        const disposable = event.api.onDidLayoutChange(() => {
+          if (saveTimer) window.clearTimeout(saveTimer)
+          saveTimer = window.setTimeout(() => {
+            const layout = event.api.toJSON() as Record<string, unknown>
+            void saveWorkspaceLayout(apiUrl, workspaceKey, layout).catch((layoutError) => {
+              console.warn('KAIRO Cockpit layout save failed', layoutError)
+            })
+          }, SAVE_DEBOUNCE_MS)
+        })
+
+        cleanupRef.current = () => {
+          disposable.dispose()
+          if (saveTimer) window.clearTimeout(saveTimer)
+        }
+      }
+
+      void initialize()
+    },
+    [apiUrl, workspaceKey],
+  )
+
   return (
     <CockpitContentContext.Provider value={slots}>
       <section
@@ -81,7 +182,7 @@ export default function CockpitShell({ slots }: CockpitShellProps) {
           className="dockview-theme-abyss"
           style={{ width: '100%', height: '100%' }}
           components={components}
-          onReady={createDefaultLayout}
+          onReady={onReady}
         />
       </section>
     </CockpitContentContext.Provider>
