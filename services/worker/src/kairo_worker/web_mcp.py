@@ -5,6 +5,7 @@ from typing import Annotated, Any, Literal
 
 import httpx
 from mcp.server import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -109,12 +110,26 @@ def build_server() -> MCPServer:
 
 
 def main() -> None:
+    # The endpoint is intentionally reachable only on KAIRO's internal Docker network in this slice.
+    # Keep DNS-rebinding protection explicit rather than relying on SDK defaults for a 0.0.0.0 bind.
+    transport_security = TransportSecuritySettings(
+        allowed_hosts=[
+            f"kairo-web-mcp:{WEB_MCP_PORT}",
+            "kairo-web-mcp:*",
+            f"127.0.0.1:{WEB_MCP_PORT}",
+            "127.0.0.1:*",
+            f"localhost:{WEB_MCP_PORT}",
+            "localhost:*",
+        ],
+        allowed_origins=[],
+    )
     build_server().run(
         transport="streamable-http",
         host="0.0.0.0",
         port=WEB_MCP_PORT,
         json_response=True,
         stateless_http=True,
+        transport_security=transport_security,
     )
 
 
