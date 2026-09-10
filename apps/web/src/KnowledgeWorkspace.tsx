@@ -10,6 +10,7 @@ import {
   KnowledgeDocumentsView,
   KnowledgeVersionsView,
 } from './KnowledgeInspectorView'
+import KnowledgeWorkspaceStateView from './KnowledgeWorkspaceStateView'
 import type {
   CanonicalDocument,
   DocumentVersion,
@@ -167,21 +168,11 @@ export default function KnowledgeWorkspace({
         <span className="run-state">{projectDocuments.length} document(s)</span>
       </div>
 
-      {error && <div className="error-panel">{error}</div>}
-
-      {loading && !error && (
-        <div className="progress-panel">
-          <strong>Chargement de votre base documentaire KAIRO.</strong>
-          <span>Les Documents sont fournis par le Core selon le propriétaire authentifié.</span>
-        </div>
-      )}
-
-      {!loading && !error && !selectedProjectId && (
-        <div className="progress-panel">
-          <strong>Aucun projet sélectionné.</strong>
-          <span>Sélectionnez un projet dans Projects ou Research pour afficher ses Documents.</span>
-        </div>
-      )}
+      <KnowledgeWorkspaceStateView
+        loading={loading}
+        error={error}
+        selectedProjectId={selectedProjectId}
+      />
 
       {!loading && !error && selectedProjectId && (
         <>
