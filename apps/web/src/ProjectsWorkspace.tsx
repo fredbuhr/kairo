@@ -34,6 +34,8 @@ type Props = {
   apiUrl: string
 }
 
+const TASK_STATUS_ORDER = ['todo', 'queued', 'running', 'completed', 'failed'] as const
+
 async function readJson<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => null)
   if (!response.ok) {
@@ -54,6 +56,16 @@ function statusLabel(status: string) {
     failed: 'échec',
   }
   return labels[status] || status
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
 }
 
 export default function ProjectsWorkspace({ apiUrl }: Props) {
@@ -120,6 +132,14 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
     for (const task of selectedTasks) counts.set(task.status, (counts.get(task.status) || 0) + 1)
     return counts
   }, [selectedTasks])
+
+  const taskStatusSummary = useMemo(
+    () =>
+      TASK_STATUS_ORDER.map((status) => [status, taskCounts.get(status) || 0] as const).filter(
+        ([, count]) => count > 0,
+      ),
+    [taskCounts],
+  )
 
   async function createProject(event: FormEvent) {
     event.preventDefault()
@@ -235,17 +255,38 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
           </div>
 
           {selectedProject && (
-            <div className="route-chip">
-              <span>{selectedProject.name}</span>
-              <small>
-                {statusLabel(selectedProject.status)} · {selectedTasks.length} tâche(s)
-                {taskCounts.size
-                  ? ` · ${Array.from(taskCounts.entries())
-                      .map(([status, count]) => `${statusLabel(status)} ${count}`)
-                      .join(' · ')}`
-                  : ''}
-              </small>
-            </div>
+            <article className="briefing" aria-label="Détail du projet sélectionné">
+              <div className="briefing-topline">
+                <div>
+                  <span className="eyebrow">PROJET SÉLECTIONNÉ</span>
+                  <h3>{selectedProject.name}</h3>
+                </div>
+                <span className={`run-state run-state-${selectedProject.status}`}>
+                  {statusLabel(selectedProject.status)}
+                </span>
+              </div>
+
+              {selectedProject.summary && <div className="brief-summary">{selectedProject.summary}</div>}
+
+              <div className="sources-title">
+                <span>
+                  {formatDate(selectedProject.created_at)
+                    ? `Créé le ${formatDate(selectedProject.created_at)}`
+                    : 'Date de création indisponible'}
+                  {formatDate(selectedProject.updated_at)
+                    ? ` · mis à jour le ${formatDate(selectedProject.updated_at)}`
+                    : ''}
+                </span>
+                <span>
+                  {selectedTasks.length} tâche(s)
+                  {taskStatusSummary.length
+                    ? ` · ${taskStatusSummary
+                        .map(([status, count]) => `${statusLabel(status)} ${count}`)
+                        .join(' · ')}`
+                    : ''}
+                </span>
+              </div>
+            </article>
           )}
 
           <form className="news-form" onSubmit={createTask}>
@@ -270,8 +311,8 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
 
           <section className="sources" aria-label="Tâches du projet sélectionné">
             <div className="sources-title">
-              <strong>Tâches</strong>
-              <span>{selectedTasks.length} élément(s) dans ce projet</span>
+              <strong>Tâches du projet</strong>
+              <span>{selectedTasks.length} élément(s)</span>
             </div>
             <div className="source-list">
               {selectedTasks.length === 0 && (
@@ -288,11 +329,15 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
                   <span className="source-id">{statusLabel(task.status)}</span>
                   <div>
                     <strong>{task.title}</strong>
+                    {task.description && <small>{task.description}</small>}
                     <small>
-                      {task.owner_type}
-                      {task.owner_ref ? ` · ${task.owner_ref}` : ''}
-                      {task.started_at ? ' · démarrée' : ''}
-                      {task.completed_at ? ' · terminée' : ''}
+                      {formatDate(task.created_at) ? `Créée le ${formatDate(task.created_at)}` : 'Création inconnue'}
+                      {task.started_at && formatDate(task.started_at)
+                        ? ` · démarrée le ${formatDate(task.started_at)}`
+                        : ''}
+                      {task.completed_at && formatDate(task.completed_at)
+                        ? ` · terminée le ${formatDate(task.completed_at)}`
+                        : ''}
                     </small>
                   </div>
                 </div>
