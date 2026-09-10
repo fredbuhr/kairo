@@ -24,6 +24,7 @@ from .news import router as news_router
 from .openbao import openbao_client
 from .outbox import OutboxRelay
 from .research import router as research_router
+from .research_results import router as research_results_router
 from .resources import router as resources_router
 from .schemas import (
     OutboxStats,
@@ -66,6 +67,7 @@ app.include_router(memory_router)
 app.include_router(documents_router)
 app.include_router(tools_router)
 app.include_router(research_router)
+app.include_router(research_results_router)
 app.include_router(news_router)
 app.include_router(assistant_router)
 app.include_router(resources_router)
@@ -177,7 +179,7 @@ async def architecture() -> dict[str, object]:
         "tool_registry": "kairo-core-postgresql",
         "tool_transport": "mcp-streamable-http",
         "tool_policy": "deny-by-default-explicit-enable",
-        "autonomous_research": "pydanticai-planner-policy-bound-mcp-child-tasks",
+        "autonomous_research": "pydanticai-planner-grounded-synthesis-policy-bound-mcp-child-tasks",
         "command_routing": "deterministic-first-semantic-later",
         "derived_context_graph": "graphiti-neo4j",
         "derived_memory": "mem0",
