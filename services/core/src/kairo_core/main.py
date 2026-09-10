@@ -12,7 +12,7 @@ from . import __version__
 from .approval_signals import router as approval_signals_router
 from .assistant import router as assistant_router
 from .assets import router as assets_router
-from .auth import Principal, require_kairo_user
+from .auth import Principal, require_kairo_admin, require_kairo_user
 from .autonomy import router as autonomy_router
 from .components import load_component_registry
 from .config import settings
@@ -25,7 +25,11 @@ from .models import OutboxEvent, Project, RelationshipRecord, Task
 from .news import router as news_router
 from .openbao import openbao_client
 from .outbox import OutboxRelay
-from .project_access import get_owned_project, owned_project_clause
+from .project_access import (
+    get_owned_project,
+    owned_project_clause,
+    require_same_owner_entities,
+)
 from .research import router as research_router
 from .research_context import router as research_context_router
 from .research_results import router as research_results_router
@@ -166,12 +170,16 @@ async def trust_readiness() -> SystemReadiness:
 
 
 @app.get("/v1/system/components")
-async def components() -> dict:
+async def components(
+    _principal: Principal = Depends(require_kairo_admin),
+) -> dict:
     return load_component_registry()
 
 
 @app.get("/v1/system/architecture")
-async def architecture() -> dict[str, object]:
+async def architecture(
+    _principal: Principal = Depends(require_kairo_admin),
+) -> dict[str, object]:
     return {
         "canonical_state": "postgresql",
         "canonical_objects": "seaweedfs-filer",
@@ -202,7 +210,9 @@ async def architecture() -> dict[str, object]:
 
 @app.get("/v1/system/outbox", response_model=OutboxStats)
 async def outbox_stats(
-    request: Request, session: AsyncSession = Depends(get_session)
+    request: Request,
+    _principal: Principal = Depends(require_kairo_admin),
+    session: AsyncSession = Depends(get_session),
 ) -> OutboxStats:
     pending = await session.scalar(
         select(func.count()).select_from(OutboxEvent).where(OutboxEvent.published_at.is_(None))
@@ -332,10 +342,21 @@ async def get_task(
 
 @app.post("/v1/relationships", response_model=RelationshipRead, status_code=status.HTTP_201_CREATED)
 async def create_relationship(
-    body: RelationshipCreate, session: AsyncSession = Depends(get_session)
+    body: RelationshipCreate,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> RelationshipRecord:
+    await require_same_owner_entities(
+        session,
+        source_type=body.source_type,
+        source_id=body.source_id,
+        target_type=body.target_type,
+        target_id=body.target_id,
+        principal=principal,
+    )
     correlation_id = uuid.uuid4()
     relationship = RelationshipRecord(
+        owner_subject=principal.subject,
         source_type=body.source_type,
         source_id=body.source_id,
         relation_type=body.relation_type,
@@ -363,7 +384,7 @@ async def create_relationship(
     await append_audit(
         session,
         actor_type="user",
-        actor_id=None,
+        actor_id=principal.subject,
         action="relationship.create",
         resource_type="relationship",
         resource_id=str(relationship.id),
