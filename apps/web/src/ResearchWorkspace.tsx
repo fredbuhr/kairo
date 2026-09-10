@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { kairoFetch } from './lib/apiClient'
+import { useProjectSelection } from './lib/projectSelection'
 
 type Project = {
   id: string
@@ -75,7 +76,7 @@ function sourceLabel(evidence: ResearchEvidence) {
 
 export default function ResearchWorkspace({ apiUrl }: Props) {
   const [projects, setProjects] = useState<Project[]>([])
-  const [projectId, setProjectId] = useState('')
+  const { selectedProjectId: projectId, setSelectedProjectId: setProjectId } = useProjectSelection()
   const [query, setQuery] = useState('')
   const [maxToolCalls, setMaxToolCalls] = useState(3)
   const [taskId, setTaskId] = useState<string | null>(null)
@@ -94,7 +95,10 @@ export default function ResearchWorkspace({ apiUrl }: Props) {
         if (cancelled) return
         const active = data.filter((project) => project.status === 'active')
         setProjects(active)
-        setProjectId((current) => current || active[0]?.id || '')
+        setProjectId((current) => {
+          if (current && active.some((project) => project.id === current)) return current
+          return active[0]?.id || ''
+        })
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : 'Impossible de charger les projets.')
@@ -108,7 +112,7 @@ export default function ResearchWorkspace({ apiUrl }: Props) {
     return () => {
       cancelled = true
     }
-  }, [apiUrl])
+  }, [apiUrl, setProjectId])
 
   useEffect(() => {
     if (!taskId) return
