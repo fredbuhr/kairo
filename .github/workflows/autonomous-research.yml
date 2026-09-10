@@ -20,6 +20,8 @@ jobs:
         run: uv run --project services/worker python scripts/smoke/research_agent_contract.py
       - name: Prove bounded multi-source Research Context Pack
         run: uv run --project services/worker python scripts/smoke/research_context_pack_contract.py
+      - name: Prove Research result ownership
+        run: uv run --project services/core python scripts/smoke/research_result_ownership_contract.py
       - name: Prove canonical document-context query contract
         run: uv run --project services/core python scripts/smoke/research_document_context_contract.py
       - name: Prove authoritative derived-memory scope contract
