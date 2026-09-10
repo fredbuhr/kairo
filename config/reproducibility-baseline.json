@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "baseline_date": "2026-09-11",
+  "validated_parent_sha": "5df3f8872a899c886a588c9232053e5402260a98",
+  "expected_package_manager": "pnpm@10.15.1",
+  "validated_digest_pins": {
+    "services/core/Dockerfile": "ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58",
+    "services/worker/Dockerfile": "ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58"
+  },
+  "known_unpinned_images": [
+    ["apps/web/Dockerfile", "node:22-alpine"],
+    ["compose.ops.yaml", "alpine:3.22"],
+    ["compose.ops.yaml", "restic/restic:0.19.1"],
+    ["compose.yaml", "actualbudget/actual-server:latest"],
+    ["compose.yaml", "binwiederhier/ntfy:latest"],
+    ["compose.yaml", "chrislusf/seaweedfs:4.46"],
+    ["compose.yaml", "clickhouse/clickhouse-server:25.12"],
+    ["compose.yaml", "docker.openhands.dev/openhands/openhands:1.6"],
+    ["compose.yaml", "ghcr.io/activepieces/activepieces:0.86.3"],
+    ["compose.yaml", "ghcr.io/berriai/litellm:main-latest"],
+    ["compose.yaml", "ghcr.io/home-assistant/home-assistant:stable"],
+    ["compose.yaml", "ghcr.io/remsky/kokoro-fastapi-cpu:v0.8.0"],
+    ["compose.yaml", "ghcr.io/searxng/searxng:2026.9.7-3e454637f"],
+    ["compose.yaml", "headscale/headscale:latest"],
+    ["compose.yaml", "hummingbot/hummingbot:latest"],
+    ["compose.yaml", "langfuse/langfuse-worker:3"],
+    ["compose.yaml", "langfuse/langfuse:3"],
+    ["compose.yaml", "livekit/livekit-server:v1.13.1"],
+    ["compose.yaml", "nats:2.14.5-alpine"],
+    ["compose.yaml", "neo4j:5.26-community"],
+    ["compose.yaml", "ollama/ollama:0.33.3"],
+    ["compose.yaml", "openbao/openbao:2.6.2"],
+    ["compose.yaml", "pgvector/pgvector:0.8.6-pg17"],
+    ["compose.yaml", "quay.io/keycloak/keycloak:26.7.3"],
+    ["compose.yaml", "rotki/rotki:latest"],
+    ["compose.yaml", "temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}"],
+    ["compose.yaml", "temporalio/server:${TEMPORAL_VERSION}"],
+    ["compose.yaml", "temporalio/ui:${TEMPORAL_UI_VERSION}"],
+    ["compose.yaml", "valkey/valkey:8.1.10-alpine"],
+    ["compose.yaml", "vllm/vllm-openai:latest"],
+    ["services/realtime/Dockerfile", "node:22-alpine"]
+  ],
+  "known_unlocked_install_files": {
+    "pnpm_no_frozen_lockfile": ["apps/web/Dockerfile", "services/realtime/Dockerfile"],
+    "uv_direct_install": ["services/core/Dockerfile", "services/worker/Dockerfile"]
+  },
+  "known_missing_lockfiles": ["pnpm-lock.yaml", "services/core/uv.lock", "services/worker/uv.lock"]
+}
