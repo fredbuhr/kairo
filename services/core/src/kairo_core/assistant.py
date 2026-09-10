@@ -43,7 +43,6 @@ from .workflows import run_task
 
 router = APIRouter()
 
-ASSISTANT_PROJECT_ID = uuid.UUID("91d51873-3aa5-4fbc-a6df-cf474239682f")
 SEMANTIC_ROUTE_BUDGET_USD = Decimal("0.02")
 SEMANTIC_ROUTE_CONFIDENCE_FLOOR = 0.80
 
@@ -210,7 +209,6 @@ async def _owned_conversation(
 ) -> Conversation:
     conversation = await session.get(Conversation, conversation_id)
     if conversation is None or conversation.subject_ref != principal.subject:
-        # Deliberately return the same not-found response for missing and foreign conversations.
         raise HTTPException(status_code=404, detail="Conversation not found")
     return conversation
 
@@ -238,8 +236,22 @@ async def _conversation_for_command(
     return conversation
 
 
-async def _ensure_assistant_project(session: AsyncSession) -> Project:
-    project = await session.get(Project, ASSISTANT_PROJECT_ID)
+def _assistant_project_id(subject: str) -> uuid.UUID:
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:project:assistant:subject:{subject}")
+
+
+async def _ensure_assistant_project(session: AsyncSession, subject: str) -> Project:
+    normalized_subject = subject.strip()
+    if not normalized_subject:
+        raise HTTPException(status_code=409, detail="Assistant conversation has no owner")
+
+    project_id = _assistant_project_id(normalized_subject)
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_subject == normalized_subject,
+        )
+    )
     if project is not None:
         return project
 
@@ -247,18 +259,25 @@ async def _ensure_assistant_project(session: AsyncSession) -> Project:
     inserted_id = await session.scalar(
         pg_insert(Project)
         .values(
-            id=ASSISTANT_PROJECT_ID,
+            id=project_id,
+            owner_subject=normalized_subject,
             name="KAIRO Assistant",
             status="active",
-            summary="System workspace for durable command routing and assistant orchestration.",
+            summary="Per-user system workspace for durable command routing and assistant orchestration.",
             parent_id=None,
         )
         .on_conflict_do_nothing(index_elements=[Project.id])
         .returning(Project.id)
     )
-    project = await session.get(Project, ASSISTANT_PROJECT_ID)
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_subject == normalized_subject,
+        )
+    )
     if project is None:
-        raise RuntimeError("KAIRO Assistant workspace could not be initialized")
+        raise RuntimeError("KAIRO Assistant workspace could not be initialized for this owner")
+
     if inserted_id is not None:
         await enqueue_domain_event(
             session,
@@ -277,7 +296,10 @@ async def _ensure_assistant_project(session: AsyncSession) -> Project:
             resource_id=str(project.id),
             authority_level=0,
             correlation_id=correlation_id,
-            request_json={"reason": "initialize assistant routing workspace"},
+            request_json={
+                "reason": "initialize owner-scoped assistant routing workspace",
+                "subject": normalized_subject,
+            },
         )
     return project
 
@@ -301,7 +323,8 @@ async def _start_semantic_route(
     conversation: Conversation,
     session: AsyncSession,
 ) -> AssistantCommandResponse:
-    project = await _ensure_assistant_project(session)
+    subject = str(conversation.subject_ref or "").strip()
+    project = await _ensure_assistant_project(session, subject)
     route_input = SemanticRouteInput(
         command_id=command.id,
         text=body.text,
