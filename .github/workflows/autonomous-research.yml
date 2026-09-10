@@ -41,3 +41,45 @@ jobs:
       - name: Tear down research stack
         if: always()
         run: docker compose down -v --remove-orphans
+
+  research-end-to-end:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare deterministic Research environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_AUTH_ENABLED=false' >> .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+      - name: Start canonical Research Core and Worker substrate
+        run: docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+      - name: Start deterministic model and MCP stand-ins
+        run: |
+          docker run -d --name kairo-fake-research-litellm \
+            --network kairo_kairo \
+            --network-alias litellm \
+            -p 127.0.0.1:4010:4000 \
+            -v "$PWD/scripts/smoke/fake_research_litellm.py:/app/server.py:ro" \
+            python:3.12-alpine python /app/server.py
+          WORKER_IMAGE="$(docker compose images -q kairo-worker)"
+          test -n "$WORKER_IMAGE"
+          docker run -d --name kairo-fake-research-mcp \
+            --network kairo_kairo \
+            --network-alias fake-research-mcp \
+            -v "$PWD/scripts/smoke/fake_research_mcp.py:/app/server.py:ro" \
+            "$WORKER_IMAGE" python /app/server.py
+      - name: Prove plan to MCP child to grounded synthesis to canonical Artifact
+        run: python scripts/smoke/research_e2e.py
+      - name: Dump Research end-to-end state on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker logs kairo-fake-research-litellm || true
+          docker logs kairo-fake-research-mcp || true
+          docker compose logs --no-color --tail=700 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+      - name: Tear down Research end-to-end stack
+        if: always()
+        run: |
+          docker rm -f kairo-fake-research-litellm kairo-fake-research-mcp || true
+          docker compose down -v --remove-orphans
