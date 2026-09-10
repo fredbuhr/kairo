@@ -84,8 +84,8 @@ def wait_model_fixture() -> None:
     raise RuntimeError("Deterministic Research model fixture did not become ready")
 
 
-def wait_research(task_id: str) -> dict[str, Any]:
-    deadline = time.time() + 120
+def wait_research(task_id: str, *, timeout: float = 120.0) -> dict[str, Any]:
+    deadline = time.time() + timeout
     last: dict[str, Any] | None = None
     while time.time() < deadline:
         last = request("GET", f"/v1/research/runs/{task_id}")
