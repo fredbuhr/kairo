@@ -72,9 +72,12 @@ async def _json(
     *,
     headers: dict[str, str] | None = None,
     payload: dict[str, Any] | None = None,
-    expected: set[int] = {200},
+    expected: frozenset[int] = frozenset({200}),
 ) -> Any:
-    response = await client.request(method, path, headers=headers, json=payload)
+    kwargs: dict[str, Any] = {"headers": headers}
+    if payload is not None:
+        kwargs["json"] = payload
+    response = await client.request(method, path, **kwargs)
     if response.status_code not in expected:
         hint = ""
         if response.status_code in {401, 403} and not os.getenv("KAIRO_ADMIN_TOKEN", "").strip():
@@ -107,7 +110,7 @@ async def bootstrap() -> None:
                     "transport": "mcp_streamable_http",
                     "metadata": {"managed_by": "kairo", "purpose": "research-web"},
                 },
-                expected={201},
+                expected=frozenset({201}),
             )
         else:
             server = existing
