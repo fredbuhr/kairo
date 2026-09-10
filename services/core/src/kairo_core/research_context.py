@@ -255,6 +255,7 @@ async def get_research_derived_memory_scope(
             reason="requester_subject_unavailable",
         )
 
+    await _require_research_task_owner_binding(task, requester_subject, session)
     rows = (
         await session.execute(build_graphiti_scope_statement(requester_subject=requester_subject))
     ).scalars().all()
