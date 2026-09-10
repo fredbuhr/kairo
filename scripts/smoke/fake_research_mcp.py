@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import os
 from typing import Annotated, Any
 
 from mcp.server import MCPServer
@@ -15,6 +17,7 @@ security = TransportSecuritySettings(
     allowed_hosts=["fake-research-mcp:8766"],
     allowed_origins=[],
 )
+DELAY_SECONDS = max(0.0, float(os.getenv("FAKE_RESEARCH_MCP_DELAY_SECONDS", "0")))
 
 
 @mcp.tool(
@@ -23,9 +26,11 @@ security = TransportSecuritySettings(
     description="Return one deterministic read-only evidence record.",
     annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True),
 )
-def search(
+async def search(
     query: Annotated[str, Field(min_length=2, max_length=500)],
 ) -> dict[str, Any]:
+    if DELAY_SECONDS:
+        await asyncio.sleep(DELAY_SECONDS)
     return {
         "query": query,
         "result_count": 1,
@@ -40,7 +45,10 @@ def search(
 
 
 if __name__ == "__main__":
-    print("fake Research MCP listening on 0.0.0.0:8766", flush=True)
+    print(
+        f"fake Research MCP listening on 0.0.0.0:8766 delay={DELAY_SECONDS}s",
+        flush=True,
+    )
     mcp.run(
         transport="streamable-http",
         host="0.0.0.0",
