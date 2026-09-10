@@ -24,6 +24,8 @@ jobs:
         run: |
           cp .env.example .env
           docker compose -f compose.yaml -f compose.web-mcp.yaml config >/dev/null
+      - name: Validate Research crash Compose overlay
+        run: docker compose -f compose.yaml -f compose.research-crash.yaml config >/dev/null
 
   research-core-integration:
     runs-on: ubuntu-latest
@@ -47,3 +49,30 @@ jobs:
       - name: Tear down research stack
         if: always()
         run: docker compose down -v --remove-orphans
+
+  research-crash-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare deterministic crash environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+      - name: Start Research crash topology
+        run: |
+          docker compose -f compose.yaml -f compose.research-crash.yaml up -d --build \
+            postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace \
+            kairo-core fake-research-litellm fake-research-mcp kairo-worker
+      - name: Prove real Worker SIGKILL replay invariants
+        run: python scripts/smoke/research_crash_replay.py
+      - name: Dump crash replay state on failure
+        if: failure()
+        run: |
+          docker compose -f compose.yaml -f compose.research-crash.yaml ps -a
+          docker compose -f compose.yaml -f compose.research-crash.yaml logs --no-color --tail=800 \
+            postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace \
+            kairo-core kairo-worker fake-research-litellm fake-research-mcp
+      - name: Tear down crash replay stack
+        if: always()
+        run: docker compose -f compose.yaml -f compose.research-crash.yaml down -v --remove-orphans
