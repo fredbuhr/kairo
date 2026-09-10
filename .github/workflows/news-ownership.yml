@@ -1,0 +1,40 @@
+name: News ownership validation
+
+on:
+  push:
+    paths:
+      - 'services/core/src/kairo_core/news.py'
+      - 'services/core/src/kairo_core/auth.py'
+      - 'services/core/src/kairo_core/models.py'
+      - 'services/core/src/kairo_core/schemas.py'
+      - 'scripts/smoke/news_ownership_contract.py'
+      - '.github/workflows/news-ownership.yml'
+  pull_request:
+    paths:
+      - 'services/core/src/kairo_core/news.py'
+      - 'services/core/src/kairo_core/auth.py'
+      - 'services/core/src/kairo_core/models.py'
+      - 'services/core/src/kairo_core/schemas.py'
+      - 'scripts/smoke/news_ownership_contract.py'
+      - '.github/workflows/news-ownership.yml'
+
+concurrency:
+  group: news-ownership-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Prepare development environment
+        run: cp .env.example .env
+
+      - name: Compile News ownership contract
+        run: python -m compileall scripts/smoke/news_ownership_contract.py services/core/src/kairo_core/news.py
+
+      - name: Prove News ownership boundaries
+        run: uv run --project services/core python scripts/smoke/news_ownership_contract.py
