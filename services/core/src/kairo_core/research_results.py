@@ -17,6 +17,7 @@ from .models import Artifact, Task, WorkflowExecution
 router = APIRouter()
 
 Confidence = Literal["low", "medium", "high", "unknown"]
+EvidenceSourceType = Literal["tool", "document", "memory", "unknown"]
 
 
 class ResearchClaimRead(BaseModel):
@@ -33,9 +34,15 @@ class ResearchSynthesisRead(BaseModel):
 
 class ResearchEvidenceRead(BaseModel):
     evidence_id: str
-    slot: int
-    tool_key: str
-    invocation_id: uuid.UUID
+    source_type: EvidenceSourceType = "unknown"
+    source: str = "unknown"
+    authority: str = "unknown"
+    slot: int | None = None
+    tool_key: str | None = None
+    invocation_id: uuid.UUID | None = None
+    title: str | None = None
+    excerpt: str | None = None
+    provenance: dict[str, Any] = Field(default_factory=dict)
 
 
 class ResearchToolInvocationRead(BaseModel):
@@ -56,6 +63,7 @@ class ResearchRunRead(BaseModel):
     answer: str | None = None
     synthesis: ResearchSynthesisRead | None = None
     evidence: list[ResearchEvidenceRead] = Field(default_factory=list)
+    context_pack: dict[str, Any] = Field(default_factory=dict)
     tool_invocations: list[ResearchToolInvocationRead] = Field(default_factory=list)
     tool_call_count: int = 0
     planner_model_alias: str | None = None
@@ -76,6 +84,13 @@ def _research_input(task: Task) -> dict[str, Any]:
     if str(value.get("capability") or "") != "research.autonomous":
         raise HTTPException(status_code=409, detail="Task is not an autonomous research task")
     return value
+
+
+def _require_research_owner(task_input: dict[str, Any], principal: Principal) -> None:
+    requester_subject = str(task_input.get("requester_subject") or "").strip()
+    if not requester_subject or requester_subject != principal.subject:
+        # Missing and foreign ownership deliberately have the same surface.
+        raise HTTPException(status_code=404, detail="Research run not found")
 
 
 def _uuid_or_none(value: Any) -> uuid.UUID | None:
@@ -118,6 +133,13 @@ def _tool_invocations(content: dict[str, Any]) -> list[ResearchToolInvocationRea
     return rows
 
 
+def _source_type(value: Any, *, invocation_id: uuid.UUID | None) -> EvidenceSourceType:
+    candidate = str(value or "").strip()
+    if candidate in {"tool", "document", "memory"}:
+        return candidate  # type: ignore[return-value]
+    return "tool" if invocation_id is not None else "unknown"
+
+
 def _evidence(
     content: dict[str, Any], tool_invocations: list[ResearchToolInvocationRead]
 ) -> list[ResearchEvidenceRead]:
@@ -127,27 +149,44 @@ def _evidence(
         for position, item in enumerate(raw):
             if not isinstance(item, dict):
                 continue
-            invocation_id = _uuid_or_none(item.get("invocation_id"))
-            if invocation_id is None:
+            evidence_id = str(item.get("evidence_id") or "").strip()
+            if not evidence_id:
                 continue
-            slot = _slot(item.get("slot"), position)
+            invocation_id = _uuid_or_none(item.get("invocation_id"))
+            source_type = _source_type(item.get("source_type"), invocation_id=invocation_id)
+            if source_type == "tool" and invocation_id is None:
+                continue
+            raw_slot = item.get("slot")
+            slot = _slot(raw_slot, position) if raw_slot is not None else None
+            title = str(item.get("title") or "").strip() or None
+            excerpt = str(item.get("excerpt") or "").strip() or None
+            provenance = item.get("provenance") if isinstance(item.get("provenance"), dict) else {}
             rows.append(
                 ResearchEvidenceRead(
-                    evidence_id=str(item.get("evidence_id") or f"E{slot + 1}"),
+                    evidence_id=evidence_id,
+                    source_type=source_type,
+                    source=str(item.get("source") or item.get("tool_key") or "unknown"),
+                    authority=str(item.get("authority") or "unknown"),
                     slot=slot,
-                    tool_key=str(item.get("tool_key") or "unknown"),
+                    tool_key=(str(item.get("tool_key") or "") or None),
                     invocation_id=invocation_id,
+                    title=title,
+                    excerpt=excerpt,
+                    provenance=provenance,
                 )
             )
         if rows:
             return rows
 
-    # Backward compatibility with the first research artifact, which preserved canonical tool
-    # invocations but did not yet include an explicit evidence index.
+    # Backward compatibility with the first research artifacts, which preserved canonical tool
+    # invocations but did not yet include a typed multi-source evidence index.
     for item in tool_invocations:
         rows.append(
             ResearchEvidenceRead(
                 evidence_id=f"E{item.slot + 1}",
+                source_type="tool",
+                source=item.tool_key,
+                authority="policy-bound-read-tool",
                 slot=item.slot,
                 tool_key=item.tool_key,
                 invocation_id=item.invocation_id,
@@ -158,7 +197,7 @@ def _evidence(
 
 def _confidence(value: Any) -> Confidence:
     candidate = str(value or "unknown")
-    return candidate if candidate in {"low", "medium", "high", "unknown"} else "unknown"
+    return candidate if candidate in {"low", "medium", "high", "unknown"} else "unknown"  # type: ignore[return-value]
 
 
 def _synthesis(content: dict[str, Any]) -> ResearchSynthesisRead | None:
@@ -211,13 +250,14 @@ def _tool_call_count(content: dict[str, Any], fallback: int) -> int:
 @router.get("/v1/research/runs/{task_id}", response_model=ResearchRunRead)
 async def get_research_run(
     task_id: uuid.UUID,
-    _: Principal = Depends(require_kairo_user),
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> ResearchRunRead:
     task = await session.get(Task, task_id)
     if task is None:
-        raise HTTPException(status_code=404, detail="Research task not found")
+        raise HTTPException(status_code=404, detail="Research run not found")
     task_input = _research_input(task)
+    _require_research_owner(task_input, principal)
 
     execution = await session.scalar(
         select(WorkflowExecution)
@@ -246,6 +286,7 @@ async def get_research_run(
         answer=answer,
         synthesis=synthesis,
         evidence=_evidence(content, tool_invocations),
+        context_pack=(content.get("context_pack") if isinstance(content.get("context_pack"), dict) else {}),
         tool_invocations=tool_invocations,
         tool_call_count=_tool_call_count(content, len(tool_invocations)),
         planner_model_alias=str(
