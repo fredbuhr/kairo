@@ -515,6 +515,11 @@ async def internal_complete_document_ingestion(
     document = await session.get(Document, version.document_id, with_for_update=True)
     if document is None:
         raise HTTPException(status_code=410, detail="Document is missing")
+    asset = await session.get(Asset, document.asset_id)
+    if asset is None:
+        raise HTTPException(status_code=410, detail="Document source asset is unavailable")
+
+    await _require_internal_source_binding(version, document, asset, session)
     if version.source_sha256 and body.source_sha256 != version.source_sha256:
         raise HTTPException(status_code=409, detail="Document source digest changed during ingestion")
 
@@ -607,10 +612,16 @@ async def internal_fail_document_ingestion(
     if version is None:
         raise HTTPException(status_code=404, detail="Document version not found")
     document = await session.get(Document, version.document_id, with_for_update=True)
+    if document is None:
+        raise HTTPException(status_code=410, detail="Document is missing")
+    asset = await session.get(Asset, document.asset_id)
+    if asset is None:
+        raise HTTPException(status_code=410, detail="Document source asset is unavailable")
+
+    await _require_internal_source_binding(version, document, asset, session)
     version.status = "failed"
     version.last_error = str(body.get("error") or "Document ingestion failed")[:4000]
     version.completed_at = datetime.now(UTC)
-    if document is not None:
-        document.status = "failed"
+    document.status = "failed"
     await session.commit()
     return {"version_id": str(version.id), "status": version.status}
