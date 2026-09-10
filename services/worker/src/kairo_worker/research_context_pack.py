@@ -29,6 +29,20 @@ def _bounded_excerpt(value: Any, remaining: int) -> str:
     return text[: limit - 1] + "…"
 
 
+def _safe_source_status(value: Any, *, default_status: str = "unavailable") -> dict[str, Any]:
+    raw = value if isinstance(value, dict) else {}
+    summary: dict[str, Any] = {"status": str(raw.get("status") or default_status)}
+    if raw.get("count") is not None:
+        try:
+            summary["count"] = max(0, int(raw["count"]))
+        except (TypeError, ValueError):
+            pass
+    reason = str(raw.get("reason") or "").strip()
+    if reason:
+        summary["reason"] = reason[:200]
+    return summary
+
+
 def _document_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
     raw = payload.get("items") if isinstance(payload.get("items"), list) else []
     items: list[dict[str, Any]] = []
@@ -126,26 +140,22 @@ def build_research_context_pack(
         if remaining <= 0:
             break
 
-    document_reason = (document_context or {}).get("reason")
     derived_sources = (derived_context or {}).get("sources")
+    derived_sources = derived_sources if isinstance(derived_sources, dict) else {}
     return {
         "items": bounded,
         "sources": {
             "documents": {
                 "status": "ok" if document_context is not None else "unavailable",
                 "count": len(documents),
-                "reason": document_reason,
+                **(
+                    {"reason": str((document_context or {}).get("reason"))[:200]}
+                    if (document_context or {}).get("reason")
+                    else {}
+                ),
             },
-            "mem0": (
-                dict(derived_sources.get("mem0") or {})
-                if isinstance(derived_sources, dict)
-                else {"status": "unavailable"}
-            ),
-            "graphiti": (
-                dict(derived_sources.get("graphiti") or {})
-                if isinstance(derived_sources, dict)
-                else {"status": "unavailable"}
-            ),
+            "mem0": _safe_source_status(derived_sources.get("mem0")),
+            "graphiti": _safe_source_status(derived_sources.get("graphiti")),
         },
         "item_count": len(bounded),
         "character_count": sum(len(item["excerpt"]) for item in bounded),
@@ -175,22 +185,13 @@ def context_pack_model_records(context_pack: dict[str, Any]) -> list[dict[str, A
 
 
 def context_pack_public_summary(context_pack: dict[str, Any]) -> dict[str, Any]:
-    """Expose useful source health without persisting backend exception messages into Artifacts."""
+    """Return the already-sanitized source health plus bounded pack counters."""
 
     raw_sources = context_pack.get("sources") if isinstance(context_pack.get("sources"), dict) else {}
-    sources: dict[str, dict[str, Any]] = {}
-    for name in ("documents", "mem0", "graphiti"):
-        raw = raw_sources.get(name) if isinstance(raw_sources.get(name), dict) else {}
-        summary: dict[str, Any] = {"status": str(raw.get("status") or "unknown")}
-        if raw.get("count") is not None:
-            try:
-                summary["count"] = max(0, int(raw["count"]))
-            except (TypeError, ValueError):
-                pass
-        reason = str(raw.get("reason") or "").strip()
-        if reason:
-            summary["reason"] = reason[:200]
-        sources[name] = summary
+    sources = {
+        name: _safe_source_status(raw_sources.get(name), default_status="unknown")
+        for name in ("documents", "mem0", "graphiti")
+    }
 
     def _non_negative_int(value: Any, fallback: int = 0) -> int:
         try:
