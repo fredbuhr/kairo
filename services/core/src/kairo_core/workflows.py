@@ -242,7 +242,7 @@ async def run_task(
         )
         await append_audit(
             session,
-            actor_type="user" if actor_id else "system",
+            actor_type="user",
             actor_id=actor_id,
             action="task.run.request",
             resource_type="task",
