@@ -27,7 +27,7 @@ type CockpitShellProps = {
 
 type WorkspaceLayoutEnvelope = {
   schema_version: number
-  layout: Record<string, unknown>
+  layout: unknown
 }
 
 const CockpitContentContext = createContext<CockpitSlots | null>(null)
@@ -94,15 +94,18 @@ async function loadWorkspaceLayout(apiUrl: string, workspaceKey: string) {
   if (response.status === 404) return null
   if (!response.ok) throw new Error(`KAIRO Core layout read failed (${response.status})`)
   const value = (await response.json()) as WorkspaceLayoutEnvelope
-  if (value.schema_version !== LAYOUT_SCHEMA_VERSION || !value.layout) return null
+  if (
+    value.schema_version !== LAYOUT_SCHEMA_VERSION ||
+    typeof value.layout !== 'object' ||
+    value.layout === null ||
+    Array.isArray(value.layout)
+  ) {
+    return null
+  }
   return value.layout
 }
 
-async function saveWorkspaceLayout(
-  apiUrl: string,
-  workspaceKey: string,
-  layout: Record<string, unknown>,
-) {
+async function saveWorkspaceLayout(apiUrl: string, workspaceKey: string, layout: unknown) {
   const response = await fetch(
     `${apiUrl}/v1/ui/workspaces/${encodeURIComponent(workspaceKey)}/layout`,
     {
@@ -141,7 +144,7 @@ export default function CockpitShell({
           const saved = await loadWorkspaceLayout(apiUrl, workspaceKey)
           if (disposedRef.current) return
           if (saved) {
-            event.api.fromJSON(saved as ReturnType<typeof event.api.toJSON>)
+            event.api.fromJSON(saved as unknown as ReturnType<typeof event.api.toJSON>)
             restored = true
           }
         } catch (layoutError) {
@@ -154,10 +157,11 @@ export default function CockpitShell({
         const disposable = event.api.onDidLayoutChange(() => {
           if (saveTimer) window.clearTimeout(saveTimer)
           saveTimer = window.setTimeout(() => {
-            const layout = event.api.toJSON() as Record<string, unknown>
-            void saveWorkspaceLayout(apiUrl, workspaceKey, layout).catch((layoutError) => {
-              console.warn('KAIRO Cockpit layout save failed', layoutError)
-            })
+            void saveWorkspaceLayout(apiUrl, workspaceKey, event.api.toJSON()).catch(
+              (layoutError) => {
+                console.warn('KAIRO Cockpit layout save failed', layoutError)
+              },
+            )
           }, SAVE_DEBOUNCE_MS)
         })
 
