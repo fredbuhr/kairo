@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import {
-  type KnowledgeInspectionTarget,
-  useKnowledgeChunkInspection,
-} from './knowledgeChunkInspection'
-import {
-  type CanonicalDocument,
-  type DocumentVersion,
-  useKnowledgeDocumentActions,
-} from './knowledgeDocumentActions'
+import { useKnowledgeChunkInspection } from './knowledgeChunkInspection'
+import { useKnowledgeDocumentActions } from './knowledgeDocumentActions'
 import { useKnowledgeDocumentDataLoading } from './knowledgeDocumentDataLoading'
 import { useKnowledgeIngestionTracking } from './knowledgeIngestionTracking'
 import {
@@ -16,9 +9,12 @@ import {
   KnowledgeDocumentsView,
   KnowledgeVersionsView,
 } from './KnowledgeInspectorView'
+import type {
+  CanonicalDocument,
+  DocumentVersion,
+  KnowledgeInspectionTarget,
+} from './knowledgeTypes'
 import { useProjectSelection } from './lib/projectSelection'
-
-export type { KnowledgeInspectionTarget } from './knowledgeChunkInspection'
 
 type Props = {
   apiUrl: string

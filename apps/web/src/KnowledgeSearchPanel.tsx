@@ -1,21 +1,8 @@
 import { type FormEvent, useEffect, useState } from 'react'
 
-import type { KnowledgeInspectionTarget } from './KnowledgeWorkspace'
+import type { KnowledgeInspectionTarget, KnowledgeSearchResult } from './knowledgeTypes'
 import { kairoFetch } from './lib/apiClient'
 import { useProjectSelection } from './lib/projectSelection'
-
-type KnowledgeSearchResult = {
-  document_id: string
-  document_project_id: string
-  document_title: string
-  document_version_id: string
-  generation: number
-  chunk_id: string
-  ordinal: number
-  excerpt: string
-  content_sha256: string
-  rank: number
-}
 
 type Props = {
   apiUrl: string

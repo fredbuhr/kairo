@@ -1,7 +1,8 @@
 import { useState } from 'react'
 
 import KnowledgeSearchPanel from './KnowledgeSearchPanel'
-import KnowledgeWorkspace, { type KnowledgeInspectionTarget } from './KnowledgeWorkspace'
+import KnowledgeWorkspace from './KnowledgeWorkspace'
+import type { KnowledgeInspectionTarget } from './knowledgeTypes'
 
 type Props = {
   apiUrl: string

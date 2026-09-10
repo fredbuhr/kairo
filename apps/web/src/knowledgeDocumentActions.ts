@@ -1,44 +1,11 @@
 import { type FormEvent, useEffect, useState } from 'react'
 
+import type {
+  AssetUpload,
+  CanonicalDocument,
+  DocumentImportRun,
+} from './knowledgeTypes'
 import { kairoFetch } from './lib/apiClient'
-
-export type CanonicalDocument = {
-  id: string
-  asset_id: string
-  project_id: string
-  title: string
-  media_type?: string | null
-  source_sha256?: string | null
-  status: string
-  metadata_json: Record<string, unknown>
-  created_at: string
-  updated_at: string
-}
-
-export type DocumentVersion = {
-  id: string
-  document_id: string
-  generation: number
-  task_id?: string | null
-  parser: string
-  parser_version?: string | null
-  source_sha256?: string | null
-  status: string
-  chunk_count: number
-  metadata_json: Record<string, unknown>
-  last_error?: string | null
-  created_at: string
-  completed_at?: string | null
-}
-
-type AssetUpload = {
-  id: string
-}
-
-export type DocumentImportRun = {
-  document: CanonicalDocument
-  version: DocumentVersion
-}
 
 type Options = {
   apiUrl: string

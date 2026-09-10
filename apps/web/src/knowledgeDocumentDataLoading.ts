@@ -1,6 +1,6 @@
 import { type Dispatch, type SetStateAction, useEffect } from 'react'
 
-import type { CanonicalDocument, DocumentVersion } from './knowledgeDocumentActions'
+import type { CanonicalDocument, DocumentVersion } from './knowledgeTypes'
 import { kairoFetch } from './lib/apiClient'
 
 type Options = {

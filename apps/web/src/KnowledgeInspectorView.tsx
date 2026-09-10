@@ -1,5 +1,5 @@
-import { MAX_CHUNK_PREVIEW_ITEMS, type DocumentChunk } from './knowledgeChunkInspection'
-import type { CanonicalDocument, DocumentVersion } from './knowledgeDocumentActions'
+import { MAX_CHUNK_PREVIEW_ITEMS } from './knowledgeChunkInspection'
+import type { CanonicalDocument, DocumentChunk, DocumentVersion } from './knowledgeTypes'
 
 const MAX_CHUNK_PREVIEW_CHARS = 1200
 

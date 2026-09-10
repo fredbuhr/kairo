@@ -1,34 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { CanonicalDocument, DocumentVersion } from './knowledgeDocumentActions'
+import type {
+  CanonicalDocument,
+  DocumentChunk,
+  DocumentVersion,
+  KnowledgeChunkWindow,
+  KnowledgeInspectionTarget,
+} from './knowledgeTypes'
 import { kairoFetch } from './lib/apiClient'
-
-export type DocumentChunk = {
-  id: string
-  document_version_id: string
-  ordinal: number
-  text: string
-  content_sha256: string
-  metadata_json: Record<string, unknown>
-  created_at: string
-}
-
-export type KnowledgeInspectionTarget = {
-  documentId: string
-  documentVersionId: string
-  chunkId: string
-  ordinal: number
-}
-
-type KnowledgeChunkWindow = {
-  project_id: string
-  document_id: string
-  document_version_id: string
-  anchor_chunk_id: string
-  offset: number
-  total: number
-  chunks: DocumentChunk[]
-}
 
 type Options = {
   apiUrl: string
