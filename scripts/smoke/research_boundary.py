@@ -129,6 +129,7 @@ def main() -> None:
     assert pending["status"] == "todo", pending
     assert pending["query"] == "Find evidence about KAIRO", pending
     assert pending["artifact_id"] is None and pending["answer"] is None, pending
+    assert pending["tool_invocations"] == [], pending
 
     context = request("GET", f"/internal/v1/research/tasks/{parent['id']}/context", headers=INTERNAL)
     keys = {tool["key"] for tool in context["tools"]}
@@ -196,6 +197,7 @@ def main() -> None:
                 "slot": 0,
                 "tool_key": "researchsmoke.search",
                 "input": {"query": "KAIRO"},
+                "rationale": "read evidence",
                 "invocation_id": first["invocation_id"],
                 "result": {"items": [{"title": "Fixture", "snippet": "Canonical provenance"}]},
             }
@@ -220,15 +222,23 @@ def main() -> None:
     assert completed["synthesis"]["claims"][0]["evidence_ids"] == ["E1"], completed
     assert completed["evidence"][0]["invocation_id"] == first["invocation_id"], completed
     assert completed["tool_call_count"] == 1, completed
+    assert len(completed["tool_invocations"]) == 1, completed
+    invocation = completed["tool_invocations"][0]
+    assert invocation["invocation_id"] == first["invocation_id"], invocation
+    assert invocation["tool_key"] == "researchsmoke.search", invocation
+    assert invocation["input"] == {"query": "KAIRO"}, invocation
+    assert invocation["rationale"] == "read evidence", invocation
+    assert invocation["result"]["items"][0]["snippet"] == "Canonical provenance", invocation
     assert completed["planner_model_alias"] == "local-fast", completed
     assert completed["synthesis_model_alias"] == "local-fast", completed
+    assert completed["model_budget_usd"] == "0.01", completed
     assert completed["artifact_id"], completed
     assert completed["workflow_execution_id"] == parent_run["workflow_execution_id"], completed
     assert completed["workflow_id"] == parent_run["workflow_id"], completed
     assert completed["correlation_id"], completed
 
     print(
-        "PASS: Core enforces read/A1 research tools, deterministic child slots and a stable canonical "
+        "PASS: Core enforces read/A1 research tools, deterministic child slots and a stable typed "
         "research result contract"
     )
 
