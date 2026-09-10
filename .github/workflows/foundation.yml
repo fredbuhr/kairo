@@ -18,7 +18,9 @@ jobs:
         run: cp .env.example .env
 
       - name: Validate Compose topology
-        run: docker compose config >/dev/null
+        run: |
+          docker compose config >/dev/null
+          docker compose -f compose.yaml -f compose.test-noauth.yaml config >/dev/null
 
       - name: Validate production and operations topologies
         run: |
@@ -73,6 +75,9 @@ jobs:
       - name: Prove deterministic conversational routing
         run: uv run --project services/core python scripts/smoke/assistant_router.py
 
+      - name: Prove Assistant conversation ownership contract
+        run: uv run --project services/core python scripts/smoke/assistant_ownership_contract.py
+
       - name: Prove PydanticAI semantic routing contract
         run: uv run --project services/worker python scripts/smoke/semantic_router_contract.py
 
@@ -96,7 +101,7 @@ jobs:
 
       - name: Start canonical command and Temporal substrate
         run: |
-          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
 
       - name: Prove canonical conversation and command handoff
         run: python scripts/smoke/command_kernel.py
@@ -125,7 +130,7 @@ jobs:
 
       - name: Start canonical command, policy and Worker substrate
         run: |
-          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
 
       - name: Start deterministic LiteLLM stand-in
         run: |
@@ -166,7 +171,7 @@ jobs:
 
       - name: Start canonical message, event and Worker substrate
         run: |
-          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
 
       - name: Prove rebuildable memory projection generations
         run: python scripts/smoke/memory_projection.py
