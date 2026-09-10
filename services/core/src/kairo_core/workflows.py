@@ -5,11 +5,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import Principal, require_kairo_user
 from .command_models import CommandRecord
 from .db import get_session
 from .document_models import Document, DocumentVersion
 from .events import append_audit, enqueue_domain_event
 from .models import Artifact, Task, WorkflowExecution
+from .project_access import get_owned_task
 from .schemas import (
     ArtifactRead,
     InternalCompleteRequest,
@@ -193,8 +195,18 @@ async def _propagate_document_ingestion_failure(
     )
 
 
-@router.post("/v1/tasks/{task_id}/run", response_model=TaskRunResponse)
-async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_session)) -> TaskRunResponse:
+async def run_task(
+    task_id: uuid.UUID,
+    session: AsyncSession,
+    *,
+    actor_id: str | None = None,
+) -> TaskRunResponse:
+    """Start or resume one canonical Task.
+
+    This function is intentionally transport-agnostic so internal Core modules can schedule their
+    own already-authorized Tasks. The public HTTP wrapper below performs requester ownership checks.
+    """
+
     task = await session.get(Task, task_id, with_for_update=True)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -230,8 +242,8 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
         )
         await append_audit(
             session,
-            actor_type="user",
-            actor_id=None,
+            actor_type="user" if actor_id else "system",
+            actor_id=actor_id,
             action="task.run.request",
             resource_type="task",
             resource_id=str(task.id),
@@ -322,6 +334,17 @@ async def run_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_sessi
         status=locked_execution.status,
         already_started=already_started,
     )
+
+
+@router.post("/v1/tasks/{task_id}/run", response_model=TaskRunResponse)
+async def run_owned_task(
+    task_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> TaskRunResponse:
+    if not await get_owned_task(session, task_id, principal):
+        raise HTTPException(status_code=404, detail="Task not found")
+    return await run_task(task_id, session, actor_id=principal.subject)
 
 
 @router.post(
@@ -524,8 +547,12 @@ async def internal_fail_execution(
 
 @router.get("/v1/tasks/{task_id}/artifacts", response_model=list[ArtifactRead])
 async def task_artifacts(
-    task_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+    task_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> list[Artifact]:
+    if not await get_owned_task(session, task_id, principal):
+        raise HTTPException(status_code=404, detail="Task not found")
     result = await session.execute(
         select(Artifact).where(Artifact.task_id == task_id).order_by(Artifact.created_at)
     )
