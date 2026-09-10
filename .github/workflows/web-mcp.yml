@@ -16,3 +16,26 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Prove read-only Web MCP contract
         run: uv run --project services/worker python scripts/smoke/web_mcp_contract.py
+
+  web-mcp-bootstrap-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Web MCP bootstrap environment
+        run: |
+          cp .env.example .env
+          echo 'KAIRO_AUTH_ENABLED=false' >> .env
+          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+      - name: Start canonical Core substrate
+        run: docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+      - name: Prove first-party bootstrap, research visibility and schema-drift disable
+        run: python scripts/smoke/web_mcp_bootstrap.py
+      - name: Dump Web MCP bootstrap state on failure
+        if: failure()
+        run: |
+          docker compose ps -a
+          docker compose logs --no-color --tail=400 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+      - name: Tear down Web MCP bootstrap stack
+        if: always()
+        run: docker compose down -v --remove-orphans
