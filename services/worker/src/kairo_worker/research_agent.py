@@ -355,7 +355,11 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
         max_calls = max(1, min(8, int(context.get("max_tool_calls") or 3)))
         model_alias = str(context.get("model_alias") or "local-fast")
         model_budget = Decimal(str(context.get("estimated_model_cost_usd") or "0.01"))
+        planner_uses_model = bool(tools)
         planner_estimated_cost, synthesis_estimated_cost = split_research_model_budget(model_budget)
+        if not planner_uses_model:
+            planner_estimated_cost = Decimal("0")
+            synthesis_estimated_cost = model_budget
         planner_call_key = deterministic_model_call_key(
             task_id=task_id,
             workflow_execution_id=execution_id,
@@ -551,7 +555,7 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
             "synthesis": synthesis.model_dump(mode="json"),
             "evidence": build_evidence_index(evidence),
             "context_pack": context_summary,
-            "planner_model_alias": model_alias,
+            "planner_model_alias": model_alias if planner_uses_model else None,
             "synthesis_model_alias": model_alias if evidence else None,
             "model_budget_usd": str(model_budget),
             "plan": plan.model_dump(mode="json"),
