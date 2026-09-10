@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 
 import CockpitShell from './CockpitShell'
 import CommandCenterPanel from './CommandCenterPanel'
+import KnowledgeWorkspace from './KnowledgeWorkspace'
 import NewsWorkspacePanel, {
   type NewsBrief,
   type NewsMode,
@@ -360,6 +361,12 @@ export default function App() {
             title: 'Projects',
             content: <ProjectsWorkspace apiUrl={API_URL} />,
           },
+          {
+            key: 'knowledge',
+            id: 'knowledge-workspace',
+            title: 'Knowledge',
+            content: <KnowledgeWorkspace apiUrl={API_URL} />,
+          },
         ]}
       />
 
@@ -367,13 +374,13 @@ export default function App() {
         {spaces.map((space) => (
           <article
             key={space}
-            className={`card ${['Command Center', 'News Intelligence', 'Research'].includes(space) ? 'card-active' : ''}`}
+            className={`card ${['Command Center', 'Knowledge', 'News Intelligence', 'Research'].includes(space) ? 'card-active' : ''}`}
           >
             <span>{space}</span>
             <small>
               {space === 'Command Center'
                 ? 'dockable command surface'
-                : ['News Intelligence', 'Research'].includes(space)
+                : ['Knowledge', 'News Intelligence', 'Research'].includes(space)
                   ? 'dockable working capability'
                   : 'planned workspace'}
             </small>
