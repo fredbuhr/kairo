@@ -106,7 +106,13 @@ async function readCoreJson<T>(response: Response): Promise<T> {
   return body as T
 }
 
-function KnowledgeSearchPanel({ apiUrl }: { apiUrl: string }) {
+function KnowledgeSearchPanel({
+  apiUrl,
+  onSelectDocument,
+}: {
+  apiUrl: string
+  onSelectDocument: (documentId: string) => void
+}) {
   const { selectedProjectId } = useProjectSelection()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<KnowledgeSearchResult[]>([])
@@ -217,6 +223,9 @@ function KnowledgeSearchPanel({ apiUrl }: { apiUrl: string }) {
                     v{result.generation} · score {result.rank.toFixed(3)} · SHA-256{' '}
                     {result.content_sha256.slice(0, 16)}…
                   </small>
+                  <button type="button" onClick={() => onSelectDocument(result.document_id)}>
+                    Inspecter ce Document
+                  </button>
                 </div>
               </div>
             ))}
@@ -242,6 +251,7 @@ export default function App() {
   const [taskCapability, setTaskCapability] = useState<string | null>(null)
   const [taskView, setTaskView] = useState<CapabilityTaskView | null>(null)
   const [brief, setBrief] = useState<NewsBrief | null>(null)
+  const [selectedKnowledgeDocumentId, setSelectedKnowledgeDocumentId] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
   const [routing, setRouting] = useState(false)
@@ -512,8 +522,15 @@ export default function App() {
             title: 'Knowledge',
             content: (
               <>
-                <KnowledgeSearchPanel apiUrl={API_URL} />
-                <KnowledgeWorkspace apiUrl={API_URL} />
+                <KnowledgeSearchPanel
+                  apiUrl={API_URL}
+                  onSelectDocument={setSelectedKnowledgeDocumentId}
+                />
+                <KnowledgeWorkspace
+                  apiUrl={API_URL}
+                  selectedDocumentId={selectedKnowledgeDocumentId}
+                  onSelectedDocumentIdChange={setSelectedKnowledgeDocumentId}
+                />
               </>
             ),
           },

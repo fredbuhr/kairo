@@ -53,6 +53,8 @@ type DocumentImportRun = {
 
 type Props = {
   apiUrl: string
+  selectedDocumentId: string
+  onSelectedDocumentIdChange: (documentId: string) => void
 }
 
 const MAX_CHUNK_PREVIEW_ITEMS = 20
@@ -96,10 +98,13 @@ function chunkExcerpt(text: string) {
   return `${value.slice(0, MAX_CHUNK_PREVIEW_CHARS - 1)}…`
 }
 
-export default function KnowledgeWorkspace({ apiUrl }: Props) {
+export default function KnowledgeWorkspace({
+  apiUrl,
+  selectedDocumentId,
+  onSelectedDocumentIdChange,
+}: Props) {
   const { selectedProjectId } = useProjectSelection()
   const [documents, setDocuments] = useState<CanonicalDocument[]>([])
-  const [selectedDocumentId, setSelectedDocumentId] = useState('')
   const [versions, setVersions] = useState<DocumentVersion[]>([])
   const [selectedVersionId, setSelectedVersionId] = useState('')
   const [chunks, setChunks] = useState<DocumentChunk[]>([])
@@ -181,11 +186,12 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
   )
 
   useEffect(() => {
-    setSelectedDocumentId((current) => {
-      if (current && projectDocuments.some((document) => document.id === current)) return current
-      return projectDocuments[0]?.id || ''
-    })
-  }, [projectDocuments])
+    if (loading) return
+    if (selectedDocumentId && projectDocuments.some((document) => document.id === selectedDocumentId)) {
+      return
+    }
+    onSelectedDocumentIdChange(projectDocuments[0]?.id || '')
+  }, [loading, onSelectedDocumentIdChange, projectDocuments, selectedDocumentId])
 
   useEffect(() => {
     let cancelled = false
@@ -347,7 +353,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
         run.document,
         ...current.filter((document) => document.id !== run.document.id),
       ])
-      setSelectedDocumentId(run.document.id)
+      onSelectedDocumentIdChange(run.document.id)
       setTrackingDocumentId(run.document.id)
       setSelectedFile(null)
       formElement.reset()
@@ -570,7 +576,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
                   <span>Document sélectionné</span>
                   <select
                     value={selectedDocument?.id || ''}
-                    onChange={(event) => setSelectedDocumentId(event.target.value)}
+                    onChange={(event) => onSelectedDocumentIdChange(event.target.value)}
                   >
                     {projectDocuments.map((document) => (
                       <option key={document.id} value={document.id}>
