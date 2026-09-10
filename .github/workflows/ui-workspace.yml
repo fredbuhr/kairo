@@ -18,6 +18,8 @@ jobs:
         run: uv run --project services/core python scripts/smoke/workspace_layout_contract.py
       - name: Prove canonical Project ownership contract
         run: uv run --project services/core python scripts/smoke/project_ownership_contract.py
+      - name: Prove Project-bound Task access contract
+        run: uv run --project services/core python scripts/smoke/project_bound_task_contract.py
       - name: Compile Core UI ownership modules
         run: >-
           python -m compileall
