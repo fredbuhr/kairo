@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -16,11 +16,13 @@ from .models import Artifact, Task, WorkflowExecution
 
 router = APIRouter()
 
+Confidence = Literal["low", "medium", "high", "unknown"]
+
 
 class ResearchClaimRead(BaseModel):
     text: str
     evidence_ids: list[str] = Field(default_factory=list)
-    confidence: str = "unknown"
+    confidence: Confidence = "unknown"
 
 
 class ResearchSynthesisRead(BaseModel):
@@ -33,7 +35,16 @@ class ResearchEvidenceRead(BaseModel):
     evidence_id: str
     slot: int
     tool_key: str
-    invocation_id: str
+    invocation_id: uuid.UUID
+
+
+class ResearchToolInvocationRead(BaseModel):
+    slot: int
+    tool_key: str
+    invocation_id: uuid.UUID
+    input: dict[str, Any] = Field(default_factory=dict)
+    rationale: str | None = None
+    result: dict[str, Any] = Field(default_factory=dict)
 
 
 class ResearchRunRead(BaseModel):
@@ -45,7 +56,7 @@ class ResearchRunRead(BaseModel):
     answer: str | None = None
     synthesis: ResearchSynthesisRead | None = None
     evidence: list[ResearchEvidenceRead] = Field(default_factory=list)
-    tool_results: list[dict[str, Any]] = Field(default_factory=list)
+    tool_invocations: list[ResearchToolInvocationRead] = Field(default_factory=list)
     tool_call_count: int = 0
     planner_model_alias: str | None = None
     synthesis_model_alias: str | None = None
@@ -67,56 +78,95 @@ def _research_input(task: Task) -> dict[str, Any]:
     return value
 
 
-def _tool_results(content: dict[str, Any]) -> list[dict[str, Any]]:
+def _uuid_or_none(value: Any) -> uuid.UUID | None:
+    try:
+        return uuid.UUID(str(value))
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def _slot(value: Any, fallback: int) -> int:
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _tool_invocations(content: dict[str, Any]) -> list[ResearchToolInvocationRead]:
     raw = content.get("tool_results")
     if not isinstance(raw, list):
         return []
-    return [dict(item) for item in raw if isinstance(item, dict)]
+
+    rows: list[ResearchToolInvocationRead] = []
+    for position, item in enumerate(raw):
+        if not isinstance(item, dict):
+            continue
+        invocation_id = _uuid_or_none(item.get("invocation_id"))
+        if invocation_id is None:
+            continue
+        rationale = str(item.get("rationale") or "").strip() or None
+        rows.append(
+            ResearchToolInvocationRead(
+                slot=_slot(item.get("slot"), position),
+                tool_key=str(item.get("tool_key") or "unknown"),
+                invocation_id=invocation_id,
+                input=item.get("input") if isinstance(item.get("input"), dict) else {},
+                rationale=rationale,
+                result=item.get("result") if isinstance(item.get("result"), dict) else {},
+            )
+        )
+    return rows
 
 
-def _evidence(content: dict[str, Any], tool_results: list[dict[str, Any]]) -> list[ResearchEvidenceRead]:
+def _evidence(
+    content: dict[str, Any], tool_invocations: list[ResearchToolInvocationRead]
+) -> list[ResearchEvidenceRead]:
     rows: list[ResearchEvidenceRead] = []
     raw = content.get("evidence")
     if isinstance(raw, list):
         for position, item in enumerate(raw):
             if not isinstance(item, dict):
                 continue
-            try:
-                slot = int(item.get("slot", position))
-            except (TypeError, ValueError):
-                slot = position
+            invocation_id = _uuid_or_none(item.get("invocation_id"))
+            if invocation_id is None:
+                continue
+            slot = _slot(item.get("slot"), position)
             rows.append(
                 ResearchEvidenceRead(
                     evidence_id=str(item.get("evidence_id") or f"E{slot + 1}"),
                     slot=slot,
                     tool_key=str(item.get("tool_key") or "unknown"),
-                    invocation_id=str(item.get("invocation_id") or ""),
+                    invocation_id=invocation_id,
                 )
             )
         if rows:
             return rows
 
-    # Backward compatibility with the first research artifact, which preserved tool results but did
-    # not yet include an explicit evidence index.
-    for position, item in enumerate(tool_results):
-        try:
-            slot = int(item.get("slot", position))
-        except (TypeError, ValueError):
-            slot = position
+    # Backward compatibility with the first research artifact, which preserved canonical tool
+    # invocations but did not yet include an explicit evidence index.
+    for item in tool_invocations:
         rows.append(
             ResearchEvidenceRead(
-                evidence_id=f"E{slot + 1}",
-                slot=slot,
-                tool_key=str(item.get("tool_key") or "unknown"),
-                invocation_id=str(item.get("invocation_id") or ""),
+                evidence_id=f"E{item.slot + 1}",
+                slot=item.slot,
+                tool_key=item.tool_key,
+                invocation_id=item.invocation_id,
             )
         )
     return rows
 
 
+def _confidence(value: Any) -> Confidence:
+    candidate = str(value or "unknown")
+    return candidate if candidate in {"low", "medium", "high", "unknown"} else "unknown"
+
+
 def _synthesis(content: dict[str, Any]) -> ResearchSynthesisRead | None:
     raw = content.get("synthesis")
-    if not isinstance(raw, dict) or not str(raw.get("answer") or "").strip():
+    if not isinstance(raw, dict):
+        return None
+    answer = str(raw.get("answer") or "").strip()
+    if not answer:
         return None
 
     claims: list[ResearchClaimRead] = []
@@ -128,26 +178,34 @@ def _synthesis(content: dict[str, Any]) -> ResearchSynthesisRead | None:
             text = str(item.get("text") or "").strip()
             if not text:
                 continue
-            evidence_ids = item.get("evidence_ids")
+            raw_evidence_ids = item.get("evidence_ids")
+            evidence_ids = (
+                [str(value) for value in raw_evidence_ids if str(value).strip()]
+                if isinstance(raw_evidence_ids, list)
+                else []
+            )
             claims.append(
                 ResearchClaimRead(
                     text=text,
-                    evidence_ids=[str(value) for value in evidence_ids]
-                    if isinstance(evidence_ids, list)
-                    else [],
-                    confidence=str(item.get("confidence") or "unknown"),
+                    evidence_ids=evidence_ids,
+                    confidence=_confidence(item.get("confidence")),
                 )
             )
 
     raw_uncertainties = raw.get("uncertainties")
     uncertainties = (
-        [str(value) for value in raw_uncertainties]
+        [str(value) for value in raw_uncertainties if str(value).strip()]
         if isinstance(raw_uncertainties, list)
         else []
     )
-    return ResearchSynthesisRead(
-        answer=str(raw["answer"]), claims=claims, uncertainties=uncertainties
-    )
+    return ResearchSynthesisRead(answer=answer, claims=claims, uncertainties=uncertainties)
+
+
+def _tool_call_count(content: dict[str, Any], fallback: int) -> int:
+    try:
+        return max(0, int(content.get("tool_call_count", fallback)))
+    except (TypeError, ValueError):
+        return fallback
 
 
 @router.get("/v1/research/runs/{task_id}", response_model=ResearchRunRead)
@@ -165,15 +223,17 @@ async def get_research_run(
         select(WorkflowExecution)
         .where(WorkflowExecution.task_id == task.id)
         .order_by(WorkflowExecution.created_at.desc())
+        .limit(1)
     )
     artifact = await session.scalar(
         select(Artifact)
         .where(Artifact.task_id == task.id, Artifact.kind == "autonomous-research")
         .order_by(Artifact.created_at.desc())
+        .limit(1)
     )
 
     content = artifact.content if artifact is not None and isinstance(artifact.content, dict) else {}
-    tool_results = _tool_results(content)
+    tool_invocations = _tool_invocations(content)
     synthesis = _synthesis(content)
     answer = str(content.get("answer") or "").strip() or (synthesis.answer if synthesis else None)
 
@@ -185,9 +245,9 @@ async def get_research_run(
         query=str(task_input.get("query") or ""),
         answer=answer,
         synthesis=synthesis,
-        evidence=_evidence(content, tool_results),
-        tool_results=tool_results,
-        tool_call_count=int(content.get("tool_call_count") or len(tool_results)),
+        evidence=_evidence(content, tool_invocations),
+        tool_invocations=tool_invocations,
+        tool_call_count=_tool_call_count(content, len(tool_invocations)),
         planner_model_alias=str(
             content.get("planner_model_alias") or task_input.get("model_alias") or ""
         )
