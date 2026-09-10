@@ -11,8 +11,12 @@ with workflow.unsafe.imports_passed_through():
     from .memory_projection import perform_memory_projection
     from .news_activity import perform_news_brief
     from .policy_activities import check_policy_gate
-    from .research_agent import perform_autonomous_research
     from .research_context_pack import prepare_research_context_pack
+    from .research_stages import (
+        execute_research_tool_stage,
+        prepare_research_plan_stage,
+        synthesize_research_stage,
+    )
     from .semantic_router import perform_semantic_route
     from .tool_runtime import fail_tool_invocation, perform_tool_invocation
 
@@ -123,23 +127,35 @@ class TaskExecutionWorkflow:
                     retry_policy=ACTIVITY_RETRY,
                 )
             elif capability == "research.autonomous":
-                # Context is a separate read-only activity so its bounded result is recorded in
-                # Temporal history before replay-sensitive model/tool work begins. Retries of the
-                # main Research activity therefore receive the exact same Context Pack snapshot.
+                # Every replay-sensitive stage crosses a Temporal activity boundary. The Context
+                # Pack and validated Plan are therefore durable workflow-history results before
+                # child tool orchestration begins. Killing the Worker while waiting for a child
+                # tool cannot make the planner model call execute again.
                 context_pack = await workflow.execute_activity(
                     prepare_research_context_pack,
                     work_payload,
                     start_to_close_timeout=timedelta(seconds=90),
                     retry_policy=ACTIVITY_RETRY,
                 )
-                research_payload = {**work_payload, "research_context_pack": context_pack}
+                context_payload = {**work_payload, "research_context_pack": context_pack}
+                plan_stage = await workflow.execute_activity(
+                    prepare_research_plan_stage,
+                    context_payload,
+                    start_to_close_timeout=timedelta(minutes=2),
+                    heartbeat_timeout=timedelta(seconds=90),
+                    retry_policy=ACTIVITY_RETRY,
+                )
+                evidence_stage = await workflow.execute_activity(
+                    execute_research_tool_stage,
+                    {**context_payload, "research_plan_stage": plan_stage},
+                    start_to_close_timeout=timedelta(minutes=8),
+                    heartbeat_timeout=timedelta(seconds=90),
+                    retry_policy=ACTIVITY_RETRY,
+                )
                 result = await workflow.execute_activity(
-                    perform_autonomous_research,
-                    research_payload,
-                    start_to_close_timeout=timedelta(minutes=10),
-                    # Research emits progress while waiting for child tools. Keep this above the
-                    # longest individual model HTTP timeout (60s) so a slow provider does not turn
-                    # into an artificial ambiguous replay, while still detecting a dead Worker.
+                    synthesize_research_stage,
+                    {**work_payload, "research_evidence_stage": evidence_stage},
+                    start_to_close_timeout=timedelta(minutes=2),
                     heartbeat_timeout=timedelta(seconds=90),
                     retry_policy=ACTIVITY_RETRY,
                 )
