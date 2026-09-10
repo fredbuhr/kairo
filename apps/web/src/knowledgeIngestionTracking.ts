@@ -1,5 +1,6 @@
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
 
+import { readKnowledgeJson } from './knowledgeApi'
 import type { CanonicalDocument, DocumentVersion } from './knowledgeTypes'
 import { kairoFetch } from './lib/apiClient'
 
@@ -10,16 +11,6 @@ type Options = {
   setVersions: Dispatch<SetStateAction<DocumentVersion[]>>
   setVersionsDocumentId: Dispatch<SetStateAction<string | null>>
   setVersionError: Dispatch<SetStateAction<string | null>>
-}
-
-async function readJson<T>(response: Response): Promise<T> {
-  const body = await response.json().catch(() => null)
-  if (!response.ok) {
-    const detail = body?.detail
-    const message = typeof detail === 'string' ? detail : detail?.message
-    throw new Error(message || `KAIRO Core répond ${response.status}`)
-  }
-  return body as T
 }
 
 export function useKnowledgeIngestionTracking({
@@ -45,7 +36,7 @@ export function useKnowledgeIngestionTracking({
     const pollIngestion = async () => {
       try {
         const documentResponse = await kairoFetch(`${apiUrl}/v1/documents/${trackingDocumentId}`)
-        const document = await readJson<CanonicalDocument>(documentResponse)
+        const document = await readKnowledgeJson<CanonicalDocument>(documentResponse)
         if (cancelled) return
 
         setDocuments((current) => [
@@ -59,7 +50,7 @@ export function useKnowledgeIngestionTracking({
             const versionsResponse = await kairoFetch(
               `${apiUrl}/v1/documents/${document.id}/versions`,
             )
-            const loadedVersions = await readJson<DocumentVersion[]>(versionsResponse)
+            const loadedVersions = await readKnowledgeJson<DocumentVersion[]>(versionsResponse)
             if (!cancelled) {
               setVersions(loadedVersions)
               setVersionsDocumentId(document.id)

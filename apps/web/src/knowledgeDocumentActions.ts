@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
 
+import { readKnowledgeHttpError, readKnowledgeJson } from './knowledgeApi'
 import type {
   AssetUpload,
   CanonicalDocument,
@@ -16,16 +17,6 @@ type Options = {
   onImportComplete: (run: DocumentImportRun) => void
   onReingestBegin: () => void
   onReingestComplete: (run: DocumentImportRun) => void
-}
-
-async function readJson<T>(response: Response): Promise<T> {
-  const body = await response.json().catch(() => null)
-  if (!response.ok) {
-    const detail = body?.detail
-    const message = typeof detail === 'string' ? detail : detail?.message
-    throw new Error(message || `KAIRO Core répond ${response.status}`)
-  }
-  return body as T
 }
 
 export function useKnowledgeDocumentActions({
@@ -69,7 +60,7 @@ export function useKnowledgeDocumentActions({
         method: 'POST',
         body: formData,
       })
-      const asset = await readJson<AssetUpload>(assetResponse)
+      const asset = await readKnowledgeJson<AssetUpload>(assetResponse)
 
       const documentResponse = await kairoFetch(`${apiUrl}/v1/documents`, {
         method: 'POST',
@@ -79,7 +70,7 @@ export function useKnowledgeDocumentActions({
           title: selectedFile.name,
         }),
       })
-      const run = await readJson<DocumentImportRun>(documentResponse)
+      const run = await readKnowledgeJson<DocumentImportRun>(documentResponse)
 
       onImportComplete(run)
       setSelectedFile(null)
@@ -108,7 +99,7 @@ export function useKnowledgeDocumentActions({
         `${apiUrl}/v1/documents/${selectedDocument.id}/reingest`,
         { method: 'POST' },
       )
-      const run = await readJson<DocumentImportRun>(response)
+      const run = await readKnowledgeJson<DocumentImportRun>(response)
       onReingestComplete(run)
     } catch (reingestFailure) {
       setReingestError(
@@ -138,10 +129,10 @@ export function useKnowledgeDocumentActions({
         `${apiUrl}/v1/assets/${selectedDocument.asset_id}/content`,
       )
       if (!response.ok) {
-        const body = await response.json().catch(() => null)
-        const detail = body?.detail
-        const message = typeof detail === 'string' ? detail : detail?.message
-        throw new Error(message || `Impossible d’ouvrir la source (${response.status}).`)
+        throw await readKnowledgeHttpError(
+          response,
+          `Impossible d’ouvrir la source (${response.status}).`,
+        )
       }
 
       const blob = await response.blob()

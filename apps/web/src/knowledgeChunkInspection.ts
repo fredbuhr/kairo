@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { readKnowledgeJson } from './knowledgeApi'
 import type {
   CanonicalDocument,
   DocumentChunk,
@@ -22,16 +23,6 @@ type Options = {
 }
 
 export const MAX_CHUNK_PREVIEW_ITEMS = 20
-
-async function readJson<T>(response: Response): Promise<T> {
-  const body = await response.json().catch(() => null)
-  if (!response.ok) {
-    const detail = body?.detail
-    const message = typeof detail === 'string' ? detail : detail?.message
-    throw new Error(message || `KAIRO Core répond ${response.status}`)
-  }
-  return body as T
-}
 
 export function useKnowledgeChunkInspection({
   apiUrl,
@@ -132,7 +123,7 @@ export function useKnowledgeChunkInspection({
         const response = await kairoFetch(
           `${apiUrl}/v1/knowledge/chunk-window?${params.toString()}`,
         )
-        const window = await readJson<KnowledgeChunkWindow>(response)
+        const window = await readKnowledgeJson<KnowledgeChunkWindow>(response)
         if (cancelled) return
 
         setChunks(window.chunks)
@@ -200,7 +191,7 @@ export function useKnowledgeChunkInspection({
       const response = await kairoFetch(
         `${apiUrl}/v1/document-versions/${selectedVersion.id}/chunks?offset=${normalizedOffset}&limit=${MAX_CHUNK_PREVIEW_ITEMS}`,
       )
-      const loadedChunks = await readJson<DocumentChunk[]>(response)
+      const loadedChunks = await readKnowledgeJson<DocumentChunk[]>(response)
       setChunks(loadedChunks)
       setChunkOffset(normalizedOffset)
       setChunksLoaded(true)

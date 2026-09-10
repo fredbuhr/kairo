@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
 
+import { readKnowledgeJson } from './knowledgeApi'
 import type { KnowledgeInspectionTarget, KnowledgeSearchResult } from './knowledgeTypes'
 import { kairoFetch } from './lib/apiClient'
 import { useProjectSelection } from './lib/projectSelection'
@@ -10,16 +11,6 @@ type Props = {
 }
 
 const KNOWLEDGE_SEARCH_PAGE_SIZE = 20
-
-async function readCoreJson<T>(response: Response): Promise<T> {
-  const body = await response.json().catch(() => null)
-  if (!response.ok) {
-    const detail = body?.detail
-    const message = typeof detail === 'string' ? detail : detail?.message
-    throw new Error(message || `KAIRO Core répond ${response.status}`)
-  }
-  return body as T
-}
 
 export default function KnowledgeSearchPanel({ apiUrl, onInspectResult }: Props) {
   const { selectedProjectId } = useProjectSelection()
@@ -55,7 +46,7 @@ export default function KnowledgeSearchPanel({ apiUrl, onInspectResult }: Props)
         limit: String(KNOWLEDGE_SEARCH_PAGE_SIZE + 1),
       })
       const response = await kairoFetch(`${apiUrl}/v1/knowledge/search?${params.toString()}`)
-      const loaded = await readCoreJson<KnowledgeSearchResult[]>(response)
+      const loaded = await readKnowledgeJson<KnowledgeSearchResult[]>(response)
       setActiveQuery(searchQuery)
       setResults(loaded.slice(0, KNOWLEDGE_SEARCH_PAGE_SIZE))
       setSearchOffset(normalizedOffset)
