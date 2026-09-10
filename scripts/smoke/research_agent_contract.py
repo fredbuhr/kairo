@@ -155,13 +155,33 @@ async def main() -> None:
     else:
         raise AssertionError("Synthesizer accepted an evidence id outside the supplied evidence set")
 
+    async def uncited_answer_completion(_messages):
+        return json.dumps(
+            {
+                "answer": "This answer asserts a fact without binding it to evidence.",
+                "claims": [],
+                "uncertainties": [],
+            }
+        )
+
+    try:
+        await synthesize_research(
+            query="Answer without citations",
+            evidence=evidence,
+            completion=uncited_answer_completion,
+        )
+    except UnexpectedModelBehavior:
+        pass
+    else:
+        raise AssertionError("Synthesizer accepted an answer without evidence-bound claims")
+
     planner_budget, synthesis_budget = split_research_model_budget(Decimal("0.01"))
     assert planner_budget == Decimal("0.005"), planner_budget
     assert synthesis_budget == Decimal("0.005"), synthesis_budget
     assert planner_budget + synthesis_budget == Decimal("0.01")
 
     print(
-        "PASS: research planning stays read-only and grounded synthesis cites only supplied evidence "
+        "PASS: research planning stays read-only and grounded synthesis requires evidence-bound claims "
         "within the original model budget"
     )
 
