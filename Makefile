@@ -1,4 +1,4 @@
-.PHONY: bootstrap config prod-config ops-config up down all logs ps build check backup restore
+.PHONY: bootstrap config web-tools-config web-tools prod-config ops-config up down all logs ps build check backup restore
 
 bootstrap:
 	@test -f .env || cp .env.example .env
@@ -7,6 +7,15 @@ bootstrap:
 config: bootstrap
 	docker compose config >/dev/null
 	@echo "Development Compose configuration is valid."
+
+web-tools-config: bootstrap
+	docker compose -f compose.yaml -f compose.web-mcp.yaml config >/dev/null
+	@echo "Web MCP Compose overlay is valid."
+
+web-tools: bootstrap
+	docker compose -f compose.yaml -f compose.web-mcp.yaml up -d kairo-web-mcp kairo-core
+	docker compose -f compose.yaml -f compose.web-mcp.yaml run --rm kairo-worker python -m kairo_worker.web_mcp_bootstrap
+	@echo "KAIRO Web MCP tools are running and explicitly registered."
 
 prod-config:
 	docker compose --env-file .env.production.example -f compose.yaml -f compose.production.yaml config >/dev/null
@@ -40,5 +49,5 @@ backup: bootstrap
 restore:
 	bash scripts/ops/restore.sh $${SNAPSHOT:-latest}
 
-check: config prod-config ops-config
+check: config web-tools-config prod-config ops-config
 	pnpm typecheck

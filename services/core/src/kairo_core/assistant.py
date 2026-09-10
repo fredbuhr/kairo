@@ -13,7 +13,9 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import Principal, require_kairo_user
 from .capabilities import (
+    ResearchRoutingInput,
     get_capability,
     is_routable_capability,
     list_capabilities,
@@ -25,6 +27,7 @@ from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project, Task
 from .news import start_news_brief
+from .research import ResearchRunCreate, start_research_run
 from .schemas import (
     AssistantCommandCreate,
     AssistantCommandResponse,
@@ -42,9 +45,10 @@ from .workflows import run_task
 
 router = APIRouter()
 
-ASSISTANT_PROJECT_ID = uuid.UUID("91d51873-3aa5-4fbc-a6df-cf474239682f")
 SEMANTIC_ROUTE_BUDGET_USD = Decimal("0.02")
 SEMANTIC_ROUTE_CONFIDENCE_FLOOR = 0.80
+RESEARCH_COMMAND_MODEL_BUDGET_USD = Decimal("0.02")
+RESEARCH_COMMAND_MODEL_ALIAS = "local-fast"
 
 _NEWS_TERMS = (
     "actualite",
@@ -202,26 +206,56 @@ def route_command(body: AssistantCommandCreate) -> CommandRoute | None:
     )
 
 
+async def _owned_conversation(
+    conversation_id: uuid.UUID,
+    principal: Principal,
+    session: AsyncSession,
+) -> Conversation:
+    conversation = await session.get(Conversation, conversation_id)
+    if conversation is None or conversation.subject_ref != principal.subject:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conversation
+
+
 async def _conversation_for_command(
-    body: AssistantCommandCreate, session: AsyncSession
+    body: AssistantCommandCreate,
+    principal: Principal,
+    session: AsyncSession,
 ) -> Conversation:
     if body.conversation_id is not None:
-        conversation = await session.get(Conversation, body.conversation_id)
-        if conversation is None:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+        conversation = await _owned_conversation(body.conversation_id, principal, session)
         if conversation.status != "active":
             raise HTTPException(status_code=409, detail="Conversation is not active")
         return conversation
 
     title = re.sub(r"\s+", " ", body.text).strip()[:120]
-    conversation = Conversation(locale=body.locale, title=title or None, status="active")
+    conversation = Conversation(
+        subject_ref=principal.subject,
+        locale=body.locale,
+        title=title or None,
+        status="active",
+    )
     session.add(conversation)
     await session.flush()
     return conversation
 
 
-async def _ensure_assistant_project(session: AsyncSession) -> Project:
-    project = await session.get(Project, ASSISTANT_PROJECT_ID)
+def _assistant_project_id(subject: str) -> uuid.UUID:
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:project:assistant:subject:{subject}")
+
+
+async def _ensure_assistant_project(session: AsyncSession, subject: str) -> Project:
+    normalized_subject = subject.strip()
+    if not normalized_subject:
+        raise HTTPException(status_code=409, detail="Assistant conversation has no owner")
+
+    project_id = _assistant_project_id(normalized_subject)
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_subject == normalized_subject,
+        )
+    )
     if project is not None:
         return project
 
@@ -229,18 +263,25 @@ async def _ensure_assistant_project(session: AsyncSession) -> Project:
     inserted_id = await session.scalar(
         pg_insert(Project)
         .values(
-            id=ASSISTANT_PROJECT_ID,
+            id=project_id,
+            owner_subject=normalized_subject,
             name="KAIRO Assistant",
             status="active",
-            summary="System workspace for durable command routing and assistant orchestration.",
+            summary="Per-user system workspace for durable command routing and assistant orchestration.",
             parent_id=None,
         )
         .on_conflict_do_nothing(index_elements=[Project.id])
         .returning(Project.id)
     )
-    project = await session.get(Project, ASSISTANT_PROJECT_ID)
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_subject == normalized_subject,
+        )
+    )
     if project is None:
-        raise RuntimeError("KAIRO Assistant workspace could not be initialized")
+        raise RuntimeError("KAIRO Assistant workspace could not be initialized for this owner")
+
     if inserted_id is not None:
         await enqueue_domain_event(
             session,
@@ -259,7 +300,10 @@ async def _ensure_assistant_project(session: AsyncSession) -> Project:
             resource_id=str(project.id),
             authority_level=0,
             correlation_id=correlation_id,
-            request_json={"reason": "initialize assistant routing workspace"},
+            request_json={
+                "reason": "initialize owner-scoped assistant routing workspace",
+                "subject": normalized_subject,
+            },
         )
     return project
 
@@ -283,7 +327,8 @@ async def _start_semantic_route(
     conversation: Conversation,
     session: AsyncSession,
 ) -> AssistantCommandResponse:
-    project = await _ensure_assistant_project(session)
+    subject = str(conversation.subject_ref or "").strip()
+    project = await _ensure_assistant_project(session, subject)
     route_input = SemanticRouteInput(
         command_id=command.id,
         text=body.text,
@@ -418,24 +463,52 @@ async def _execute_route(
     capability = get_capability(route.capability)
     if capability is None or not is_routable_capability(route.capability):
         raise HTTPException(status_code=422, detail="Capability is not routable")
-    if capability.key != "news.brief":
-        raise HTTPException(status_code=501, detail="Capability adapter is not implemented")
 
-    news_request = NewsBriefCreate.model_validate(route.parameters)
-    deterministic_task_id = (
-        uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:command:{command.id}:{capability.key}:v1")
-        if semantic
-        else None
-    )
-    execution = await start_news_brief(
-        news_request,
-        session,
-        actor_type="user",
-        actor_id=conversation.subject_ref,
-        correlation_id=command.correlation_id,
-        command_id=command.id,
-        task_id=deterministic_task_id,
-    )
+    if capability.key == "news.brief":
+        news_request = NewsBriefCreate.model_validate(route.parameters)
+        deterministic_task_id = (
+            uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:command:{command.id}:{capability.key}:v1")
+            if semantic
+            else None
+        )
+        execution = await start_news_brief(
+            news_request,
+            session,
+            actor_type="user",
+            actor_id=conversation.subject_ref,
+            correlation_id=command.correlation_id,
+            command_id=command.id,
+            task_id=deterministic_task_id,
+        )
+    elif capability.key == "research.autonomous":
+        routed = ResearchRoutingInput.model_validate(route.parameters)
+        subject = str(conversation.subject_ref or "").strip()
+        project = await _ensure_assistant_project(session, subject)
+        research_request = ResearchRunCreate(
+            project_id=project.id,
+            query=routed.query,
+            max_tool_calls=routed.max_tool_calls,
+            allowed_tool_keys=[],
+            model_alias=RESEARCH_COMMAND_MODEL_ALIAS,
+            estimated_model_cost_usd=RESEARCH_COMMAND_MODEL_BUDGET_USD,
+        )
+        deterministic_task_id = uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"kairo:command:{command.id}:{capability.key}:v{capability.version}",
+        )
+        execution = await start_research_run(
+            research_request,
+            session,
+            project=project,
+            requester_subject=subject,
+            actor_type="worker" if semantic else "user",
+            actor_id="semantic-router" if semantic else subject,
+            correlation_id=command.correlation_id,
+            command_id=command.id,
+            task_id=deterministic_task_id,
+        )
+    else:
+        raise HTTPException(status_code=501, detail="Capability adapter is not implemented")
 
     command = await session.get(CommandRecord, command.id)
     if command is None:
@@ -501,10 +574,11 @@ async def capability_contracts() -> list[CapabilityContractRead]:
 )
 async def assistant_command(
     body: AssistantCommandCreate,
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> AssistantCommandResponse:
     await synchronize_capabilities(session)
-    conversation = await _conversation_for_command(body, session)
+    conversation = await _conversation_for_command(body, principal, session)
     correlation_id = uuid.uuid4()
 
     message = ConversationMessage(
@@ -614,12 +688,11 @@ async def apply_semantic_route(
 
 @router.get("/v1/conversations/{conversation_id}", response_model=ConversationRead)
 async def get_conversation(
-    conversation_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+    conversation_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> Conversation:
-    conversation = await session.get(Conversation, conversation_id)
-    if conversation is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    return conversation
+    return await _owned_conversation(conversation_id, principal, session)
 
 
 @router.get(
@@ -627,10 +700,11 @@ async def get_conversation(
     response_model=list[ConversationMessageRead],
 )
 async def get_conversation_messages(
-    conversation_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+    conversation_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> list[ConversationMessage]:
-    if await session.get(Conversation, conversation_id) is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+    await _owned_conversation(conversation_id, principal, session)
     result = await session.execute(
         select(ConversationMessage)
         .where(ConversationMessage.conversation_id == conversation_id)
@@ -641,9 +715,12 @@ async def get_conversation_messages(
 
 @router.get("/v1/commands/{command_id}", response_model=CommandRead)
 async def get_command(
-    command_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+    command_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> CommandRecord:
     command = await session.get(CommandRecord, command_id)
     if command is None:
         raise HTTPException(status_code=404, detail="Command not found")
+    await _owned_conversation(command.conversation_id, principal, session)
     return command

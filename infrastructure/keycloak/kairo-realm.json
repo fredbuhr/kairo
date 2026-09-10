@@ -36,6 +36,18 @@
       "credentials": [
         {"type": "password", "value": "kairo-dev", "temporary": false}
       ]
+    },
+    {
+      "username": "kairo-dev-2",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "KAIRO",
+      "lastName": "Isolation",
+      "email": "kairo-dev-2@localhost",
+      "realmRoles": ["kairo-user"],
+      "credentials": [
+        {"type": "password", "value": "kairo-dev-2", "temporary": false}
+      ]
     }
   ]
 }

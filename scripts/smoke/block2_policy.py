@@ -99,17 +99,30 @@ def access_token() -> str:
     return token
 
 
-def create_project() -> str:
+def create_project(token: str) -> str:
     _, project = json_request(
-        "POST", "/v1/projects", payload={"name": "Block 2 Policy Proof"}, expected={201}
+        "POST",
+        "/v1/projects",
+        token=token,
+        payload={"name": "Block 2 Policy Proof"},
+        expected={201},
     )
     return str(project["id"])
 
 
-def create_task(project_id: str, *, title: str, authority: int, budget: str, input_: dict) -> str:
+def create_task(
+    project_id: str,
+    *,
+    token: str,
+    title: str,
+    authority: int,
+    budget: str,
+    input_: dict,
+) -> str:
     _, task = json_request(
         "POST",
         "/v1/tasks",
+        token=token,
         payload={
             "project_id": project_id,
             "title": title,
@@ -122,18 +135,19 @@ def create_task(project_id: str, *, title: str, authority: int, budget: str, inp
     return str(task["id"])
 
 
-def task_state(task_id: str) -> dict:
-    return json_request("GET", f"/v1/tasks/{task_id}")[1]
+def task_state(task_id: str, token: str) -> dict:
+    return json_request("GET", f"/v1/tasks/{task_id}", token=token)[1]
 
 
 def main() -> int:
     wait_until(lambda: request("GET", f"{CORE}/health/live", expected={200})[0] == 200, "Core")
     token = wait_until(lambda: access_token(), "Keycloak token")
-    project_id = create_project()
+    project_id = create_project(token)
 
     # 1) High-authority workflow must suspend until an explicit approval is decided and signaled.
     guarded_task = create_task(
         project_id,
+        token=token,
         title="Approval-gated durable action",
         authority=2,
         budget="1.00",
@@ -145,7 +159,9 @@ def main() -> int:
             "approval_reason": "CI proves Temporal waits for KAIRO approval",
         },
     )
-    _, run = json_request("POST", f"/v1/tasks/{guarded_task}/run", expected={200})
+    _, run = json_request(
+        "POST", f"/v1/tasks/{guarded_task}/run", token=token, expected={200}
+    )
     execution_id = str(run["workflow_execution_id"])
 
     def pending_approval():
@@ -159,7 +175,7 @@ def main() -> int:
     approval = wait_until(pending_approval, "pending approval")
     assert str(approval["workflow_execution_id"]) == execution_id
     time.sleep(2)
-    assert task_state(guarded_task)["status"] == "running"
+    assert task_state(guarded_task, token)["status"] == "running"
 
     approval_id = str(approval["id"])
     json_request(
@@ -173,11 +189,15 @@ def main() -> int:
     )
     assert resumed["signaled"] is True
     assert resumed["decision"] == "approved"
-    wait_until(lambda: task_state(guarded_task)["status"] == "completed", "approved workflow completion")
+    wait_until(
+        lambda: task_state(guarded_task, token)["status"] == "completed",
+        "approved workflow completion",
+    )
 
     # 2) A hard budget is checked before activity execution and fails closed.
     budget_task = create_task(
         project_id,
+        token=token,
         title="Budget-denied action",
         authority=1,
         budget="0.05",
@@ -187,12 +207,16 @@ def main() -> int:
             "estimated_cost_usd": "0.10",
         },
     )
-    json_request("POST", f"/v1/tasks/{budget_task}/run", expected={200})
-    wait_until(lambda: task_state(budget_task)["status"] == "failed", "hard-budget denial")
+    json_request("POST", f"/v1/tasks/{budget_task}/run", token=token, expected={200})
+    wait_until(
+        lambda: task_state(budget_task, token)["status"] == "failed",
+        "hard-budget denial",
+    )
 
     # 3) Low-authority policy calls receive short signed capabilities; mismatched validation fails.
     direct_task = create_task(
         project_id,
+        token=token,
         title="Direct policy token proof",
         authority=1,
         budget="1.00",

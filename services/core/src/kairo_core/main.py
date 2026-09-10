@@ -12,18 +12,27 @@ from . import __version__
 from .approval_signals import router as approval_signals_router
 from .assistant import router as assistant_router
 from .assets import router as assets_router
+from .auth import Principal, require_kairo_admin, require_kairo_user
 from .autonomy import router as autonomy_router
 from .components import load_component_registry
 from .config import settings
 from .db import get_session, ping_database
 from .documents import router as documents_router
 from .events import append_audit, enqueue_domain_event
+from .knowledge import router as knowledge_router
 from .memory import router as memory_router
 from .models import OutboxEvent, Project, RelationshipRecord, Task
 from .news import router as news_router
 from .openbao import openbao_client
 from .outbox import OutboxRelay
+from .project_access import (
+    get_owned_project,
+    owned_project_clause,
+    require_same_owner_entities,
+)
 from .research import router as research_router
+from .research_context import router as research_context_router
+from .research_results import router as research_results_router
 from .resources import router as resources_router
 from .schemas import (
     OutboxStats,
@@ -37,6 +46,7 @@ from .schemas import (
 )
 from .temporal_gateway import temporal_gateway
 from .tools import router as tools_router
+from .ui_layouts import router as ui_layouts_router
 from .workflows import router as workflow_router
 
 
@@ -64,10 +74,14 @@ app.add_middleware(
 app.include_router(workflow_router)
 app.include_router(memory_router)
 app.include_router(documents_router)
+app.include_router(knowledge_router)
 app.include_router(tools_router)
 app.include_router(research_router)
+app.include_router(research_context_router)
+app.include_router(research_results_router)
 app.include_router(news_router)
 app.include_router(assistant_router)
+app.include_router(ui_layouts_router)
 app.include_router(resources_router)
 app.include_router(assets_router)
 app.include_router(autonomy_router)
@@ -156,12 +170,16 @@ async def trust_readiness() -> SystemReadiness:
 
 
 @app.get("/v1/system/components")
-async def components() -> dict:
+async def components(
+    _principal: Principal = Depends(require_kairo_admin),
+) -> dict:
     return load_component_registry()
 
 
 @app.get("/v1/system/architecture")
-async def architecture() -> dict[str, object]:
+async def architecture(
+    _principal: Principal = Depends(require_kairo_admin),
+) -> dict[str, object]:
     return {
         "canonical_state": "postgresql",
         "canonical_objects": "seaweedfs-filer",
@@ -177,7 +195,7 @@ async def architecture() -> dict[str, object]:
         "tool_registry": "kairo-core-postgresql",
         "tool_transport": "mcp-streamable-http",
         "tool_policy": "deny-by-default-explicit-enable",
-        "autonomous_research": "pydanticai-planner-policy-bound-mcp-child-tasks",
+        "autonomous_research": "pydanticai-planner-grounded-synthesis-policy-bound-mcp-child-tasks",
         "command_routing": "deterministic-first-semantic-later",
         "derived_context_graph": "graphiti-neo4j",
         "derived_memory": "mem0",
@@ -192,7 +210,9 @@ async def architecture() -> dict[str, object]:
 
 @app.get("/v1/system/outbox", response_model=OutboxStats)
 async def outbox_stats(
-    request: Request, session: AsyncSession = Depends(get_session)
+    request: Request,
+    _principal: Principal = Depends(require_kairo_admin),
+    session: AsyncSession = Depends(get_session),
 ) -> OutboxStats:
     pending = await session.scalar(
         select(func.count()).select_from(OutboxEvent).where(OutboxEvent.published_at.is_(None))
@@ -208,12 +228,14 @@ async def outbox_stats(
 
 @app.post("/v1/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 async def create_project(
-    body: ProjectCreate, session: AsyncSession = Depends(get_session)
+    body: ProjectCreate,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> Project:
     correlation_id = uuid.uuid4()
-    if body.parent_id and not await session.get(Project, body.parent_id):
+    if body.parent_id and not await get_owned_project(session, body.parent_id, principal):
         raise HTTPException(status_code=404, detail="Parent project not found")
-    project = Project(**body.model_dump())
+    project = Project(**body.model_dump(), owner_subject=principal.subject)
     session.add(project)
     await session.flush()
     await enqueue_domain_event(
@@ -227,7 +249,7 @@ async def create_project(
     await append_audit(
         session,
         actor_type="user",
-        actor_id=None,
+        actor_id=principal.subject,
         action="project.create",
         resource_type="project",
         resource_id=str(project.id),
@@ -241,17 +263,31 @@ async def create_project(
 
 
 @app.get("/v1/projects", response_model=list[ProjectRead])
-async def list_projects(session: AsyncSession = Depends(get_session)) -> list[Project]:
-    rows = await session.execute(select(Project).order_by(Project.created_at.desc()))
+async def list_projects(
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[Project]:
+    rows = await session.execute(
+        select(Project)
+        .where(owned_project_clause(principal))
+        .order_by(Project.created_at.desc())
+    )
     return list(rows.scalars())
 
 
 @app.post("/v1/tasks", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
-async def create_task(body: TaskCreate, session: AsyncSession = Depends(get_session)) -> Task:
-    if not await session.get(Project, body.project_id):
+async def create_task(
+    body: TaskCreate,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> Task:
+    if not await get_owned_project(session, body.project_id, principal):
         raise HTTPException(status_code=404, detail="Project not found")
     correlation_id = uuid.uuid4()
-    task = Task(**body.model_dump())
+    task_payload = body.model_dump()
+    if task_payload.get("owner_type") == "user":
+        task_payload["owner_ref"] = principal.subject
+    task = Task(**task_payload)
     session.add(task)
     await session.flush()
     await enqueue_domain_event(
@@ -265,7 +301,7 @@ async def create_task(body: TaskCreate, session: AsyncSession = Depends(get_sess
     await append_audit(
         session,
         actor_type="user",
-        actor_id=None,
+        actor_id=principal.subject,
         action="task.create",
         resource_type="task",
         resource_id=str(task.id),
@@ -279,25 +315,48 @@ async def create_task(body: TaskCreate, session: AsyncSession = Depends(get_sess
 
 
 @app.get("/v1/tasks", response_model=list[TaskRead])
-async def list_tasks(session: AsyncSession = Depends(get_session)) -> list[Task]:
-    rows = await session.execute(select(Task).order_by(Task.created_at.desc()))
+async def list_tasks(
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[Task]:
+    rows = await session.execute(
+        select(Task)
+        .join(Project, Project.id == Task.project_id)
+        .where(owned_project_clause(principal))
+        .order_by(Task.created_at.desc())
+    )
     return list(rows.scalars())
 
 
 @app.get("/v1/tasks/{task_id}", response_model=TaskRead)
-async def get_task(task_id: uuid.UUID, session: AsyncSession = Depends(get_session)) -> Task:
+async def get_task(
+    task_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> Task:
     task = await session.get(Task, task_id)
-    if not task:
+    if not task or not await get_owned_project(session, task.project_id, principal):
         raise HTTPException(status_code=404, detail="Task not found")
     return task
 
 
 @app.post("/v1/relationships", response_model=RelationshipRead, status_code=status.HTTP_201_CREATED)
 async def create_relationship(
-    body: RelationshipCreate, session: AsyncSession = Depends(get_session)
+    body: RelationshipCreate,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> RelationshipRecord:
+    await require_same_owner_entities(
+        session,
+        source_type=body.source_type,
+        source_id=body.source_id,
+        target_type=body.target_type,
+        target_id=body.target_id,
+        principal=principal,
+    )
     correlation_id = uuid.uuid4()
     relationship = RelationshipRecord(
+        owner_subject=principal.subject,
         source_type=body.source_type,
         source_id=body.source_id,
         relation_type=body.relation_type,
@@ -325,7 +384,7 @@ async def create_relationship(
     await append_audit(
         session,
         actor_type="user",
-        actor_id=None,
+        actor_id=principal.subject,
         action="relationship.create",
         resource_type="relationship",
         resource_id=str(relationship.id),

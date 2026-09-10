@@ -16,7 +16,11 @@ OPS_COMPOSE+=(-f compose.ops.yaml --profile ops)
 
 wait_for_postgres() {
   for _ in $(seq 1 60); do
-    if docker compose exec -T postgres sh -ec 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null'; then
+    # The official Postgres entrypoint briefly starts an init-only server on the
+    # Unix socket and then shuts it down before the real server starts. Probe TCP
+    # loopback so the smoke cannot mistake that transient bootstrap server for
+    # the durable instance that backup/restore must exercise.
+    if docker compose exec -T postgres sh -ec 'pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null'; then
       return 0
     fi
     sleep 1

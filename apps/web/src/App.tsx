@@ -1,4 +1,21 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
+
+import CockpitShell from './CockpitShell'
+import CommandCenterPanel from './CommandCenterPanel'
+import KnowledgePanel from './KnowledgePanel'
+import NewsWorkspacePanel, {
+  type NewsBrief,
+  type NewsMode,
+  type NewsOutput,
+} from './NewsWorkspacePanel'
+import ProjectsWorkspace from './ProjectsWorkspace'
+import ResearchWorkspace from './ResearchWorkspace'
+import { kairoFetch } from './lib/apiClient'
+import {
+  type CapabilityTaskView,
+  isTerminalTaskStatus,
+  loadCapabilityTask,
+} from './taskTracking'
 
 const spaces = [
   'Command Center',
@@ -26,51 +43,6 @@ const spaces = [
 
 const API_URL = (import.meta.env.VITE_KAIRO_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
-type NewsSource = {
-  id: string
-  title: string
-  url: string
-  domain?: string
-  snippet?: string
-  published_at?: string | null
-  market_score?: number
-}
-
-type MarketImpact = {
-  score?: number
-  level?: string
-  direction?: string
-  rationale?: string
-  affected_sectors?: string[]
-  affected_assets?: string[]
-}
-
-type NewsArtifact = {
-  id: string
-  title: string
-  content: {
-    query?: string
-    mode?: string
-    generated_at?: string
-    summary?: string
-    spoken_summary?: string
-    market_impact?: MarketImpact | null
-    sources?: NewsSource[]
-    model_warning?: string | null
-  }
-}
-
-type NewsBrief = {
-  task_id: string
-  status: string
-  query: string
-  mode: string
-  output: string
-  voice: string
-  artifact?: NewsArtifact | null
-  audio_available: boolean
-}
-
 type NewsRun = {
   task_id: string
   status: string
@@ -81,9 +53,9 @@ type NewsRun = {
 
 type RouteParameters = {
   query?: string
-  mode?: 'general' | 'local' | 'market_impact'
+  mode?: NewsMode
   location?: string | null
-  output?: 'text' | 'audio' | 'both'
+  output?: NewsOutput
 }
 
 type AssistantRun = {
@@ -110,27 +82,22 @@ type CommandState = {
   task_id?: string | null
 }
 
-function impactLabel(level?: string) {
-  const labels: Record<string, string> = {
-    low: 'Faible',
-    medium: 'Modéré',
-    high: 'Élevé',
-    critical: 'Critique',
-  }
-  return labels[level || ''] || level || 'Non évalué'
-}
-
 export default function App() {
   const [command, setCommand] = useState('Quelles sont les nouvelles du jour sur la ville de Paris ?')
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [pendingCommandId, setPendingCommandId] = useState<string | null>(null)
   const [lastRoute, setLastRoute] = useState<AssistantRun | null>(null)
+
   const [query, setQuery] = useState('Quelles sont les nouvelles du jour sur la ville de Paris ?')
-  const [mode, setMode] = useState<'general' | 'local' | 'market_impact'>('local')
+  const [mode, setMode] = useState<NewsMode>('local')
   const [location, setLocation] = useState('Paris')
-  const [output, setOutput] = useState<'text' | 'audio' | 'both'>('both')
+  const [output, setOutput] = useState<NewsOutput>('both')
+
   const [taskId, setTaskId] = useState<string | null>(null)
+  const [taskCapability, setTaskCapability] = useState<string | null>(null)
+  const [taskView, setTaskView] = useState<CapabilityTaskView | null>(null)
   const [brief, setBrief] = useState<NewsBrief | null>(null)
+
   const [submitting, setSubmitting] = useState(false)
   const [routing, setRouting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -142,7 +109,7 @@ export default function App() {
 
     const poll = async () => {
       try {
-        const response = await fetch(`${API_URL}/v1/commands/${pendingCommandId}`)
+        const response = await kairoFetch(`${API_URL}/v1/commands/${pendingCommandId}`)
         if (!response.ok) throw new Error(`KAIRO Core répond ${response.status}`)
         const state = (await response.json()) as CommandState
         if (cancelled) return
@@ -160,6 +127,7 @@ export default function App() {
             parameters,
             task_id: state.task_id,
           })
+          setTaskCapability(state.capability_key)
           setTaskId(state.task_id)
           setQuery(parameters.query || command)
           if (parameters.mode) setMode(parameters.mode)
@@ -183,7 +151,11 @@ export default function App() {
       } catch (pollError) {
         if (!cancelled) {
           setPendingCommandId(null)
-          setError(pollError instanceof Error ? pollError.message : 'Impossible de suivre le routage sémantique.')
+          setError(
+            pollError instanceof Error
+              ? pollError.message
+              : 'Impossible de suivre le routage sémantique.',
+          )
         }
       }
     }
@@ -196,23 +168,23 @@ export default function App() {
   }, [pendingCommandId, command])
 
   useEffect(() => {
-    if (!taskId) return
+    if (!taskId || !taskCapability) return
     let cancelled = false
     let timer: number | undefined
 
     const poll = async () => {
       try {
-        const response = await fetch(`${API_URL}/v1/news/briefs/${taskId}`)
-        if (!response.ok) throw new Error(`KAIRO Core répond ${response.status}`)
-        const data = (await response.json()) as NewsBrief
+        const data = await loadCapabilityTask(API_URL, taskCapability, taskId)
         if (cancelled) return
-        setBrief(data)
-        if (!['completed', 'failed'].includes(data.status)) {
-          timer = window.setTimeout(poll, 1200)
-        }
+        setTaskView(data)
+        setBrief(taskCapability === 'news.brief' ? (data.raw as NewsBrief) : null)
+        if (data.status === 'failed' && data.error) setError(data.error)
+        if (!isTerminalTaskStatus(data.status)) timer = window.setTimeout(poll, 1200)
       } catch (pollError) {
         if (!cancelled) {
-          setError(pollError instanceof Error ? pollError.message : 'Impossible de lire le briefing.')
+          setError(
+            pollError instanceof Error ? pollError.message : 'Impossible de suivre la tâche KAIRO.',
+          )
         }
       }
     }
@@ -222,22 +194,26 @@ export default function App() {
       cancelled = true
       if (timer) window.clearTimeout(timer)
     }
-  }, [taskId])
+  }, [taskId, taskCapability])
 
-  const sources = useMemo(() => brief?.artifact?.content.sources || [], [brief])
-  const impact = brief?.artifact?.content.market_impact
+  function resetTaskSurface() {
+    setError(null)
+    setBrief(null)
+    setTaskView(null)
+    setTaskCapability(null)
+    setTaskId(null)
+    setLastRoute(null)
+  }
 
   async function submitCommand(event: FormEvent) {
     event.preventDefault()
     if (!command.trim()) return
     setRouting(true)
     setPendingCommandId(null)
-    setError(null)
-    setBrief(null)
-    setTaskId(null)
-    setLastRoute(null)
+    resetTaskSurface()
+
     try {
-      const response = await fetch(`${API_URL}/v1/assistant/commands`, {
+      const response = await kairoFetch(`${API_URL}/v1/assistant/commands`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -251,13 +227,14 @@ export default function App() {
       if (!response.ok) {
         const detail = responseBody?.detail
         if (detail?.conversation_id) setConversationId(detail.conversation_id)
-        const message = detail?.message || `KAIRO ne sait pas encore router cette demande (${response.status}).`
-        throw new Error(message)
+        throw new Error(
+          detail?.message || `KAIRO ne sait pas encore router cette demande (${response.status}).`,
+        )
       }
+
       const run = responseBody as AssistantRun
       setLastRoute(run)
       setConversationId(run.conversation_id)
-
       if (run.status === 'routing' && run.routing === 'semantic') {
         setPendingCommandId(run.command_id)
         return
@@ -265,6 +242,8 @@ export default function App() {
       if (!run.task_id || !run.capability) {
         throw new Error('KAIRO a accepté la commande sans fournir de capacité finale.')
       }
+
+      setTaskCapability(run.capability)
       setTaskId(run.task_id)
       setQuery(run.parameters.query || command)
       if (run.parameters.mode) setMode(run.parameters.mode)
@@ -280,12 +259,11 @@ export default function App() {
   async function submitNews(event: FormEvent) {
     event.preventDefault()
     setSubmitting(true)
-    setError(null)
-    setBrief(null)
-    setTaskId(null)
-    setLastRoute(null)
+    setPendingCommandId(null)
+    resetTaskSurface()
+
     try {
-      const response = await fetch(`${API_URL}/v1/news/briefs`, {
+      const response = await kairoFetch(`${API_URL}/v1/news/briefs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -304,20 +282,53 @@ export default function App() {
         throw new Error(`Impossible de lancer le briefing (${response.status}) : ${body}`)
       }
       const run = (await response.json()) as NewsRun
+      setTaskCapability('news.brief')
       setTaskId(run.task_id)
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Impossible de lancer le briefing.')
+      setError(
+        submitError instanceof Error ? submitError.message : 'Impossible de lancer le briefing.',
+      )
     } finally {
       setSubmitting(false)
     }
   }
 
-  function useExample(value: string) {
-    setCommand(value)
-    setError(null)
-  }
+  const commandPanel = (
+    <CommandCenterPanel
+      command={command}
+      conversationId={conversationId}
+      pendingCommandId={pendingCommandId}
+      routing={routing}
+      route={lastRoute}
+      task={taskView}
+      error={error}
+      onCommandChange={setCommand}
+      onSubmit={submitCommand}
+      onUseExample={(value) => {
+        setCommand(value)
+        setError(null)
+      }}
+    />
+  )
 
-  const routeConfidence = lastRoute?.confidence == null ? null : Math.round(lastRoute.confidence * 100)
+  const newsPanel = (
+    <NewsWorkspacePanel
+      apiUrl={API_URL}
+      query={query}
+      mode={mode}
+      location={location}
+      output={output}
+      brief={brief}
+      submitting={submitting}
+      running={Boolean(taskId && taskCapability === 'news.brief')}
+      error={error}
+      onQueryChange={setQuery}
+      onModeChange={setMode}
+      onLocationChange={setLocation}
+      onOutputChange={setOutput}
+      onSubmit={submitNews}
+    />
+  )
 
   return (
     <main className="shell">
@@ -326,7 +337,7 @@ export default function App() {
           <span className="eyebrow">PERSONAL AI OPERATING SYSTEM</span>
           <h1>KAIRO</h1>
         </div>
-        <span className="status">foundation + semantic command kernel</span>
+        <span className="status">cockpit + durable command kernel</span>
       </header>
 
       <section className="hero">
@@ -337,198 +348,40 @@ export default function App() {
         </p>
       </section>
 
-      <section className="command-center" aria-labelledby="command-heading">
-        <div>
-          <span className="eyebrow">KAIRO COMMAND</span>
-          <h2 id="command-heading">Demande directement. KAIRO choisit la capacité.</h2>
-        </div>
-        <form className="command-form" onSubmit={submitCommand}>
-          <input
-            value={command}
-            onChange={(event) => setCommand(event.target.value)}
-            minLength={2}
-            placeholder="Ex. Que s’est-il passé à Paris ce matin ?"
-            aria-label="Commande KAIRO"
-          />
-          <button type="submit" disabled={routing || pendingCommandId !== null || !command.trim()}>
-            {routing ? 'Routage…' : pendingCommandId ? 'Analyse sémantique…' : 'Demander à KAIRO'}
-          </button>
-        </form>
-        <div className="command-examples" aria-label="Exemples de commandes">
-          <button type="button" onClick={() => useExample('Quelles sont les nouvelles du jour sur la ville de Paris ?')}>
-            Nouvelles de Paris
-          </button>
-          <button type="button" onClick={() => useExample("Que s'est-il passé à Paris ce matin ?")}>
-            Routage sémantique
-          </button>
-          <button type="button" onClick={() => useExample("Quelles sont les nouvelles qui risquent d'impacter la bourse aujourd'hui ?")}>
-            Impact bourse
-          </button>
-          <button type="button" onClick={() => useExample("Lis-moi les nouvelles qui risquent d'impacter les marchés aujourd'hui.")}>
-            Briefing oral
-          </button>
-        </div>
-        {lastRoute && (
-          <div className="route-chip">
-            <span>{lastRoute.capability || (lastRoute.routing === 'semantic' ? 'analyse sémantique' : 'routage')}</span>
-            <small>
-              {routeConfidence == null ? '' : `${routeConfidence}% · `}
-              {lastRoute.route_reason}
-            </small>
-          </div>
-        )}
-        {conversationId && (
-          <small className="conversation-chip">conversation {conversationId.slice(0, 8)}… persistée côté serveur</small>
-        )}
-      </section>
-
-      <section className="news-workspace" aria-labelledby="news-heading">
-        <div className="news-heading">
-          <div>
-            <span className="eyebrow">NEWS INTELLIGENCE</span>
-            <h2 id="news-heading">Briefing sourcé, lisible ou oral.</h2>
-          </div>
-          {brief && <span className={`run-state run-state-${brief.status}`}>{brief.status}</span>}
-        </div>
-
-        <form className="news-form" onSubmit={submitNews}>
-          <label className="query-field">
-            <span>Question</span>
-            <textarea
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              rows={3}
-              minLength={2}
-              required
-              placeholder="Quelles nouvelles risquent d'impacter la bourse aujourd'hui ?"
-            />
-          </label>
-
-          <div className="news-controls">
-            <label>
-              <span>Analyse</span>
-              <select value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}>
-                <option value="general">Actualité générale</option>
-                <option value="local">Actualité locale</option>
-                <option value="market_impact">Impact marchés / bourse</option>
-              </select>
-            </label>
-
-            {mode === 'local' && (
-              <label>
-                <span>Lieu</span>
-                <input value={location} onChange={(event) => setLocation(event.target.value)} />
-              </label>
-            )}
-
-            <label>
-              <span>Sortie</span>
-              <select value={output} onChange={(event) => setOutput(event.target.value as typeof output)}>
-                <option value="text">Texte</option>
-                <option value="audio">Audio</option>
-                <option value="both">Texte + audio</option>
-              </select>
-            </label>
-
-            <button type="submit" disabled={submitting || !query.trim()}>
-              {submitting ? 'Lancement…' : 'Créer le briefing'}
-            </button>
-          </div>
-        </form>
-
-        {error && <div className="error-panel">{error}</div>}
-
-        {pendingCommandId && !error && (
-          <div className="progress-panel">
-            <strong>KAIRO interprète la demande via une capacité de routage durable.</strong>
-            <span>Le modèle ne peut proposer qu’une capacité enregistrée ; Core valide avant toute exécution.</span>
-          </div>
-        )}
-
-        {taskId && !brief?.artifact && !error && (
-          <div className="progress-panel">
-            <strong>KAIRO recherche et recoupe les sources.</strong>
-            <span>La tâche est durable : elle peut reprendre après un redémarrage du Worker.</span>
-          </div>
-        )}
-
-        {brief?.artifact && (
-          <article className="briefing">
-            <div className="briefing-topline">
-              <div>
-                <span className="eyebrow">BRIEFING SOURCÉ</span>
-                <h3>{brief.artifact.title}</h3>
-              </div>
-              {impact && (
-                <div className="impact-score">
-                  <strong>{Math.round(impact.score || 0)}</strong>
-                  <span>/100 · {impactLabel(impact.level)}</span>
-                </div>
-              )}
-            </div>
-
-            {impact?.rationale && (
-              <div className="impact-panel">
-                <span>Impact marchés · {impact.direction || 'incertain'}</span>
-                <p>{impact.rationale}</p>
-              </div>
-            )}
-
-            {brief.output !== 'audio' && (
-              <div className="brief-summary">{brief.artifact.content.summary}</div>
-            )}
-
-            {brief.output !== 'text' && (
-              <div className="audio-panel">
-                <div>
-                  <strong>Lecture KAIRO</strong>
-                  <small>Voix locale Kokoro · français</small>
-                </div>
-                <audio
-                  controls
-                  preload="none"
-                  src={`${API_URL}/v1/news/briefs/${brief.task_id}/audio?voice=${encodeURIComponent(brief.voice)}`}
-                />
-              </div>
-            )}
-
-            {brief.artifact.content.model_warning && (
-              <p className="warning">{brief.artifact.content.model_warning}</p>
-            )}
-
-            <section className="sources" aria-label="Sources du briefing">
-              <div className="sources-title">
-                <strong>Sources</strong>
-                <span>{sources.length} résultats conservés avec le briefing</span>
-              </div>
-              <div className="source-list">
-                {sources.map((source) => (
-                  <a key={source.id} href={source.url} target="_blank" rel="noreferrer" className="source-card">
-                    <span className="source-id">{source.id}</span>
-                    <div>
-                      <strong>{source.title}</strong>
-                      <small>
-                        {source.domain || 'source'}
-                        {source.published_at ? ` · ${source.published_at}` : ''}
-                      </small>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </section>
-          </article>
-        )}
-      </section>
+      <CockpitShell
+        slots={{
+          command: commandPanel,
+          news: newsPanel,
+          research: <ResearchWorkspace apiUrl={API_URL} />,
+        }}
+        extraPanels={[
+          {
+            key: 'projects',
+            id: 'projects-workspace',
+            title: 'Projects',
+            content: <ProjectsWorkspace apiUrl={API_URL} />,
+          },
+          {
+            key: 'knowledge',
+            id: 'knowledge-workspace',
+            title: 'Knowledge',
+            content: <KnowledgePanel apiUrl={API_URL} />,
+          },
+        ]}
+      />
 
       <section className="grid" aria-label="KAIRO spaces">
         {spaces.map((space) => (
-          <article key={space} className={`card ${['Command Center', 'News Intelligence'].includes(space) ? 'card-active' : ''}`}>
+          <article
+            key={space}
+            className={`card ${['Command Center', 'Knowledge', 'News Intelligence', 'Research'].includes(space) ? 'card-active' : ''}`}
+          >
             <span>{space}</span>
             <small>
               {space === 'Command Center'
-                ? 'deterministic + semantic routing'
-                : space === 'News Intelligence'
-                  ? 'working capability'
+                ? 'dockable command surface'
+                : ['Knowledge', 'News Intelligence', 'Research'].includes(space)
+                  ? 'dockable working capability'
                   : 'planned workspace'}
             </small>
           </article>

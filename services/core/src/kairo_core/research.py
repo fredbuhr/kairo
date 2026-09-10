@@ -13,6 +13,8 @@ from .auth import Principal, require_kairo_user
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project, Task, WorkflowExecution
+from .project_access import get_owned_project
+from .research_context import router as research_context_router
 from .schemas import TaskRunResponse
 from .security import require_internal_token
 from .tool_models import ToolDefinition, ToolInvocation, ToolServer
@@ -20,6 +22,7 @@ from .tools import _validate_tool_input
 from .workflows import run_task
 
 router = APIRouter()
+router.include_router(research_context_router)
 
 
 class ResearchRunCreate(BaseModel):
@@ -72,6 +75,136 @@ def _research_task_input(task: Task) -> dict[str, Any]:
     return value
 
 
+def _run_response(task: Task, execution: WorkflowExecution) -> TaskRunResponse:
+    return TaskRunResponse(
+        task_id=task.id,
+        workflow_execution_id=execution.id,
+        workflow_id=execution.workflow_id,
+        status=execution.status,
+        already_started=True,
+    )
+
+
+async def start_research_run(
+    body: ResearchRunCreate,
+    session: AsyncSession,
+    *,
+    project: Project,
+    requester_subject: str,
+    actor_type: str = "user",
+    actor_id: str | None = None,
+    correlation_id: uuid.UUID | None = None,
+    command_id: uuid.UUID | None = None,
+    task_id: uuid.UUID | None = None,
+) -> TaskRunResponse:
+    """Start Research independently of the invoking transport.
+
+    Callers must resolve an authorized Project before entering this boundary. A deterministic
+    ``task_id`` makes Command handoff replay-safe: retries reuse the same canonical Task and
+    WorkflowExecution and fail closed if the replay attempts to change owner or execution inputs.
+    """
+
+    if project.id != body.project_id:
+        raise HTTPException(status_code=409, detail="Research project binding mismatch")
+
+    if task_id is not None:
+        existing = await session.get(Task, task_id)
+        if existing is not None:
+            existing_input = _research_task_input(existing)
+            if existing.project_id != project.id:
+                raise HTTPException(status_code=409, detail="Research task is bound to another project")
+            if str(existing_input.get("requester_subject") or "") != requester_subject:
+                raise HTTPException(status_code=409, detail="Research task is bound to another requester")
+            if command_id is not None and existing_input.get("command_id") != str(command_id):
+                raise HTTPException(status_code=409, detail="Research task is bound to another command")
+
+            expected = {
+                "query": body.query,
+                "max_tool_calls": body.max_tool_calls,
+                "allowed_tool_keys": body.allowed_tool_keys,
+                "model_alias": body.model_alias,
+                "estimated_model_cost_usd": str(body.estimated_model_cost_usd),
+            }
+            actual = {key: existing_input.get(key) for key in expected}
+            if actual != expected:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Deterministic Research task cannot be rebound to different execution parameters",
+                )
+
+            execution = await session.scalar(
+                select(WorkflowExecution).where(WorkflowExecution.task_id == existing.id)
+            )
+            if execution is not None:
+                return _run_response(existing, execution)
+            return await run_task(existing.id, session)
+
+    correlation_id = correlation_id or uuid.uuid4()
+    task_input: dict[str, Any] = {
+        "capability": "research.autonomous",
+        "query": body.query,
+        "requester_subject": requester_subject,
+        "max_tool_calls": body.max_tool_calls,
+        "allowed_tool_keys": body.allowed_tool_keys,
+        "model_alias": body.model_alias,
+        "estimated_model_cost_usd": str(body.estimated_model_cost_usd),
+        "authority_level": 1,
+        "estimated_cost_usd": str(body.estimated_model_cost_usd),
+        "policy_scope": {"capability": "research.autonomous", "tool_risk_ceiling": "read"},
+        "approval_reason": "KAIRO requests a bounded read-only autonomous research run",
+    }
+    if command_id is not None:
+        task_input["command_id"] = str(command_id)
+
+    task = Task(
+        id=task_id or uuid.uuid4(),
+        project_id=project.id,
+        title=f"Research — {body.query}"[:320],
+        description="Autonomous read-only research through explicitly enabled KAIRO MCP tools.",
+        status="todo",
+        owner_type="agent",
+        owner_ref="kairo.research-agent",
+        authority_ceiling=1,
+        budget_usd=body.estimated_model_cost_usd,
+        input=task_input,
+    )
+    session.add(task)
+    await session.flush()
+
+    event_payload: dict[str, Any] = {
+        "task_id": str(task.id),
+        "project_id": str(project.id),
+        "query": body.query,
+        "max_tool_calls": body.max_tool_calls,
+    }
+    if command_id is not None:
+        event_payload["command_id"] = str(command_id)
+    await enqueue_domain_event(
+        session,
+        event_type="research.requested",
+        aggregate_type="task",
+        aggregate_id=task.id,
+        correlation_id=correlation_id,
+        payload=event_payload,
+    )
+    await append_audit(
+        session,
+        actor_type=actor_type,
+        actor_id=actor_id,
+        action="research.autonomous.request",
+        resource_type="task",
+        resource_id=str(task.id),
+        authority_level=1,
+        correlation_id=correlation_id,
+        request_json={
+            **body.model_dump(mode="json"),
+            **({"command_id": str(command_id)} if command_id is not None else {}),
+        },
+    )
+    await session.commit()
+    return await run_task(task.id, session)
+
+
 async def _eligible_tools(session: AsyncSession, task_input: dict[str, Any]) -> list[ToolDefinition]:
     requested = {str(key) for key in task_input.get("allowed_tool_keys") or [] if str(key)}
     statement = (
@@ -116,56 +249,18 @@ async def create_research_run(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> TaskRunResponse:
-    project = await session.get(Project, body.project_id)
+    project = await get_owned_project(session, body.project_id, principal)
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    correlation_id = uuid.uuid4()
-    task = Task(
-        project_id=project.id,
-        title=f"Research — {body.query}"[:320],
-        description="Autonomous read-only research through explicitly enabled KAIRO MCP tools.",
-        status="todo",
-        owner_type="agent",
-        owner_ref="kairo.research-agent",
-        authority_ceiling=1,
-        budget_usd=body.estimated_model_cost_usd,
-        input={
-            "capability": "research.autonomous",
-            "query": body.query,
-            "max_tool_calls": body.max_tool_calls,
-            "allowed_tool_keys": body.allowed_tool_keys,
-            "model_alias": body.model_alias,
-            "estimated_model_cost_usd": str(body.estimated_model_cost_usd),
-            "authority_level": 1,
-            "estimated_cost_usd": str(body.estimated_model_cost_usd),
-            "policy_scope": {"capability": "research.autonomous", "tool_risk_ceiling": "read"},
-            "approval_reason": "KAIRO requests a bounded read-only autonomous research run",
-        },
-    )
-    session.add(task)
-    await session.flush()
-    await enqueue_domain_event(
+    return await start_research_run(
+        body,
         session,
-        event_type="research.requested",
-        aggregate_type="task",
-        aggregate_id=task.id,
-        correlation_id=correlation_id,
-        payload={"task_id": str(task.id), "project_id": str(project.id), "query": body.query},
-    )
-    await append_audit(
-        session,
+        project=project,
+        requester_subject=principal.subject,
         actor_type="user",
         actor_id=principal.subject,
-        action="research.autonomous.request",
-        resource_type="task",
-        resource_id=str(task.id),
-        authority_level=1,
-        correlation_id=correlation_id,
-        request_json=body.model_dump(mode="json"),
     )
-    await session.commit()
-    return await run_task(task.id, session)
 
 
 @router.get(
@@ -213,6 +308,18 @@ async def start_research_tool(
     if parent is None:
         raise HTTPException(status_code=404, detail="Research task not found")
     task_input = _research_task_input(parent)
+    owner_subject = str(task_input.get("requester_subject") or "").strip()
+    if not owner_subject:
+        raise HTTPException(status_code=409, detail="Research task owner binding is missing")
+    parent_project = await session.get(Project, parent.project_id)
+    parent_project_owner = (
+        parent_project.owner_subject
+        if parent_project is not None and parent_project.owner_subject
+        else "development-user"
+    )
+    if parent_project is None or parent_project_owner != owner_subject:
+        raise HTTPException(status_code=409, detail="Research Project ownership binding is stale")
+
     max_calls = int(task_input.get("max_tool_calls") or 3)
     if body.slot >= max_calls:
         raise HTTPException(status_code=422, detail="Research tool slot exceeds task budget")
@@ -232,7 +339,10 @@ async def start_research_tool(
     invocation_id = uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:research:{parent.id}:slot:{body.slot}:{tool.key}")
     idempotency_key = f"research:{parent.id}:{body.slot}:{tool.key}"
     existing = await session.scalar(
-        select(ToolInvocation).where(ToolInvocation.idempotency_key == idempotency_key)
+        select(ToolInvocation).where(
+            ToolInvocation.owner_subject == owner_subject,
+            ToolInvocation.idempotency_key == idempotency_key,
+        )
     )
     if existing is not None:
         if existing.tool_definition_id != tool.id or existing.input_json != body.input:
@@ -282,6 +392,7 @@ async def start_research_tool(
     await session.flush()
     invocation = ToolInvocation(
         id=invocation_id,
+        owner_subject=owner_subject,
         tool_definition_id=tool.id,
         task_id=child.id,
         idempotency_key=idempotency_key,
@@ -341,8 +452,17 @@ async def research_tool_result(
     if invocation is None:
         raise HTTPException(status_code=404, detail="Tool invocation not found")
     task = await session.get(Task, invocation.task_id)
+    project = await session.get(Project, task.project_id) if task is not None else None
+    project_owner = (
+        project.owner_subject if project is not None and project.owner_subject else "development-user"
+    )
     scope = (task.input or {}).get("policy_scope") if task else None
-    if not isinstance(scope, dict) or not scope.get("research_parent_task_id"):
+    if (
+        project is None
+        or project_owner != invocation.owner_subject
+        or not isinstance(scope, dict)
+        or not scope.get("research_parent_task_id")
+    ):
         raise HTTPException(status_code=409, detail="Invocation does not belong to a research agent")
     return ResearchToolResult(
         invocation_id=invocation.id,

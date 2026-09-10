@@ -97,6 +97,27 @@ def _result_payload(result: Any) -> dict[str, Any]:
     return {"value": str(result)}
 
 
+def _task_result(
+    *,
+    invocation_id: str,
+    tool_key: str,
+    result: dict[str, Any],
+    replayed: bool,
+) -> dict[str, Any]:
+    """Return the canonical Artifact-shaped result expected by TaskExecutionWorkflow."""
+
+    return {
+        "kind": "tool-invocation",
+        "title": f"Tool invocation — {tool_key}"[:320],
+        "content": {
+            "tool_invocation_id": invocation_id,
+            "tool_key": tool_key,
+            "result": result,
+            "replayed": replayed,
+        },
+    }
+
+
 @activity.defn(name="fail_tool_invocation")
 async def fail_tool_invocation(payload: dict[str, Any]) -> dict[str, Any]:
     task_input = payload.get("task_input") or {}
@@ -117,9 +138,15 @@ async def perform_tool_invocation(payload: dict[str, Any]) -> dict[str, Any]:
         raise RuntimeError("tool.invoke requires tool_invocation_id and workflow_execution_id")
 
     context = await _get_context(invocation_id)
+    tool_key = str(context.get("tool_key") or "tool")
     if context.get("status") == "completed":
         result = context.get("result") if isinstance(context.get("result"), dict) else {}
-        return {"tool_invocation_id": invocation_id, "result": result, "replayed": True}
+        return _task_result(
+            invocation_id=invocation_id,
+            tool_key=tool_key,
+            result=result,
+            replayed=True,
+        )
 
     checkpoint = _read_checkpoint() or {}
     if checkpoint.get("invocation_id") == invocation_id:
@@ -128,11 +155,12 @@ async def perform_tool_invocation(payload: dict[str, Any]) -> dict[str, Any]:
         if stage in {"result", "accounted"} and isinstance(checkpoint_result, dict):
             await _complete(invocation_id, checkpoint_result)
             _heartbeat("accounted", invocation_id, checkpoint_result)
-            return {
-                "tool_invocation_id": invocation_id,
-                "result": checkpoint_result,
-                "replayed": True,
-            }
+            return _task_result(
+                invocation_id=invocation_id,
+                tool_key=tool_key,
+                result=checkpoint_result,
+                replayed=True,
+            )
         if stage == "pre_call" and context.get("retry_policy") == "no_retry":
             raise ToolCallOutcomeUnknown(
                 "Previous MCP tool attempt crossed the pre-call checkpoint; "
@@ -147,6 +175,7 @@ async def perform_tool_invocation(payload: dict[str, Any]) -> dict[str, Any]:
     context = await _get_context(invocation_id)
     endpoint = str(context.get("endpoint_url") or "")
     remote_name = str(context.get("remote_name") or "")
+    tool_key = str(context.get("tool_key") or tool_key)
     arguments = context.get("input") if isinstance(context.get("input"), dict) else {}
     if not endpoint or not remote_name:
         raise RuntimeError("Tool registry context is missing endpoint or remote tool name")
@@ -163,4 +192,9 @@ async def perform_tool_invocation(payload: dict[str, Any]) -> dict[str, Any]:
     _heartbeat("result", invocation_id, result_payload)
     await _complete(invocation_id, result_payload)
     _heartbeat("accounted", invocation_id, result_payload)
-    return {"tool_invocation_id": invocation_id, "result": result_payload, "replayed": False}
+    return _task_result(
+        invocation_id=invocation_id,
+        tool_key=tool_key,
+        result=result_payload,
+        replayed=False,
+    )

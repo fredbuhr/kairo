@@ -6,9 +6,10 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import Principal, require_kairo_user
@@ -16,7 +17,8 @@ from .config import settings
 from .db import get_session
 from .document_models import DOCUMENTS_PROJECT_ID, Document, DocumentChunk, DocumentVersion
 from .events import append_audit, enqueue_domain_event
-from .models import Asset, Task
+from .models import Asset, Project, Task
+from .project_access import get_owned_project
 from .security import require_internal_token
 from .workflows import run_task
 
@@ -103,6 +105,148 @@ def _task_id(version_id: uuid.UUID) -> uuid.UUID:
 
 def _chunk_id(version_id: uuid.UUID, ordinal: int) -> uuid.UUID:
     return uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:document-chunk:{version_id}:{ordinal}")
+
+
+def _documents_project_id(subject: str) -> uuid.UUID:
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:project:documents:subject:{subject}")
+
+
+async def _ensure_documents_project(session: AsyncSession, subject: str) -> Project:
+    normalized_subject = subject.strip()
+    if not normalized_subject:
+        raise HTTPException(status_code=409, detail="Document owner is missing")
+
+    project_id = _documents_project_id(normalized_subject)
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_subject == normalized_subject,
+        )
+    )
+    if project is not None:
+        return project
+
+    correlation_id = uuid.uuid4()
+    inserted_id = await session.scalar(
+        pg_insert(Project)
+        .values(
+            id=project_id,
+            owner_subject=normalized_subject,
+            name="KAIRO Documents",
+            status="active",
+            summary=(
+                "Per-user system workspace for canonical documents imported without an explicit Project."
+            ),
+            parent_id=None,
+        )
+        .on_conflict_do_nothing(index_elements=[Project.id])
+        .returning(Project.id)
+    )
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_subject == normalized_subject,
+        )
+    )
+    if project is None:
+        raise RuntimeError("KAIRO Documents workspace could not be initialized for this owner")
+
+    if inserted_id is not None:
+        await enqueue_domain_event(
+            session,
+            event_type="project.created",
+            aggregate_type="project",
+            aggregate_id=project.id,
+            correlation_id=correlation_id,
+            payload={"project_id": str(project.id), "name": project.name, "status": project.status},
+        )
+        await append_audit(
+            session,
+            actor_type="system",
+            actor_id="document-ingestion",
+            action="project.create",
+            resource_type="project",
+            resource_id=str(project.id),
+            authority_level=0,
+            correlation_id=correlation_id,
+            request_json={
+                "reason": "initialize owner-scoped Documents workspace",
+                "subject": normalized_subject,
+            },
+        )
+    return project
+
+
+async def _project_for_asset(
+    asset: Asset,
+    principal: Principal,
+    session: AsyncSession,
+) -> Project:
+    if asset.project_id is None:
+        return await _ensure_documents_project(session, principal.subject)
+
+    project = await get_owned_project(session, asset.project_id, principal)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+async def _repair_reingest_project(
+    document: Document,
+    asset: Asset,
+    principal: Principal,
+    session: AsyncSession,
+) -> None:
+    current_project = await get_owned_project(session, document.project_id, principal)
+    if current_project is not None and document.project_id != DOCUMENTS_PROJECT_ID:
+        return
+
+    project = await _project_for_asset(asset, principal, session)
+    document.project_id = project.id
+
+
+async def _require_internal_source_binding(
+    version: DocumentVersion,
+    document: Document,
+    asset: Asset,
+    session: AsyncSession,
+) -> None:
+    document_subject = str((document.metadata_json or {}).get("owner_subject") or "").strip()
+    asset_subject = str((asset.metadata_json or {}).get("owner_subject") or "").strip()
+    if not document_subject or asset_subject != document_subject:
+        raise HTTPException(status_code=409, detail="Document source ownership binding is stale")
+
+    project = await session.get(Project, document.project_id)
+    if project is None:
+        raise HTTPException(status_code=410, detail="Document project metadata is missing")
+    if project.owner_subject != document_subject:
+        if settings.kairo_auth_enabled or project.owner_subject is not None:
+            raise HTTPException(status_code=409, detail="Document project ownership binding is stale")
+
+    if asset.project_id is not None and asset.project_id != document.project_id:
+        raise HTTPException(status_code=409, detail="Document source project binding is stale")
+
+    if version.task_id is None:
+        raise HTTPException(status_code=409, detail="Document version has no ingestion task binding")
+    task = await session.get(Task, version.task_id)
+    if task is None:
+        raise HTTPException(status_code=410, detail="Document ingestion task metadata is missing")
+
+    task_input = task.input or {}
+    expected_input = {
+        "capability": "document.ingest",
+        "document_id": str(document.id),
+        "document_version_id": str(version.id),
+        "asset_id": str(asset.id),
+    }
+    actual_input = {key: str(task_input.get(key) or "") for key in expected_input}
+    if (
+        task.project_id != document.project_id
+        or task.owner_type != "user"
+        or str(task.owner_ref or "") != document_subject
+        or actual_input != expected_input
+    ):
+        raise HTTPException(status_code=409, detail="Document version ingestion binding is stale")
 
 
 async def _start_version(
@@ -199,10 +343,11 @@ async def create_document(
     if existing is not None:
         raise HTTPException(status_code=409, detail="Asset is already bound to a document")
 
+    project = await _project_for_asset(asset, principal, session)
     title = (body.title or (asset.metadata_json or {}).get("filename") or "Document").strip()
     document = Document(
         asset_id=asset.id,
-        project_id=asset.project_id or DOCUMENTS_PROJECT_ID,
+        project_id=project.id,
         title=title[:320],
         media_type=asset.mime_type,
         source_sha256=asset.sha256,
@@ -221,7 +366,11 @@ async def create_document(
     )
 
 
-@router.post("/v1/documents/{document_id}/reingest", response_model=DocumentRunResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/v1/documents/{document_id}/reingest",
+    response_model=DocumentRunResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def reingest_document(
     document_id: uuid.UUID,
     principal: Principal = Depends(require_kairo_user),
@@ -233,11 +382,27 @@ async def reingest_document(
     asset = await session.get(Asset, document.asset_id)
     if asset is None:
         raise HTTPException(status_code=410, detail="Source asset metadata is missing")
+    if not _owned_asset(asset, principal):
+        raise HTTPException(status_code=409, detail="Document source ownership binding is stale")
+
+    await _repair_reingest_project(document, asset, principal, session)
     generation = int(
-        (await session.scalar(select(func.max(DocumentVersion.generation)).where(DocumentVersion.document_id == document.id)))
+        (
+            await session.scalar(
+                select(func.max(DocumentVersion.generation)).where(
+                    DocumentVersion.document_id == document.id
+                )
+            )
+        )
         or 0
     ) + 1
-    version, run = await _start_version(document, asset, generation, session, actor_id=principal.subject)
+    version, run = await _start_version(
+        document,
+        asset,
+        generation,
+        session,
+        actor_id=principal.subject,
+    )
     return DocumentRunResponse(
         document=document,
         version=version,
@@ -254,7 +419,8 @@ async def list_documents(
 ) -> list[Document]:
     result = await session.execute(select(Document).order_by(Document.created_at.desc()))
     return [
-        row for row in result.scalars()
+        row
+        for row in result.scalars()
         if str((row.metadata_json or {}).get("owner_subject") or "") == principal.subject
     ]
 
@@ -289,6 +455,8 @@ async def list_document_versions(
 @router.get("/v1/document-versions/{version_id}/chunks", response_model=list[DocumentChunkRead])
 async def list_document_chunks(
     version_id: uuid.UUID,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=200),
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[DocumentChunk]:
@@ -300,11 +468,16 @@ async def list_document_chunks(
         select(DocumentChunk)
         .where(DocumentChunk.document_version_id == version.id)
         .order_by(DocumentChunk.ordinal)
+        .offset(offset)
+        .limit(limit)
     )
     return list(result.scalars())
 
 
-@router.get("/internal/v1/documents/versions/{version_id}/source", dependencies=[Depends(require_internal_token)])
+@router.get(
+    "/internal/v1/documents/versions/{version_id}/source",
+    dependencies=[Depends(require_internal_token)],
+)
 async def internal_document_source(
     version_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
@@ -316,6 +489,8 @@ async def internal_document_source(
     asset = await session.get(Asset, document.asset_id) if document else None
     if document is None or asset is None:
         raise HTTPException(status_code=410, detail="Document source asset is unavailable")
+
+    await _require_internal_source_binding(version, document, asset, session)
     return {
         "document_id": str(document.id),
         "document_version_id": str(version.id),
@@ -329,7 +504,10 @@ async def internal_document_source(
     }
 
 
-@router.post("/internal/v1/documents/versions/{version_id}/complete", dependencies=[Depends(require_internal_token)])
+@router.post(
+    "/internal/v1/documents/versions/{version_id}/complete",
+    dependencies=[Depends(require_internal_token)],
+)
 async def internal_complete_document_ingestion(
     version_id: uuid.UUID,
     body: InternalDocumentProjectionReport,
@@ -341,10 +519,17 @@ async def internal_complete_document_ingestion(
     document = await session.get(Document, version.document_id, with_for_update=True)
     if document is None:
         raise HTTPException(status_code=410, detail="Document is missing")
+    asset = await session.get(Asset, document.asset_id)
+    if asset is None:
+        raise HTTPException(status_code=410, detail="Document source asset is unavailable")
+
+    await _require_internal_source_binding(version, document, asset, session)
     if version.source_sha256 and body.source_sha256 != version.source_sha256:
         raise HTTPException(status_code=409, detail="Document source digest changed during ingestion")
 
-    await session.execute(delete(DocumentChunk).where(DocumentChunk.document_version_id == version.id))
+    await session.execute(
+        delete(DocumentChunk).where(DocumentChunk.document_version_id == version.id)
+    )
     for ordinal, item in enumerate(body.chunks):
         text = str(item.get("text") or "").strip()
         if not text:
@@ -364,7 +549,9 @@ async def internal_complete_document_ingestion(
     await session.flush()
     count = int(
         await session.scalar(
-            select(func.count()).select_from(DocumentChunk).where(DocumentChunk.document_version_id == version.id)
+            select(func.count())
+            .select_from(DocumentChunk)
+            .where(DocumentChunk.document_version_id == version.id)
         )
         or 0
     )
@@ -401,13 +588,25 @@ async def internal_complete_document_ingestion(
         resource_id=str(version.id),
         authority_level=1,
         correlation_id=correlation_id,
-        request_json={"chunk_count": count, "parser": body.parser, "parser_version": body.parser_version},
+        request_json={
+            "chunk_count": count,
+            "parser": body.parser,
+            "parser_version": body.parser_version,
+        },
     )
     await session.commit()
-    return {"document_id": str(document.id), "version_id": str(version.id), "status": version.status, "chunk_count": count}
+    return {
+        "document_id": str(document.id),
+        "version_id": str(version.id),
+        "status": version.status,
+        "chunk_count": count,
+    }
 
 
-@router.post("/internal/v1/documents/versions/{version_id}/fail", dependencies=[Depends(require_internal_token)])
+@router.post(
+    "/internal/v1/documents/versions/{version_id}/fail",
+    dependencies=[Depends(require_internal_token)],
+)
 async def internal_fail_document_ingestion(
     version_id: uuid.UUID,
     body: dict[str, Any],
@@ -417,10 +616,16 @@ async def internal_fail_document_ingestion(
     if version is None:
         raise HTTPException(status_code=404, detail="Document version not found")
     document = await session.get(Document, version.document_id, with_for_update=True)
+    if document is None:
+        raise HTTPException(status_code=410, detail="Document is missing")
+    asset = await session.get(Asset, document.asset_id)
+    if asset is None:
+        raise HTTPException(status_code=410, detail="Document source asset is unavailable")
+
+    await _require_internal_source_binding(version, document, asset, session)
     version.status = "failed"
     version.last_error = str(body.get("error") or "Document ingestion failed")[:4000]
     version.completed_at = datetime.now(UTC)
-    if document is not None:
-        document.status = "failed"
+    document.status = "failed"
     await session.commit()
     return {"version_id": str(version.id), "status": version.status}

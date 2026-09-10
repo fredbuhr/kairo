@@ -34,6 +34,7 @@ class Project(Base):
     name: Mapped[str] = mapped_column(String(240), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
     summary: Mapped[str | None] = mapped_column(Text)
+    owner_subject: Mapped[str | None] = mapped_column(String(320))
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL")
     )
@@ -43,6 +44,8 @@ class Project(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+    __table_args__ = (Index("ix_projects_owner_status", "owner_subject", "status"),)
 
 
 class Task(Base):
@@ -76,6 +79,7 @@ class RelationshipRecord(Base):
     __tablename__ = "relationships"
 
     id: Mapped[uuid.UUID] = uuid_pk()
+    owner_subject: Mapped[str] = mapped_column(String(320), nullable=False)
     source_type: Mapped[str] = mapped_column(String(64), nullable=False)
     source_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     relation_type: Mapped[str] = mapped_column(String(96), nullable=False)
@@ -89,6 +93,8 @@ class RelationshipRecord(Base):
     __table_args__ = (
         Index("ix_relationships_source", "source_type", "source_id"),
         Index("ix_relationships_target", "target_type", "target_id"),
+        Index("ix_relationships_owner_source", "owner_subject", "source_type", "source_id"),
+        Index("ix_relationships_owner_target", "owner_subject", "target_type", "target_id"),
     )
 
 

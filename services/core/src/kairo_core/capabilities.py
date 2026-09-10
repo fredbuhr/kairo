@@ -3,11 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .command_models import CapabilityRecord
-from .research import ResearchRunCreate
 from .schemas import (
     NewsBriefCreate,
     NewsBriefRunResponse,
@@ -15,6 +14,15 @@ from .schemas import (
     SemanticRouteProposal,
     TaskRunResponse,
 )
+
+
+class ResearchRoutingInput(BaseModel):
+    """Semantic routing intent only; Core injects all execution-authority fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=3, max_length=4000)
+    max_tool_calls: int = Field(default=3, ge=1, le=8)
 
 
 @dataclass(frozen=True)
@@ -94,16 +102,17 @@ SEMANTIC_ROUTE = CapabilitySpec(
 
 AUTONOMOUS_RESEARCH = CapabilitySpec(
     key="research.autonomous",
-    version=1,
+    version=2,
     title="Autonomous read-only research",
     description=(
-        "Plan and execute bounded research through explicitly enabled read-only A1 MCP tools. "
-        "Every selected tool becomes its own policy-gated durable child Task."
+        "Research a question through explicitly enabled read-only A1 MCP tools. "
+        "The route may choose the question and bounded tool-call depth only; Core owns project, "
+        "model, budget and tool authority."
     ),
     authority_level=1,
     cost_class="metered-model-and-tools",
     runtime="temporal",
-    input_model=ResearchRunCreate,
+    input_model=ResearchRoutingInput,
     output_model=TaskRunResponse,
     metadata={
         "domain": "research",
@@ -112,6 +121,12 @@ AUTONOMOUS_RESEARCH = CapabilitySpec(
         "agent_framework": "pydantic-ai",
         "tool_transport": "mcp",
         "tool_risk_ceiling": "read",
+        "core_injected_execution_fields": [
+            "project_id",
+            "allowed_tool_keys",
+            "model_alias",
+            "estimated_model_cost_usd",
+        ],
         "durable": True,
         "routable": True,
         "internal": False,

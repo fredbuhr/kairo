@@ -42,7 +42,7 @@ The exit is enforced by four CI gates: general build/topology validation, Tempor
 
 ## Block 2 — Intelligence, memory and safe autonomy
 
-**Status: active.**
+**Status: core exit reached — 2026-09-11; baseline consolidation in progress before Block 3.**
 
 **Purpose:** make KAIRO reason and work durably without coupling intelligence to one provider/runtime.
 
@@ -62,7 +62,13 @@ Deliverables:
 
 **Exit:** an approved autonomous workflow can research, use tools, create canonical artefacts, survive interruption, respect authority/cost limits and explain what it did.
 
+The core exit is now proven by the validated Research path: bounded planning and synthesis, owner-scoped Context Packs, canonical MCP ToolInvocations, canonical Research Artifacts, model/tool accounting and a real Worker `SIGKILL` replay test that does not duplicate the planner, remote tool call or synthesis. G48 also added a real two-Keycloak-user isolation test over the critical control-plane boundaries.
+
+Some integration-depth items listed above are intentionally not treated as blockers for the core exit. General Browser Use/Playwright automation and Activepieces-specific workflows remain follow-up work when a product slice actually needs them; they must still enter through the same KAIRO policy, Task, Artifact and audit contracts.
+
 ## Block 3 — KAIRO Cockpit, graph and planning workspace
+
+**Status: early foundation present; deeper product work resumes after baseline consolidation.**
 
 **Purpose:** deliver the daily interface instead of exposing specialist tools.
 
@@ -78,6 +84,8 @@ Deliverables:
 - universal search across canonical records, documents, embeddings and graph context.
 
 **Exit:** KAIRO is usable every day through one customizable Cockpit, including mindmap 3D and Gantt.
+
+The stabilized line already contains the Cockpit shell, persisted owner-scoped workspace layouts and initial Command Center, Projects, Research, News and Knowledge surfaces. The mature Gantt, 2D/3D Brain, collaboration and universal search remain to be implemented on that baseline.
 
 ## Block 4 — Sidecar, voice and personal operations
 

@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 
 from temporalio.client import Client
 from temporalio.worker import Worker
@@ -11,6 +12,7 @@ from .memory_projection import perform_memory_projection
 from .news_activity import perform_news_brief
 from .policy_activities import check_policy_gate
 from .research_agent import perform_autonomous_research
+from .research_context_pack import prepare_research_context_pack
 from .semantic_router import perform_semantic_route
 from .tool_runtime import fail_tool_invocation, perform_tool_invocation
 from .workflows import FoundationWorkflow, TaskExecutionWorkflow
@@ -31,6 +33,7 @@ async def serve() -> None:
             perform_foundation_work,
             perform_news_brief,
             perform_semantic_route,
+            prepare_research_context_pack,
             perform_autonomous_research,
             perform_memory_projection,
             perform_document_ingestion,
@@ -39,6 +42,11 @@ async def serve() -> None:
             complete_execution,
             fail_execution,
         ],
+        # Research model-call checkpoints are replay-critical. Keep heartbeat coalescing bounded so
+        # an abrupt Worker death cannot leave an already-accounted model result only in process
+        # memory for the SDK's much longer default throttle interval.
+        max_heartbeat_throttle_interval=timedelta(seconds=1),
+        default_heartbeat_throttle_interval=timedelta(seconds=1),
     )
     memory_events = MemoryProjectionEventConsumer()
     memory_consumer_task = asyncio.create_task(
