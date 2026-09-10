@@ -20,7 +20,7 @@ export type CockpitSlots = {
 }
 
 type CockpitShellProps = {
-  apiUrl: string
+  apiUrl?: string
   slots: CockpitSlots
   workspaceKey?: string
 }
@@ -34,6 +34,7 @@ const CockpitContentContext = createContext<CockpitSlots | null>(null)
 const dockPanelStyle = { height: '100%', overflow: 'auto' } as const
 const LAYOUT_SCHEMA_VERSION = 1
 const DEFAULT_WORKSPACE_KEY = 'cockpit.main'
+const DEFAULT_API_URL = (import.meta.env.VITE_KAIRO_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 const SAVE_DEBOUNCE_MS = 700
 
 function useCockpitContent() {
@@ -114,7 +115,7 @@ async function saveWorkspaceLayout(
 }
 
 export default function CockpitShell({
-  apiUrl,
+  apiUrl = DEFAULT_API_URL,
   slots,
   workspaceKey = DEFAULT_WORKSPACE_KEY,
 }: CockpitShellProps) {
