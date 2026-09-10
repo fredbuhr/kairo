@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
+import ResearchWorkspace from './ResearchWorkspace'
 import {
   type CapabilityTaskView,
   isTerminalTaskStatus,
@@ -551,16 +552,20 @@ export default function App() {
         )}
       </section>
 
+      <ResearchWorkspace apiUrl={API_URL} />
+
       <section className="grid" aria-label="KAIRO spaces">
         {spaces.map((space) => (
-          <article key={space} className={`card ${['Command Center', 'News Intelligence'].includes(space) ? 'card-active' : ''}`}>
+          <article key={space} className={`card ${['Command Center', 'News Intelligence', 'Research'].includes(space) ? 'card-active' : ''}`}>
             <span>{space}</span>
             <small>
               {space === 'Command Center'
                 ? 'deterministic + semantic routing'
                 : space === 'News Intelligence'
                   ? 'working capability'
-                  : 'planned workspace'}
+                  : space === 'Research'
+                    ? 'working capability'
+                    : 'planned workspace'}
             </small>
           </article>
         ))}
