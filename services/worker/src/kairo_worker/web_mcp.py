@@ -11,6 +11,8 @@ from pydantic import Field
 from . import activities as news
 
 WEB_MCP_PORT = 8090
+MAX_FETCH_EXCERPT_CHARS = 5_000
+DEFAULT_FETCH_EXCERPT_CHARS = 3_500
 
 
 def build_server() -> MCPServer:
@@ -19,7 +21,7 @@ def build_server() -> MCPServer:
 
     @server.tool(
         name="search",
-        title="Search the public web",
+        title="Search recent public sources",
         description=(
             "Search recent public web/news sources through KAIRO's private SearXNG service. "
             "Returns titles, URLs, snippets and publication metadata without modifying external state."
@@ -48,16 +50,17 @@ def build_server() -> MCPServer:
 
     @server.tool(
         name="fetch",
-        title="Read a public web page",
+        title="Read a public web page excerpt",
         description=(
-            "Fetch one public HTTP(S) page through KAIRO's SSRF-safe reader and extract its main text. "
-            "Private/local destinations and redirects are rejected. The tool is read-only."
+            "Fetch one public HTTP(S) page through KAIRO's SSRF-safe reader and return a bounded "
+            "main-text excerpt suitable for research evidence. Private/local destinations and redirects "
+            "are rejected. The tool is read-only."
         ),
         annotations=read_only_open_web,
     )
     async def fetch(
         url: Annotated[str, Field(min_length=8, max_length=2048)],
-        max_chars: Annotated[int, Field(ge=500, le=12_000)] = 8_000,
+        max_chars: Annotated[int, Field(ge=500, le=MAX_FETCH_EXCERPT_CHARS)] = DEFAULT_FETCH_EXCERPT_CHARS,
     ) -> dict[str, Any]:
         canonical = news._canonical_url(url)
         if not canonical:
@@ -90,14 +93,16 @@ def build_server() -> MCPServer:
             include_comments=False,
             include_tables=False,
         )
-        text = news._clean_text(extracted, max_chars)
-        if not text:
+        raw_text = news._clean_text(extracted, MAX_FETCH_EXCERPT_CHARS + 1)
+        if not raw_text:
             raise ValueError("No readable main text could be extracted from this page")
+        excerpt = raw_text[:max_chars]
         return {
             "url": canonical,
             "final_url": news._canonical_url(str(response.url)) or canonical,
-            "text": text,
-            "truncated": len(str(extracted or "")) > len(text),
+            "excerpt": excerpt,
+            "truncated": len(raw_text) > len(excerpt),
+            "excerpt_char_limit": max_chars,
         }
 
     return server
