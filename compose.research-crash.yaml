@@ -1,0 +1,34 @@
+services:
+  fake-research-litellm:
+    build:
+      context: ./services/worker
+      args:
+        KAIRO_WORKER_EXTRAS: ""
+    command: ["python", "/smoke/fake_research_litellm.py"]
+    volumes:
+      - ./scripts/smoke:/smoke:ro
+    ports:
+      - "127.0.0.1:14000:4000"
+    networks: [kairo]
+
+  fake-research-mcp:
+    build:
+      context: ./services/worker
+      args:
+        KAIRO_WORKER_EXTRAS: ""
+    command: ["python", "/smoke/fake_research_mcp.py"]
+    volumes:
+      - ./scripts/smoke:/smoke:ro
+    ports:
+      - "127.0.0.1:18766:8766"
+    networks: [kairo]
+
+  kairo-worker:
+    environment:
+      LITELLM_URL: http://fake-research-litellm:4000
+      LITELLM_MASTER_KEY: ""
+    depends_on:
+      fake-research-litellm:
+        condition: service_started
+      fake-research-mcp:
+        condition: service_started
