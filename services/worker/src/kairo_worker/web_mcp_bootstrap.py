@@ -28,9 +28,13 @@ def _internal_headers() -> dict[str, str]:
 
 def _annotations(payload: dict[str, Any]) -> dict[str, Any]:
     raw = payload.get("annotations") if isinstance(payload.get("annotations"), dict) else {}
+    read_only = bool(raw.get("readOnlyHint", raw.get("read_only_hint", False)))
+    destructive = bool(raw.get("destructiveHint", raw.get("destructive_hint", False)))
     return {
-        "readOnlyHint": bool(raw.get("readOnlyHint", raw.get("read_only_hint", False))),
-        "destructiveHint": bool(raw.get("destructiveHint", raw.get("destructive_hint", False))),
+        "readOnlyHint": read_only,
+        # MCP defines destructiveHint only for non-read-only tools. Normalize it away when the
+        # first-party server declares the stronger read-only contract.
+        "destructiveHint": False if read_only else destructive,
         "idempotentHint": bool(raw.get("idempotentHint", raw.get("idempotent_hint", False))),
         "openWorldHint": bool(raw.get("openWorldHint", raw.get("open_world_hint", True))),
     }
@@ -39,7 +43,7 @@ def _annotations(payload: dict[str, Any]) -> dict[str, Any]:
 def catalog_item(tool: Any) -> dict[str, Any]:
     dumped = tool.model_dump(mode="json", by_alias=True)
     annotations = _annotations(dumped)
-    if not annotations["readOnlyHint"] or annotations["destructiveHint"]:
+    if not annotations["readOnlyHint"]:
         raise RuntimeError(f"First-party Web MCP tool {dumped.get('name')} is not declared read-only")
     input_schema = dumped.get("inputSchema", dumped.get("input_schema"))
     output_schema = dumped.get("outputSchema", dumped.get("output_schema"))
