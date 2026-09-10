@@ -80,6 +80,52 @@ def _excerpt(text: str, query: str, limit: int = MAX_DOCUMENT_CONTEXT_EXCERPT_CH
     return excerpt
 
 
+def build_document_context_statement(*, requester_subject: str, query: str, limit: int):
+    """Build the canonical latest-version, owner-scoped PostgreSQL full-text query."""
+
+    latest = aliased(DocumentVersion)
+    latest_completed_generation = (
+        select(func.max(latest.generation))
+        .where(
+            latest.document_id == Document.id,
+            latest.status == "completed",
+        )
+        .correlate(Document)
+        .scalar_subquery()
+    )
+
+    searchable = func.concat(Document.title, " ", DocumentChunk.text)
+    query_vector = func.plainto_tsquery("simple", query)
+    document_vector = func.to_tsvector("simple", searchable)
+    rank = func.ts_rank_cd(document_vector, query_vector)
+
+    return (
+        select(
+            Document.id,
+            Document.project_id,
+            Document.title,
+            DocumentVersion.id,
+            DocumentVersion.generation,
+            DocumentChunk.id,
+            DocumentChunk.ordinal,
+            DocumentChunk.text,
+            DocumentChunk.content_sha256,
+            rank.label("rank"),
+        )
+        .join(DocumentVersion, DocumentVersion.document_id == Document.id)
+        .join(DocumentChunk, DocumentChunk.document_version_id == DocumentVersion.id)
+        .where(
+            Document.status == "ready",
+            DocumentVersion.status == "completed",
+            DocumentVersion.generation == latest_completed_generation,
+            Document.metadata_json["owner_subject"].astext == requester_subject,
+            document_vector.op("@@")(query_vector),
+        )
+        .order_by(rank.desc(), Document.updated_at.desc(), DocumentChunk.ordinal)
+        .limit(max(1, min(MAX_DOCUMENT_CONTEXT_ITEMS, int(limit))))
+    )
+
+
 @router.get(
     "/internal/v1/research/tasks/{task_id}/document-context",
     response_model=ResearchDocumentContextRead,
@@ -112,46 +158,10 @@ async def get_research_document_context(
             reason="query_unavailable",
         )
 
-    latest = aliased(DocumentVersion)
-    latest_completed_generation = (
-        select(func.max(latest.generation))
-        .where(
-            latest.document_id == Document.id,
-            latest.status == "completed",
-        )
-        .correlate(Document)
-        .scalar_subquery()
-    )
-
-    searchable = func.concat(Document.title, " ", DocumentChunk.text)
-    query_vector = func.plainto_tsquery("simple", query)
-    document_vector = func.to_tsvector("simple", searchable)
-    rank = func.ts_rank_cd(document_vector, query_vector)
-
-    statement = (
-        select(
-            Document.id,
-            Document.project_id,
-            Document.title,
-            DocumentVersion.id,
-            DocumentVersion.generation,
-            DocumentChunk.id,
-            DocumentChunk.ordinal,
-            DocumentChunk.text,
-            DocumentChunk.content_sha256,
-            rank.label("rank"),
-        )
-        .join(DocumentVersion, DocumentVersion.document_id == Document.id)
-        .join(DocumentChunk, DocumentChunk.document_version_id == DocumentVersion.id)
-        .where(
-            Document.status == "ready",
-            DocumentVersion.status == "completed",
-            DocumentVersion.generation == latest_completed_generation,
-            Document.metadata_json["owner_subject"].astext == requester_subject,
-            document_vector.op("@@")(query_vector),
-        )
-        .order_by(rank.desc(), Document.updated_at.desc(), DocumentChunk.ordinal)
-        .limit(limit)
+    statement = build_document_context_statement(
+        requester_subject=requester_subject,
+        query=query,
+        limit=limit,
     )
     rows = (await session.execute(statement)).all()
 
