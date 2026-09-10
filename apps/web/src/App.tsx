@@ -7,6 +7,7 @@ import NewsWorkspacePanel, {
   type NewsMode,
   type NewsOutput,
 } from './NewsWorkspacePanel'
+import ProjectsWorkspace from './ProjectsWorkspace'
 import ResearchWorkspace from './ResearchWorkspace'
 import { kairoFetch } from './lib/apiClient'
 import {
@@ -352,6 +353,14 @@ export default function App() {
           news: newsPanel,
           research: <ResearchWorkspace apiUrl={API_URL} />,
         }}
+        extraPanels={[
+          {
+            key: 'projects',
+            id: 'projects-workspace',
+            title: 'Projects',
+            content: <ProjectsWorkspace apiUrl={API_URL} />,
+          },
+        ]}
       />
 
       <section className="grid" aria-label="KAIRO spaces">
