@@ -8,6 +8,7 @@ import NewsWorkspacePanel, {
   type NewsOutput,
 } from './NewsWorkspacePanel'
 import ResearchWorkspace from './ResearchWorkspace'
+import { kairoFetch } from './lib/apiClient'
 import {
   type CapabilityTaskView,
   isTerminalTaskStatus,
@@ -106,7 +107,7 @@ export default function App() {
 
     const poll = async () => {
       try {
-        const response = await fetch(`${API_URL}/v1/commands/${pendingCommandId}`)
+        const response = await kairoFetch(`${API_URL}/v1/commands/${pendingCommandId}`)
         if (!response.ok) throw new Error(`KAIRO Core répond ${response.status}`)
         const state = (await response.json()) as CommandState
         if (cancelled) return
@@ -210,7 +211,7 @@ export default function App() {
     resetTaskSurface()
 
     try {
-      const response = await fetch(`${API_URL}/v1/assistant/commands`, {
+      const response = await kairoFetch(`${API_URL}/v1/assistant/commands`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
