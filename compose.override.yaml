@@ -43,6 +43,7 @@ services:
     environment:
       KAIRO_AUTH_ENABLED: ${KAIRO_AUTH_ENABLED}
       KAIRO_POLICY_SIGNING_KEY: ${KAIRO_POLICY_SIGNING_KEY}
+      KAIRO_WEB_MCP_URL: http://kairo-web-mcp:8765/mcp
       ASSET_MAX_BYTES: ${ASSET_MAX_BYTES}
       SEAWEED_FILER_ENDPOINT: http://seaweedfs:8888
       OPENBAO_TOKEN: ${OPENBAO_DEV_TOKEN}
@@ -50,3 +51,35 @@ services:
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
       KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+
+  kairo-web-mcp:
+    build:
+      context: ./services/worker
+      args:
+        KAIRO_WORKER_EXTRAS: ""
+    restart: unless-stopped
+    command: ["python", "-m", "kairo_worker.web_mcp_server"]
+    environment:
+      SEARXNG_URL: http://searxng:8080
+    depends_on:
+      searxng:
+        condition: service_started
+    networks: [kairo]
+
+  kairo-web-mcp-bootstrap:
+    build:
+      context: ./services/worker
+      args:
+        KAIRO_WORKER_EXTRAS: ""
+    restart: on-failure:5
+    command: ["python", "-m", "kairo_worker.web_mcp_bootstrap"]
+    environment:
+      KAIRO_CORE_URL: http://kairo-core:8000
+      KAIRO_INTERNAL_TOKEN: ${KAIRO_INTERNAL_TOKEN}
+      KAIRO_WEB_MCP_URL: http://kairo-web-mcp:8765/mcp
+    depends_on:
+      kairo-core:
+        condition: service_started
+      kairo-web-mcp:
+        condition: service_started
+    networks: [kairo]
