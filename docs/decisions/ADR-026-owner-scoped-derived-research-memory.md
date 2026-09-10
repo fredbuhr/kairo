@@ -19,6 +19,8 @@ A Research Task carries the authenticated `requester_subject`. Core derives a re
 
 The Worker cannot widen this scope. It queries Mem0 with the exact `filters={"user_id": ...}` contract of the pinned Mem0 version and queries Graphiti only within the supplied group ids.
 
+Graphiti context retrieval deliberately does not instantiate Graphiti's `Neo4jDriver`, whose constructor schedules index/constraint maintenance. Research uses the underlying Neo4j async driver in explicit READ access mode against the derived `Episodic` projection. A context read therefore cannot acquire graph-maintenance authority as a side effect of opening the store.
+
 Results are normalized behind KAIRO context records with stable `M*` and `G*` ids, bounded excerpts and links back to canonical message/conversation ids when available. Engine-specific payloads do not escape this adapter.
 
 Mem0 and Graphiti are queried independently. A failure in either derived store is reported as `unavailable` but does not fail the other store or become a Research authority decision.
@@ -28,6 +30,7 @@ Mem0 and Graphiti are queried independently. A failure in either derived store i
 - derived personal context cannot cross a canonical Conversation ownership boundary;
 - legacy unowned Conversations are excluded rather than implicitly claimed;
 - Mem0 and Graphiti remain replaceable projections rather than sources of truth;
+- Research context reads cannot trigger Graphiti schema/index maintenance;
 - Research can later combine canonical Documents and derived memory without knowing engine APIs;
 - Graphiti context is currently limited to the 100 most recently updated owned Conversations; a future owner-level graph projection may remove that bounded compatibility layer;
 - this slice only provides retrieval. It does not yet put derived memory into model prompts; that remains A6c.
