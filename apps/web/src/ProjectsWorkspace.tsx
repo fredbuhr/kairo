@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
+import { kairoFetch } from './lib/apiClient'
+
 type Project = {
   id: string
   name: string
@@ -72,8 +74,8 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
       setError(null)
       try {
         const [projectsResponse, tasksResponse] = await Promise.all([
-          fetch(`${apiUrl}/v1/projects`),
-          fetch(`${apiUrl}/v1/tasks`),
+          kairoFetch(`${apiUrl}/v1/projects`),
+          kairoFetch(`${apiUrl}/v1/tasks`),
         ])
         const [loadedProjects, loadedTasks] = await Promise.all([
           readJson<Project[]>(projectsResponse),
@@ -126,7 +128,7 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
     setCreatingProject(true)
     setError(null)
     try {
-      const response = await fetch(`${apiUrl}/v1/projects`, {
+      const response = await kairoFetch(`${apiUrl}/v1/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, status: 'active' }),
@@ -150,7 +152,7 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
     setCreatingTask(true)
     setError(null)
     try {
-      const response = await fetch(`${apiUrl}/v1/tasks`, {
+      const response = await kairoFetch(`${apiUrl}/v1/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
