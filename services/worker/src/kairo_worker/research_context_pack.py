@@ -174,6 +174,40 @@ def context_pack_model_records(context_pack: dict[str, Any]) -> list[dict[str, A
     return records
 
 
+def context_pack_public_summary(context_pack: dict[str, Any]) -> dict[str, Any]:
+    """Expose useful source health without persisting backend exception messages into Artifacts."""
+
+    raw_sources = context_pack.get("sources") if isinstance(context_pack.get("sources"), dict) else {}
+    sources: dict[str, dict[str, Any]] = {}
+    for name in ("documents", "mem0", "graphiti"):
+        raw = raw_sources.get(name) if isinstance(raw_sources.get(name), dict) else {}
+        summary: dict[str, Any] = {"status": str(raw.get("status") or "unknown")}
+        if raw.get("count") is not None:
+            try:
+                summary["count"] = max(0, int(raw["count"]))
+            except (TypeError, ValueError):
+                pass
+        reason = str(raw.get("reason") or "").strip()
+        if reason:
+            summary["reason"] = reason[:200]
+        sources[name] = summary
+
+    def _non_negative_int(value: Any, fallback: int = 0) -> int:
+        try:
+            return max(0, int(value))
+        except (TypeError, ValueError):
+            return fallback
+
+    return {
+        "sources": sources,
+        "item_count": _non_negative_int(context_pack.get("item_count")),
+        "character_count": _non_negative_int(context_pack.get("character_count")),
+        "max_character_count": _non_negative_int(
+            context_pack.get("max_character_count"), MAX_CONTEXT_PACK_CHARS
+        ),
+    }
+
+
 async def load_research_context_pack(
     *, task_id: str, client: httpx.AsyncClient
 ) -> dict[str, Any]:
