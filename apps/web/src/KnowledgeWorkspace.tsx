@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { kairoFetch } from './lib/apiClient'
 import { useProjectSelection } from './lib/projectSelection'
@@ -40,6 +40,14 @@ type DocumentChunk = {
   content_sha256: string
   metadata_json: Record<string, unknown>
   created_at: string
+}
+
+type AssetUpload = {
+  id: string
+}
+
+type DocumentImportRun = {
+  document: CanonicalDocument
 }
 
 type Props = {
@@ -96,12 +104,15 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
   const [chunks, setChunks] = useState<DocumentChunk[]>([])
   const [chunksLoaded, setChunksLoaded] = useState(false)
   const [chunkOffset, setChunkOffset] = useState(0)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingVersions, setLoadingVersions] = useState(false)
   const [loadingChunks, setLoadingChunks] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [versionError, setVersionError] = useState<string | null>(null)
   const [chunkError, setChunkError] = useState<string | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -226,6 +237,53 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
     setChunkError(null)
   }, [selectedVersionId])
 
+  async function importDocument(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedProjectId || !selectedFile || importing) return
+
+    const formElement = event.currentTarget
+    setImporting(true)
+    setImportError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+      formData.append('project_id', selectedProjectId)
+
+      const assetResponse = await kairoFetch(`${apiUrl}/v1/assets`, {
+        method: 'POST',
+        body: formData,
+      })
+      const asset = await readJson<AssetUpload>(assetResponse)
+
+      const documentResponse = await kairoFetch(`${apiUrl}/v1/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asset_id: asset.id,
+          title: selectedFile.name,
+        }),
+      })
+      const run = await readJson<DocumentImportRun>(documentResponse)
+
+      setDocuments((current) => [
+        run.document,
+        ...current.filter((document) => document.id !== run.document.id),
+      ])
+      setSelectedDocumentId(run.document.id)
+      setSelectedFile(null)
+      formElement.reset()
+    } catch (importFailure) {
+      setImportError(
+        importFailure instanceof Error
+          ? importFailure.message
+          : 'Impossible d’importer ce Document dans Knowledge.',
+      )
+    } finally {
+      setImporting(false)
+    }
+  }
+
   async function loadChunkPage(offset: number) {
     if (!selectedVersion || loadingChunks) return
 
@@ -285,6 +343,24 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
 
       {!loading && !error && selectedProjectId && (
         <>
+          <form className="news-form" onSubmit={importDocument}>
+            <label className="query-field">
+              <span>Importer un Document</span>
+              <input
+                type="file"
+                onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+                disabled={importing}
+              />
+            </label>
+            <div className="news-controls">
+              <button type="submit" disabled={importing || !selectedFile}>
+                {importing ? 'Import…' : 'Importer dans Knowledge'}
+              </button>
+            </div>
+          </form>
+
+          {importError && <div className="error-panel">{importError}</div>}
+
           <section className="sources" aria-label="Documents du projet sélectionné">
             <div className="sources-title">
               <strong>Documents du projet</strong>
@@ -296,7 +372,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
                   <span className="source-id">0</span>
                   <div>
                     <strong>Aucun Document canonique pour ce projet.</strong>
-                    <small>Knowledge est en lecture seule à cette étape.</small>
+                    <small>Importez un fichier pour créer le premier Document canonique.</small>
                   </div>
                 </div>
               )}
