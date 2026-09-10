@@ -4,30 +4,30 @@ Last updated: 2026-09-11
 
 ## Current phase
 
-KAIRO is at the **consolidation boundary between Block 2 and Block 3**.
+KAIRO is now in **Block 3 — Cockpit, daily planning and graph workspace**.
 
-Block 1 (platform substrate/system of record) is complete. The **core exit criterion for Block 2 (intelligence, memory and safe autonomy) has been reached**: KAIRO can run an approved research workflow, route model calls through the gateway, use an MCP tool, persist canonical results, preserve ownership boundaries, resume after a real Worker SIGKILL without duplicating external work, and account for provenance/cost through canonical records.
+Block 1 (platform substrate/system of record) is complete. The core exit criterion for Block 2 (intelligence, memory and safe autonomy) has been reached and the G48–G50 consolidation line was promoted to `main` through PR #72. The resulting `main` merge commit `f524ed7c8e8a71fa3de882f4d294c224cb8d207f` passed all eight workflows triggered after merge, including real Research `SIGKILL` replay, destructive Restic restore and multi-user ownership isolation.
 
-The current work is deliberately not adding product surface. G50 is consolidating the validated baseline, documenting remaining reproducibility debt and preparing one trustworthy branch for promotion before deeper Block 3 work resumes.
+G51 is the first coherent product slice after that consolidation. It establishes a **Daily Spine** so Projects, Today and the future Gantt/Calendar use the same canonical Task planning state rather than separate UI-specific JSON.
 
 ## Last fully validated baseline
 
-The G49 baseline is commit `5df3f8872a899c886a588c9232053e5402260a98` on `consolidate/g49-research-replay`.
+The current production-development baseline on `main` is:
 
-On that exact SHA, all six workflows triggered by the G49 change completed successfully:
+`f524ed7c8e8a71fa3de882f4d294c224cb8d207f`
 
+That merge commit completed all eight triggered push workflows successfully:
+
+- Baseline reproducibility validation;
 - Foundation validation;
 - Autonomous research validation;
 - MCP tool registry validation;
 - Document ingestion validation;
 - UI workspace validation;
-- Multi-user isolation validation.
+- Multi-user isolation validation;
+- News ownership validation.
 
-The important destructive proofs are green on the same baseline:
-
-- Restic backup/restore survives a destructive restore drill for PostgreSQL, NATS, SeaweedFS and OpenBao;
-- a real KAIRO Worker `SIGKILL` during Research resumes from Temporal state with exactly one planner provider call, one remote MCP call, one synthesis provider call and one final Research Artifact;
-- two authenticated Keycloak users are isolated across owner-scoped Projects/Tasks, Relationships, approvals/budgets, ToolInvocations/idempotency and memory access.
+The G51 feature branch `block3/g51-daily-spine` has also passed all seven workflows triggered by its final functional SHA before documentation synchronization, including the actual two-Keycloak-user Daily Spine integration proof.
 
 ## What is materially implemented
 
@@ -40,7 +40,7 @@ The important destructive proofs are green on the same baseline:
 - Keycloak provides authenticated user identity.
 - OpenBao provides secret-reference boundaries.
 - backup/restore, readiness and recovery smoke tests exist and are exercised in CI.
-- canonical migrations currently run through `0011_tool_invocation_ownership`.
+- canonical migrations now run through `0012_task_planning` on G51.
 
 ### Command, policy and safe autonomy
 
@@ -68,17 +68,18 @@ The important destructive proofs are green on the same baseline:
 
 ### Web/Cockpit surface
 
-The stabilization line already contains meaningful product surfaces rather than only architecture scaffolding:
+The validated line contains meaningful product surfaces rather than only architecture scaffolding:
 
 - Cockpit shell and persisted owner-scoped workspace layouts;
 - Command Center panel;
+- Today workspace;
 - Projects workspace;
 - Research workspace;
 - News workspace;
 - Knowledge workspace, ingestion, inspection and search helpers;
 - authenticated API/session helpers and Project selection state.
 
-These surfaces are an early usable Block 3 foundation, not the final Cockpit.
+These are usable Block 3 foundations, not the final Cockpit.
 
 ## G48 — multi-user boundary hardening
 
@@ -91,7 +92,7 @@ G48 introduced a coherent ownership pass instead of isolated route patches:
 - Research propagation of ToolInvocation ownership;
 - a real two-user Keycloak isolation workflow.
 
-This removed a class of cross-user risks before additional product modules are added.
+This removed a class of cross-user risks before additional product modules were added.
 
 ## G49 — durable Research replay
 
@@ -106,31 +107,85 @@ G49 therefore:
 - preserves the single canonical ToolInvocation during replay;
 - makes the backup/restore smoke wait for the durable PostgreSQL TCP server rather than the entrypoint's transient initialization socket server.
 
-The resulting G49 SHA is all-green for the triggered validation set.
+## G50 — baseline consolidation
 
-## G50 — baseline consolidation (current)
+G50 established the single trustworthy baseline used by later Block 3 work:
 
-G50 is intentionally infrastructure/documentation work, not feature expansion.
+- Core and Worker `uv` build image pinned to the exact digest observed in validated CI;
+- explicit reproducibility debt baseline and CI guard;
+- status/roadmap/implementation-plan synchronized with the actual repository;
+- Block 2 core exit recorded without claiming production readiness;
+- consolidation promoted to `main` through one reviewed PR instead of merging the broad experimental spatial branch wholesale.
 
-Current objectives:
+JavaScript/Python dependency lockfiles and several third-party immutable image digests remain explicit reproducibility debt. They are tracked rather than hidden or fabricated.
 
-1. pin build inputs when an immutable digest was actually observed in the validated G49 CI;
-2. record all remaining image/install/lockfile reproducibility debt explicitly rather than pretending it is solved;
-3. fail CI if new reproducibility debt appears silently;
-4. update status/roadmap/implementation-plan documents so they describe the repository that actually exists;
-5. validate the consolidation SHA before proposing promotion to `main`.
+## G51 — Daily Spine
 
-The Core and Worker `uv` build image is now pinned to the exact digest observed in the validated G49 build. JavaScript/Python dependency lockfiles are still a known gap and must be generated by the real package resolvers, not fabricated manually. Several third-party Compose images also still use mutable tags; G50 tracks this as explicit debt so it can only change deliberately.
+G51 establishes one canonical planning contract for everyday work.
+
+### Canonical Task planning
+
+`Task` now carries:
+
+- `priority` (0–4);
+- `planned_start_at`;
+- `planned_end_at`;
+- `due_at`.
+
+The database enforces priority range and valid planning windows, and public Task creation requires timezone-aware timestamps.
+
+### Owner-scoped Task updates
+
+`PATCH /v1/tasks/{task_id}` can update title, description, priority and planning metadata. Manual status transitions are intentionally limited to `todo` / `completed`.
+
+Once a Task has a Temporal `WorkflowExecution`, its status becomes execution-owned and a user cannot forge completion through the planning endpoint. Planning metadata can still be adjusted without rewriting the workflow state machine.
+
+### Timezone-aware Today
+
+`GET /v1/today?day=YYYY-MM-DD&timezone=<IANA zone>` builds an owner-scoped daily view using local calendar boundaries rather than assuming every day is 24 hours.
+
+Tasks are grouped into:
+
+- overdue;
+- in progress;
+- due today;
+- planned today;
+- completed today;
+- unscheduled backlog.
+
+The contract explicitly tests a DST transition day to preserve correct local-day semantics.
+
+### Today Cockpit panel
+
+The Web Cockpit now exposes a dockable Today workspace that can:
+
+- browse a local day;
+- see project context and timing;
+- change priority;
+- quickly plan one hour from the backlog;
+- complete or reopen manual Tasks;
+- show Workflow-managed Tasks as Temporal-controlled rather than offering a false manual status button.
+
+### Security proof
+
+The existing two-Keycloak-user integration test now also proves that:
+
+- one user cannot patch another user's planning state;
+- `/v1/today` never leaks another user's Task;
+- manual completion appears in the correct owner's `completed_today` bucket;
+- once a Task is submitted to Temporal, manual completion is rejected.
 
 ## What is not ready yet
 
 ### Gantt and graph/Brain
 
-`packages/gantt` and `packages/graph` are still scaffolds on the stabilized line. The mature simple Gantt and realtime 2D/3D Brain/mycelium experience required by the product vision are **not complete**.
+`packages/gantt` and `packages/graph` are still scaffolds on the validated line. The mature simple Gantt and realtime 2D/3D Brain/mycelium experience required by the product vision are **not complete**.
+
+G51 deliberately adds the canonical dates/priority first so the Gantt does not invent a second planning model.
 
 ### Desktop/Sidecar and voice
 
-The stabilized `apps/desktop` is still skeletal. Global summon, microphone, screenshot, clipboard, selected filesystem access, wake word, realtime voice and local computer-use permissions are Block 4 work.
+The stabilized `apps/desktop` is still skeletal. Global summon, microphone, screenshot, clipboard, selected-filesystem access, wake word, realtime voice and local computer-use permissions are Block 4 work.
 
 ### Finance, crypto, home and development agent
 
@@ -142,17 +197,16 @@ KAIRO is not yet a production/commercial release. Remaining work includes strong
 
 ## Branch discipline
 
-The repository has accumulated stacked and experimental branches. The validated consolidation line should be treated as the source of truth. Large experimental work, especially the broad draft spatial-interface branch, is a reservoir of ideas/code and must not be merged wholesale over the validated baseline.
+`main` is now the validated source of truth after the G48–G50 consolidation. New Block 3 work should branch from the last validated `main` commit and return through small coherent PRs.
 
-After G50 is green, consolidation should happen through one reviewed promotion path to `main`; obsolete or superseded branches can then be archived/closed separately rather than mixed into feature development.
+Large experimental work, especially the broad draft spatial-interface branch, remains a reservoir of ideas/code and must not be merged wholesale over this baseline.
 
 ## Next implementation block
 
-After baseline promotion, resume Block 3 in coherent product slices:
+After G51 promotion, continue Block 3 in this order:
 
-1. Projects / Tasks / Today as the daily operational spine;
-2. simple but capable Gantt + calendar planning on the same canonical Task model;
-3. 2D/3D Brain/graph on the same canonical relationships and knowledge context;
-4. collaboration/realtime and universal search across those surfaces.
+1. **Gantt + Calendar** on the canonical Task planning fields established by G51;
+2. 2D/3D Brain/graph on canonical Relationships and knowledge context;
+3. collaboration/realtime and universal search across those surfaces.
 
-Do not start Block 4/5 specialist expansion until these Block 3 foundations share one ownership, Task, Artifact and workflow model.
+Do not start Block 4/5 specialist expansion until these Block 3 foundations share the same ownership, Task, Artifact and workflow model.
