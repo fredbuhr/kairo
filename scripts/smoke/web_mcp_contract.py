@@ -10,6 +10,10 @@ from kairo_worker import web_mcp_server
 
 async def main() -> None:
     calls: list[dict[str, Any]] = []
+    assert web_mcp_server.WEB_MCP_TRANSPORT_SECURITY.allowed_hosts == [
+        "kairo-web-mcp:8765"
+    ], web_mcp_server.WEB_MCP_TRANSPORT_SECURITY
+    assert web_mcp_server.WEB_MCP_TRANSPORT_SECURITY.allowed_origins == []
 
     async def fake_search(**kwargs: Any) -> list[dict[str, Any]]:
         calls.append(dict(kwargs))
@@ -72,8 +76,8 @@ async def main() -> None:
         web_mcp_server._search_searxng = original_search
 
     print(
-        "PASS: KAIRO Web MCP exposes one bounded open-web read-only search tool with typed inputs "
-        "and structured results"
+        "PASS: KAIRO Web MCP exposes one bounded open-web read-only search tool with typed inputs, "
+        "structured results and an explicit internal Host allowlist"
     )
 
 
