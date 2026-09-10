@@ -126,6 +126,10 @@ class TaskExecutionWorkflow:
                     perform_autonomous_research,
                     work_payload,
                     start_to_close_timeout=timedelta(minutes=10),
+                    # Research emits progress while waiting for child tools. Keep this above the
+                    # longest individual model HTTP timeout (60s) so a slow provider does not turn
+                    # into an artificial ambiguous replay, while still detecting a dead Worker.
+                    heartbeat_timeout=timedelta(seconds=90),
                     retry_policy=ACTIVITY_RETRY,
                 )
             elif capability == "memory.project":
