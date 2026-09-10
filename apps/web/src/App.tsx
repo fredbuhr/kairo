@@ -2,8 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 
 import CockpitShell from './CockpitShell'
 import CommandCenterPanel from './CommandCenterPanel'
-import KnowledgeSearchPanel from './KnowledgeSearchPanel'
-import KnowledgeWorkspace, { type KnowledgeInspectionTarget } from './KnowledgeWorkspace'
+import KnowledgePanel from './KnowledgePanel'
 import NewsWorkspacePanel, {
   type NewsBrief,
   type NewsMode,
@@ -98,9 +97,6 @@ export default function App() {
   const [taskCapability, setTaskCapability] = useState<string | null>(null)
   const [taskView, setTaskView] = useState<CapabilityTaskView | null>(null)
   const [brief, setBrief] = useState<NewsBrief | null>(null)
-  const [selectedKnowledgeDocumentId, setSelectedKnowledgeDocumentId] = useState('')
-  const [selectedKnowledgeInspectionTarget, setSelectedKnowledgeInspectionTarget] =
-    useState<KnowledgeInspectionTarget | null>(null)
 
   const [submitting, setSubmitting] = useState(false)
   const [routing, setRouting] = useState(false)
@@ -369,23 +365,7 @@ export default function App() {
             key: 'knowledge',
             id: 'knowledge-workspace',
             title: 'Knowledge',
-            content: (
-              <>
-                <KnowledgeSearchPanel
-                  apiUrl={API_URL}
-                  onInspectResult={(target) => {
-                    setSelectedKnowledgeDocumentId(target.documentId)
-                    setSelectedKnowledgeInspectionTarget(target)
-                  }}
-                />
-                <KnowledgeWorkspace
-                  apiUrl={API_URL}
-                  selectedDocumentId={selectedKnowledgeDocumentId}
-                  onSelectedDocumentIdChange={setSelectedKnowledgeDocumentId}
-                  inspectionTarget={selectedKnowledgeInspectionTarget}
-                />
-              </>
-            ),
+            content: <KnowledgePanel apiUrl={API_URL} />,
           },
         ]}
       />
