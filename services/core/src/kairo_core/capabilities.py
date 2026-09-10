@@ -128,7 +128,7 @@ AUTONOMOUS_RESEARCH = CapabilitySpec(
             "estimated_model_cost_usd",
         ],
         "durable": True,
-        "routable": False,
+        "routable": True,
         "internal": False,
     },
 )
