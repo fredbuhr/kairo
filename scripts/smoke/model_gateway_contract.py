@@ -19,14 +19,19 @@ CALL_KEY = model_gateway.deterministic_model_call_key(
     workflow_execution_id=EXECUTION_ID,
     call_slot="contract.fixture.v1",
 )
+SECOND_CALL_KEY = model_gateway.deterministic_model_call_key(
+    task_id=TASK_ID,
+    workflow_execution_id=EXECUTION_ID,
+    call_slot="contract.fixture.second.v1",
+)
 
 
-def checkpoint(stage: str) -> dict[str, Any]:
+def checkpoint(stage: str, *, key: str = CALL_KEY) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "kind": model_gateway.MODEL_CHECKPOINT_KIND,
         "version": model_gateway.MODEL_CHECKPOINT_VERSION,
         "stage": stage,
-        "idempotency_key": CALL_KEY,
+        "idempotency_key": key,
     }
     if stage in {"completed", "accounting", "accounted"}:
         payload["result"] = {
@@ -38,7 +43,7 @@ def checkpoint(stage: str) -> dict[str, Any]:
                 "total_tokens": 130,
                 "cost_usd": "0.012345",
                 "cost_reported": True,
-                "litellm_call_id": CALL_KEY,
+                "litellm_call_id": key,
             },
         }
     return payload
@@ -199,6 +204,49 @@ async def main() -> None:
         else:
             raise AssertionError("Ambiguous provider outcome must refuse blind replay")
         assert len(provider_posts) == 1, provider_posts
+
+        # 6) Multi-slot heartbeat bundles retain earlier model-call outcomes when a later logical
+        # slot advances. Legacy single-call heartbeats remain readable during rolling retries.
+        ledger = model_gateway.ModelCheckpointLedger.from_heartbeat_details(
+            [checkpoint("accounted")]
+        )
+        assert ledger.checkpoint_for(CALL_KEY)["stage"] == "accounted"
+        ledger.record(checkpoint("started", key=SECOND_CALL_KEY))
+        bundled = ledger.snapshot()
+        assert bundled["kind"] == model_gateway.MODEL_CHECKPOINT_BUNDLE_KIND, bundled
+        assert set(bundled["checkpoints"]) == {CALL_KEY, SECOND_CALL_KEY}, bundled
+
+        restored = model_gateway.ModelCheckpointLedger.from_heartbeat_details([bundled])
+        assert restored.checkpoint_for(CALL_KEY)["stage"] == "accounted"
+        assert restored.checkpoint_for(SECOND_CALL_KEY)["stage"] == "started"
+
+        replayed_from_bundle = await model_gateway.chat_completion(
+            task_id=TASK_ID,
+            workflow_execution_id=EXECUTION_ID,
+            correlation_id=CORRELATION_ID,
+            model_alias="smart",
+            idempotency_key=CALL_KEY,
+            checkpoint_ledger=restored,
+            messages=[{"role": "user", "content": "fixture"}],
+        )
+        assert replayed_from_bundle.content == "fixture completion"
+        try:
+            await model_gateway.chat_completion(
+                task_id=TASK_ID,
+                workflow_execution_id=EXECUTION_ID,
+                correlation_id=CORRELATION_ID,
+                model_alias="smart",
+                idempotency_key=SECOND_CALL_KEY,
+                checkpoint_ledger=restored,
+                messages=[{"role": "user", "content": "second fixture"}],
+            )
+        except model_gateway.ModelCallOutcomeUnknown:
+            pass
+        else:
+            raise AssertionError("Bundled ambiguous slot must refuse blind replay")
+        assert len(provider_posts) == 1, provider_posts
+        assert len(authorized) == 1, authorized
+        assert len(accounting_attempts) == 3, accounting_attempts
     finally:
         model_gateway._authorize_model_call = original_authorize
         model_gateway._record_usage = original_record
@@ -235,7 +283,8 @@ async def main() -> None:
 
     print(
         "MODEL GATEWAY CONTRACT PASS: stable model-call identity, W3C trace correlation, provider replay "
-        "refusal, replayable canonical accounting, usage parsing and LiteLLM cost capture behave deterministically"
+        "refusal, replayable canonical accounting, bounded multi-slot checkpoints, usage parsing and "
+        "LiteLLM cost capture behave deterministically"
     )
 
 
