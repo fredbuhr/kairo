@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import re
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -18,6 +19,7 @@ router = APIRouter()
 
 MAX_KNOWLEDGE_SEARCH_RESULTS = 50
 MAX_KNOWLEDGE_SEARCH_EXCERPT_CHARS = 1_000
+MAX_KNOWLEDGE_CHUNK_WINDOW = 200
 
 
 class KnowledgeSearchResultRead(BaseModel):
@@ -31,6 +33,28 @@ class KnowledgeSearchResultRead(BaseModel):
     excerpt: str
     content_sha256: str
     rank: float = Field(ge=0)
+
+
+class KnowledgeChunkRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    document_version_id: uuid.UUID
+    ordinal: int
+    text: str
+    content_sha256: str
+    metadata_json: dict[str, object]
+    created_at: datetime
+
+
+class KnowledgeChunkWindowRead(BaseModel):
+    project_id: uuid.UUID
+    document_id: uuid.UUID
+    document_version_id: uuid.UUID
+    anchor_chunk_id: uuid.UUID
+    offset: int = Field(ge=0)
+    total: int = Field(ge=0)
+    chunks: list[KnowledgeChunkRead]
 
 
 def _excerpt(text: str, query: str, limit: int = MAX_KNOWLEDGE_SEARCH_EXCERPT_CHARS) -> str:
@@ -129,3 +153,88 @@ async def search_knowledge(
         )
         for row in rows
     ]
+
+
+@router.get("/v1/knowledge/chunk-window", response_model=KnowledgeChunkWindowRead)
+async def get_knowledge_chunk_window(
+    project_id: uuid.UUID,
+    document_id: uuid.UUID,
+    version_id: uuid.UUID,
+    chunk_id: uuid.UUID,
+    limit: int = Query(default=20, ge=1, le=MAX_KNOWLEDGE_CHUNK_WINDOW),
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
+) -> KnowledgeChunkWindowRead:
+    if not await get_owned_project(session, project_id, principal):
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    document = await session.scalar(
+        select(Document).where(
+            Document.id == document_id,
+            Document.project_id == project_id,
+            Document.metadata_json["owner_subject"].astext == principal.subject,
+        )
+    )
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    version = await session.scalar(
+        select(DocumentVersion).where(
+            DocumentVersion.id == version_id,
+            DocumentVersion.document_id == document.id,
+        )
+    )
+    if version is None:
+        raise HTTPException(status_code=404, detail="Document version not found")
+
+    anchor = await session.scalar(
+        select(DocumentChunk).where(
+            DocumentChunk.id == chunk_id,
+            DocumentChunk.document_version_id == version.id,
+        )
+    )
+    if anchor is None:
+        raise HTTPException(status_code=404, detail="Document chunk not found")
+
+    preceding = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(DocumentChunk)
+            .where(
+                DocumentChunk.document_version_id == version.id,
+                DocumentChunk.ordinal < anchor.ordinal,
+            )
+        )
+        or 0
+    )
+    offset = (preceding // limit) * limit
+
+    chunks = list(
+        (
+            await session.execute(
+                select(DocumentChunk)
+                .where(DocumentChunk.document_version_id == version.id)
+                .order_by(DocumentChunk.ordinal)
+                .offset(offset)
+                .limit(limit)
+            )
+        ).scalars()
+    )
+    total = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(DocumentChunk)
+            .where(DocumentChunk.document_version_id == version.id)
+        )
+        or 0
+    )
+
+    return KnowledgeChunkWindowRead(
+        project_id=project_id,
+        document_id=document.id,
+        document_version_id=version.id,
+        anchor_chunk_id=anchor.id,
+        offset=offset,
+        total=total,
+        chunks=[KnowledgeChunkRead.model_validate(chunk) for chunk in chunks],
+    )

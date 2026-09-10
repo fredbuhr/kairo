@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 
 import CockpitShell from './CockpitShell'
 import CommandCenterPanel from './CommandCenterPanel'
-import KnowledgeWorkspace from './KnowledgeWorkspace'
+import KnowledgeWorkspace, { type KnowledgeInspectionTarget } from './KnowledgeWorkspace'
 import NewsWorkspacePanel, {
   type NewsBrief,
   type NewsMode,
@@ -108,10 +108,10 @@ async function readCoreJson<T>(response: Response): Promise<T> {
 
 function KnowledgeSearchPanel({
   apiUrl,
-  onSelectDocument,
+  onInspectResult,
 }: {
   apiUrl: string
-  onSelectDocument: (documentId: string) => void
+  onInspectResult: (target: KnowledgeInspectionTarget) => void
 }) {
   const { selectedProjectId } = useProjectSelection()
   const [query, setQuery] = useState('')
@@ -223,8 +223,18 @@ function KnowledgeSearchPanel({
                     v{result.generation} · score {result.rank.toFixed(3)} · SHA-256{' '}
                     {result.content_sha256.slice(0, 16)}…
                   </small>
-                  <button type="button" onClick={() => onSelectDocument(result.document_id)}>
-                    Inspecter ce Document
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onInspectResult({
+                        documentId: result.document_id,
+                        documentVersionId: result.document_version_id,
+                        chunkId: result.chunk_id,
+                        ordinal: result.ordinal,
+                      })
+                    }
+                  >
+                    Inspecter ce chunk
                   </button>
                 </div>
               </div>
@@ -252,6 +262,8 @@ export default function App() {
   const [taskView, setTaskView] = useState<CapabilityTaskView | null>(null)
   const [brief, setBrief] = useState<NewsBrief | null>(null)
   const [selectedKnowledgeDocumentId, setSelectedKnowledgeDocumentId] = useState('')
+  const [selectedKnowledgeInspectionTarget, setSelectedKnowledgeInspectionTarget] =
+    useState<KnowledgeInspectionTarget | null>(null)
 
   const [submitting, setSubmitting] = useState(false)
   const [routing, setRouting] = useState(false)
@@ -524,12 +536,16 @@ export default function App() {
               <>
                 <KnowledgeSearchPanel
                   apiUrl={API_URL}
-                  onSelectDocument={setSelectedKnowledgeDocumentId}
+                  onInspectResult={(target) => {
+                    setSelectedKnowledgeDocumentId(target.documentId)
+                    setSelectedKnowledgeInspectionTarget(target)
+                  }}
                 />
                 <KnowledgeWorkspace
                   apiUrl={API_URL}
                   selectedDocumentId={selectedKnowledgeDocumentId}
                   onSelectedDocumentIdChange={setSelectedKnowledgeDocumentId}
+                  inspectionTarget={selectedKnowledgeInspectionTarget}
                 />
               </>
             ),
