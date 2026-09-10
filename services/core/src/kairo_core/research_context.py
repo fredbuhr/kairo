@@ -11,9 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from .command_models import Conversation
+from .config import settings
 from .db import get_session
 from .document_models import Document, DocumentChunk, DocumentVersion
-from .models import Task
+from .models import Project, Task
 from .security import require_internal_token
 
 router = APIRouter()
@@ -61,6 +62,25 @@ def _research_input(task: Task) -> dict:
     if str(value.get("capability") or "") != "research.autonomous":
         raise HTTPException(status_code=409, detail="Task is not an autonomous research task")
     return value
+
+
+async def _require_research_task_owner_binding(
+    task: Task,
+    requester_subject: str,
+    session: AsyncSession,
+) -> None:
+    project = await session.get(Project, task.project_id)
+    if project is None:
+        raise HTTPException(status_code=410, detail="Research project metadata is missing")
+    if project.owner_subject == requester_subject:
+        return
+    if (
+        not settings.kairo_auth_enabled
+        and project.owner_subject is None
+        and requester_subject == "development-user"
+    ):
+        return
+    raise HTTPException(status_code=409, detail="Research requester ownership binding is stale")
 
 
 def _query_terms(query: str) -> list[str]:
@@ -181,6 +201,7 @@ async def get_research_document_context(
             reason="query_unavailable",
         )
 
+    await _require_research_task_owner_binding(task, requester_subject, session)
     statement = build_document_context_statement(
         requester_subject=requester_subject,
         query=query,
