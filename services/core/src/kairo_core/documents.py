@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .auth import Principal, require_kairo_user
 from .config import settings
 from .db import get_session
-from .document_models import Document, DocumentChunk, DocumentVersion
+from .document_models import DOCUMENTS_PROJECT_ID, Document, DocumentChunk, DocumentVersion
 from .events import append_audit, enqueue_domain_event
 from .models import Asset, Project, Task
 from .project_access import get_owned_project
@@ -191,6 +191,20 @@ async def _project_for_asset(
     return project
 
 
+async def _repair_reingest_project(
+    document: Document,
+    asset: Asset,
+    principal: Principal,
+    session: AsyncSession,
+) -> None:
+    current_project = await get_owned_project(session, document.project_id, principal)
+    if current_project is not None and document.project_id != DOCUMENTS_PROJECT_ID:
+        return
+
+    project = await _project_for_asset(asset, principal, session)
+    document.project_id = project.id
+
+
 async def _start_version(
     document: Document,
     asset: Asset,
@@ -324,6 +338,10 @@ async def reingest_document(
     asset = await session.get(Asset, document.asset_id)
     if asset is None:
         raise HTTPException(status_code=410, detail="Source asset metadata is missing")
+    if not _owned_asset(asset, principal):
+        raise HTTPException(status_code=409, detail="Document source ownership binding is stale")
+
+    await _repair_reingest_project(document, asset, principal, session)
     generation = int(
         (
             await session.scalar(
