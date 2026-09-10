@@ -308,6 +308,18 @@ async def start_research_tool(
     if parent is None:
         raise HTTPException(status_code=404, detail="Research task not found")
     task_input = _research_task_input(parent)
+    owner_subject = str(task_input.get("requester_subject") or "").strip()
+    if not owner_subject:
+        raise HTTPException(status_code=409, detail="Research task owner binding is missing")
+    parent_project = await session.get(Project, parent.project_id)
+    parent_project_owner = (
+        parent_project.owner_subject
+        if parent_project is not None and parent_project.owner_subject
+        else "development-user"
+    )
+    if parent_project is None or parent_project_owner != owner_subject:
+        raise HTTPException(status_code=409, detail="Research Project ownership binding is stale")
+
     max_calls = int(task_input.get("max_tool_calls") or 3)
     if body.slot >= max_calls:
         raise HTTPException(status_code=422, detail="Research tool slot exceeds task budget")
@@ -327,7 +339,10 @@ async def start_research_tool(
     invocation_id = uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:research:{parent.id}:slot:{body.slot}:{tool.key}")
     idempotency_key = f"research:{parent.id}:{body.slot}:{tool.key}"
     existing = await session.scalar(
-        select(ToolInvocation).where(ToolInvocation.idempotency_key == idempotency_key)
+        select(ToolInvocation).where(
+            ToolInvocation.owner_subject == owner_subject,
+            ToolInvocation.idempotency_key == idempotency_key,
+        )
     )
     if existing is not None:
         if existing.tool_definition_id != tool.id or existing.input_json != body.input:
@@ -377,6 +392,7 @@ async def start_research_tool(
     await session.flush()
     invocation = ToolInvocation(
         id=invocation_id,
+        owner_subject=owner_subject,
         tool_definition_id=tool.id,
         task_id=child.id,
         idempotency_key=idempotency_key,
@@ -436,8 +452,17 @@ async def research_tool_result(
     if invocation is None:
         raise HTTPException(status_code=404, detail="Tool invocation not found")
     task = await session.get(Task, invocation.task_id)
+    project = await session.get(Project, task.project_id) if task is not None else None
+    project_owner = (
+        project.owner_subject if project is not None and project.owner_subject else "development-user"
+    )
     scope = (task.input or {}).get("policy_scope") if task else None
-    if not isinstance(scope, dict) or not scope.get("research_parent_task_id"):
+    if (
+        project is None
+        or project_owner != invocation.owner_subject
+        or not isinstance(scope, dict)
+        or not scope.get("research_parent_task_id")
+    ):
         raise HTTPException(status_code=409, detail="Invocation does not belong to a research agent")
     return ResearchToolResult(
         invocation_id=invocation.id,
