@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 
 import App from './App'
 import { initializeAuth } from './lib/authSession'
+import { ProjectSelectionProvider } from './lib/projectSelection'
 import './styles.css'
 
 const root = ReactDOM.createRoot(document.getElementById('root')!)
@@ -10,7 +11,9 @@ const root = ReactDOM.createRoot(document.getElementById('root')!)
 function renderApp() {
   root.render(
     <React.StrictMode>
-      <App />
+      <ProjectSelectionProvider>
+        <App />
+      </ProjectSelectionProvider>
     </React.StrictMode>,
   )
 }

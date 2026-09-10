@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { kairoFetch } from './lib/apiClient'
+import { useProjectSelection } from './lib/projectSelection'
 
 type Project = {
   id: string
@@ -58,7 +59,7 @@ function statusLabel(status: string) {
 export default function ProjectsWorkspace({ apiUrl }: Props) {
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
-  const [selectedProjectId, setSelectedProjectId] = useState('')
+  const { selectedProjectId, setSelectedProjectId } = useProjectSelection()
   const [newProjectName, setNewProjectName] = useState('')
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [loading, setLoading] = useState(true)
@@ -102,7 +103,7 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
     return () => {
       cancelled = true
     }
-  }, [apiUrl])
+  }, [apiUrl, setSelectedProjectId])
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) || null,
