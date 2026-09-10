@@ -224,7 +224,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
     setChunksLoaded(false)
     try {
       const response = await kairoFetch(
-        `${apiUrl}/v1/document-versions/${selectedVersion.id}/chunks`,
+        `${apiUrl}/v1/document-versions/${selectedVersion.id}/chunks?limit=${MAX_CHUNK_PREVIEW_ITEMS}`,
       )
       const loadedChunks = await readJson<DocumentChunk[]>(response)
       setChunks(loadedChunks)
@@ -434,9 +434,9 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
                       <div className="sources-title">
                         <strong>Aperçu des chunks · v{selectedVersion.generation}</strong>
                         <span>
-                          {chunkPreview.length} affiché(s) sur {chunks.length}
-                          {chunks.length > MAX_CHUNK_PREVIEW_ITEMS
-                            ? ` · limite UI ${MAX_CHUNK_PREVIEW_ITEMS}`
+                          {chunkPreview.length} affiché(s) sur {selectedVersion.chunk_count}
+                          {selectedVersion.chunk_count > chunkPreview.length
+                            ? ` · lecture Core limitée à ${MAX_CHUNK_PREVIEW_ITEMS}`
                             : ''}
                         </span>
                       </div>

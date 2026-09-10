@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -455,6 +455,7 @@ async def list_document_versions(
 @router.get("/v1/document-versions/{version_id}/chunks", response_model=list[DocumentChunkRead])
 async def list_document_chunks(
     version_id: uuid.UUID,
+    limit: int = Query(default=100, ge=1, le=200),
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[DocumentChunk]:
@@ -466,6 +467,7 @@ async def list_document_chunks(
         select(DocumentChunk)
         .where(DocumentChunk.document_version_id == version.id)
         .order_by(DocumentChunk.ordinal)
+        .limit(limit)
     )
     return list(result.scalars())
 
