@@ -43,6 +43,7 @@ const spaces = [
 ]
 
 const API_URL = (import.meta.env.VITE_KAIRO_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+const KNOWLEDGE_SEARCH_PAGE_SIZE = 20
 
 type NewsRun = {
   task_id: string
@@ -115,38 +116,44 @@ function KnowledgeSearchPanel({
 }) {
   const { selectedProjectId } = useProjectSelection()
   const [query, setQuery] = useState('')
+  const [activeQuery, setActiveQuery] = useState('')
   const [results, setResults] = useState<KnowledgeSearchResult[]>([])
+  const [searchOffset, setSearchOffset] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
   const [searching, setSearching] = useState(false)
   const [searched, setSearched] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    setActiveQuery('')
     setResults([])
+    setSearchOffset(0)
+    setHasMore(false)
     setSearched(false)
     setError(null)
   }, [selectedProjectId])
 
-  async function submitKnowledgeSearch(event: FormEvent) {
-    event.preventDefault()
-    const trimmed = query.trim()
-    if (!selectedProjectId || trimmed.length < 2 || searching) return
+  async function loadKnowledgeSearchPage(searchQuery: string, offset: number) {
+    if (!selectedProjectId || searchQuery.length < 2 || searching) return
 
+    const normalizedOffset = Math.max(0, offset)
     setSearching(true)
     setError(null)
-    setSearched(false)
     try {
       const params = new URLSearchParams({
         project_id: selectedProjectId,
-        q: trimmed,
-        limit: '20',
+        q: searchQuery,
+        offset: String(normalizedOffset),
+        limit: String(KNOWLEDGE_SEARCH_PAGE_SIZE + 1),
       })
       const response = await kairoFetch(`${apiUrl}/v1/knowledge/search?${params.toString()}`)
       const loaded = await readCoreJson<KnowledgeSearchResult[]>(response)
-      setResults(loaded)
+      setActiveQuery(searchQuery)
+      setResults(loaded.slice(0, KNOWLEDGE_SEARCH_PAGE_SIZE))
+      setSearchOffset(normalizedOffset)
+      setHasMore(loaded.length > KNOWLEDGE_SEARCH_PAGE_SIZE)
       setSearched(true)
     } catch (searchError) {
-      setResults([])
-      setSearched(true)
       setError(
         searchError instanceof Error
           ? searchError.message
@@ -157,6 +164,21 @@ function KnowledgeSearchPanel({
     }
   }
 
+  async function submitKnowledgeSearch(event: FormEvent) {
+    event.preventDefault()
+    const trimmed = query.trim()
+    if (!selectedProjectId || trimmed.length < 2 || searching) return
+
+    setResults([])
+    setSearchOffset(0)
+    setHasMore(false)
+    setSearched(false)
+    await loadKnowledgeSearchPage(trimmed, 0)
+  }
+
+  const pageStart = searched && results.length > 0 ? searchOffset + 1 : 0
+  const pageEnd = searched ? searchOffset + results.length : 0
+
   return (
     <section className="news-workspace" aria-labelledby="knowledge-search-heading">
       <div className="news-heading">
@@ -164,7 +186,11 @@ function KnowledgeSearchPanel({
           <span className="eyebrow">KNOWLEDGE SEARCH</span>
           <h2 id="knowledge-search-heading">Recherche texte dans les chunks canoniques du projet.</h2>
         </div>
-        {searched && <span className="run-state">{results.length} résultat(s)</span>}
+        {searched && (
+          <span className="run-state">
+            {pageStart === 0 ? '0 résultat' : `Résultats ${pageStart}–${pageEnd}`}
+          </span>
+        )}
       </div>
 
       <form className="news-form" onSubmit={submitKnowledgeSearch}>
@@ -201,8 +227,39 @@ function KnowledgeSearchPanel({
         <section className="sources" aria-label="Résultats Knowledge">
           <div className="sources-title">
             <strong>Résultats canoniques</strong>
-            <span>20 maximum · dernière version complétée</span>
+            <span>20 par page · dernière version complétée</span>
           </div>
+
+          <div className="news-controls" aria-label="Pagination des résultats Knowledge">
+            <button
+              type="button"
+              onClick={() =>
+                void loadKnowledgeSearchPage(
+                  activeQuery,
+                  Math.max(0, searchOffset - KNOWLEDGE_SEARCH_PAGE_SIZE),
+                )
+              }
+              disabled={searching || searchOffset === 0 || !activeQuery}
+            >
+              ← Page précédente
+            </button>
+            <span className="route-chip">
+              {pageStart === 0 ? 'Aucun résultat sur cette page' : `${pageStart}–${pageEnd}`}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                void loadKnowledgeSearchPage(
+                  activeQuery,
+                  searchOffset + KNOWLEDGE_SEARCH_PAGE_SIZE,
+                )
+              }
+              disabled={searching || !hasMore || !activeQuery}
+            >
+              Page suivante →
+            </button>
+          </div>
+
           <div className="source-list">
             {results.length === 0 && (
               <div className="source-card">

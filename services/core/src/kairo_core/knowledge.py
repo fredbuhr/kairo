@@ -18,6 +18,7 @@ from .project_access import get_owned_project
 router = APIRouter()
 
 MAX_KNOWLEDGE_SEARCH_RESULTS = 50
+MAX_KNOWLEDGE_SEARCH_OFFSET = 10_000
 MAX_KNOWLEDGE_SEARCH_EXCERPT_CHARS = 1_000
 MAX_KNOWLEDGE_CHUNK_WINDOW = 200
 
@@ -83,6 +84,7 @@ def _excerpt(text: str, query: str, limit: int = MAX_KNOWLEDGE_SEARCH_EXCERPT_CH
 async def search_knowledge(
     project_id: uuid.UUID,
     q: str = Query(min_length=2, max_length=400),
+    offset: int = Query(default=0, ge=0, le=MAX_KNOWLEDGE_SEARCH_OFFSET),
     limit: int = Query(default=20, ge=1, le=MAX_KNOWLEDGE_SEARCH_RESULTS),
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
@@ -133,7 +135,14 @@ async def search_knowledge(
                 DocumentVersion.generation == latest_completed_generation,
                 document_vector.op("@@")(query_vector),
             )
-            .order_by(rank.desc(), Document.updated_at.desc(), DocumentChunk.ordinal)
+            .order_by(
+                rank.desc(),
+                Document.updated_at.desc(),
+                Document.id,
+                DocumentChunk.ordinal,
+                DocumentChunk.id,
+            )
+            .offset(offset)
             .limit(limit)
         )
     ).all()
