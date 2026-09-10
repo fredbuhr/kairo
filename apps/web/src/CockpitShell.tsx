@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useRef,
+  useState,
   type ReactNode,
 } from 'react'
 import {
@@ -30,12 +31,39 @@ type WorkspaceLayoutEnvelope = {
   layout: unknown
 }
 
+type CockpitApi = DockviewReadyEvent['api']
+type CockpitPanelKey = 'command' | 'news' | 'research'
+
 const CockpitContentContext = createContext<CockpitSlots | null>(null)
 const dockPanelStyle = { height: '100%', overflow: 'auto' } as const
 const LAYOUT_SCHEMA_VERSION = 1
 const DEFAULT_WORKSPACE_KEY = 'cockpit.main'
 const DEFAULT_API_URL = (import.meta.env.VITE_KAIRO_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 const SAVE_DEBOUNCE_MS = 700
+
+const PANEL_DEFINITIONS = {
+  command: {
+    id: 'command-center',
+    component: 'command',
+    title: 'Command Center',
+    minimumWidth: 320,
+    minimumHeight: 260,
+  },
+  news: {
+    id: 'news-intelligence',
+    component: 'news',
+    title: 'News Intelligence',
+    minimumWidth: 360,
+    minimumHeight: 260,
+  },
+  research: {
+    id: 'research',
+    component: 'research',
+    title: 'Research',
+    minimumWidth: 360,
+    minimumHeight: 300,
+  },
+} as const
 
 function useCockpitContent() {
   const value = useContext(CockpitContentContext)
@@ -61,30 +89,22 @@ const components = {
   research: ResearchPanel,
 }
 
-function createDefaultLayout(event: DockviewReadyEvent) {
-  event.api.addPanel({
-    id: 'command-center',
-    component: 'command',
-    title: 'Command Center',
-    minimumWidth: 320,
-    minimumHeight: 260,
+function createDefaultLayout(api: CockpitApi) {
+  api.addPanel(PANEL_DEFINITIONS.command)
+  api.addPanel({
+    ...PANEL_DEFINITIONS.news,
+    position: { referencePanel: PANEL_DEFINITIONS.command.id, direction: 'right' },
   })
-  event.api.addPanel({
-    id: 'news-intelligence',
-    component: 'news',
-    title: 'News Intelligence',
-    position: { referencePanel: 'command-center', direction: 'right' },
-    minimumWidth: 360,
-    minimumHeight: 260,
+  api.addPanel({
+    ...PANEL_DEFINITIONS.research,
+    position: { referencePanel: PANEL_DEFINITIONS.news.id, direction: 'below' },
   })
-  event.api.addPanel({
-    id: 'research',
-    component: 'research',
-    title: 'Research',
-    position: { referencePanel: 'news-intelligence', direction: 'below' },
-    minimumWidth: 360,
-    minimumHeight: 300,
-  })
+}
+
+function openPanel(api: CockpitApi, key: CockpitPanelKey) {
+  const definition = PANEL_DEFINITIONS[key]
+  if (api.getPanel(definition.id)) return
+  api.addPanel(definition)
 }
 
 async function loadWorkspaceLayout(apiUrl: string, workspaceKey: string) {
@@ -124,11 +144,14 @@ export default function CockpitShell({
 }: CockpitShellProps) {
   const disposedRef = useRef(false)
   const cleanupRef = useRef<(() => void) | null>(null)
+  const apiRef = useRef<CockpitApi | null>(null)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     disposedRef.current = false
     return () => {
       disposedRef.current = true
+      apiRef.current = null
       cleanupRef.current?.()
       cleanupRef.current = null
     }
@@ -152,7 +175,7 @@ export default function CockpitShell({
         }
 
         if (disposedRef.current) return
-        if (!restored) createDefaultLayout(event)
+        if (!restored) createDefaultLayout(event.api)
 
         const disposable = event.api.onDidLayoutChange(() => {
           if (saveTimer) window.clearTimeout(saveTimer)
@@ -165,6 +188,8 @@ export default function CockpitShell({
           }, SAVE_DEBOUNCE_MS)
         })
 
+        apiRef.current = event.api
+        setReady(true)
         cleanupRef.current = () => {
           disposable.dispose()
           if (saveTimer) window.clearTimeout(saveTimer)
@@ -176,19 +201,58 @@ export default function CockpitShell({
     [apiUrl, workspaceKey],
   )
 
+  const reopen = (key: CockpitPanelKey) => {
+    const api = apiRef.current
+    if (api) openPanel(api, key)
+  }
+
+  const resetLayout = () => {
+    const api = apiRef.current
+    if (!api) return
+    api.clear()
+    createDefaultLayout(api)
+  }
+
   return (
     <CockpitContentContext.Provider value={slots}>
       <section
         className="cockpit-shell"
         aria-label="KAIRO Cockpit"
-        style={{ height: 'min(78vh, 920px)', minHeight: 620 }}
+        style={{
+          height: 'min(78vh, 920px)',
+          minHeight: 620,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}
       >
-        <DockviewReact
-          className="dockview-theme-abyss"
-          style={{ width: '100%', height: '100%' }}
-          components={components}
-          onReady={onReady}
-        />
+        <nav
+          aria-label="Contrôles du Cockpit"
+          style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}
+        >
+          <span className="eyebrow">PANNEAUX</span>
+          <button type="button" disabled={!ready} onClick={() => reopen('command')}>
+            Command
+          </button>
+          <button type="button" disabled={!ready} onClick={() => reopen('news')}>
+            News
+          </button>
+          <button type="button" disabled={!ready} onClick={() => reopen('research')}>
+            Research
+          </button>
+          <button type="button" disabled={!ready} onClick={resetLayout}>
+            Réinitialiser la disposition
+          </button>
+        </nav>
+
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <DockviewReact
+            className="dockview-theme-abyss"
+            style={{ width: '100%', height: '100%' }}
+            components={components}
+            onReady={onReady}
+          />
+        </div>
       </section>
     </CockpitContentContext.Provider>
   )
