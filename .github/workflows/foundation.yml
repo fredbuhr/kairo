@@ -200,7 +200,7 @@ jobs:
 
       - name: Start Block 1 substrate
         run: |
-          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
 
       - name: Prove crash recovery and outbox delivery
         run: python scripts/smoke/block1.py
