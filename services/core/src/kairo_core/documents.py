@@ -455,6 +455,7 @@ async def list_document_versions(
 @router.get("/v1/document-versions/{version_id}/chunks", response_model=list[DocumentChunkRead])
 async def list_document_chunks(
     version_id: uuid.UUID,
+    offset: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=200),
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
@@ -467,6 +468,7 @@ async def list_document_chunks(
         select(DocumentChunk)
         .where(DocumentChunk.document_version_id == version.id)
         .order_by(DocumentChunk.ordinal)
+        .offset(offset)
         .limit(limit)
     )
     return list(result.scalars())

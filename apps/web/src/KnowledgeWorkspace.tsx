@@ -95,6 +95,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
   const [selectedVersionId, setSelectedVersionId] = useState('')
   const [chunks, setChunks] = useState<DocumentChunk[]>([])
   const [chunksLoaded, setChunksLoaded] = useState(false)
+  const [chunkOffset, setChunkOffset] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadingVersions, setLoadingVersions] = useState(false)
   const [loadingChunks, setLoadingChunks] = useState(false)
@@ -154,6 +155,13 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
     [chunks],
   )
 
+  const chunkPageStart = chunksLoaded && chunkPreview.length > 0 ? chunkOffset + 1 : 0
+  const chunkPageEnd = chunksLoaded ? chunkOffset + chunkPreview.length : 0
+  const canPreviousChunkPage = chunksLoaded && chunkOffset > 0
+  const canNextChunkPage = Boolean(
+    chunksLoaded && selectedVersion && chunkPageEnd < selectedVersion.chunk_count,
+  )
+
   useEffect(() => {
     setSelectedDocumentId((current) => {
       if (current && projectDocuments.some((document) => document.id === current)) return current
@@ -169,6 +177,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
     setSelectedVersionId('')
     setChunks([])
     setChunksLoaded(false)
+    setChunkOffset(0)
     setChunkError(null)
     setVersionError(null)
     if (!documentId) {
@@ -213,21 +222,30 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
   useEffect(() => {
     setChunks([])
     setChunksLoaded(false)
+    setChunkOffset(0)
     setChunkError(null)
   }, [selectedVersionId])
 
-  async function loadChunkPreview() {
+  async function loadChunkPage(offset: number) {
     if (!selectedVersion || loadingChunks) return
+
+    const maxOffset = Math.max(
+      0,
+      Math.floor(Math.max(0, selectedVersion.chunk_count - 1) / MAX_CHUNK_PREVIEW_ITEMS) *
+        MAX_CHUNK_PREVIEW_ITEMS,
+    )
+    const normalizedOffset = Math.min(maxOffset, Math.max(0, offset))
 
     setLoadingChunks(true)
     setChunkError(null)
     setChunksLoaded(false)
     try {
       const response = await kairoFetch(
-        `${apiUrl}/v1/document-versions/${selectedVersion.id}/chunks?limit=${MAX_CHUNK_PREVIEW_ITEMS}`,
+        `${apiUrl}/v1/document-versions/${selectedVersion.id}/chunks?offset=${normalizedOffset}&limit=${MAX_CHUNK_PREVIEW_ITEMS}`,
       )
       const loadedChunks = await readJson<DocumentChunk[]>(response)
       setChunks(loadedChunks)
+      setChunkOffset(normalizedOffset)
       setChunksLoaded(true)
     } catch (loadError) {
       setChunks([])
@@ -413,7 +431,11 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
                         ))}
                       </select>
                     </label>
-                    <button type="button" onClick={loadChunkPreview} disabled={loadingChunks || !selectedVersion}>
+                    <button
+                      type="button"
+                      onClick={() => void loadChunkPage(0)}
+                      disabled={loadingChunks || !selectedVersion}
+                    >
                       {loadingChunks ? 'Chargement…' : 'Charger l’aperçu des chunks'}
                     </button>
                   </div>
@@ -430,45 +452,73 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
                   )}
 
                   {chunksLoaded && !chunkError && selectedVersion && (
-                    <section className="sources" aria-label="Aperçu des chunks de la version sélectionnée">
-                      <div className="sources-title">
-                        <strong>Aperçu des chunks · v{selectedVersion.generation}</strong>
-                        <span>
-                          {chunkPreview.length} affiché(s) sur {selectedVersion.chunk_count}
-                          {selectedVersion.chunk_count > chunkPreview.length
-                            ? ` · lecture Core limitée à ${MAX_CHUNK_PREVIEW_ITEMS}`
-                            : ''}
+                    <>
+                      <div className="news-controls" aria-label="Pagination des chunks">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void loadChunkPage(chunkOffset - MAX_CHUNK_PREVIEW_ITEMS)
+                          }
+                          disabled={loadingChunks || !canPreviousChunkPage}
+                        >
+                          ← Page précédente
+                        </button>
+                        <span className="route-chip">
+                          {chunkPageStart === 0
+                            ? `0 chunk sur ${selectedVersion.chunk_count}`
+                            : `Chunks ${chunkPageStart}–${chunkPageEnd} sur ${selectedVersion.chunk_count}`}
                         </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void loadChunkPage(chunkOffset + MAX_CHUNK_PREVIEW_ITEMS)
+                          }
+                          disabled={loadingChunks || !canNextChunkPage}
+                        >
+                          Page suivante →
+                        </button>
                       </div>
-                      <div className="source-list">
-                        {chunkPreview.length === 0 && (
-                          <div className="source-card">
-                            <span className="source-id">0</span>
-                            <div>
-                              <strong>Aucun chunk disponible.</strong>
-                              <small>Cette version ne contient aucun contenu canonique inspectable.</small>
-                            </div>
-                          </div>
-                        )}
 
-                        {chunkPreview.map((chunk) => (
-                          <div className="source-card" key={chunk.id}>
-                            <span className="source-id">#{chunk.ordinal}</span>
-                            <div>
-                              <strong>Chunk canonique {chunk.ordinal}</strong>
-                              <small>{chunkExcerpt(chunk.text)}</small>
-                              <small>
-                                {formatDate(chunk.created_at)
-                                  ? `Créé le ${formatDate(chunk.created_at)}`
-                                  : 'Date de création indisponible'}
-                                {' · '}
-                                SHA-256 {chunk.content_sha256.slice(0, 16)}…
-                              </small>
+                      <section
+                        className="sources"
+                        aria-label="Aperçu des chunks de la version sélectionnée"
+                      >
+                        <div className="sources-title">
+                          <strong>Aperçu des chunks · v{selectedVersion.generation}</strong>
+                          <span>{chunkPreview.length} chunk(s) sur cette page</span>
+                        </div>
+                        <div className="source-list">
+                          {chunkPreview.length === 0 && (
+                            <div className="source-card">
+                              <span className="source-id">0</span>
+                              <div>
+                                <strong>Aucun chunk disponible.</strong>
+                                <small>
+                                  Cette version ne contient aucun contenu canonique inspectable.
+                                </small>
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
+                          )}
+
+                          {chunkPreview.map((chunk) => (
+                            <div className="source-card" key={chunk.id}>
+                              <span className="source-id">#{chunk.ordinal}</span>
+                              <div>
+                                <strong>Chunk canonique {chunk.ordinal}</strong>
+                                <small>{chunkExcerpt(chunk.text)}</small>
+                                <small>
+                                  {formatDate(chunk.created_at)
+                                    ? `Créé le ${formatDate(chunk.created_at)}`
+                                    : 'Date de création indisponible'}
+                                  {' · '}
+                                  SHA-256 {chunk.content_sha256.slice(0, 16)}…
+                                </small>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    </>
                   )}
                 </>
               )}
