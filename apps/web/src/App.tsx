@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react'
 
+import CockpitShell from './CockpitShell'
 import CommandCenterPanel from './CommandCenterPanel'
 import NewsWorkspacePanel, {
   type NewsBrief,
@@ -289,6 +290,43 @@ export default function App() {
     }
   }
 
+  const commandPanel = (
+    <CommandCenterPanel
+      command={command}
+      conversationId={conversationId}
+      pendingCommandId={pendingCommandId}
+      routing={routing}
+      route={lastRoute}
+      task={taskView}
+      error={error}
+      onCommandChange={setCommand}
+      onSubmit={submitCommand}
+      onUseExample={(value) => {
+        setCommand(value)
+        setError(null)
+      }}
+    />
+  )
+
+  const newsPanel = (
+    <NewsWorkspacePanel
+      apiUrl={API_URL}
+      query={query}
+      mode={mode}
+      location={location}
+      output={output}
+      brief={brief}
+      submitting={submitting}
+      running={Boolean(taskId && taskCapability === 'news.brief')}
+      error={error}
+      onQueryChange={setQuery}
+      onModeChange={setMode}
+      onLocationChange={setLocation}
+      onOutputChange={setOutput}
+      onSubmit={submitNews}
+    />
+  )
+
   return (
     <main className="shell">
       <header>
@@ -296,7 +334,7 @@ export default function App() {
           <span className="eyebrow">PERSONAL AI OPERATING SYSTEM</span>
           <h1>KAIRO</h1>
         </div>
-        <span className="status">foundation + semantic command kernel</span>
+        <span className="status">cockpit + durable command kernel</span>
       </header>
 
       <section className="hero">
@@ -307,40 +345,13 @@ export default function App() {
         </p>
       </section>
 
-      <CommandCenterPanel
-        command={command}
-        conversationId={conversationId}
-        pendingCommandId={pendingCommandId}
-        routing={routing}
-        route={lastRoute}
-        task={taskView}
-        error={error}
-        onCommandChange={setCommand}
-        onSubmit={submitCommand}
-        onUseExample={(value) => {
-          setCommand(value)
-          setError(null)
+      <CockpitShell
+        slots={{
+          command: commandPanel,
+          news: newsPanel,
+          research: <ResearchWorkspace apiUrl={API_URL} />,
         }}
       />
-
-      <NewsWorkspacePanel
-        apiUrl={API_URL}
-        query={query}
-        mode={mode}
-        location={location}
-        output={output}
-        brief={brief}
-        submitting={submitting}
-        running={Boolean(taskId && taskCapability === 'news.brief')}
-        error={error}
-        onQueryChange={setQuery}
-        onModeChange={setMode}
-        onLocationChange={setLocation}
-        onOutputChange={setOutput}
-        onSubmit={submitNews}
-      />
-
-      <ResearchWorkspace apiUrl={API_URL} />
 
       <section className="grid" aria-label="KAIRO spaces">
         {spaces.map((space) => (
@@ -351,9 +362,9 @@ export default function App() {
             <span>{space}</span>
             <small>
               {space === 'Command Center'
-                ? 'deterministic + semantic routing'
+                ? 'dockable command surface'
                 : ['News Intelligence', 'Research'].includes(space)
-                  ? 'working capability'
+                  ? 'dockable working capability'
                   : 'planned workspace'}
             </small>
           </article>
