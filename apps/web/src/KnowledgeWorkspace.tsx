@@ -112,11 +112,13 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
   const [loadingChunks, setLoadingChunks] = useState(false)
   const [importing, setImporting] = useState(false)
   const [reingesting, setReingesting] = useState(false)
+  const [openingSource, setOpeningSource] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [versionError, setVersionError] = useState<string | null>(null)
   const [chunkError, setChunkError] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [reingestError, setReingestError] = useState<string | null>(null)
+  const [sourceError, setSourceError] = useState<string | null>(null)
   const [trackingError, setTrackingError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -197,6 +199,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
     setChunkError(null)
     setVersionError(null)
     setReingestError(null)
+    setSourceError(null)
     if (!documentId) {
       setLoadingVersions(false)
       return () => {
@@ -398,6 +401,45 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
     }
   }
 
+  async function openSelectedSource() {
+    if (!selectedDocument || openingSource) return
+
+    const previewWindow = window.open('', '_blank')
+    if (!previewWindow) {
+      setSourceError('Le navigateur a bloqué l’ouverture du fichier source.')
+      return
+    }
+    previewWindow.opener = null
+
+    setOpeningSource(true)
+    setSourceError(null)
+    try {
+      const response = await kairoFetch(
+        `${apiUrl}/v1/assets/${selectedDocument.asset_id}/content`,
+      )
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        const detail = body?.detail
+        const message = typeof detail === 'string' ? detail : detail?.message
+        throw new Error(message || `Impossible d’ouvrir la source (${response.status}).`)
+      }
+
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      previewWindow.location.replace(objectUrl)
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120_000)
+    } catch (sourceFailure) {
+      previewWindow.close()
+      setSourceError(
+        sourceFailure instanceof Error
+          ? sourceFailure.message
+          : 'Impossible d’ouvrir le fichier source.',
+      )
+    } finally {
+      setOpeningSource(false)
+    }
+  }
+
   async function loadChunkPage(offset: number) {
     if (!selectedVersion || loadingChunks) return
 
@@ -539,6 +581,13 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
                 </label>
                 <button
                   type="button"
+                  onClick={() => void openSelectedSource()}
+                  disabled={openingSource || !selectedDocument}
+                >
+                  {openingSource ? 'Ouverture…' : 'Ouvrir la source'}
+                </button>
+                <button
+                  type="button"
                   onClick={() => void reingestSelectedDocument()}
                   disabled={
                     reingesting ||
@@ -551,6 +600,7 @@ export default function KnowledgeWorkspace({ apiUrl }: Props) {
                 </button>
               </div>
 
+              {sourceError && <div className="error-panel">{sourceError}</div>}
               {reingestError && <div className="error-panel">{reingestError}</div>}
 
               {selectedDocument && (
