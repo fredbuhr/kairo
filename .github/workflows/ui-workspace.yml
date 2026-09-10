@@ -1,0 +1,20 @@
+name: UI workspace validation
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ui-workspace-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workspace-layout-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Prove canonical owner-scoped workspace layout contract
+        run: uv run --project services/core python scripts/smoke/workspace_layout_contract.py
+      - name: Compile Core workspace layout modules
+        run: python -m compileall services/core/src/kairo_core/ui_layouts.py services/core/src/kairo_core/ui_models.py
