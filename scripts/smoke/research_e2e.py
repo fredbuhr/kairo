@@ -11,7 +11,7 @@ import urllib.request
 from typing import Any
 
 CORE = "http://localhost:8000"
-MODEL_STATS = "http://localhost:4010/stats"
+MODEL_BASE = "http://localhost:4010"
 INTERNAL_TOKEN = os.getenv("KAIRO_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
 INTERNAL = {"X-Kairo-Internal-Token": INTERNAL_TOKEN}
 
@@ -71,6 +71,19 @@ def wait_ready() -> None:
     raise RuntimeError("Core did not become ready")
 
 
+def wait_model_fixture() -> None:
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        try:
+            stats = request_url(MODEL_BASE, "GET", "/stats")
+            if stats == {"calls": 0, "stages": []}:
+                return
+        except Exception:
+            pass
+        time.sleep(0.5)
+    raise RuntimeError("Deterministic Research model fixture did not become ready")
+
+
 def wait_research(task_id: str) -> dict[str, Any]:
     deadline = time.time() + 120
     last: dict[str, Any] | None = None
@@ -86,6 +99,7 @@ def wait_research(task_id: str) -> dict[str, Any]:
 
 def main() -> None:
     wait_ready()
+    wait_model_fixture()
 
     project = request(
         "POST",
@@ -175,7 +189,7 @@ def main() -> None:
     assert result["planner_model_alias"] == "local-fast", result
     assert result["synthesis_model_alias"] == "local-fast", result
 
-    stats = request_url("http://localhost:4010", "GET", "/stats")
+    stats = request_url(MODEL_BASE, "GET", "/stats")
     assert stats == {"calls": 2, "stages": ["plan", "synthesis"]}, stats
 
     print(
