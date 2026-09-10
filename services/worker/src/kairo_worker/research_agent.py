@@ -24,6 +24,7 @@ from .semantic_router import render_provider_messages
 
 MAX_EVIDENCE_ITEM_CHARS = 12_000
 MAX_EVIDENCE_TOTAL_CHARS = 48_000
+RESEARCH_PROGRESS_KEY = "research_progress"
 
 
 class PlannedToolCall(BaseModel):
@@ -227,6 +228,50 @@ def split_research_model_budget(total_budget: Decimal) -> tuple[Decimal, Decimal
     return planner, total - planner
 
 
+def research_progress_snapshot(
+    model_checkpoints: ModelCheckpointLedger,
+    *,
+    phase: str,
+    planned_tool_calls: int | None = None,
+    active_slot: int | None = None,
+    completed_tool_slots: list[int] | None = None,
+) -> dict[str, Any]:
+    """Carry replay-critical model checkpoints forward with lightweight research progress metadata."""
+
+    snapshot = model_checkpoints.snapshot()
+    progress: dict[str, Any] = {
+        "phase": phase,
+        "completed_tool_slots": sorted(set(completed_tool_slots or [])),
+    }
+    if planned_tool_calls is not None:
+        progress["planned_tool_calls"] = max(0, int(planned_tool_calls))
+    if active_slot is not None:
+        progress["active_slot"] = max(0, int(active_slot))
+    snapshot[RESEARCH_PROGRESS_KEY] = progress
+    return snapshot
+
+
+def _heartbeat_research_progress(
+    model_checkpoints: ModelCheckpointLedger,
+    *,
+    phase: str,
+    planned_tool_calls: int | None = None,
+    active_slot: int | None = None,
+    completed_tool_slots: list[int] | None = None,
+) -> None:
+    if not activity.in_activity():
+        return
+    activity.heartbeat(
+        research_progress_snapshot(
+            model_checkpoints,
+            phase=phase,
+            planned_tool_calls=planned_tool_calls,
+            active_slot=active_slot,
+            completed_tool_slots=completed_tool_slots,
+        )
+    )
+
+
 def _headers() -> dict[str, str]:
     return {"X-Kairo-Internal-Token": settings.kairo_internal_token}
 
@@ -260,6 +305,7 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
             workflow_execution_id=execution_id,
             call_slot="research-plan-v1",
         )
+        _heartbeat_research_progress(model_checkpoints, phase="planning")
 
         async def accounted_planning_completion(messages: list[dict[str, Any]]) -> str:
             result = await chat_completion(
@@ -292,8 +338,21 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
                     non_retryable=True,
                 ) from exc
 
+        _heartbeat_research_progress(
+            model_checkpoints,
+            phase="planned",
+            planned_tool_calls=len(plan.calls),
+        )
         results: list[dict[str, Any]] = []
         for slot, call in enumerate(plan.calls):
+            completed_slots = [int(item["slot"]) for item in results]
+            _heartbeat_research_progress(
+                model_checkpoints,
+                phase="tool-start",
+                planned_tool_calls=len(plan.calls),
+                active_slot=slot,
+                completed_tool_slots=completed_slots,
+            )
             start = await client.post(
                 f"{settings.kairo_core_url.rstrip('/')}/internal/v1/research/tasks/{task_id}/tool-invocations",
                 headers=_headers(),
@@ -315,6 +374,13 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
 
             deadline = asyncio.get_running_loop().time() + 300.0
             while True:
+                _heartbeat_research_progress(
+                    model_checkpoints,
+                    phase="tool-wait",
+                    planned_tool_calls=len(plan.calls),
+                    active_slot=slot,
+                    completed_tool_slots=completed_slots,
+                )
                 child = await _get_json(
                     client, f"/internal/v1/research/tool-invocations/{invocation_id}"
                 )
@@ -330,6 +396,14 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
                             "result": child.get("result") or {},
                         }
                     )
+                    completed_slots = [int(item["slot"]) for item in results]
+                    _heartbeat_research_progress(
+                        model_checkpoints,
+                        phase="tool-completed",
+                        planned_tool_calls=len(plan.calls),
+                        active_slot=slot,
+                        completed_tool_slots=completed_slots,
+                    )
                     break
                 if child_status == "failed":
                     raise ApplicationError(
@@ -340,12 +414,25 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
                     raise RuntimeError(f"Timed out waiting for research tool {call.tool_key}")
                 await asyncio.sleep(1.0)
 
+        completed_slots = [int(item["slot"]) for item in results]
         evidence = build_research_evidence(results)
+        _heartbeat_research_progress(
+            model_checkpoints,
+            phase="evidence-ready",
+            planned_tool_calls=len(plan.calls),
+            completed_tool_slots=completed_slots,
+        )
         if evidence:
             synthesis_call_key = deterministic_model_call_key(
                 task_id=task_id,
                 workflow_execution_id=execution_id,
                 call_slot="research-synthesis-v1",
+            )
+            _heartbeat_research_progress(
+                model_checkpoints,
+                phase="synthesis-ready",
+                planned_tool_calls=len(plan.calls),
+                completed_tool_slots=completed_slots,
             )
 
             async def accounted_synthesis_completion(messages: list[dict[str, Any]]) -> str:
@@ -376,6 +463,13 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
                 ) from exc
         else:
             synthesis = no_evidence_synthesis()
+
+        _heartbeat_research_progress(
+            model_checkpoints,
+            phase="artifact-ready",
+            planned_tool_calls=len(plan.calls),
+            completed_tool_slots=completed_slots,
+        )
 
     evidence_index = [
         {
