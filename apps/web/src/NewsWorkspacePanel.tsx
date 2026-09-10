@@ -1,4 +1,6 @@
-import type { FormEventHandler } from 'react'
+import { type FormEventHandler, useEffect, useState } from 'react'
+
+import { kairoFetch } from './lib/apiClient'
 
 export type NewsSource = {
   id: string
@@ -65,6 +67,12 @@ type NewsWorkspacePanelProps = {
   onSubmit: FormEventHandler<HTMLFormElement>
 }
 
+type AuthenticatedNewsAudioProps = {
+  apiUrl: string
+  taskId: string
+  voice: string
+}
+
 function impactLabel(level?: string) {
   const labels: Record<string, string> = {
     low: 'Faible',
@@ -73,6 +81,62 @@ function impactLabel(level?: string) {
     critical: 'Critique',
   }
   return labels[level || ''] || level || 'Non évalué'
+}
+
+function AuthenticatedNewsAudio({ apiUrl, taskId, voice }: AuthenticatedNewsAudioProps) {
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [loadingAudio, setLoadingAudio] = useState(false)
+  const [audioError, setAudioError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setAudioUrl(null)
+    setAudioError(null)
+    setLoadingAudio(false)
+  }, [taskId, voice])
+
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl)
+    }
+  }, [audioUrl])
+
+  async function loadAudio() {
+    if (loadingAudio || audioUrl) return
+    setLoadingAudio(true)
+    setAudioError(null)
+    try {
+      const response = await kairoFetch(
+        `${apiUrl}/v1/news/briefs/${taskId}/audio?voice=${encodeURIComponent(voice)}`,
+      )
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        const detail = body?.detail
+        const message = typeof detail === 'string' ? detail : detail?.message
+        throw new Error(message || `Impossible de charger l’audio (${response.status}).`)
+      }
+      const blob = await response.blob()
+      setAudioUrl(URL.createObjectURL(blob))
+    } catch (loadError) {
+      setAudioError(
+        loadError instanceof Error ? loadError.message : 'Impossible de charger la lecture audio.',
+      )
+    } finally {
+      setLoadingAudio(false)
+    }
+  }
+
+  if (!audioUrl) {
+    return (
+      <div>
+        <button type="button" onClick={() => void loadAudio()} disabled={loadingAudio}>
+          {loadingAudio ? 'Préparation audio…' : 'Charger l’audio'}
+        </button>
+        {audioError && <small>{audioError}</small>}
+      </div>
+    )
+  }
+
+  return <audio controls autoPlay preload="none" src={audioUrl} />
 }
 
 export default function NewsWorkspacePanel({
@@ -190,10 +254,11 @@ export default function NewsWorkspacePanel({
                 <strong>Lecture KAIRO</strong>
                 <small>Voix locale Kokoro · français</small>
               </div>
-              <audio
-                controls
-                preload="none"
-                src={`${apiUrl}/v1/news/briefs/${brief.task_id}/audio?voice=${encodeURIComponent(brief.voice)}`}
+              <AuthenticatedNewsAudio
+                key={`${brief.task_id}:${brief.voice}`}
+                apiUrl={apiUrl}
+                taskId={brief.task_id}
+                voice={brief.voice}
               />
             </div>
           )}

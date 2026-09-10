@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import Principal, require_kairo_user
 from .config import settings
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
@@ -16,30 +17,48 @@ from .workflows import run_task
 
 router = APIRouter()
 
-NEWS_PROJECT_ID = uuid.UUID("b8d9cccf-257b-4b48-b58e-4fe63a4398b2")
+
+def _news_project_id(subject: str) -> uuid.UUID:
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:project:news:subject:{subject}")
 
 
-async def _ensure_news_project(session: AsyncSession) -> Project:
-    project = await session.get(Project, NEWS_PROJECT_ID)
-    if project:
+async def _ensure_news_project(session: AsyncSession, subject: str) -> Project:
+    normalized_subject = subject.strip()
+    if not normalized_subject:
+        raise HTTPException(status_code=409, detail="News request has no owner")
+
+    project_id = _news_project_id(normalized_subject)
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_subject == normalized_subject,
+        )
+    )
+    if project is not None:
         return project
 
     correlation_id = uuid.uuid4()
     inserted_id = await session.scalar(
         pg_insert(Project)
         .values(
-            id=NEWS_PROJECT_ID,
+            id=project_id,
+            owner_subject=normalized_subject,
             name="KAIRO News",
             status="active",
-            summary="System workspace for sourced news briefings and market-impact intelligence.",
+            summary="Per-user system workspace for sourced news briefings and market-impact intelligence.",
             parent_id=None,
         )
         .on_conflict_do_nothing(index_elements=[Project.id])
         .returning(Project.id)
     )
-    project = await session.get(Project, NEWS_PROJECT_ID)
+    project = await session.scalar(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_subject == normalized_subject,
+        )
+    )
     if project is None:
-        raise RuntimeError("KAIRO News workspace could not be initialized")
+        raise RuntimeError("KAIRO News workspace could not be initialized for this owner")
 
     if inserted_id is not None:
         await enqueue_domain_event(
@@ -59,7 +78,10 @@ async def _ensure_news_project(session: AsyncSession) -> Project:
             resource_id=str(project.id),
             authority_level=0,
             correlation_id=correlation_id,
-            request_json={"reason": "initialize News Intelligence workspace"},
+            request_json={
+                "reason": "initialize owner-scoped News Intelligence workspace",
+                "subject": normalized_subject,
+            },
         )
     return project
 
@@ -69,9 +91,28 @@ def _task_title(body: NewsBriefCreate) -> str:
     return f"{prefix} — {body.query}"[:320]
 
 
-async def _get_news_task(task_id: uuid.UUID, session: AsyncSession) -> Task:
-    task = await session.get(Task, task_id)
-    if not task or (task.input or {}).get("capability") != "news.brief":
+async def _get_news_task(
+    task_id: uuid.UUID,
+    session: AsyncSession,
+    *,
+    requester_subject: str,
+) -> Task:
+    task = await session.scalar(
+        select(Task)
+        .join(Project, Project.id == Task.project_id)
+        .where(
+            Task.id == task_id,
+            Project.owner_subject == requester_subject,
+            Task.owner_type == "user",
+            Task.owner_ref == requester_subject,
+        )
+    )
+    task_input = task.input if task is not None else {}
+    if (
+        task is None
+        or (task_input or {}).get("capability") != "news.brief"
+        or str((task_input or {}).get("requester_subject") or "") != requester_subject
+    ):
         raise HTTPException(status_code=404, detail="News brief not found")
     return task
 
@@ -94,6 +135,7 @@ async def start_news_brief(
     body: NewsBriefCreate,
     session: AsyncSession,
     *,
+    requester_subject: str | None = None,
     actor_type: str = "user",
     actor_id: str | None = None,
     correlation_id: uuid.UUID | None = None,
@@ -102,12 +144,17 @@ async def start_news_brief(
 ) -> NewsBriefRunResponse:
     """Start the canonical News capability independently of the invoking transport.
 
-    A caller may provide a deterministic ``task_id``. This makes a semantic-routing handoff replay-safe:
-    if the Worker retries after Core already created or started the final task, the same canonical task
-    and WorkflowExecution are reused rather than creating a duplicate News request.
+    News state is always bound to a concrete requester subject. A caller may provide a deterministic
+    ``task_id``. This makes a semantic-routing handoff replay-safe: if the Worker retries after Core
+    already created or started the final task, the same owner-bound canonical task and
+    WorkflowExecution are reused rather than creating a duplicate News request.
     """
 
-    project = await _ensure_news_project(session)
+    subject = str(requester_subject or actor_id or "").strip()
+    if not subject:
+        raise HTTPException(status_code=409, detail="News request has no owner")
+
+    project = await _ensure_news_project(session, subject)
     correlation_id = correlation_id or uuid.uuid4()
     requested_task_id = task_id
 
@@ -117,8 +164,23 @@ async def start_news_brief(
             existing_input = existing.input or {}
             if existing_input.get("capability") != "news.brief":
                 raise HTTPException(status_code=409, detail="Deterministic task ID is already in use")
+            if existing.project_id != project.id:
+                raise HTTPException(status_code=409, detail="News task is bound to another project")
+            if existing.owner_type != "user" or existing.owner_ref != subject:
+                raise HTTPException(status_code=409, detail="News task is bound to another requester")
+            if str(existing_input.get("requester_subject") or "") != subject:
+                raise HTTPException(status_code=409, detail="News task is bound to another requester")
             if command_id is not None and existing_input.get("command_id") != str(command_id):
                 raise HTTPException(status_code=409, detail="News task is bound to another command")
+
+            expected = body.model_dump(mode="json")
+            actual = {key: existing_input.get(key) for key in expected}
+            if actual != expected:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Deterministic News task cannot be rebound to different execution parameters",
+                )
+
             execution = await session.scalar(
                 select(WorkflowExecution).where(WorkflowExecution.task_id == existing.id)
             )
@@ -137,6 +199,7 @@ async def start_news_brief(
 
     task_input = body.model_dump(mode="json")
     task_input["capability"] = "news.brief"
+    task_input["requester_subject"] = subject
     if command_id is not None:
         task_input["command_id"] = str(command_id)
 
@@ -146,8 +209,8 @@ async def start_news_brief(
         title=_task_title(body),
         description="Sourced news briefing generated by KAIRO News Intelligence.",
         status="todo",
-        owner_type=actor_type,
-        owner_ref=actor_id,
+        owner_type="user",
+        owner_ref=subject,
         authority_ceiling=1,
         input=task_input,
     )
@@ -172,7 +235,7 @@ async def start_news_brief(
     await append_audit(
         session,
         actor_type=actor_type,
-        actor_id=actor_id,
+        actor_id=actor_id or subject,
         action="news.brief.request",
         resource_type="task",
         resource_id=str(task.id),
@@ -180,6 +243,7 @@ async def start_news_brief(
         correlation_id=correlation_id,
         request_json={
             **body.model_dump(mode="json"),
+            "requester_subject": subject,
             **({"command_id": str(command_id)} if command_id is not None else {}),
         },
     )
@@ -203,16 +267,26 @@ async def start_news_brief(
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_news_brief(
-    body: NewsBriefCreate, session: AsyncSession = Depends(get_session)
+    body: NewsBriefCreate,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> NewsBriefRunResponse:
-    return await start_news_brief(body, session)
+    return await start_news_brief(
+        body,
+        session,
+        requester_subject=principal.subject,
+        actor_type="user",
+        actor_id=principal.subject,
+    )
 
 
 @router.get("/v1/news/briefs/{task_id}", response_model=NewsBriefRead)
 async def get_news_brief(
-    task_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+    task_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
+    session: AsyncSession = Depends(get_session),
 ) -> NewsBriefRead:
-    task = await _get_news_task(task_id, session)
+    task = await _get_news_task(task_id, session, requester_subject=principal.subject)
     artifact = await session.scalar(
         select(Artifact)
         .where(Artifact.task_id == task.id, Artifact.kind == "news-brief")
@@ -236,9 +310,10 @@ async def get_news_brief(
 async def news_brief_audio(
     task_id: uuid.UUID,
     voice: str | None = None,
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    task = await _get_news_task(task_id, session)
+    task = await _get_news_task(task_id, session, requester_subject=principal.subject)
     artifact = await session.scalar(
         select(Artifact)
         .where(Artifact.task_id == task.id, Artifact.kind == "news-brief")

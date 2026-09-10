@@ -263,7 +263,7 @@ export default function App() {
     resetTaskSurface()
 
     try {
-      const response = await fetch(`${API_URL}/v1/news/briefs`, {
+      const response = await kairoFetch(`${API_URL}/v1/news/briefs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
