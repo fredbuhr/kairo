@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import Principal, require_kairo_user
 from .command_models import Conversation, ConversationMessage
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
@@ -146,6 +147,19 @@ async def _seed_projection_rows(
     return created
 
 
+async def _conversation_for_message(
+    session: AsyncSession,
+    message_id: uuid.UUID,
+) -> tuple[ConversationMessage, Conversation]:
+    message = await session.get(ConversationMessage, message_id)
+    if message is None:
+        raise HTTPException(status_code=404, detail="Conversation message not found")
+    conversation = await session.get(Conversation, message.conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return message, conversation
+
+
 @router.get(
     "/internal/v1/memory/sources/conversation-messages/{message_id}",
     dependencies=[Depends(require_internal_token)],
@@ -154,12 +168,7 @@ async def canonical_memory_source(
     message_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    message = await session.get(ConversationMessage, message_id)
-    if message is None:
-        raise HTTPException(status_code=404, detail="Conversation message not found")
-    conversation = await session.get(Conversation, message.conversation_id)
-    if conversation is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+    message, conversation = await _conversation_for_message(session, message_id)
     return {
         "source_type": MEMORY_SOURCE_TYPE,
         "source_version": MEMORY_SOURCE_VERSION,
@@ -445,9 +454,11 @@ async def report_memory_projection(
 @router.get("/v1/memory/projections/conversation-messages/{message_id}")
 async def get_memory_projections(
     message_id: uuid.UUID,
+    principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    if await session.get(ConversationMessage, message_id) is None:
+    _message, conversation = await _conversation_for_message(session, message_id)
+    if conversation.subject_ref != principal.subject:
         raise HTTPException(status_code=404, detail="Conversation message not found")
     rows = await _projection_rows(session, message_id)
     return {
@@ -486,7 +497,6 @@ async def rebuild_memory_projections(
         rows = await _projection_rows(session, message.id, lock=True)
         next_generation = max((row.generation for row in rows), default=0) + 1
         if created == len(MEMORY_PROJECTORS):
-            # A source never projected before starts at generation 1.
             next_generation = 1
 
         for row in rows:
