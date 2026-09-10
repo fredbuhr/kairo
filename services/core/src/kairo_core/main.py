@@ -38,6 +38,7 @@ from .schemas import (
 )
 from .temporal_gateway import temporal_gateway
 from .tools import router as tools_router
+from .ui_layouts import router as ui_layouts_router
 from .workflows import router as workflow_router
 
 
@@ -70,6 +71,7 @@ app.include_router(research_router)
 app.include_router(research_results_router)
 app.include_router(news_router)
 app.include_router(assistant_router)
+app.include_router(ui_layouts_router)
 app.include_router(resources_router)
 app.include_router(assets_router)
 app.include_router(autonomy_router)
