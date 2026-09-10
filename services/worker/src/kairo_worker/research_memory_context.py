@@ -135,26 +135,27 @@ def _mem0_search_sync(query: str, mem0_user_id: str, limit: int) -> list[dict[st
 
 
 async def _graphiti_search(query: str, group_ids: list[str], limit: int) -> list[dict[str, Any]]:
+    """Read Graphiti's derived Episodic projection without invoking Graphiti maintenance side effects."""
+
     terms = _query_terms(query)
     if not terms or not group_ids:
         return []
 
-    from graphiti_core.driver.neo4j_driver import Neo4jDriver
+    from neo4j import AsyncGraphDatabase, READ_ACCESS
 
-    driver = Neo4jDriver(
-        uri=settings.neo4j_uri,
-        user=settings.neo4j_user,
-        password=settings.neo4j_password,
+    driver = AsyncGraphDatabase.driver(
+        settings.neo4j_uri,
+        auth=(settings.neo4j_user or "", settings.neo4j_password or ""),
     )
     try:
-        records, _, _ = await driver.execute_query(
-            GRAPHITI_EPISODE_QUERY,
-            group_ids=group_ids,
-            terms=terms,
-            limit=max(GRAPHITI_SCAN_LIMIT, limit),
-            routing_="r",
-        )
-        return [dict(record) for record in records]
+        async with driver.session(database="neo4j", default_access_mode=READ_ACCESS) as session:
+            result = await session.run(
+                GRAPHITI_EPISODE_QUERY,
+                group_ids=group_ids,
+                terms=terms,
+                limit=max(GRAPHITI_SCAN_LIMIT, limit),
+            )
+            return [dict(record) async for record in result]
     finally:
         await driver.close()
 
