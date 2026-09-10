@@ -10,6 +10,7 @@ import NewsWorkspacePanel, {
 } from './NewsWorkspacePanel'
 import ProjectsWorkspace from './ProjectsWorkspace'
 import ResearchWorkspace from './ResearchWorkspace'
+import TodayWorkspace from './TodayWorkspace'
 import { kairoFetch } from './lib/apiClient'
 import {
   type CapabilityTaskView,
@@ -40,6 +41,15 @@ const spaces = [
   'Activity',
   'System',
 ]
+
+const activeSpaces = new Set([
+  'Command Center',
+  'Today',
+  'Projects',
+  'Knowledge',
+  'News Intelligence',
+  'Research',
+])
 
 const API_URL = (import.meta.env.VITE_KAIRO_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
@@ -356,6 +366,13 @@ export default function App() {
         }}
         extraPanels={[
           {
+            key: 'today',
+            id: 'today-workspace',
+            title: 'Today',
+            content: <TodayWorkspace apiUrl={API_URL} />,
+            minimumWidth: 360,
+          },
+          {
             key: 'projects',
             id: 'projects-workspace',
             title: 'Projects',
@@ -374,13 +391,13 @@ export default function App() {
         {spaces.map((space) => (
           <article
             key={space}
-            className={`card ${['Command Center', 'Knowledge', 'News Intelligence', 'Research'].includes(space) ? 'card-active' : ''}`}
+            className={`card ${activeSpaces.has(space) ? 'card-active' : ''}`}
           >
             <span>{space}</span>
             <small>
               {space === 'Command Center'
                 ? 'dockable command surface'
-                : ['Knowledge', 'News Intelligence', 'Research'].includes(space)
+                : activeSpaces.has(space)
                   ? 'dockable working capability'
                   : 'planned workspace'}
             </small>
