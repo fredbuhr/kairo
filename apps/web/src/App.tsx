@@ -11,6 +11,7 @@ import NewsWorkspacePanel, {
 import ProjectsWorkspace from './ProjectsWorkspace'
 import ResearchWorkspace from './ResearchWorkspace'
 import { kairoFetch } from './lib/apiClient'
+import { useProjectSelection } from './lib/projectSelection'
 import {
   type CapabilityTaskView,
   isTerminalTaskStatus,
@@ -80,6 +81,150 @@ type CommandState = {
   route_reason?: string | null
   parameters_json: RouteParameters
   task_id?: string | null
+}
+
+type KnowledgeSearchResult = {
+  document_id: string
+  document_project_id: string
+  document_title: string
+  document_version_id: string
+  generation: number
+  chunk_id: string
+  ordinal: number
+  excerpt: string
+  content_sha256: string
+  rank: number
+}
+
+async function readCoreJson<T>(response: Response): Promise<T> {
+  const body = await response.json().catch(() => null)
+  if (!response.ok) {
+    const detail = body?.detail
+    const message = typeof detail === 'string' ? detail : detail?.message
+    throw new Error(message || `KAIRO Core répond ${response.status}`)
+  }
+  return body as T
+}
+
+function KnowledgeSearchPanel({ apiUrl }: { apiUrl: string }) {
+  const { selectedProjectId } = useProjectSelection()
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<KnowledgeSearchResult[]>([])
+  const [searching, setSearching] = useState(false)
+  const [searched, setSearched] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setResults([])
+    setSearched(false)
+    setError(null)
+  }, [selectedProjectId])
+
+  async function submitKnowledgeSearch(event: FormEvent) {
+    event.preventDefault()
+    const trimmed = query.trim()
+    if (!selectedProjectId || trimmed.length < 2 || searching) return
+
+    setSearching(true)
+    setError(null)
+    setSearched(false)
+    try {
+      const params = new URLSearchParams({
+        project_id: selectedProjectId,
+        q: trimmed,
+        limit: '20',
+      })
+      const response = await kairoFetch(`${apiUrl}/v1/knowledge/search?${params.toString()}`)
+      const loaded = await readCoreJson<KnowledgeSearchResult[]>(response)
+      setResults(loaded)
+      setSearched(true)
+    } catch (searchError) {
+      setResults([])
+      setSearched(true)
+      setError(
+        searchError instanceof Error
+          ? searchError.message
+          : 'Impossible de rechercher dans Knowledge.',
+      )
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  return (
+    <section className="news-workspace" aria-labelledby="knowledge-search-heading">
+      <div className="news-heading">
+        <div>
+          <span className="eyebrow">KNOWLEDGE SEARCH</span>
+          <h2 id="knowledge-search-heading">Recherche texte dans les chunks canoniques du projet.</h2>
+        </div>
+        {searched && <span className="run-state">{results.length} résultat(s)</span>}
+      </div>
+
+      <form className="news-form" onSubmit={submitKnowledgeSearch}>
+        <label className="query-field">
+          <span>Recherche</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            minLength={2}
+            maxLength={400}
+            placeholder="Ex. architecture ownership document"
+          />
+        </label>
+        <div className="news-controls">
+          <button
+            type="submit"
+            disabled={searching || !selectedProjectId || query.trim().length < 2}
+          >
+            {searching ? 'Recherche…' : 'Rechercher dans ce projet'}
+          </button>
+        </div>
+      </form>
+
+      {!selectedProjectId && (
+        <div className="progress-panel">
+          <strong>Aucun projet sélectionné.</strong>
+          <span>Choisissez un projet dans Projects ou Research avant de lancer la recherche.</span>
+        </div>
+      )}
+
+      {error && <div className="error-panel">{error}</div>}
+
+      {searched && !error && (
+        <section className="sources" aria-label="Résultats Knowledge">
+          <div className="sources-title">
+            <strong>Résultats canoniques</strong>
+            <span>20 maximum · dernière version complétée</span>
+          </div>
+          <div className="source-list">
+            {results.length === 0 && (
+              <div className="source-card">
+                <span className="source-id">0</span>
+                <div>
+                  <strong>Aucun chunk correspondant.</strong>
+                  <small>La recherche reste limitée aux Documents prêts du projet sélectionné.</small>
+                </div>
+              </div>
+            )}
+            {results.map((result) => (
+              <div className="source-card" key={result.chunk_id}>
+                <span className="source-id">#{result.ordinal}</span>
+                <div>
+                  <strong>{result.document_title}</strong>
+                  <small>{result.excerpt}</small>
+                  <small>
+                    v{result.generation} · score {result.rank.toFixed(3)} · SHA-256{' '}
+                    {result.content_sha256.slice(0, 16)}…
+                  </small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </section>
+  )
 }
 
 export default function App() {
@@ -365,7 +510,12 @@ export default function App() {
             key: 'knowledge',
             id: 'knowledge-workspace',
             title: 'Knowledge',
-            content: <KnowledgeWorkspace apiUrl={API_URL} />,
+            content: (
+              <>
+                <KnowledgeSearchPanel apiUrl={API_URL} />
+                <KnowledgeWorkspace apiUrl={API_URL} />
+              </>
+            ),
           },
         ]}
       />

@@ -19,6 +19,7 @@ from .config import settings
 from .db import get_session, ping_database
 from .documents import router as documents_router
 from .events import append_audit, enqueue_domain_event
+from .knowledge import router as knowledge_router
 from .memory import router as memory_router
 from .models import OutboxEvent, Project, RelationshipRecord, Task
 from .news import router as news_router
@@ -68,6 +69,7 @@ app.add_middleware(
 app.include_router(workflow_router)
 app.include_router(memory_router)
 app.include_router(documents_router)
+app.include_router(knowledge_router)
 app.include_router(tools_router)
 app.include_router(research_router)
 app.include_router(research_results_router)
