@@ -35,6 +35,7 @@ services:
       KC_PROXY_TRUSTED_ADDRESSES: ${KEYCLOAK_PROXY_TRUSTED_ADDRESSES}
     networks: !override
     - identity
+    - ingress
   litellm:
     environment:
       DATABASE_URL: postgresql://litellm_app:${LITELLM_DATABASE_PASSWORD}@postgres:5432/litellm
@@ -86,6 +87,7 @@ services:
     - identity
     - secrets
     - execution
+    - ingress
     security_opt:
     - no-new-privileges:true
     cap_drop:
@@ -324,6 +326,11 @@ services:
 volumes:
   openbao_data: null
 networks:
+  # Publish loopback ports without giving Core/Keycloak a masqueraded Internet gateway.
+  ingress:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
   canonical:
     internal: true
   identity:

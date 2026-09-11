@@ -28,7 +28,8 @@ la même absence d'audience/azp obligatoire. Aucun code de ces branches n'a ét�
   conservé côté opérateur/Core, autorise les reconstructions mémoire globales en production.
 - Des réseaux Compose internes limitent les consommateurs de chaque moteur. Le Web statique
   ne rejoint pas les réseaux de données. Seuls les composants ayant un besoin Web disposent
-  d'une sortie réseau ; les ports d'infrastructure ne sont plus publiés en production.
+  d'une sortie réseau ; Core/Keycloak utilisent un pont d’entrée sans masquerading pour le proxy
+  local. Les ports d'infrastructure ne sont plus publiés en production.
 - Le lecteur public connecte l'IP contrôlée, tout en conservant Host, SNI et vérification TLS.
   Chaque redirection est contrôlée ; nouveau client sans proxy d'environnement, cookies ou secrets.
   Ports 80/443, quatre destinations au maximum, 30 s, 2,5 Mo pendant lecture ; compression refusée.

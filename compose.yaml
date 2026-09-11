@@ -487,7 +487,6 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: default
       TEMPORAL_TASK_QUEUE: kairo-default
-      LITELLM_URL: http://litellm:4000
       OPENBAO_ADDR: http://openbao:8200
       KOKORO_TTS_URL: http://kokoro-tts:8880
       KOKORO_DEFAULT_VOICE: ${KOKORO_DEFAULT_VOICE}
@@ -576,15 +575,17 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        VITE_KAIRO_API_URL: http://localhost:${KAIRO_API_PORT}
+        VITE_KEYCLOAK_URL: ${KEYCLOAK_PUBLIC_URL}
+        VITE_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+        VITE_KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
     init: true
     cpus: 2.0
     mem_limit: 1g
     pids_limit: 256
     stop_grace_period: 30s
     restart: unless-stopped
-    environment:
-      VITE_KAIRO_API_URL: http://localhost:${KAIRO_API_PORT}
-      VITE_KAIRO_REALTIME_URL: ws://localhost:${KAIRO_REALTIME_PORT}
     depends_on: [kairo-core]
     ports:
       - "127.0.0.1:${KAIRO_WEB_PORT}:5173"

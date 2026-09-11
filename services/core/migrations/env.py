@@ -3,7 +3,7 @@ import os
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import pool
+from sqlalchemy import pool, text
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from kairo_core.config import settings
@@ -36,6 +36,8 @@ def do_run_migrations(connection) -> None:
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
+        if connection.scalar(text("SELECT current_user")) == "kairo_migrator":
+            connection.execute(text("REVOKE ALL ON TABLE public.alembic_version FROM kairo_app"))
 
 
 async def run_async_migrations() -> None:

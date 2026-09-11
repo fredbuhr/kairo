@@ -42,13 +42,12 @@ async def provision(env: dict, host: str, port: int) -> None:
     args = dict(host=host, port=port, user=env['POSTGRES_USER'], password=env['POSTGRES_PASSWORD'])
     admin = await asyncpg.connect(**args, database='postgres')
     try:
+        await admin.execute("SET standard_conforming_strings = on")
         # All identities must exist before granting runtime access to the first database.
         for role in ROLES:
             if not await admin.fetchval('SELECT 1 FROM pg_roles WHERE rolname=$1', role):
                 await admin.execute(f'CREATE ROLE {role}')
         for role, (key, databases) in ROLES.items():
-            if not await admin.fetchval('SELECT 1 FROM pg_roles WHERE rolname=$1', role):
-                await admin.execute(f'CREATE ROLE {role}')
             await admin.execute(f'ALTER ROLE {role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT PASSWORD {literal(env[key])}')
             memberships = await admin.fetch('SELECT r.rolname FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.roleid JOIN pg_roles u ON u.oid=m.member WHERE u.rolname=$1', role)
             for member in memberships:
@@ -68,7 +67,7 @@ async def provision(env: dict, host: str, port: int) -> None:
                         await conn.execute('CREATE EXTENSION IF NOT EXISTS pgcrypto')
                     # Upgrade existing development schemas without REASSIGN OWNED (which also
                     # changes shared database ownership). Exclude extension-managed objects.
-                    rows = await conn.fetch("SELECT c.relname, c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','S','v','m') AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid=c.oid AND d.deptype='e')")
+                    rows = await conn.fetch("SELECT c.relname, c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','S','v','m') AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid=c.oid AND d.deptype='e') ORDER BY CASE WHEN c.relkind='S' THEN 1 ELSE 0 END, c.relname")
                     for row in rows:
                         kind = {'S':'SEQUENCE','v':'VIEW','m':'MATERIALIZED VIEW'}.get(row['relkind'], 'TABLE')
                         await conn.execute(f'ALTER {kind} public.{ident(row["relname"])} OWNER TO {role}')
@@ -77,6 +76,8 @@ async def provision(env: dict, host: str, port: int) -> None:
                         await conn.execute('GRANT USAGE ON SCHEMA public TO kairo_app')
                         await conn.execute('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO kairo_app')
                         await conn.execute('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO kairo_app')
+                        if await conn.fetchval("SELECT to_regclass('public.alembic_version')"):
+                            await conn.execute('REVOKE ALL ON TABLE public.alembic_version FROM kairo_app')
                         await conn.execute('ALTER DEFAULT PRIVILEGES FOR ROLE kairo_migrator IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO kairo_app')
                         await conn.execute('ALTER DEFAULT PRIVILEGES FOR ROLE kairo_migrator IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO kairo_app')
                 finally:

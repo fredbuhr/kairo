@@ -31,6 +31,9 @@ async def main():
     procenv={**os.environ,'KAIRO_MIGRATION_DATABASE_URL':url('kairo_migrator','kairo')}
     result=subprocess.run([sys.executable,'-m','alembic','upgrade','head'],cwd=ROOT/'services/core',env=procenv,capture_output=True,text=True)
     assert result.returncode==0, 'restricted canonical migration failed; output withheld'
+    previous=await asyncpg.connect(host=host,port=port,user=source.username,password=source.password,database='kairo')
+    await previous.execute('CREATE TABLE d03_legacy_serial (id serial PRIMARY KEY)')
+    await previous.close()
     # Repeat after tables exist: exercise safe dev-schema ownership transition/idempotency.
     await provision.provision(env,host,port)
     migration=await asyncpg.connect(url('kairo_migrator','kairo').replace('+asyncpg',''))
@@ -43,7 +46,7 @@ async def main():
         await app.execute('UPDATE d03_privilege_proof SET id=2')
         await app.execute('DELETE FROM d03_privilege_proof')
         await app.fetch('SELECT id FROM projects LIMIT 1')
-        for sql in ['CREATE TABLE forbidden(id int)','DROP TABLE d03_privilege_proof','TRUNCATE d03_privilege_proof','CREATE DATABASE forbidden']:
+        for sql in ['CREATE TABLE forbidden(id int)','DROP TABLE d03_privilege_proof','TRUNCATE d03_privilege_proof','CREATE DATABASE forbidden','SELECT * FROM alembic_version']:
             try: await app.execute(sql)
             except asyncpg.InsufficientPrivilegeError: pass
             else: raise AssertionError('forbidden DDL accepted')

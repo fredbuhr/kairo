@@ -10,6 +10,7 @@ async def verify_database_role() -> None:
               AND NOT rolcreaterole AND NOT rolreplication AND NOT rolbypassrls
               AND NOT has_schema_privilege(current_user, 'public', 'CREATE')
               AND NOT has_database_privilege(current_user, current_database(), 'CREATE')
+              AND NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE member = pg_roles.oid)
             FROM pg_roles WHERE rolname = current_user
         """))
         if not safe:

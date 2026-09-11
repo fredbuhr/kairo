@@ -98,7 +98,10 @@ jobs:
         run: uv run --locked --all-packages python scripts/smoke/deployment_contract.py
 
       - name: Prepare isolated public-address alias for real TLS/DNS proofs
-        run: sudo ip addr add 93.184.216.34/32 dev lo
+        run: |
+          sudo ip addr add 93.184.216.34/32 dev lo
+          # Disposable runner only: permit the unprivileged fixture to bind HTTP/TLS ports.
+          sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0
 
       - name: Prove real HTTP/TLS pinning, forbidden destinations and bounded bodies
         run: uv run --locked --all-packages python scripts/smoke/public_web_contract.py

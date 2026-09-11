@@ -12,6 +12,7 @@ import unittest
 from unittest.mock import patch
 
 import jwt
+from fastapi import HTTPException
 from cryptography.hazmat.primitives.asymmetric import rsa
 from pydantic import ValidationError
 
@@ -70,8 +71,9 @@ class Deployment(unittest.TestCase):
     def test_worker_cannot_use_operations_token(self):
         with patch.object(security,'settings',CoreSettings(_env_file=None,**core_values())):
             asyncio.run(security.require_operations_token('d'*64))
-            with self.assertRaises(Exception): asyncio.run(security.require_operations_token('a'*64))
-            with self.assertRaises(Exception): asyncio.run(security.require_internal_token('d'*64))
+            with self.assertRaises(HTTPException): asyncio.run(security.require_operations_token('a'*64))
+            with self.assertRaises(HTTPException): asyncio.run(security.require_internal_token('d'*64))
+            with self.assertRaises(HTTPException): asyncio.run(security.require_internal_token('é'))
 
     def test_model_changes_require_review(self):
         with tempfile.TemporaryDirectory() as directory:

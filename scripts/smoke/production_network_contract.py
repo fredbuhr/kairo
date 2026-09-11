@@ -24,9 +24,15 @@ def main():
     with tempfile.NamedTemporaryFile(mode='w',suffix='.env') as file:
         file.write('\n'.join(k+'='+v for k,v in env.items()));file.flush()
         compose=['docker','compose','-p','kairo-d03-proof','--env-file',file.name,'-f','compose.yaml','-f','compose.production.yaml']
+        def redact(value):
+            for secret in env.values():
+                if len(secret) >= 24: value=value.replace(secret,'[redacted]')
+            return value
         def run(*args):
             result=subprocess.run([*compose,*args],cwd=ROOT,capture_output=True,text=True)
-            if result.returncode: raise AssertionError('production stack command failed: '+args[0]+' (output withheld)')
+            if result.returncode:
+                print(redact(result.stderr[-6000:]))
+                raise AssertionError('production stack command failed: '+args[0])
             return result.stdout.strip()
         try:
             run('up','-d','--wait','postgres')
@@ -56,6 +62,10 @@ def main():
             state=json.loads(subprocess.check_output(['docker','inspect',core_id],text=True))[0]['State']
             assert state['ExitCode']==0 and not state['OOMKilled'], 'Core did not stop cleanly'
             print('PASS: production provisioning/migration, Core restricted startup/authentication, static Web, real network allow/deny and clean shutdown')
+        except Exception:
+            result=subprocess.run([*compose,'logs','--no-color','--tail','90','kairo-core'],cwd=ROOT,capture_output=True,text=True)
+            print(redact(result.stdout))
+            raise
         finally:
             run('down','-v','--remove-orphans')
 
