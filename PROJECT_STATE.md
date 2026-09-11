@@ -11,6 +11,7 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 - H1 Memory/Auth handoff: PR #74, merge `3fa1aa5a67628c97ee4367e9a0224cff9086fbf0`.
 - H2 Code hygiene: PR #75, merge `31e53b88135ac2db4600bb00a4112bc14d46ba5d`.
 - H3a Dependency locks/frozen direct CI: PR #76, merge `ecc3394a648070b16ab4505e07706006999ab945`.
+- Canonical main checkpoint before H3b1: `31bc227b9a706842379f0ebfda29268f90c5b292`.
 - `AGENTS.md` and this file define repository recovery/resume discipline.
 - Rule: always fetch live `main` before acting. GitHub wins over chat memory or recorded checkpoint SHAs.
 
@@ -27,13 +28,14 @@ Product feature work remains paused until H5 is complete.
 2. **H2 — Code hygiene: complete and canonical.**
 3. **H3 — Reproducibility: split into bounded sub-gates.**
    - **H3a — Dependency locks/frozen direct CI: complete and canonical.**
-   - **H3b — Container reproducibility/image pinning: next; not started.**
+   - **H3b1 — Locked KAIRO container builds: implementation validated; PR/merge next.**
+   - **H3b2 — External image pinning/debt reduction: not started.**
 4. **H4 — Production/auth boundary: not started.**
 5. **H5 — Full revalidation + real-engine/production checks + post-audit tag: not started.**
 
-Active development branch: **none**.
-Active work pull request: **none**.
-Next implementation gate: **H3b only — Container reproducibility/image pinning**.
+Active development branch: `hardening/h3b1-container-locks`.
+Active work pull request: **none yet**.
+H3b1 validated implementation head: `8eaea7eced738e7caad63cd4c8ef1e89fb46f6fa`.
 
 ### H1 — Memory/Auth handoff
 
@@ -56,7 +58,7 @@ Canonical merge:
 - validated implementation head: `70febab5c06840620557d0fcefd596e20e3f9758`;
 - final PR head: `ca2464b70114de4d4d9ad5e91071f8f38982943f`.
 
-H2 removed the proven dead News implementation, obsolete bootstrap script, unused direct `boto3` dependencies and unused settings; added LF normalization plus focused Ruff/Bash static-quality checks. Final PR checks were green. A transient memory smoke timing race was confirmed by an unchanged-head rerun rather than hidden by a product-code change.
+H2 removed proven dead code/dependencies/settings, added LF normalization and focused Ruff/Bash static-quality checks, and remained intentionally narrow. Final PR checks were green.
 
 `hardening/h2-code-hygiene` is retired and must not be reused.
 
@@ -69,37 +71,60 @@ Canonical merge:
 - validated implementation head: `6a62b7ac8411543ddd6c4253675f00bae5538b62`;
 - final PR head: `215927227baaf051865d9a5b59c65cf2c0f934d0`.
 
-Canonical H3a changes:
+H3a added canonical `pnpm-lock.yaml`, root UV workspace `uv.lock`, `uv.toml` requiring `uv==0.12.13`, frozen/locked direct CI installs and a fail-closed reproducibility contract. Final PR head passed 9/9 workflows, including Foundation and the real Worker SIGKILL Research replay.
 
-1. Added root `pnpm-lock.yaml` for the JS/TS workspace.
-2. Added root `uv.lock` for the existing UV workspace (`services/core` + `services/worker`).
-3. Added `uv.toml` with `required-version = "==0.12.13"`; root `package.json` already pins `pnpm@10.15.1`.
-4. Reproducibility CI now proves `pnpm install --frozen-lockfile`, `uv lock --check`, required lockfile presence and toolchain-pin stability.
-5. Direct non-container CI paths in Foundation, UI, Research, MCP and News use locked UV execution.
-6. The reproducibility baseline/contract now fails closed if lockfiles/toolchain pins drift.
-7. Remaining Docker-context unlocked installs and unpinned/moving image references remain explicitly recorded debt for H3b.
+No Dockerfile or Compose file changed in H3a. Remaining container/image reproducibility debt was explicitly deferred to H3b.
 
-No Dockerfile or Compose file changed in H3a.
+`hardening/h3a-dependency-locks` is retired and must not be reused.
 
-Validation on exact implementation head `6a62b7ac...`: **9/9 workflows success**:
+### H3b1 — Locked KAIRO container builds
 
-- Reproducibility `34583114892`;
-- UI `34583114854`;
-- News ownership `34583114840`;
-- Foundation `34583114819`;
-- Autonomous Research `34583114839`, including real Worker SIGKILL replay;
-- MCP `34583114862`;
-- Multi-user isolation `34583114913`;
-- Documents `34583114942`;
-- Code quality `34583114843`.
+H3b1 deliberately solves **KAIRO-owned container dependency/build reproducibility only**. It does not pin the remaining third-party/moving image references; those remain H3b2.
 
-Final PR head `21592722...` also passed **9/9 pull-request workflows**. Important final runs include Foundation `34583611695` and Autonomous Research `34583611700`, both success; the latter retained the real Worker SIGKILL replay proof.
+Implementation on exact validated head `8eaea7eced738e7caad63cd4c8ef1e89fb46f6fa`:
 
-The temporary branch-only workflow used to bootstrap the initial lockfiles was deleted before the validated implementation head and never entered the PR diff.
+1. Added root `.dockerignore` so root build contexts remain bounded and exclude Git metadata, local environments, dependency caches/build output and backup staging.
+2. Switched the four KAIRO Compose builds (`kairo-core`, `kairo-worker`, `kairo-realtime`, `kairo-web`) from isolated service/app contexts to the repository root, with explicit Dockerfile paths.
+3. Core and Worker now consume the canonical root UV workspace via `uv sync --locked` instead of `uv pip install --system`, preserving the existing Core/Worker package split and Worker extras behavior.
+4. Core and Worker retain the historically validated Python runtime image digest, while the `uv`/`uvx` binaries are overlaid from `ghcr.io/astral-sh/uv:0.12.13` pinned to digest `sha256:b485bd65cc2cf1c9a93b3554012c9c3778cf7b1b5fd3d3096ce9e1226c97e1e6`, matching canonical `uv.toml`.
+5. Web and Realtime now consume root `pnpm-lock.yaml` and install with `--frozen-lockfile`.
+6. Realtime additionally copies the root `tsconfig.base.json`, required by its existing `../../tsconfig.base.json` inheritance before container-local TypeScript compilation.
+7. `config/reproducibility-baseline.json` advances to version 3: known unlocked container-install debt is now empty, and the four KAIRO Dockerfiles are required to contain their locked/frozen install modes.
+8. `scripts/smoke/reproducibility_contract.py` now fails closed if KAIRO container installs stop using the required frozen/locked modes.
+9. Reproducibility CI now actually builds all four KAIRO images from the canonical lockfiles, with Worker extras disabled only for this deterministic build proof.
 
-A non-fatal pnpm peer warning remains for `@react-three/fiber` versus React 19.3. Frozen install, typecheck and Web build pass; treat it as ecosystem warning unless it becomes a concrete incompatibility.
+Final implementation diff versus canonical pre-H3b1 `main` is exactly nine technical files before this checkpoint:
 
-`hardening/h3a-dependency-locks` is retired after merge and must not be reused. The connector does not expose branch-ref deletion, so the inert remote ref may remain.
+- `.dockerignore` — added;
+- `.github/workflows/reproducibility.yml`;
+- `apps/web/Dockerfile`;
+- `compose.yaml`;
+- `config/reproducibility-baseline.json`;
+- `scripts/smoke/reproducibility_contract.py`;
+- `services/core/Dockerfile`;
+- `services/realtime/Dockerfile`;
+- `services/worker/Dockerfile`.
+
+Validation discoveries were resolved inside H3b1 rather than hidden:
+
+1. Reproducibility run `34585085624` on head `df792094...` proved the old pinned Python runtime contained `uv 0.9.30`, incompatible with canonical `uv==0.12.13`.
+2. Reproducibility run `34585359120` on head `3db57091...` proved copying the new binary to `/bin` did not override the older `/usr/local/bin/uv`; the overlay destination was corrected to `/usr/local/bin`.
+3. Reproducibility run `34585537868` on head `90545f32...` proved Core, Worker and Web locked builds succeeded, while Realtime failed only because its inherited root `tsconfig.base.json` was absent from the image context; the required config is now copied explicitly.
+
+Validation on exact final implementation head `8eaea7ec...`: **8/8 push workflows success**:
+
+- Baseline reproducibility validation — run `34585734035` — success, including real builds of Core, Worker, Realtime and Web from canonical locked graphs;
+- Foundation validation — run `34585734054` — success;
+- Autonomous Research validation — run `34585734078` — success;
+- MCP tool registry validation — run `34585734103` — success;
+- Multi-user isolation validation — run `34585734081` — success;
+- Document ingestion validation — run `34585734034` — success;
+- UI workspace validation — run `34585734111` — success;
+- Code quality validation — run `34585734100` — success.
+
+News ownership is path-filtered and was not triggered by this H3b1 file set. No H3b1 failure remains on the validated head.
+
+H3b1 is not canonical until its PR is merged. Do not begin H3b2 on this branch.
 
 ## Canonical branch policy
 
@@ -120,15 +145,16 @@ The exact R7 baseline `6cf3647a...` passed the canonical workflow suite, includi
 
 ## Next action
 
-Perform **H3b only — Container reproducibility/image pinning** from a fresh branch created from live `main`.
+Finish **H3b1 only — Locked KAIRO container builds**:
 
-H3b should remain bounded to container reproducibility:
+1. verify the final diff remains the nine H3b1 technical files plus this checkpoint file only;
+2. open a PR from `hardening/h3b1-container-locks` to live `main`;
+3. require all final PR-head checks to be green;
+4. merge H3b1;
+5. update canonical `PROJECT_STATE.md` with the PR/merge result and mark H3b1 complete;
+6. retire the H3b1 branch;
+7. stop before H3b2.
 
-- make Core/Worker/Web/Realtime container installs consume locked dependency graphs rather than resolving freely inside isolated Docker contexts;
-- adjust build contexts/Dockerfiles only as much as required to expose canonical lockfiles safely;
-- reduce moving/unpinned image references, prioritizing critical runtime/infrastructure images;
-- update the reproducibility baseline only alongside concrete debt reduction;
-- do not mix H4 production serving, public URLs, JWT/Web-MCP auth-boundary work or product features;
-- stop after H3b merge/checkpoint before beginning H4.
+After H3b1 is canonical, **H3b2 — External image pinning/debt reduction** is next. H3b2 must be created fresh from live `main` and should reduce moving/unpinned third-party image references without mixing H4 production/auth-boundary work.
 
 Do not begin Gantt, Calendar, Brain, Finance/Crypto, voice or other product work until H5 is complete.
