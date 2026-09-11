@@ -30,6 +30,9 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
+      - name: Prove uv workspace lockfile matches declarations
+        run: uv lock --check
+
       - name: Prepare development environment
         run: cp .env.example .env
 
@@ -37,4 +40,4 @@ jobs:
         run: python -m compileall scripts/smoke/news_ownership_contract.py services/core/src/kairo_core/news.py
 
       - name: Prove News ownership boundaries
-        run: uv run --project services/core python scripts/smoke/news_ownership_contract.py
+        run: uv run --locked --project services/core python scripts/smoke/news_ownership_contract.py

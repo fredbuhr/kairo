@@ -1,8 +1,9 @@
 {
-  "version": 1,
+  "version": 2,
   "baseline_date": "2026-09-11",
-  "validated_parent_sha": "5df3f8872a899c886a588c9232053e5402260a98",
+  "validated_parent_sha": "9d2ff654552efd27461b0b395ae4305b5ce550eb",
   "expected_package_manager": "pnpm@10.15.1",
+  "expected_uv_version": "==0.12.13",
   "validated_digest_pins": {
     "services/core/Dockerfile": "ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58",
     "services/worker/Dockerfile": "ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58"
@@ -44,5 +45,5 @@
     "pnpm_no_frozen_lockfile": ["apps/web/Dockerfile", "services/realtime/Dockerfile"],
     "uv_direct_install": ["services/core/Dockerfile", "services/worker/Dockerfile"]
   },
-  "known_missing_lockfiles": ["pnpm-lock.yaml", "services/core/uv.lock", "services/worker/uv.lock"]
+  "required_lockfiles": ["pnpm-lock.yaml", "uv.lock"]
 }

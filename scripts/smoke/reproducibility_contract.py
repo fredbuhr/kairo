@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -66,6 +67,19 @@ def main() -> None:
             f"packageManager drift: expected {expected_package_manager!r}, got {package_manager!r}"
         )
 
+    uv_config = tomllib.loads((ROOT / "uv.toml").read_text(encoding="utf-8"))
+    uv_version = uv_config.get("required-version")
+    expected_uv_version = baseline["expected_uv_version"]
+    if uv_version != expected_uv_version:
+        problems.append(
+            f"uv toolchain drift: expected {expected_uv_version!r}, got {uv_version!r}"
+        )
+
+    required_lockfiles = set(baseline["required_lockfiles"])
+    missing_lockfiles = sorted(path for path in required_lockfiles if not (ROOT / path).is_file())
+    if missing_lockfiles:
+        problems.append(f"required dependency lockfiles are missing: {missing_lockfiles}")
+
     all_images = _compose_images() | _dockerfile_images()
     actual_unpinned = {ref for ref in all_images if "@sha256:" not in ref[1]}
     expected_unpinned = {tuple(item) for item in baseline["known_unpinned_images"]}
@@ -105,22 +119,13 @@ def main() -> None:
             f"expected={sorted(uv_expected)}, actual={sorted(uv_actual)}"
         )
 
-    expected_missing = set(baseline["known_missing_lockfiles"])
-    still_missing = {path for path in expected_missing if not (ROOT / path).exists()}
-    if still_missing != expected_missing:
-        newly_present = sorted(expected_missing - still_missing)
-        problems.append(
-            "lockfile debt has improved; promote the new lockfile(s) by updating the baseline: "
-            f"{newly_present}"
-        )
-
     if problems:
         raise SystemExit("REPRODUCIBILITY CONTRACT FAILED:\n- " + "\n- ".join(problems))
 
     print(
-        "REPRODUCIBILITY CONTRACT PASSED: validated build digests are fixed, the pnpm "
-        "toolchain is fixed, and all remaining unpinned-image/unlocked-install/lockfile "
-        "debt exactly matches the explicit G50 baseline."
+        "REPRODUCIBILITY CONTRACT PASSED: canonical pnpm/uv lockfiles and toolchains are "
+        "required, validated build digests are fixed, and all remaining unpinned-image/"
+        "unlocked-container-install debt exactly matches the explicit H3a baseline."
     )
 
 
