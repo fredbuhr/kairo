@@ -1,7 +1,7 @@
 {
-  "version": 5,
+  "version": 6,
   "baseline_date": "2026-09-11",
-  "validated_parent_sha": "2f57702c184c2b97723bcd2a095fe6245d5bdfd2",
+  "validated_parent_sha": "8a85918ab8fed681093a32ba1b2e1d4242050433",
   "expected_package_manager": "pnpm@10.15.1",
   "expected_uv_version": "==0.12.13",
   "validated_digest_pins": {
@@ -13,6 +13,9 @@
   "validated_compose_digest_pins": [
     ["compose.yaml", "nats:2.14.5-alpine@sha256:d4ac35882ac65aff236cd65b9d3fa4d24332c681e1a85f94eedccd3cdd65b1da"],
     ["compose.yaml", "pgvector/pgvector:0.8.6-pg17@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f"],
+    ["compose.yaml", "temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}@sha256:dbc5fcd6ee8f0f4d808bf765af9a87dea9d8a283abfdcfbd2fc148496ba66107"],
+    ["compose.yaml", "temporalio/server:${TEMPORAL_VERSION}@sha256:b5ecdb8282bededae2a10c36e8d862e27d0bc2d247fc73c5416025997ab4a1da"],
+    ["compose.yaml", "temporalio/ui:${TEMPORAL_UI_VERSION}@sha256:810eba47f77a89b0e64e2e751478ca585d037bbd90c0951a2974a92a6c5adeb9"],
     ["compose.yaml", "valkey/valkey:8.1.10-alpine@sha256:d2e18f3410b6f616de1417f570fa55261af2898b9c5b2cfb6781ce2373ea43d1"]
   ],
   "known_unpinned_images": [
@@ -38,9 +41,6 @@
     ["compose.yaml", "openbao/openbao:2.6.2"],
     ["compose.yaml", "quay.io/keycloak/keycloak:26.7.3"],
     ["compose.yaml", "rotki/rotki:latest"],
-    ["compose.yaml", "temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}"],
-    ["compose.yaml", "temporalio/server:${TEMPORAL_VERSION}"],
-    ["compose.yaml", "temporalio/ui:${TEMPORAL_UI_VERSION}"],
     ["compose.yaml", "vllm/vllm-openai:latest"]
   ],
   "known_unlocked_install_files": {

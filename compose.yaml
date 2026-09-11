@@ -70,7 +70,7 @@ services:
     networks: [kairo]
 
   temporal-admin-tools:
-    image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}
+    image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}@sha256:dbc5fcd6ee8f0f4d808bf765af9a87dea9d8a283abfdcfbd2fc148496ba66107
     restart: on-failure:6
     environment:
       DB: postgres12
@@ -89,7 +89,7 @@ services:
     networks: [kairo]
 
   temporal:
-    image: temporalio/server:${TEMPORAL_VERSION}
+    image: temporalio/server:${TEMPORAL_VERSION}@sha256:b5ecdb8282bededae2a10c36e8d862e27d0bc2d247fc73c5416025997ab4a1da
     restart: unless-stopped
     environment:
       DB: postgres12
@@ -115,7 +115,7 @@ services:
     networks: [kairo]
 
   temporal-create-namespace:
-    image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}
+    image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}@sha256:dbc5fcd6ee8f0f4d808bf765af9a87dea9d8a283abfdcfbd2fc148496ba66107
     restart: on-failure:5
     environment:
       TEMPORAL_ADDRESS: temporal:7233
@@ -131,7 +131,7 @@ services:
     networks: [kairo]
 
   temporal-ui:
-    image: temporalio/ui:${TEMPORAL_UI_VERSION}
+    image: temporalio/ui:${TEMPORAL_UI_VERSION}@sha256:810eba47f77a89b0e64e2e751478ca585d037bbd90c0951a2974a92a6c5adeb9
     restart: unless-stopped
     environment:
       TEMPORAL_ADDRESS: temporal:7233
