@@ -8,7 +8,7 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 - Last integrated product milestone: **G51 Daily Spine**.
 - G51 merge commit: `f1dbb6e6ae1a4d419bc35a924639be713263fb77`.
 - Last fully revalidated product/checkpoint parent before repository-cleanup-only commits: `69cf0dd52eea93f7e5b9bf7413cde2cb51c2c8b5`.
-- R5b pre-deletion checkpoint: `dfaa9ace5bb8a8bc849fed655f72744092c0d593`.
+- R5b completion checkpoint before R5c classification: `bc72c7043ac1c0ba6ae62fb8f62d2aa7aed728a5`.
 - The seven workflows triggered on the R2 checkpoint passed, including Foundation and real Research Worker `SIGKILL` replay. News ownership passed on the exact validated PR #73 head where all eight workflows were green.
 - `AGENTS.md` and this file are part of the canonical line.
 - Rule: always fetch the live `main` head before acting. Recorded SHAs are checkpoints, not permission to ignore newer GitHub state.
@@ -22,120 +22,138 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 - R4 — branch and PR inventory: **complete**.
 - R5a — close stale open PRs: **complete**.
 - R5b — obvious absorbed/duplicate branch cleanup: **complete**.
+- R5c — superseded divergent branch cleanup: **classification complete; deletion mutation pending**.
 - Active development branch: **none**.
 - Active work pull request: **none**.
 - Open pull requests: **0**.
 
-## R5b result — branch cleanup complete
+## R5c starting state
 
-R5b was completed against live GitHub state after an independent post-delete verification.
+R5c started from the independently verified post-R5b GitHub state:
 
-### Verified mutation
+- total branches: **49**;
+- canonical branch: **1** (`main`);
+- non-canonical branches reviewed: **48**;
+- product-code delta between the local full-history comparison checkpoint (`dfaa9ace...`) and live `main` at R5b completion was documentation-only (`PROJECT_STATE.md`), so R5c branch/code comparisons remain valid for product behavior.
 
-- Branches before R5b deletion: **88**.
-- Branches deleted: **39**.
-- Branches remaining: **49**.
-- Strict ancestors of `main` deleted: **33**.
-- Exact duplicate snapshot refs deleted: **6**.
-- Product code changed by R5b: **none**.
+## R5c retention decision
 
-### Protected refs verified after deletion
+After comparing actual commit ancestry, unique commits/files, current `main`, and the retained prototype reservoir, only two non-canonical refs have explicit independent salvage value.
 
-These three refs remain present at the expected SHAs:
+### KEEP TEMPORARILY — prototype reservoir
 
-- `main` — `dfaa9ace5bb8a8bc849fed655f72744092c0d593` before this checkpoint update;
-- `feat/kairo-test-interface-v1` — `ed12d503aa500a6e7700e9ac82d823e0e815f33d`;
-- `consolidate/g49-research-durable-stages` — `57a1a217f466c56446d84d863f4b9b09855e4c4e`.
+- `feat/kairo-test-interface-v1`
+  - tip at R5c classification: `ed12d503aa500a6e7700e9ac82d823e0e815f33d`;
+  - large divergent experimental reservoir covering Brain/graph, Gantt/planning, Calendar, Desktop/Tauri, Automations, Finance, Knowledge, Tools, lifecycle/security and related ADR/test work;
+  - never merge wholesale;
+  - later salvage must copy isolated components into a fresh branch based on current `main`.
 
-`feat/kairo-test-interface-v1` remains a temporary prototype/salvage reservoir only. It must never be merged wholesale.
+### KEEP TEMPORARILY — focused Research design reservoir
 
-`consolidate/g49-research-durable-stages` remains a temporary Research design reservoir only. Current `main` owns the validated Research behavior.
+- `consolidate/g49-research-durable-stages`
+  - tip at R5c classification: `57a1a217f466c56446d84d863f4b9b09855e4c4e`;
+  - three unique commits versus canonical G48 lineage;
+  - preserves the alternative durable Research-stage activity design (`research_stages.py` plus Worker registration/workflow changes);
+  - current `main` already owns validated Research behavior and real Worker `SIGKILL` replay;
+  - retain only for later isolated design review, never resume as an active development branch.
 
-### Deleted in R5b
+## R5c deletion decision — 46 refs
 
-#### Absorbed Block 2 refs — 10
+The other **46** non-canonical branches have no independent branch-level salvage value and are approved for deletion. Their histories are historical evidence only; none should be resumed as an implementation workspace.
 
-- `block2/assistant-conversation-ownership`
-- `block2/research-context-pack`
-- `block2/research-crash-replay`
-- `block2/research-derived-memory-context`
-- `block2/research-document-context`
-- `block2/research-grounded-synthesis`
-- `block2/research-heartbeat-recovery`
-- `block2/research-result-contract`
-- `block2/research-synthesis-checkpoints`
-- `block2/research-web-mcp`
+### A. Already contained by canonical/prototype history — 4 refs
 
-#### Absorbed Block 3 refs — 19
+- `feat/canonical-document-ingestion` — strict ancestor of `main`;
+- `fix/embedded-usage-correlation` — strict ancestor of `main`;
+- `feat/research-synthesis-checkpoints` — fully preserved inside `feat/kairo-test-interface-v1`;
+- `feat/research-command-handoff` — fully preserved inside `feat/kairo-test-interface-v1`.
 
-- `block3/cockpit-extra-panels`
-- `block3/cockpit-layout-contract`
-- `block3/cockpit-layout-persistence`
-- `block3/cockpit-mounted`
-- `block3/cockpit-panel-controls`
-- `block3/cockpit-shell-component`
-- `block3/command-center-generic-polling`
-- `block3/command-center-generic-tasks`
-- `block3/g51-daily-spine`
-- `block3/panel-command-center`
-- `block3/panel-command-center-component`
-- `block3/panel-news-component`
-- `block3/panels-mounted`
-- `block3/project-bound-task-access`
-- `block3/project-ownership`
-- `block3/projects-workspace-minimal`
-- `block3/research-workspace-minimal`
-- `block3/research-workspace-mounted`
-- `block3/task-run-artifact-ownership`
+### B. Divergent Block 2 alternatives now superseded by current `main` — 6 refs
 
-#### Absorbed consolidation/stabilization refs — 4
+- `block2/context-pack-documents`;
+- `block2/research-crash-recovery`;
+- `block2/research-crash-replay-proof`;
+- `block2/research-e2e-proof`;
+- `block2/web-mcp-bootstrap`;
+- `block2/web-mcp-search`.
 
-- `consolidate/g48-ownership`
-- `consolidate/g49-research-replay`
-- `consolidate/g50-baseline`
-- `stabilize/daily-v1`
+These refs contain old alternative implementations/proofs, but their useful capabilities are represented by the current canonical line through the current Research Context Pack (`research_context.py` / `research_context_pack.py`), first-party Web MCP (`web_mcp.py`, `web_mcp_bootstrap.py`, `compose.web-mcp.yaml`, ADR-025), ADR-027 Context Pack semantics, and the canonical real Worker `SIGKILL` replay proof. The old filenames such as `web_mcp_server.py`, `first_party_tools.py` and the older crash fixtures are not the active contracts.
 
-#### Exact duplicate snapshot refs — 6
+### C. Legacy V0 / OpenClaw proof lineage — 18 refs
 
-All six pointed to snapshot `51977f987a3edd260b4b3ba2adc4794746fb6598` immediately before deletion:
+- `bootstrap/kairo-foundations`;
+- `chore/core-ci`;
+- `docs/record-at04-live-proof`;
+- `docs/record-sigkill-recovery-proof`;
+- `docs/runtime-proof-runbook`;
+- `feat/background-turns`;
+- `feat/gate3-autonomy-contract`;
+- `feat/gate5-routing-accounting`;
+- `feat/job-ledger`;
+- `feat/job-model-usage-accounting`;
+- `feat/job-step-checkpoints`;
+- `feat/openclaw-job-step-checkpoints`;
+- `feat/openclaw-kairo-tools`;
+- `feat/reconcile-queued-kairo-jobs`;
+- `feat/v0-core-storage`;
+- `fix/gateway-cron-background-jobs`;
+- `fix/openclaw-plugin-packaging`;
+- `tmp-check`.
 
-- `feat/kairo-test-interface-v1-backup`
-- `feat/kairo-test-interface-v1-draft`
-- `feat/kairo-test-interface-v1-finalreview`
-- `feat/kairo-test-interface-v1-pr`
-- `feat/kairo-test-interface-v1-review`
-- `tmp-noop`
+This lineage belongs to the superseded OpenClaw/filesystem V0. Current `main` explicitly records that OpenClaw was a proof runtime and is removed from the target architecture; its durable-execution lessons were reimplemented behind Temporal, PostgreSQL canonical state, policy and accounting contracts. Old OpenClaw plugin/runtime/package files are historical only.
 
-## R5c input — remaining divergent/historical refs
+### D. Superseded platform/capability implementation lines — 18 refs
 
-R5c begins from **49 branches total**, including `main` and the two explicit salvage reservoirs.
+- `architecture/full-platform-foundation`;
+- `feat/autonomous-research-agent`;
+- `feat/autonomous-research-v1`;
+- `feat/block1-completion-and-intelligence-foundation`;
+- `feat/block1-system-of-record`;
+- `feat/block1-trust-boundary`;
+- `feat/block2-agents-memory`;
+- `feat/block2-model-call-replay-safety`;
+- `feat/block2-model-transaction-safety`;
+- `feat/block2-safe-autonomy-model-gateway`;
+- `feat/command-kernel-v1`;
+- `feat/conversational-command-router`;
+- `feat/docling-document-ingestion`;
+- `feat/langfuse-correlation`;
+- `feat/mcp-tool-registry`;
+- `feat/projects-tasks-workspace`;
+- `feat/rebuildable-memory-projections`;
+- `feat/semantic-capability-router`.
 
-The six divergent Block 2 refs discovered during R5b must be reviewed rather than deleted by name:
+These are predecessor implementations of capabilities now owned by the canonical platform. Current `main` contains the evolved auth/Keycloak/OpenBao boundary, model gateway/accounting, Command Kernel/routing, Docling Documents, MCP registry/tools, memory projections, autonomous Research, and canonical Projects/Tasks workspace. `feat/projects-tasks-workspace` has unique historical UI/API files, but current `main` has the canonical `ProjectsWorkspace.tsx`, owner-scoped Project/Task access and G51 Task planning/Today model; the older workspace branch is not an independent product line.
 
-- `block2/context-pack-documents` — previously observed as divergent with 28 commits ahead;
-- `block2/research-crash-recovery` — previously observed as divergent with 4 commits ahead;
-- `block2/research-crash-replay-proof` — previously observed as divergent with 25 commits ahead;
-- `block2/research-e2e-proof` — previously observed as divergent with 19 commits ahead;
-- `block2/web-mcp-bootstrap` — previously observed as divergent with 14 commits ahead;
-- `block2/web-mcp-search` — previously observed as divergent with 5 commits ahead.
+## R5c expected post-delete branch set
 
-Other remaining refs include old V0/OpenClaw, architecture-reset, early Block 1/2, job-ledger, command-router, document-ingestion, model-gateway, MCP, memory, project/task and Research lines. R5c must compare each remaining non-protected branch against live `main` and, where relevant, against `feat/kairo-test-interface-v1` before deletion.
+After deleting the 46 approved refs, GitHub should contain exactly **3 branches**:
+
+1. `main` — the only canonical integrated source of truth;
+2. `feat/kairo-test-interface-v1` — temporary broad prototype/salvage reservoir;
+3. `consolidate/g49-research-durable-stages` — temporary focused Research design reservoir.
+
+No other branch should remain after R5c.
+
+## R5c mutation guard
+
+R5c is **not complete yet** until the 46 approved refs are actually deleted on GitHub and the 3-branch postcondition is independently verified.
+
+Before deletion:
+
+1. re-fetch live GitHub branch state;
+2. require exactly 49 branches;
+3. require `main`, `feat/kairo-test-interface-v1`, and `consolidate/g49-research-durable-stages` to remain on the expected SHAs for this checkpoint;
+4. require every deletion candidate to remain on its classified SHA;
+5. delete exactly the 46 refs listed above;
+6. verify exactly 3 branches remain;
+7. verify the three protected refs still exist and did not move unexpectedly;
+8. update this file to mark R5c complete;
+9. stop before R6.
 
 ## Next action
 
-Perform **R5c only — superseded divergent branch cleanup**.
-
-R5c rules:
-
-1. fetch live `main` and the full 49-branch inventory first;
-2. preserve `main`, `feat/kairo-test-interface-v1`, and `consolidate/g49-research-durable-stages` while evaluating salvage value;
-3. classify each remaining non-canonical branch by actual unique commits/files, not by branch name;
-4. verify whether unique material is already represented in `main` or preserved inside the retained prototype reservoir;
-5. delete only branches proven to have no independent salvage value;
-6. stop and verify the final branch set before R6;
-7. update this checkpoint with the resulting canonical/salvage branch inventory.
-
-Do **not** start R6, Gantt, Calendar, Brain, Finance/Crypto or any other product slice during R5c.
+Perform **the R5c deletion mutation only**. Do not begin R6 until the remote deletion is independently verified.
 
 ## Repository reset sequence
 
@@ -146,7 +164,7 @@ Do **not** start R6, Gantt, Calendar, Brain, Finance/Crypto or any other product
 - R4 — inventory branches and PRs: **complete**
 - R5a — close stale open PRs: **complete**
 - R5b — remove obvious absorbed/duplicate branches: **complete**
-- R5c — remove remaining superseded divergent branches after re-check: **next**
+- R5c — remove remaining superseded divergent branches after re-check: **classification complete, deletion pending**
 - R6 — inventory repository files/directories: active / intentional scaffold / historical / duplicate / removable
 - R7 — establish a clean tagged baseline with green CI
 
