@@ -2,7 +2,7 @@ name: kairo
 
 services:
   postgres:
-    image: pgvector/pgvector:0.8.6-pg17
+    image: pgvector/pgvector:0.8.6-pg17@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -33,7 +33,7 @@ services:
     networks: [kairo]
 
   valkey:
-    image: valkey/valkey:8.1.10-alpine
+    image: valkey/valkey:8.1.10-alpine@sha256:d2e18f3410b6f616de1417f570fa55261af2898b9c5b2cfb6781ce2373ea43d1
     restart: unless-stopped
     command: ["valkey-server", "--appendonly", "yes"]
     ports:
@@ -43,7 +43,7 @@ services:
     networks: [kairo]
 
   nats:
-    image: nats:2.14.5-alpine
+    image: nats:2.14.5-alpine@sha256:d4ac35882ac65aff236cd65b9d3fa4d24332c681e1a85f94eedccd3cdd65b1da
     restart: unless-stopped
     command: ["-js", "-sd", "/data", "-m", "8222"]
     ports:
