@@ -186,7 +186,7 @@ class TaskExecutionWorkflow:
             if capability == "tool.invoke":
                 await workflow.execute_activity(
                     fail_tool_invocation,
-                    {"task_input": task_input, "error": str(exc)},
+                    {"task_id": payload["task_id"], "task_input": task_input, "error": str(exc)},
                     start_to_close_timeout=timedelta(seconds=30),
                     retry_policy=ACTIVITY_RETRY,
                 )

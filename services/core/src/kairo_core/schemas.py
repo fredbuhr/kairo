@@ -25,7 +25,7 @@ class TaskCreate(BaseModel):
     project_id: uuid.UUID
     title: str = Field(min_length=1, max_length=320)
     description: str | None = None
-    owner_type: str = Field(default="user", max_length=32)
+    owner_type: Literal["user"] = "user"
     owner_ref: str | None = None
     authority_ceiling: int = Field(default=1, ge=0, le=5)
     budget_usd: Decimal | None = Field(default=None, ge=0)
@@ -44,6 +44,10 @@ class TaskCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_planned_window(self) -> "TaskCreate":
+        # Specialist Tasks must be built by their Core adapters, which bind resources and owners.
+        # The generic public route is for user Tasks and the side-effect-free foundation proof.
+        if self.input.get("capability") not in (None, "", "foundation"):
+            raise ValueError("Use the capability's dedicated API to create an execution Task")
         if self.planned_end_at is not None and self.planned_start_at is None:
             raise ValueError("planned_end_at requires planned_start_at")
         if (

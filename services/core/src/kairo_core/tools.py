@@ -165,6 +165,7 @@ class ToolInvocationComplete(BaseModel):
 
 
 class ToolInvocationFail(BaseModel):
+    task_id: uuid.UUID
     error: str = Field(min_length=1, max_length=4000)
 
 
@@ -771,6 +772,8 @@ async def fail_tool_invocation(
     invocation = await session.get(ToolInvocation, invocation_id, with_for_update=True)
     if not invocation:
         raise HTTPException(status_code=404, detail="Tool invocation not found")
+    if invocation.task_id != body.task_id:
+        raise HTTPException(status_code=409, detail="Failure Task does not belong to invocation")
     if invocation.status == "completed":
         return invocation
 

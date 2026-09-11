@@ -55,6 +55,31 @@ Default is deny.
 
 Every side-effecting Temporal activity must receive a KAIRO policy decision or a verifiable approval token/capability scoped to that exact activity. A NATS event, model output or tool availability is never sufficient authorization.
 
+## Task dispatch and resource identity
+
+The generic public `POST /v1/tasks` accepts user-owned planning Tasks and the `foundation`
+execution proof. It rejects internal capabilities, unknown capabilities and `system`/`agent`
+owners with 422. Specialist executions must enter through their dedicated Core APIs, which
+establish ownership, policy inputs and canonical resource links. Core adapters construct ORM
+Tasks directly; clients must not manufacture their internal input payloads.
+
+Core checks those links both before starting Temporal and when a queued execution begins:
+ToolInvocation and DocumentVersion must point back to the executing Task; semantic routing
+must match the Command's routing Task; memory uses its deterministic generation identity,
+system owner and memory Project; News and Research requesters must match the Project owner.
+Unknown or invalid bindings return 409 before dispatch, including Tasks created before this
+restriction. Invalid legacy queued Tasks remain blocked for operator inspection; this change
+does not automatically delete or repair them.
+
+The Worker also compares tool context with the current Task before returning a completed
+result or calling the tool. A completed result remains replayable by its own Task. Terminal
+tool failure propagation carries the executing `task_id`, which Core checks before any ledger
+mutation. Core and Worker must be upgraded together because this internal failure request now
+requires that field. Reverting the restriction would reopen the audited dispatch vulnerability.
+
+These controls protect against public-client dispatch forgery. They do not make the shared
+internal service token a per-Task credential, and do not complete the production/auth review.
+
 ## Secrets
 
 OpenBao is the source for service/integration secret material.

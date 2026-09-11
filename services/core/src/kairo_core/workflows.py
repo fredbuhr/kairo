@@ -10,7 +10,8 @@ from .command_models import CommandRecord
 from .db import get_session
 from .document_models import Document, DocumentVersion
 from .events import append_audit, enqueue_domain_event
-from .models import Artifact, Task, WorkflowExecution
+from .models import Artifact, Project, Task, WorkflowExecution
+from .tool_models import ToolInvocation
 from .project_access import get_owned_task
 from .schemas import (
     ArtifactRead,
@@ -210,6 +211,7 @@ async def run_task(
     task = await session.get(Task, task_id, with_for_update=True)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    await _require_execution_binding(task, session)
     if task.status == "completed":
         raise HTTPException(status_code=409, detail="Completed task cannot be started again")
 
@@ -336,6 +338,40 @@ async def run_task(
     )
 
 
+async def _require_execution_binding(task: Task, session: AsyncSession) -> None:
+    """Validate the current Task, including legacy inputs, before dispatching trusted activities."""
+
+    value = task.input or {}
+    capability = str(value.get("capability") or "foundation")
+    if capability == "foundation":
+        return
+    bound = False
+    try:
+        if capability == "tool.invoke":
+            invocation = await session.get(ToolInvocation, uuid.UUID(str(value.get("tool_invocation_id"))))
+            bound = invocation is not None and invocation.task_id == task.id
+        elif capability == "document.ingest":
+            version = await session.get(DocumentVersion, uuid.UUID(str(value.get("document_version_id"))))
+            bound = version is not None and version.task_id == task.id
+        elif capability == "assistant.route.semantic":
+            command = await session.get(CommandRecord, uuid.UUID(str(value.get("command_id"))))
+            bound = command is not None and (command.result_json or {}).get("routing_task_id") == str(task.id)
+        elif capability == "memory.project":
+            # Reuse the canonical identity rule, including old generations still in flight.
+            from .memory import MEMORY_PROJECT_ID, _task_id
+
+            expected = _task_id(uuid.UUID(str(value.get("source_id"))), int(value.get("projection_generation") or 1))
+            bound = task.id == expected and task.project_id == MEMORY_PROJECT_ID and task.owner_type == "system"
+        elif capability in {"news.brief", "research.autonomous"}:
+            project = await session.get(Project, task.project_id)
+            subject = str(value.get("requester_subject") or "").strip()
+            bound = bool(subject) and project is not None and project.owner_subject == subject
+    except (ValueError, TypeError, AttributeError):
+        bound = False
+    if not bound:
+        raise HTTPException(status_code=409, detail="Task capability resource binding is invalid")
+
+
 @router.post("/v1/tasks/{task_id}/run", response_model=TaskRunResponse)
 async def run_owned_task(
     task_id: uuid.UUID,
@@ -388,6 +424,7 @@ async def internal_start_execution(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
+    await _require_execution_binding(task, session)
     if execution.status not in {"running", "completed"}:
         now = datetime.now(UTC)
         execution.status = "running"

@@ -301,12 +301,23 @@ def main() -> None:
     )
     fresh_invocation = fresh["invocation"]
 
+    # Failure propagation cannot change an invocation from another executing Task.
+    json_request(
+        "POST",
+        f"/internal/v1/tool-invocations/{fresh_invocation['id']}/fail",
+        expected=409,
+        headers=INTERNAL,
+        payload={"task_id": created["task_id"], "error": "foreign Task must be rejected"},
+    )
+    _, unchanged = json_request("GET", f"/v1/tool-invocations/{fresh_invocation['id']}")
+    assert unchanged["status"] == "pending" and unchanged["last_error"] is None, unchanged
+
     # Terminal Worker failure propagation is idempotent in the canonical ledger.
     _, failed = json_request(
         "POST",
         f"/internal/v1/tool-invocations/{fresh_invocation['id']}/fail",
         headers=INTERNAL,
-        payload={"error": "simulated terminal policy/runtime failure"},
+        payload={"task_id": fresh["task_id"], "error": "simulated terminal policy/runtime failure"},
     )
     assert failed["status"] == "failed", failed
     assert "simulated terminal" in failed["last_error"], failed
@@ -314,7 +325,7 @@ def main() -> None:
         "POST",
         f"/internal/v1/tool-invocations/{fresh_invocation['id']}/fail",
         headers=INTERNAL,
-        payload={"error": "simulated terminal policy/runtime failure"},
+        payload={"task_id": fresh["task_id"], "error": "simulated terminal policy/runtime failure"},
     )
     assert failed_again["status"] == "failed", failed_again
 

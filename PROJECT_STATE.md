@@ -40,12 +40,12 @@ Product feature work remains paused until H5 is complete.
      - **H3b2d — Backup/restore operations digest pins: complete and canonical.**
      - **H3b2e — Final external image digest pins: complete and canonical.**
      - **Remaining H3b2 image debt on canonical main: 0 references.**
-4. **H4 — Production/auth boundary: not started.**
+4. **H4 — Production/auth boundary: in progress; first slice is Task dispatch isolation.**
 5. **H5 — Full revalidation + real-engine/production checks + post-audit tag: not started.**
 
-Active development branch: **none**.
-Active work pull request: **none**.
-Next implementation gate: **H4 first security slice — close public Task dispatch / execution binding P0**.
+Active development branch: **`hardening/h4-task-dispatch-isolation`**, from live `main` `faa199a66c8b40230c6c52cf2df5fce6bf2ad92f`.
+Active work pull request: **being opened for H4 Task dispatch isolation**.
+Current implementation gate: **H4 first security slice — close public Task dispatch / execution binding P0**.
 H3b2e merged as `6286819f1cf924dd1338311e8e43a1941c496dba`. `hardening/h3b2e-final-image-pins` is retired and must not be reused. Product work remains paused.
 
 ### H1 — Memory/Auth handoff
@@ -388,10 +388,19 @@ The exact R7 baseline `6cf3647a...` passed the canonical workflow suite, includi
 
 ## Next action
 
-Start a fresh **H4 security slice** from live `main` to close the P0 public Task/internal capability dispatch boundary recorded in the independent audit. This explicit next gate is authorized by the current audit mandate; no product features are included.
+Finish the active **H4 Task dispatch isolation slice**, validate its final head, merge with an expected-head guard and update this checkpoint. This explicit gate is authorized by the current audit mandate; no product features are included.
 
 - Reject public creation of tasks reserved for internal capability dispatch and system/agent identity.
 - Verify runtime Task/resource bindings before returning completed tool results or propagating failures; cover already-created foreign-task payloads.
 - Add authenticated two-user regression evidence and retain legitimate replay, ownership, Research and policy behavior.
 - Keep remaining H4 production/resource work and H5 real-engine/load validation open.
 - Do not reuse the retired H3b2e branch.
+
+### H4 Task dispatch isolation — work in progress
+
+- Public Task creation now accepts only user ownership and default/`foundation` dispatch. Internal/unknown capabilities must use dedicated Core adapters.
+- Core validates Task/resource bindings before Temporal dispatch and again at internal execution start, including legacy queued Tasks. The Worker checks tool Task identity before the completed-result fast path; terminal failure requests carry and validate the current Task ID before touching the invocation ledger.
+- New Core/Worker contracts cover reserved dispatch, every existing specialist binding, missing/foreign Task context, legitimate completed replay and failure transport. The authenticated two-user smoke now covers forged public creation, a real legacy queued Task, foreign pending/completed invocation protection, no leaked Artifact and real Worker replay for the rightful owner.
+- The Research boundary fixture now uses the dedicated Research API; tool failure fixtures include the newly required Task ID. Core and Worker must be released together; invalid legacy queued Tasks remain blocked for inspection.
+- Local source compilation, the four memory wait regressions and reproducibility contract passed. Application dependency and Docker execution are unavailable in this workspace; GitHub contract/integration CI is the required remaining proof. Do not merge while those final-head checks are pending or failing.
+- Remaining production/resource/security findings and H5 stay open. No blanket production or multi-user security claim follows from closing this specific P0.

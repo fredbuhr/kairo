@@ -77,14 +77,18 @@ async def _complete(invocation_id: str, result: dict[str, Any]) -> None:
         response.raise_for_status()
 
 
-async def _fail(invocation_id: str, error: str) -> None:
+async def _fail(invocation_id: str, task_id: str, error: str) -> bool:
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.post(
             f"{settings.kairo_core_url.rstrip('/')}/internal/v1/tool-invocations/{invocation_id}/fail",
             headers=_headers(),
-            json={"error": error[:4000]},
+            json={"task_id": task_id, "error": error[:4000]},
         )
+        if response.status_code == 409:
+            # A forged/legacy Task must fail itself without changing another invocation.
+            return False
         response.raise_for_status()
+        return True
 
 
 def _result_payload(result: Any) -> dict[str, Any]:
@@ -125,8 +129,11 @@ async def fail_tool_invocation(payload: dict[str, Any]) -> dict[str, Any]:
     if not invocation_id:
         raise RuntimeError("tool.invoke failure propagation requires tool_invocation_id")
     error = str(payload.get("error") or "tool invocation failed")
-    await _fail(invocation_id, error)
-    return {"tool_invocation_id": invocation_id, "status": "failed"}
+    task_id = str(payload.get("task_id") or "")
+    if not task_id:
+        raise RuntimeError("tool.invoke failure propagation requires task_id")
+    applied = await _fail(invocation_id, task_id, error)
+    return {"tool_invocation_id": invocation_id, "status": "failed" if applied else "binding-rejected"}
 
 
 @activity.defn(name="perform_tool_invocation")
@@ -138,6 +145,9 @@ async def perform_tool_invocation(payload: dict[str, Any]) -> dict[str, Any]:
         raise RuntimeError("tool.invoke requires tool_invocation_id and workflow_execution_id")
 
     context = await _get_context(invocation_id)
+    task_id = str(payload.get("task_id") or "")
+    if not task_id or str(context.get("task_id") or "") != task_id:
+        raise ApplicationError("Tool invocation does not belong to executing Task", non_retryable=True)
     tool_key = str(context.get("tool_key") or "tool")
     if context.get("status") == "completed":
         result = context.get("result") if isinstance(context.get("result"), dict) else {}

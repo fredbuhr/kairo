@@ -18,6 +18,8 @@ jobs:
         run: uv lock --check
       - name: Prove MCP SDK v2 client/tool contract
         run: uv run --locked --project services/worker python scripts/smoke/mcp_tool_contract.py
+      - name: Prove tool replay and failure propagation stay bound to the executing Task
+        run: uv run --locked --project services/worker python scripts/smoke/tool_task_binding_contract.py
 
   tool-registry-integration:
     runs-on: ubuntu-latest
