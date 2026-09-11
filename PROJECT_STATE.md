@@ -13,6 +13,7 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 - H3a Dependency locks/frozen direct CI: PR #76, merge `ecc3394a648070b16ab4505e07706006999ab945`.
 - H3b1 Locked KAIRO container builds: PR #77, merge `e43e192938ce412f534eb68e989e7408289be3be`.
 - H3b2a KAIRO Node build-base digest pins: PR #78, merge `f51ac9c0b00c46b046bb24b751540d204763bcbc`.
+- H3b2b Core Compose service digest pins: PR #79, merge `f510043eb69b63919c6d012208f9b64b2bb63749`.
 - `AGENTS.md` and this file define repository recovery/resume discipline.
 - Rule: always fetch live `main` before acting. GitHub wins over chat memory or recorded checkpoint SHAs.
 
@@ -32,14 +33,14 @@ Product feature work remains paused until H5 is complete.
    - **H3b1 — Locked KAIRO container builds: complete and canonical.**
    - **H3b2 — External image pinning/debt reduction: in progress through bounded sub-gates.**
      - **H3b2a — KAIRO Node build-base digest pins: complete and canonical.**
-     - **H3b2b — Core Compose service digest pins: technically validated; PR #79 pending final-head validation/merge.**
-     - **Remaining H3b2 image debt after H3b2b: 26 references.**
+     - **H3b2b — Core Compose service digest pins: complete and canonical.**
+     - **Remaining H3b2 image debt: 26 references; next bounded pin batch not started.**
 4. **H4 — Production/auth boundary: not started.**
 5. **H5 — Full revalidation + real-engine/production checks + post-audit tag: not started.**
 
-Active development branch: `hardening/h3b2b-core-service-image-pins`.
-Active work pull request: **#79** — `H3b2b: pin core service images by digest`.
-Next implementation gate: **H3b2 only — finish/merge/checkpoint H3b2b before selecting any further pin batch**.
+Active development branch: **none**.
+Active work pull request: **none**.
+Next implementation gate: **H3b2 only — next small, coherent image-pin batch from the remaining 26 references**.
 
 ### H1 — Memory/Auth handoff
 
@@ -137,15 +138,16 @@ News ownership was path-filtered and was not triggered by this H3b2a file set.
 
 ### H3b2b — Core Compose service digest pins
 
-Status: **technically validated; PR #79 pending final-head validation/merge**.
+Canonical merge:
 
 - PR #79 — `H3b2b: pin core service images by digest`;
-- base: canonical `main` at `2f57702c184c2b97723bcd2a095fe6245d5bdfd2`;
-- validated technical head: `b3d6fe1a54907699f5f15aa8243620d3cc112e7a`.
+- merge commit: `f510043eb69b63919c6d012208f9b64b2bb63749`;
+- validated technical head: `b3d6fe1a54907699f5f15aa8243620d3cc112e7a`;
+- final validated PR head: `e6170558584cf231de228ff0f11b591dfe86b509`.
 
-H3b2b remains deliberately limited to three heavily shared core Compose services. No service tag/version is changed.
+H3b2b is deliberately limited to three heavily shared core Compose services. No service tag/version changed.
 
-H3b2b changes:
+Canonical H3b2b changes:
 
 1. `postgres` keeps `pgvector/pgvector:0.8.6-pg17` and pins it to `sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f`.
 2. `valkey` keeps `valkey/valkey:8.1.10-alpine` and pins it to `sha256:d2e18f3410b6f616de1417f570fa55261af2898b9c5b2cfb6781ce2373ea43d1`.
@@ -153,24 +155,29 @@ H3b2b changes:
 4. `config/reproducibility-baseline.json` advances to version 5, records these exact Compose digest pins, and reduces known unpinned-image debt from **29 to 26** references.
 5. `scripts/smoke/reproducibility_contract.py` now fail-closes on drift of the validated Compose digest set, including replacement of one immutable digest by another without an explicit baseline update.
 
-Technical diff before this checkpoint contained exactly three files:
+Final PR diff contained exactly three H3b2b technical files plus this checkpoint file:
 
 - `compose.yaml`;
 - `config/reproducibility-baseline.json`;
-- `scripts/smoke/reproducibility_contract.py`.
+- `scripts/smoke/reproducibility_contract.py`;
+- `PROJECT_STATE.md` — checkpoint evidence only.
 
-Technical-head validation on exact head `b3d6fe1a54907699f5f15aa8243620d3cc112e7a`: **8/8 push workflows success**:
+Technical-head validation on exact head `b3d6fe1a54907699f5f15aa8243620d3cc112e7a`: **8/8 push workflows success**.
 
-- Baseline reproducibility validation — run `34589077859` — success, including baseline-drift proof and locked KAIRO container builds;
-- Foundation validation — run `34589077840` — success, including Compose topology and integration checks;
-- Autonomous Research validation — run `34589077850` — success, including the real Worker SIGKILL replay proof;
-- MCP tool registry validation — run `34589077832` — success;
-- Multi-user isolation validation — run `34589077903` — success;
-- Document ingestion validation — run `34589077854` — success;
-- UI workspace validation — run `34589077830` — success;
-- Code quality validation — run `34589077862` — success.
+Final PR-head validation on exact head `e6170558584cf231de228ff0f11b591dfe86b509`: **8/8 pull-request workflows success**:
 
-This checkpoint commit is the only additional PR file and exists to record scope/evidence before merge. It must pass the exact final-head workflow set before PR #79 is merged.
+- Baseline reproducibility validation — run `34589403058` — success, including baseline-drift proof and locked KAIRO container builds;
+- Foundation validation — run `34589403074` — success, including Compose topology and integration checks;
+- Autonomous Research validation — run `34589403065` — success, including the real Worker SIGKILL replay proof;
+- MCP tool registry validation — run `34589403040` — success;
+- Multi-user isolation validation — run `34589403060` — success;
+- Document ingestion validation — run `34589403047` — success;
+- UI workspace validation — run `34589403041` — success;
+- Code quality validation — run `34589403070` — success.
+
+The same exact final head also triggered the eight push-event mirrors; all **16/16** workflow executions completed successfully with no failure, cancellation or timeout.
+
+`hardening/h3b2b-core-service-image-pins` is retired after merge and must not be reused. The inert remote ref may remain.
 
 H3b2 is **not complete**: 26 unpinned/moving image references remain recorded in the reproducibility baseline. Do not begin H4 yet.
 
@@ -193,11 +200,10 @@ The exact R7 baseline `6cf3647a...` passed the canonical workflow suite, includi
 
 ## Next action
 
-Finish **H3b2b only**: validate the exact PR #79 checkpoint head, merge it if and only if the complete workflow set is green, update this file on canonical `main`, then stop.
+Continue **H3b2 only — External image pinning/debt reduction** through another small branch created fresh from live `main`.
 
-After H3b2b is canonical, the next H3b2 sub-gate should:
+The next H3b2 sub-gate should:
 
-- create a fresh branch from live `main`;
 - select one coherent, verifiable subset from the remaining **26** unpinned/moving image references;
 - preserve service versions and runtime behavior while replacing moving references with immutable digests where verifiable;
 - update the reproducibility baseline only alongside concrete debt reduction;
