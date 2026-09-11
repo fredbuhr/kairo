@@ -26,19 +26,51 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 - R6 — repository file/directory inventory: **complete**.
 - R7 — clean tagged baseline with green CI: **complete**.
 - **Repository Reset R0–R7: complete.**
-- Active development branch: **none**.
-- Active work pull request: **none**.
-- Open pull requests: **0**.
+
+## Post-R7 audit hardening
+
+A post-reset audit found one production-path bug plus bounded cleanup/reproducibility/production-boundary debt. Product feature work is paused until the hardening sequence is complete.
+
+Hardening sequence:
+
+1. **H1 — Memory/Auth handoff**: fix authenticated Worker startup of system-owned memory projection Tasks; prove the path with Keycloak enabled. **Implementation validated; merge next.**
+2. **H2 — Code hygiene**: remove dead News implementation/bootstrap/dependencies proven unused, add `.gitattributes`, and add focused lint/static checks without broad refactoring.
+3. **H3 — Reproducibility**: introduce lockfiles/frozen installs and reduce critical moving Docker tags/digests while keeping the reproducibility contract truthful.
+4. **H4 — Production/auth boundary**: production Web serving/public URLs, stricter JWT audience/client validation, Web MCP bootstrap path, and explicit profiles for unfinished/exposed services.
+5. **H5 — Full revalidation**: run the canonical suite plus targeted real-engine/production checks, synchronize docs, and create a new post-audit hardening tag.
+
+Current active development branch: `hardening/h1-memory-auth-handoff`.
+Active work pull request: **none yet**.
+Open pull requests before H1 PR: **0**.
+
+### H1 evidence
+
+H1 implementation code head: `cf04b45d7a10fcc07af16e8e5806f2ddd2d1249f`.
+
+H1 changes exactly four implementation/validation files before this checkpoint update:
+
+- `services/core/src/kairo_core/workflows.py` — adds internal-token-protected `/internal/v1/tasks/{task_id}/run`, restricted to `owner_type == "system"` Tasks;
+- `services/worker/src/kairo_worker/memory_events.py` — memory consumer uses the internal system-Task handoff with `X-Kairo-Internal-Token` instead of the authenticated public user endpoint;
+- `.github/workflows/multi-user-isolation.yml` — starts the Worker with Keycloak enabled and deterministic memory projector mode;
+- `scripts/smoke/multi_user_isolation.py` — requires authenticated Worker-driven Mem0/Graphiti projections to reach `projected` while preserving cross-user 404 isolation.
+
+Targeted authenticated proof:
+
+- **Multi-user isolation validation** run `34578505066` — success on exact H1 code head; Keycloak, Core and Worker were active and the new authenticated memory projection assertion passed.
+- **Foundation validation** run `34578505040` — all eight jobs reported success on the exact H1 code head, including the existing memory-projection integration, authenticated resource boundary, policy, command, backup/restore and compile/build checks.
+- Reproducibility and UI workflow checks on the same code head also completed successfully; no failing workflow was observed in the H1 suite.
+
+H1 is not canonical until merged to `main`. Do not start H2 on this branch. After H1 merge, retire/delete this branch and start H2 fresh from updated `main`.
 
 ## Final branch set after Repository Reset
 
-Exactly three branches remain:
+Before H1, exactly three repository-reset branches remained:
 
 1. `main` — only canonical integrated source of truth.
 2. `feat/kairo-test-interface-v1` — temporary broad prototype/salvage reservoir; never merge wholesale.
 3. `consolidate/g49-research-durable-stages` — temporary focused Research design reservoir; never resume as active development.
 
-Any new product gate must branch fresh from live `main`. Do not resume either salvage branch as an implementation workspace.
+H1 temporarily adds one normal implementation branch, as allowed by the governance rule. Any subsequent gate must branch fresh from the updated `main` after the preceding gate is merged and retired.
 
 ## R6 inventory result
 
@@ -134,17 +166,13 @@ The tag intentionally targets the exact CI-validated R6 code checkpoint. Subsequ
 
 ## Next action
 
-Repository Reset is complete. Product work may resume, but the small-gate discipline remains mandatory:
+Finish **H1 only**:
 
-1. fetch live `main`;
-2. create exactly one fresh implementation branch for the next product gate;
-3. do not resume or wholesale-merge either salvage reservoir;
-4. keep the gate small, validate it, merge it, delete/retire the branch, then start the next gate from updated `main`.
+1. open a PR from `hardening/h1-memory-auth-handoff` to live `main`;
+2. verify the PR diff remains limited to H1 plus this checkpoint file;
+3. merge H1 only after the required checks are green;
+4. update `PROJECT_STATE.md` on canonical `main` to record the merge;
+5. retire/delete the H1 branch;
+6. stop before H2.
 
-The intended first post-reset product sequence remains:
-
-1. **Gantt + Calendar** on the canonical G51 Task planning model;
-2. **2D/3D Brain / graph**;
-3. collaboration/realtime and universal search;
-4. Desktop/voice/presence;
-5. specialist Finance/Crypto/Home capabilities behind KAIRO-owned contracts.
+After H1 is canonical, the next gate is **H2 — code hygiene**. Product features such as Gantt/Calendar remain paused through H5.
