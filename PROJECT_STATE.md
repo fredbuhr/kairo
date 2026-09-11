@@ -52,6 +52,14 @@ Les commits de preuves/checkpoint après le head de code doivent rester document
 conserver ses résultats, corriger dans D04 et revalider le code changé ; ne pas effacer leases, dépenses
 inconnues ou données pour débloquer une gate. Aucun déploiement utilisateur exécuté dans cette session.
 
+## Orientation utilisateur précisée après la campagne
+
+Serveur prioritaire ; installation complète sur PC personnel également visée. Clients PC, smartphone
+et tablette, avec mode hors ligne borné et 3D adaptative. [ADR-029 et critères](https://github.com/fredbuhr/kairo/blob/hardening/d04-real-engine-qualification/docs/decisions/ADR-029-server-personal-and-offline-clients.md)
+et plan D05–D22 ajustés dans la même PR ; choix de conception, pas fonctionnalités livrées.
+D04 reste centré sur le premier serveur Linux ; modèle/matériel exacts non choisis. Ne pas confondre
+ces cibles produit avec trois serveurs à synchroniser ou exiger tous les OS/mobiles avant de fermer H5.
+
 ## Références
 
 - [Protocole D04](https://github.com/fredbuhr/kairo/blob/hardening/d04-real-engine-qualification/docs/qualification-d04.md)

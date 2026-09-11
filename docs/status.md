@@ -43,6 +43,13 @@ Corrections trouvées : bibliothèques natives OCR absentes, écritures techniqu
 configuration OpenBao persistante incompatible avec sa version épinglée. La cible privée reste à qualifier ;
 ne pas utiliser les résultats de branche comme une validation de production du main D03.
 
+## Orientation multi-appareil — décidée, non implémentée
+
+[ADR-029](decisions/ADR-029-server-personal-and-offline-clients.md) : serveur prioritaire, même
+backend installable sur PC personnel, clients Web/PWA PC/téléphone/tablette et Desktop ultérieur.
+Le cache métier hors ligne, les conflits de synchronisation, le packaging personnel grand public et
+la qualification graphique mobile restent à livrer. Présence de Three/Tauri/Yjs ne vaut pas validation.
+
 ## Capacités et limites
 
 | Domaine | Présent dans le code | Ce qui reste à prouver/livrer |

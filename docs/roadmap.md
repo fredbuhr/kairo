@@ -15,6 +15,11 @@ Le détail opérationnel et les preuves restent dans le checkpoint.
 | D — présence/autonomie | D14 Desktop → D15 voix → D16 automatisations/browser → D17 agent dev | Assistant disponible sur les appareils, actions contrôlées |
 | E — extensions/exploitation | D18 finance/crypto lecture → D19 simulations → D20 maison/cartes → D21 capacité/coûts → D22 distribution | Modules utiles puis lancement maîtrisé |
 
+La [cible multi-appareil retenue](decisions/ADR-029-server-personal-and-offline-clients.md) privilégie
+le serveur et permet le même backend sur PC personnel. D05 prépare le Web/PWA adaptatif, D12 porte
+le hors ligne borné et la synchronisation, D13 le pilote PC/mobile/tablette, D14 l'enveloppe Desktop
+et D22 les installateurs/matrices de compatibilité. Aucun nouveau lot n'est créé.
+
 ## Jalons
 
 1. **Socle post-audit :** D04 terminé, tag H5 et rapport de vrais moteurs/récupération.

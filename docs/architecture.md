@@ -12,6 +12,16 @@ KAIRO is built as a modular personal AI operating system with a **KAIRO-owned sh
 
 The architecture intentionally declares the full dependency graph now. This is not a requirement to expose or actively use every feature immediately; it is a requirement that identity, storage, eventing, security and integration boundaries are correct before feature modules grow around accidental assumptions.
 
+## Hosting and device continuity — target decision
+
+[ADR-029](decisions/ADR-029-server-personal-and-offline-clients.md) makes server hosting the primary
+product target and allows the same backend on a personal PC. A workspace has one authoritative
+instance; clients hold selected cached data, never a second canonical database. Web/PWA is shared
+across desktop, phone and tablet; Tauri adds local capabilities. Mycelium renders on the client with
+adaptive detail and a functional 2D fallback. Bounded offline notes/tasks and explicit reconnect
+conflicts belong to D12; installed PWA does not itself prove offline data support. Full personal
+runtime packaging and platform compatibility are qualified in D13/D22. These are planned capabilities.
+
 ## Runtime topology
 
 ```text
