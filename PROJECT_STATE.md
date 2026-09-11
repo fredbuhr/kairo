@@ -7,9 +7,9 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 - Canonical branch: `main`.
 - Last integrated product milestone: **G51 Daily Spine**.
 - G51 merge commit: `f1dbb6e6ae1a4d419bc35a924639be713263fb77`.
-- Last fully revalidated product checkpoint before Repository Reset: `69cf0dd52eea93f7e5b9bf7413cde2cb51c2c8b5`.
 - Clean post-reset CI baseline: `6cf3647a609bbd8463cb734e87eb4088572bc037`.
 - Baseline tag: `r7-baseline-2026-09-11` → `6cf3647a609bbd8463cb734e87eb4088572bc037`.
+- First post-audit hardening merge: **H1 Memory/Auth handoff**, PR #74, merge commit `3fa1aa5a67628c97ee4367e9a0224cff9086fbf0`.
 - `AGENTS.md` and this file define repository recovery/resume discipline.
 - Rule: always fetch live `main` before acting. GitHub wins over chat memory or recorded checkpoint SHAs.
 
@@ -29,150 +29,104 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 
 ## Post-R7 audit hardening
 
-A post-reset audit found one production-path bug plus bounded cleanup/reproducibility/production-boundary debt. Product feature work is paused until the hardening sequence is complete.
+The post-reset audit found one production-path bug plus bounded code-hygiene, reproducibility and production-boundary debt. Product feature work remains paused until H5 is complete.
 
 Hardening sequence:
 
-1. **H1 — Memory/Auth handoff**: fix authenticated Worker startup of system-owned memory projection Tasks; prove the path with Keycloak enabled. **Implementation validated; merge next.**
-2. **H2 — Code hygiene**: remove dead News implementation/bootstrap/dependencies proven unused, add `.gitattributes`, and add focused lint/static checks without broad refactoring.
-3. **H3 — Reproducibility**: introduce lockfiles/frozen installs and reduce critical moving Docker tags/digests while keeping the reproducibility contract truthful.
-4. **H4 — Production/auth boundary**: production Web serving/public URLs, stricter JWT audience/client validation, Web MCP bootstrap path, and explicit profiles for unfinished/exposed services.
-5. **H5 — Full revalidation**: run the canonical suite plus targeted real-engine/production checks, synchronize docs, and create a new post-audit hardening tag.
+1. **H1 — Memory/Auth handoff: complete.** Authenticated Worker startup of system-owned memory projection Tasks now uses a dedicated internal-token path and is covered by an authenticated regression proof.
+2. **H2 — Code hygiene: next.** Remove dead News implementation/bootstrap/dependencies proven unused, add `.gitattributes`, and enable focused lint/static checks without broad refactoring.
+3. **H3 — Reproducibility.** Introduce lockfiles/frozen installs and reduce critical moving Docker tags/digests while keeping the reproducibility contract truthful.
+4. **H4 — Production/auth boundary.** Production Web serving/public URLs, stricter JWT audience/client validation, Web MCP bootstrap path, and explicit profiles for unfinished/exposed services.
+5. **H5 — Full revalidation.** Run the canonical suite plus targeted real-engine/production checks, synchronize docs, and create a new post-audit hardening tag.
 
-Current active development branch: `hardening/h1-memory-auth-handoff`.
-Active work pull request: **none yet**.
-Open pull requests before H1 PR: **0**.
+Active development branch: **none**.
+Active work pull request: **none**.
+Next implementation gate: **H2 only**.
 
-### H1 evidence
+### H1 — Memory/Auth handoff
 
-H1 implementation code head: `cf04b45d7a10fcc07af16e8e5806f2ddd2d1249f`.
+Canonical merge:
 
-H1 changes exactly four implementation/validation files before this checkpoint update:
+- PR: `#74` — `H1: fix authenticated memory projection handoff`.
+- merge commit: `3fa1aa5a67628c97ee4367e9a0224cff9086fbf0`.
+- validated implementation head: `cf04b45d7a10fcc07af16e8e5806f2ddd2d1249f`.
+- final PR head: `ad7ed78dac30669c2a8b9c179a407381fb38e947`.
 
-- `services/core/src/kairo_core/workflows.py` — adds internal-token-protected `/internal/v1/tasks/{task_id}/run`, restricted to `owner_type == "system"` Tasks;
-- `services/worker/src/kairo_worker/memory_events.py` — memory consumer uses the internal system-Task handoff with `X-Kairo-Internal-Token` instead of the authenticated public user endpoint;
-- `.github/workflows/multi-user-isolation.yml` — starts the Worker with Keycloak enabled and deterministic memory projector mode;
-- `scripts/smoke/multi_user_isolation.py` — requires authenticated Worker-driven Mem0/Graphiti projections to reach `projected` while preserving cross-user 404 isolation.
+Changes:
 
-Targeted authenticated proof:
+- `services/core/src/kairo_core/workflows.py` adds internal-token-protected `/internal/v1/tasks/{task_id}/run`, restricted to Tasks with `owner_type == "system"`;
+- `services/worker/src/kairo_worker/memory_events.py` uses that internal route with `X-Kairo-Internal-Token` instead of the authenticated public user Task-run endpoint;
+- `.github/workflows/multi-user-isolation.yml` starts the Worker while Keycloak remains enabled and uses deterministic memory projector mode;
+- `scripts/smoke/multi_user_isolation.py` now requires authenticated Worker-driven Mem0/Graphiti projections to reach `projected` and still proves cross-user 404 isolation.
 
-- **Multi-user isolation validation** run `34578505066` — success on exact H1 code head; Keycloak, Core and Worker were active and the new authenticated memory projection assertion passed.
-- **Foundation validation** run `34578505040` — all eight jobs reported success on the exact H1 code head, including the existing memory-projection integration, authenticated resource boundary, policy, command, backup/restore and compile/build checks.
-- Reproducibility and UI workflow checks on the same code head also completed successfully; no failing workflow was observed in the H1 suite.
+Validation evidence:
 
-H1 is not canonical until merged to `main`. Do not start H2 on this branch. After H1 merge, retire/delete this branch and start H2 fresh from updated `main`.
+- Multi-user isolation run `34578505066` on the exact H1 implementation head: **success**; Keycloak, Core and Worker were active and the new authenticated memory projection assertion passed.
+- Foundation run `34578505040` on the exact H1 implementation head: **all eight jobs success**, including compile/build, existing memory projection, authenticated resources, policy, command, crash/outbox and backup/restore proofs.
+- PR #74 checks on final head `ad7ed78...`: Reproducibility, UI, Documents, MCP, Multi-user, Autonomous Research and Foundation all completed successfully; Foundation run `34578930269` finished **success**.
 
-## Final branch set after Repository Reset
+The branch `hardening/h1-memory-auth-handoff` is **retired after merge**. The current connector does not expose branch-ref deletion, so do not reuse it. H2 must be created fresh from live `main`.
 
-Before H1, exactly three repository-reset branches remained:
+## Canonical branch policy
 
-1. `main` — only canonical integrated source of truth.
-2. `feat/kairo-test-interface-v1` — temporary broad prototype/salvage reservoir; never merge wholesale.
-3. `consolidate/g49-research-durable-stages` — temporary focused Research design reservoir; never resume as active development.
+Canonical truth is `main`. Two non-canonical salvage reservoirs remain intentionally available:
 
-H1 temporarily adds one normal implementation branch, as allowed by the governance rule. Any subsequent gate must branch fresh from the updated `main` after the preceding gate is merged and retired.
+1. `feat/kairo-test-interface-v1` — broad prototype/salvage reservoir; never merge wholesale.
+2. `consolidate/g49-research-durable-stages` — focused Research design reservoir; never resume as active development.
 
-## R6 inventory result
+A merged hardening branch may temporarily remain as an inert remote ref when the available connector cannot delete refs. It is not an active development branch and must never be resumed.
 
-R6 inventoried the current `main` working tree before product work. The repository contained **234 tracked files** at the R6 checkpoint.
+For every next gate:
 
-### Active canonical implementation/configuration/documentation — 215 files
+1. fetch live `main`;
+2. create exactly one fresh implementation branch;
+3. keep the gate small and targeted;
+4. validate it;
+5. merge it;
+6. retire/delete the branch;
+7. update this file;
+8. stop before the following gate.
 
-This includes:
+## R6 inventory summary
 
-- all `.github/workflows/*` validation workflows;
-- all `apps/web/*` Cockpit/Today/Projects/Research/News/Knowledge/auth/API code;
-- all `services/core/*` canonical state, ownership, policy, planning, Research, MCP, memory, document and UI-layout code plus migrations through `0012_task_planning`;
-- all `services/worker/*` durable execution, model gateway, memory/document projections, Research, Web MCP and semantic routing code;
-- all `scripts/smoke/*` proofs — every current smoke script is referenced by a CI workflow;
-- backup/restore/bootstrap scripts and every current Compose overlay, each of which has an active workflow/runbook/Makefile consumer;
-- `config/*`, `infrastructure/*`, root manifests/configuration and the current architecture/security/operations/roadmap/status/decision documentation.
+At the R6 checkpoint the repository contained **234 tracked files**:
 
-No active implementation file was proven safe to delete in R6.
+- **215 active canonical implementation/configuration/documentation files**;
+- **18 intentional scaffold files** across Desktop, Realtime, Gantt, Graph, Protocol and shared UI;
+- **1 historical audit file** archived at `docs/archive/audit-2026-09-08.md`;
+- **0 duplicate/stale files remaining after R6 cleanup**;
+- **0 tracked files proven safely removable at that checkpoint**.
 
-### Intentional scaffolds — 18 files
+Intentional scaffolds do not imply product completion. In particular `packages/gantt`, `packages/graph`, `services/realtime` and `apps/desktop` remain future boundaries rather than mature capabilities.
 
-These files are deliberately retained because they encode future KAIRO boundaries without claiming product completion:
+## R7 validation summary
 
-- `apps/desktop/*` — 2 files; Tauri/Sidecar skeleton.
-- `services/realtime/*` — 4 files; Hocuspocus/Yjs service scaffold without mature canonical collaboration persistence.
-- `packages/gantt/*` — 3 files; planning interfaces only.
-- `packages/graph/*` — 3 files; graph snapshot interfaces only.
-- `packages/protocol/*` — 3 files; shared protocol/authority/event contract scaffold, not yet consumed by current apps.
-- `packages/ui/*` — 3 files; shared KAIRO space/design-system scaffold, not yet consumed by the current Web app.
+The exact baseline `6cf3647a609bbd8463cb734e87eb4088572bc037` passed all seven push workflows:
 
-Installed but currently unused Web dependencies for Gantt, Calendar, Brain, realtime, rich text, maps and dashboards remain intentional configured dependencies because `config/components.yaml` and `docs/component-matrix.md` explicitly track them as Configured/Scaffold/Declared rather than completed features.
+1. Baseline reproducibility validation — run `34573983621` — success.
+2. UI workspace validation — run `34573983736` — success.
+3. MCP tool registry validation — run `34573983615` — success.
+4. Multi-user isolation validation — run `34573983654` — success.
+5. Document ingestion validation — run `34573983738` — success.
+6. Foundation validation — run `34573983693` — success.
+7. Autonomous research validation — run `34573983651` — success.
 
-### Historical evidence — 1 file
+Key validated invariants include canonical ownership boundaries, Temporal crash/replay behavior, real Worker SIGKILL Research replay, command/model accounting, memory projections, MCP, Documents, backup/restore, Today/G51 planning and reproducibility-debt drift protection.
 
-- `docs/audit-2026-09-08.md` was a dated implementation snapshot whose current-state assertions became obsolete after G48–G51. It is retained as evidence at `docs/archive/audit-2026-09-08.md`.
-
-### Duplicate/stale after R6 cleanup — 0 files
-
-`docs/status.md`, `docs/roadmap.md` and the Block 2/3 status lines in `docs/implementation-plan.md` were stale about Repository Reset progress; R6 refreshed them rather than deleting them because they are authoritative/current planning documents.
-
-### Removable — 0 files
-
-R6 found no tracked file whose removal was justified without either deleting active validation/implementation or prematurely removing an intentional architecture scaffold.
-
-## R7 validation evidence
-
-The exact clean R6 checkpoint `6cf3647a609bbd8463cb734e87eb4088572bc037` triggered **7 push workflows**, and all 7 completed successfully:
-
-1. **Baseline reproducibility validation** — run `34573983621` — success.
-2. **UI workspace validation** — run `34573983736` — success.
-3. **MCP tool registry validation** — run `34573983615` — success.
-4. **Multi-user isolation validation** — run `34573983654` — success.
-5. **Document ingestion validation** — run `34573983738` — success.
-6. **Foundation validation** — run `34573983693` — success.
-7. **Autonomous research validation** — run `34573983651` — success.
-
-Key validated invariants on that exact SHA include:
-
-- Compose/dev/production/ops topology validation;
-- TypeScript typechecks and Web/Realtime builds;
-- Python compile/import validation;
-- deterministic and semantic command routing;
-- Assistant conversation ownership;
-- LiteLLM accounting contract;
-- News Intelligence contract;
-- Block 1 crash recovery and outbox delivery;
-- autonomy policy/approval/budget enforcement;
-- authenticated resource and multi-user ownership boundaries;
-- memory projection replay;
-- destructive backup/restore proof;
-- MCP registry and MCP SDK contract;
-- canonical document ingestion/versioned re-ingestion;
-- workspace layout, Project/Task ownership and G51 Daily Spine/Today contracts;
-- Research Context Pack, grounded synthesis, Web MCP, canonical result ownership and **real Worker SIGKILL replay invariants**;
-- reproducibility baseline drift protection.
-
-### News ownership carry-forward
-
-`News ownership validation` is intentionally path-filtered and therefore did not run on the documentation-only R6 checkpoint. Its last validated G51 head `9af0573d7295d3da10c06477752f07ec4ac51541` passed News ownership in run `34544882488`.
-
-A direct compare from `9af0573d...` to the R6 baseline `6cf3647a...` changes only six documentation paths (`PROJECT_STATE.md`, `docs/component-matrix.md`, `docs/implementation-plan.md`, `docs/roadmap.md`, `docs/status.md`, and the audit move). No News/auth/model/schema/contract implementation file changed, so the News ownership proof applies to the same product code.
-
-## R7 tag result
-
-The baseline tag was created and independently verified on GitHub:
-
-- tag: `r7-baseline-2026-09-11`;
-- type: lightweight Git tag;
-- target: `6cf3647a609bbd8463cb734e87eb4088572bc037`;
-- meaning: first clean post-Repository-Reset code baseline with the required CI evidence green.
-
-The tag intentionally targets the exact CI-validated R6 code checkpoint. Subsequent `main` commits that only record R7 governance/checkpoint state are not part of the tagged code baseline.
+`News ownership validation` is path-filtered. Its validated G51 code head remained unchanged through the R7 baseline except for documentation-only commits, so its successful proof carries forward for the same product code.
 
 ## Next action
 
-Finish **H1 only**:
+Perform **H2 only — Code hygiene** from a fresh branch created from live `main`.
 
-1. open a PR from `hardening/h1-memory-auth-handoff` to live `main`;
-2. verify the PR diff remains limited to H1 plus this checkpoint file;
-3. merge H1 only after the required checks are green;
-4. update `PROJECT_STATE.md` on canonical `main` to record the merge;
-5. retire/delete the H1 branch;
-6. stop before H2.
+H2 should remain bounded to proven cleanup/static-quality work:
 
-After H1 is canonical, the next gate is **H2 — code hygiene**. Product features such as Gantt/Calendar remain paused through H5.
+- remove the dead legacy News summary/activity path while retaining shared News helpers used by `news_activity.py`;
+- remove `scripts/bootstrap.sh` only after re-confirming it has no live consumer;
+- remove Python dependencies/settings only when usage search proves them unused;
+- add `.gitattributes` to force LF for shell/source/config files used from Windows;
+- add a focused Python lint/static check to CI (prefer Ruff) and resolve only findings introduced/exposed by that selected ruleset;
+- avoid refactoring large Research/Temporal functions solely for style;
+- stop after H2 merge/checkpoint before beginning H3.
+
+Do not begin Gantt, Calendar, Brain, Finance/Crypto, voice or other product work until H5 is complete.
