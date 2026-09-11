@@ -119,13 +119,30 @@ def main() -> None:
             f"expected={sorted(uv_expected)}, actual={sorted(uv_actual)}"
         )
 
+    locked_install_baseline = baseline["required_locked_install_files"]
+    pnpm_locked_actual = _find_install_files("--frozen-lockfile")
+    pnpm_locked_expected = set(locked_install_baseline["pnpm_frozen_lockfile"])
+    if pnpm_locked_actual != pnpm_locked_expected:
+        problems.append(
+            "pnpm frozen container-install contract changed: "
+            f"expected={sorted(pnpm_locked_expected)}, actual={sorted(pnpm_locked_actual)}"
+        )
+
+    uv_locked_actual = _find_install_files("uv sync --locked")
+    uv_locked_expected = set(locked_install_baseline["uv_locked_sync"])
+    if uv_locked_actual != uv_locked_expected:
+        problems.append(
+            "uv locked container-install contract changed: "
+            f"expected={sorted(uv_locked_expected)}, actual={sorted(uv_locked_actual)}"
+        )
+
     if problems:
         raise SystemExit("REPRODUCIBILITY CONTRACT FAILED:\n- " + "\n- ".join(problems))
 
     print(
         "REPRODUCIBILITY CONTRACT PASSED: canonical pnpm/uv lockfiles and toolchains are "
-        "required, validated build digests are fixed, and all remaining unpinned-image/"
-        "unlocked-container-install debt exactly matches the explicit H3a baseline."
+        "required, KAIRO container installs are frozen/locked, validated build digests are "
+        "fixed, and all remaining unpinned-image debt exactly matches the explicit H3b1 baseline."
     )
 
 
