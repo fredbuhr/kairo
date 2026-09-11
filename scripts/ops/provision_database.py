@@ -42,6 +42,10 @@ async def provision(env: dict, host: str, port: int) -> None:
     args = dict(host=host, port=port, user=env['POSTGRES_USER'], password=env['POSTGRES_PASSWORD'])
     admin = await asyncpg.connect(**args, database='postgres')
     try:
+        # All identities must exist before granting runtime access to the first database.
+        for role in ROLES:
+            if not await admin.fetchval('SELECT 1 FROM pg_roles WHERE rolname=$1', role):
+                await admin.execute(f'CREATE ROLE {role}')
         for role, (key, databases) in ROLES.items():
             if not await admin.fetchval('SELECT 1 FROM pg_roles WHERE rolname=$1', role):
                 await admin.execute(f'CREATE ROLE {role}')

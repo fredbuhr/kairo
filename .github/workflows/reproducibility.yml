@@ -59,3 +59,6 @@ jobs:
       - name: Stop static Web proof
         if: always()
         run: docker compose down --remove-orphans
+
+      - name: Prove production SQL/Core startup and real Web-to-database network denial
+        run: python scripts/smoke/production_network_contract.py

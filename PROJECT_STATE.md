@@ -18,7 +18,7 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 
 | Champ | Valeur |
 |---|---|
-| Branche / PR de développement active | `hardening/d03-safe-deployment` ; PR à ouvrir |
+| Branche / PR de développement active | `hardening/d03-safe-deployment` ; [PR #87](https://github.com/fredbuhr/kairo/pull/87) |
 | Dernier lot entièrement terminé | **D02 — admission, budgets et volume des données** |
 | Lot actif | **D03 — déploiement sûr et topologie utile** |
 | Reprise D03 | Base live `ec38ce3b8c479be9ff56df36a24e7ee895754ada`, aucun autre PR au démarrage ; implémentation et validation communes des gardes production, SQL/réseau, lecteur Web et topologie |
@@ -66,3 +66,11 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 précédentes sont **retirées**. Elles ne sont pas des lignes de développement à reprendre.
 Réservoirs non canoniques : `feat/kairo-test-interface-v1`, `consolidate/g49-research-durable-stages` ;
 inspection/récupération sélective uniquement, jamais merge en bloc.
+
+
+## Reprise interne D03 (une seule livraison)
+
+Premier head `daa75ac3…` : builds/static Web, qualité, UI, Documents, News, MCP et isolation verts ;
+Foundation a trouvé l'ordre de création des rôles SQL et une commande Compose `null` non gérée.
+Corrections dans le même lot, contrats conservés. En cours : relance du head commun, revue des
+frontières et guide [deployment](docs/deployment.md). Ne pas déclarer D03 terminé avant les gates.

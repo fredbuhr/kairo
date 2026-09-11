@@ -11,7 +11,7 @@ components:
     category: knowledge-graph
     mode: service
     ownership: derived
-    profile: core
+    profile: memory
   - id: graphiti
     name: Graphiti
     category: knowledge-graph
@@ -29,7 +29,7 @@ components:
     category: cache
     mode: service
     ownership: ephemeral
-    profile: core
+    profile: search
   - id: nats
     name: NATS JetStream
     category: event-bus
@@ -59,13 +59,13 @@ components:
     category: model-gateway
     mode: service
     ownership: provider-boundary
-    profile: core
+    profile: ai
   - id: ollama
     name: Ollama
     category: local-models
     mode: service
     ownership: provider
-    profile: core
+    profile: local-ai
   - id: llama-cpp
     name: llama.cpp
     category: local-models
@@ -89,7 +89,7 @@ components:
     category: automation
     mode: service
     ownership: delegated-engine
-    profile: core
+    profile: automation
   - id: mcp
     name: Model Context Protocol
     category: tools
@@ -101,19 +101,19 @@ components:
     category: browser
     mode: worker-library
     ownership: execution-engine
-    profile: core
+    profile: future-browser
   - id: browser-use
     name: Browser Use
     category: browser
     mode: worker-library
     ownership: execution-engine
-    profile: core
+    profile: future-browser
   - id: searxng
     name: SearXNG
     category: research-news
     mode: service
     ownership: search-adapter
-    profile: core
+    profile: search
   - id: openbao
     name: OpenBao
     category: secrets
@@ -131,25 +131,25 @@ components:
     category: ai-observability
     mode: service
     ownership: tracing-projection
-    profile: core
+    profile: observability
   - id: clickhouse
     name: ClickHouse
     category: ai-observability
     mode: service
     ownership: langfuse-store
-    profile: core
+    profile: observability
   - id: ntfy
     name: ntfy
     category: notifications
     mode: service
     ownership: delivery-adapter
-    profile: core
+    profile: notifications
   - id: hocuspocus
     name: Hocuspocus
     category: realtime
     mode: kairo-service-library
     ownership: realtime-session
-    profile: core
+    profile: collaboration-experimental
   - id: yjs
     name: Yjs
     category: realtime
@@ -161,7 +161,7 @@ components:
     category: voice
     mode: service
     ownership: realtime-transport
-    profile: core
+    profile: voice-experimental
   - id: kokoro-fastapi
     name: Kokoro-FastAPI
     category: voice

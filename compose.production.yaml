@@ -294,6 +294,33 @@ services:
     - no-new-privileges:true
     cap_drop:
     - ALL
+  kairo-db-provision:
+    profiles: [ops]
+    build:
+      context: .
+      dockerfile: services/core/Dockerfile
+    command: [python, /ops/provision_database.py, --env-file, /dev/null, --host, postgres]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      KAIRO_DATABASE_PASSWORD: ${KAIRO_DATABASE_PASSWORD}
+      KAIRO_MIGRATOR_PASSWORD: ${KAIRO_MIGRATOR_PASSWORD}
+      MEM0_DATABASE_PASSWORD: ${MEM0_DATABASE_PASSWORD}
+      KEYCLOAK_DATABASE_PASSWORD: ${KEYCLOAK_DATABASE_PASSWORD}
+      TEMPORAL_DATABASE_PASSWORD: ${TEMPORAL_DATABASE_PASSWORD}
+      LITELLM_DATABASE_PASSWORD: ${LITELLM_DATABASE_PASSWORD}
+      LANGFUSE_DATABASE_PASSWORD: ${LANGFUSE_DATABASE_PASSWORD}
+      ACTIVEPIECES_DATABASE_PASSWORD: ${ACTIVEPIECES_DATABASE_PASSWORD}
+    volumes:
+      - ./scripts/ops/provision_database.py:/ops/provision_database.py:ro
+    networks: [canonical]
+    init: true
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+
 volumes:
   openbao_data: null
 networks:

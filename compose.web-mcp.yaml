@@ -1,4 +1,8 @@
 services:
+  searxng:
+    profiles: !reset []
+  valkey:
+    profiles: !reset []
   kairo-web-mcp:
     build:
       context: .

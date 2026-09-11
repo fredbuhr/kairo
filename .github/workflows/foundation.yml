@@ -240,6 +240,13 @@ jobs:
       - name: Prove rebuildable memory projection generations
         run: python scripts/smoke/memory_projection.py
 
+      - name: Prove clean Worker SIGTERM after completed projections
+        run: |
+          worker_id=$(docker compose ps -q kairo-worker)
+          docker compose stop kairo-worker
+          test "$(docker inspect -f '{{.State.ExitCode}}' "$worker_id")" = 0
+          test "$(docker inspect -f '{{.State.OOMKilled}}' "$worker_id")" = false
+
       - name: Dump memory-projection state on failure
         if: failure()
         run: |

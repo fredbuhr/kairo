@@ -7,7 +7,7 @@ import re
 import subprocess
 from urllib.parse import urlsplit
 
-FORBIDDEN = {'home-assistant', 'openhands', 'livekit', 'kairo-realtime', 'rotki', 'actual-budget', 'hummingbot', 'headscale'}
+FORBIDDEN = {'home-assistant', 'openhands', 'livekit', 'kairo-realtime', 'rotki', 'actual-budget', 'hummingbot', 'headscale', 'activepieces', 'ntfy'}
 PASSWORD = re.compile(r'(PASSWORD|SECRET|SIGNING_KEY|INTERNAL_TOKEN|OPERATIONS_TOKEN|MASTER_KEY|OPENBAO_TOKEN|ENCRYPTION_KEY|SALT)$')
 
 
@@ -23,7 +23,7 @@ def validate(config: dict) -> list[str]:
                 value = str(value or '')
                 if len(value) < 32 or any(x in value.lower() for x in ('change_me','change-me','development','kairo-dev')):
                     errors.append(f'{name}: provision {key}')
-        command = svc.get('command', [])
+        command = svc.get('command') or []
         if isinstance(command, str): command = command.split()
         if any(c in {'start-dev','-dev','--dev'} for c in command):
             errors.append(f'{name}: development command forbidden')
