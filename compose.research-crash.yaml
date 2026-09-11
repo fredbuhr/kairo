@@ -1,7 +1,8 @@
 services:
   fake-research-litellm:
     build:
-      context: ./services/worker
+      context: .
+      dockerfile: services/worker/Dockerfile
       args:
         KAIRO_WORKER_EXTRAS: ""
     command: ["python", "/smoke/fake_research_litellm.py"]
@@ -13,7 +14,8 @@ services:
 
   fake-research-mcp:
     build:
-      context: ./services/worker
+      context: .
+      dockerfile: services/worker/Dockerfile
       args:
         KAIRO_WORKER_EXTRAS: ""
     command: ["python", "/smoke/fake_research_mcp.py"]
