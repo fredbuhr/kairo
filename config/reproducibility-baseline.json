@@ -3,6 +3,7 @@
   "baseline_date": "2026-09-11",
   "validated_parent_sha": "9d2ff654552efd27461b0b395ae4305b5ce550eb",
   "expected_package_manager": "pnpm@10.15.1",
+  "expected_uv_version": "==0.12.13",
   "validated_digest_pins": {
     "services/core/Dockerfile": "ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58",
     "services/worker/Dockerfile": "ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58"
