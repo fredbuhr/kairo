@@ -117,8 +117,8 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
 - **Identité canonique :** la bascule complète vers Nevolium reste dans cette même livraison D04,
   conformément à l'[ADR-030](decisions/ADR-030-nevolium-canonical-identity.md). Aucun alias de
   compatibilité n'est conservé avant le premier déploiement ; la CI refuse tout résidu dans l'arbre
-  suivi. Le head `d9478de…` passe 10/10 workflows et 5/5 jobs D04 ; seul le changement de slug GitHub
-  reste externe à l'arbre avant la reprise du serveur.
+  suivi. Le head `d9478de…` passe 10/10 workflows et 5/5 jobs D04 ; le dépôt GitHub et le remote local
+  sont maintenant basculés vers Nevolium. La reprise peut continuer sur le serveur dans D04.
 
 ## Phase B — interface quotidienne et pensée visuelle
 

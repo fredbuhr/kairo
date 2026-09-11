@@ -61,9 +61,10 @@ The D04 workflow passed all five jobs: qualification runner contract, real local
 document/memory, recovery source and recovery target. This proves the renamed test and integration
 topologies on the exact head; it does not complete the still-missing netcup private-target tests.
 
-## Remaining external step
+## Administrative cutover completed
 
-The source tree and active GitHub issue/PR metadata use Nevolium. The repository slug must still be
-renamed in GitHub Settings, after which `origin` and the final active links must be verified. Closed
-pull requests, old commits, Actions logs and the legacy experimental branch remain historical data;
-they must not be rewritten merely for branding.
+The repository is now `fredbuhr/nevolium`. Pull request #88 followed the rename, its ten workflows
+remain successful, and the local `origin`, `main` and D04 branch refs were verified against the new
+URL. The source tree, generated local launchers and active GitHub issue/PR metadata use Nevolium.
+Closed pull requests, old commits, Actions logs and the legacy experimental branch remain historical
+data; they must not be rewritten merely for branding.

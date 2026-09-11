@@ -37,8 +37,9 @@ Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJEC
 [#88](https://github.com/fredbuhr/nevolium/pull/88) réunit la campagne des vrais moteurs et de reprise.
 La même PR porte la transition atomique de l'identité publique et technique vers Nevolium
 ([ADR-030](decisions/ADR-030-nevolium-canonical-identity.md)) avant le premier déploiement. Le head
-`d9478de…` et son arbre `898306b…` passent 10/10 workflows et 5/5 jobs D04 ; le dépôt GitHub doit
-encore recevoir son nouveau slug avant installation. [Preuves de transition](archive/nevolium-identity-transition-2026-09-11.md).
+`d9478de…` et son arbre `898306b…` passent 10/10 workflows et 5/5 jobs D04 ; le dépôt GitHub
+s'appelle désormais `fredbuhr/nevolium`, et le remote local a été vérifié après la bascule.
+[Preuves de transition](archive/nevolium-identity-transition-2026-09-11.md).
 Docling/PDF et Mem0/Graphiti en lecture seule sans Internet, inférence locale avec comptabilisation,
 arrêt/rejeu/redémarrage d’Ollama et recherche SearXNG ont passé des essais réels CPU sur la branche.
 Le premier head de campagne `10cb57c…` avait passé 9/9 workflows, dont les cinq jobs D04 ; ces preuves

@@ -19,11 +19,11 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
 | Head Nevolium qualifié | `d9478deada2c2c1781958abd87779b9a5e7c11f2`, arbre `898306b233b7f16de6b28b19f78304498e0d7b2e` |
 | Validation | **10/10 workflows réussis**, **5/5 jobs D04** sur le head Nevolium ; verrou identité, builds Python/JS, topologies et scénarios réels CI réussis |
-| Prochaine action | Renommer le dépôt GitHub en `fredbuhr/nevolium`, vérifier `origin`/PR/liens, puis reprendre l'inventaire SSH et le durcissement netcup |
-| Conditions manquantes | Renommage GitHub, inventaire OS réel, pare-feu, domaine/TLS, sauvegarde indépendante et modèle quotidien non validés |
+| Prochaine action | Reprendre l'inventaire SSH et le durcissement du serveur netcup, puis exécuter la campagne privée D04 |
+| Conditions manquantes | Inventaire OS réel, pare-feu, domaine/TLS, sauvegarde indépendante et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
-## Transition d'identité en cours dans D04
+## Transition d'identité achevée dans D04
 
 Nevolium est l'unique identité publique et technique conformément à l'[ADR-030](docs/decisions/ADR-030-nevolium-canonical-identity.md).
 Le changement couvre marque, modules Python, paquets npm, variables, Compose, SQL, Keycloak,
@@ -34,6 +34,8 @@ paquets Python, les typechecks/builds JS, 12 contrats Core, 11 contrats Worker, 
 mémoire et reproductibilité, ainsi que les validations JSON et Bash. Docker est absent du workspace,
 le `uv` local est 0.12.11 au lieu du 0.12.13 imposé. La CI fraîche sur `d9478de…` est entièrement
 verte : 10 workflows, dont les cinq jobs D04. [Rapport de transition](docs/archive/nevolium-identity-transition-2026-09-11.md).
+Le dépôt est renommé `fredbuhr/nevolium`, la PR #88 a suivi le changement et le remote local `origin`
+a été basculé puis vérifié sur la nouvelle URL.
 
 ## Réalisé sur la branche, sans promotion de main
 
