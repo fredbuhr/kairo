@@ -20,8 +20,8 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Head de code à contrôler | `a5a61db38191a9f8f37551fba7fe44df06c8a3be` |
 | Arbre de ce head | `c3ea2b7928bd11b45a607a22a9a6f9f0371a1179` |
 | Validation | **9/9 workflows réussis**, **5/5 jobs D04** ; contrôleur accès : **6 tests HTTP/TLS** ; rapports versionnés ci-dessous |
-| Prochaine action | Identifier le serveur privé, lancer inventaire/configuration puis `target.py preflight` avant la charge et le scénario commun |
-| Condition manquante | Matériel/cible privée et destination indépendante de sauvegarde non fournis ; aucun accès ni modèle quotidien inventé |
+| Prochaine action | Sur netcup : accès SSH opérateur, inventaire en lecture seule, puis durcissement hôte avant toute installation KAIRO |
+| Condition manquante | Inventaire OS réel, pare-feu, domaine/TLS, destination indépendante de sauvegarde et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Réalisé sur la branche, sans promotion de main
@@ -58,7 +58,13 @@ inconnues ou données pour débloquer une gate. Aucun déploiement utilisateur e
 Serveur prioritaire ; installation complète sur PC personnel également visée. Clients PC, smartphone
 et tablette, avec mode hors ligne borné et 3D adaptative. [ADR-029 et critères](https://github.com/fredbuhr/kairo/blob/hardening/d04-real-engine-qualification/docs/decisions/ADR-029-server-personal-and-offline-clients.md)
 et plan D05–D22 ajustés dans la même PR ; choix de conception, pas fonctionnalités livrées.
-D04 reste centré sur le premier serveur Linux ; modèle/matériel exacts non choisis. Ne pas confondre
+Netcup RS 4000 G12 livré à Vienne et en fonctionnement selon captures utilisateur : 12 CPU AMD64,
+32 Gio de RAM, disque 1 Tio et IPv4/IPv6 attribuées. Aucun identifiant réseau ou de compte n'est versionné.
+Le panneau montre zéro règle de pare-feu ; état réel à vérifier avant installation. ASUS TUF Gaming A16
+FA608PM relevé pour une répétition ultérieure : Ryzen 9 8940HX, 32 Go RAM, RTX 5060 Laptop 8 Go,
+environ 586 Go libres sous Windows x64. Budget préféré 50 €/mois, maximum 90 €, pilote 3–4 personnes.
+Protocole local/serveur ajouté dans qualification-d04 ; captures seulement, aucun test exécuté sur les machines.
+D04 reste centré sur le premier serveur Linux ; modèle quotidien non choisi. Ne pas confondre
 ces cibles produit avec trois serveurs à synchroniser ou exiger tous les OS/mobiles avant de fermer H5.
 
 ## Références
