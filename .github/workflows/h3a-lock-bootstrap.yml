@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   generate-lockfiles:
-    if: github.event.head_commit.message != 'H3a: generate dependency lockfiles'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
