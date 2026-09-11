@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import Principal, require_kairo_user
 from .config import settings
+from .pagination import PageCursor, PageLimit, page_rows
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Asset
@@ -141,12 +142,14 @@ async def list_assets(
     project_id: uuid.UUID | None = None,
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
+    response: Response = None,
+    limit: PageLimit = 100,
+    cursor: PageCursor = None,
 ) -> list[Asset]:
-    statement = select(Asset).order_by(Asset.created_at)
+    statement = select(Asset).where(Asset.metadata_json["owner_subject"].astext == principal.subject)
     if project_id is not None:
         statement = statement.where(Asset.project_id == project_id)
-    result = await session.execute(statement)
-    return [asset for asset in result.scalars() if _owned(asset, principal)]
+    return await page_rows(session, statement, Asset, limit=limit, cursor=cursor, response=response)
 
 
 @router.get("/v1/assets/{asset_id}", response_model=AssetRead)

@@ -2,12 +2,13 @@ import uuid
 from datetime import UTC, datetime
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Response, APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import Principal, require_kairo_admin, require_kairo_user
+from .pagination import PageCursor, PageLimit, page_rows
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import DeviceRegistration, SecretReference
@@ -102,13 +103,11 @@ async def register_device(
 async def list_devices(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
+    response: Response = None, limit: PageLimit = 100, cursor: PageCursor = None,
 ) -> list[DeviceRegistration]:
-    result = await session.execute(
-        select(DeviceRegistration)
-        .where(DeviceRegistration.keycloak_subject == principal.subject)
-        .order_by(DeviceRegistration.created_at)
-    )
-    return list(result.scalars())
+    return await page_rows(session, select(DeviceRegistration).where(
+        DeviceRegistration.keycloak_subject == principal.subject), DeviceRegistration,
+        limit=limit, cursor=cursor, response=response)
 
 
 @router.get("/v1/devices/{device_id}", response_model=DeviceRegistrationRead)
@@ -237,9 +236,10 @@ async def create_secret_reference(
 async def list_secret_references(
     _principal: Principal = Depends(require_kairo_admin),
     session: AsyncSession = Depends(get_session),
+    response: Response = None, limit: PageLimit = 100, cursor: PageCursor = None,
 ) -> list[SecretReference]:
-    result = await session.execute(select(SecretReference).order_by(SecretReference.created_at))
-    return list(result.scalars())
+    return await page_rows(session, select(SecretReference), SecretReference,
+                           limit=limit, cursor=cursor, response=response)
 
 
 @router.get("/v1/secret-references/{reference_id}", response_model=SecretReferenceRead)

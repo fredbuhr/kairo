@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import signal
 import sys
 import tempfile
 from typing import Any
@@ -14,9 +13,11 @@ import httpx
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
+from .owned_process import run_owned_process
 from .config import settings
+from .work_capacity import current_work_lease, run_admitted
 
-# Waiting activities remain bounded by Temporal's Worker slots. D02 adds global/owner admission.
+# Core admits at most four heavy activities globally; this local guard protects parser memory.
 _document_slots = asyncio.Semaphore(settings.kairo_document_max_concurrent)
 DOCUMENT_ACTIVITY_SECONDS = 540  # Below the existing ten-minute Temporal activity deadline.
 
@@ -40,35 +41,16 @@ async def _run_parser(source_path: Path, media_type: str) -> dict[str, Any]:
     environment = {key: value for key, value in os.environ.items() if key in allowed}
     environment.update({"OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1",
                         "TMPDIR": str(source_path.parent)})
-    spawning = asyncio.create_task(asyncio.create_subprocess_exec(
-        sys.executable, "-m", "kairo_worker.document_parser", str(source_path), str(result_path),
-        media_type, str(settings.kairo_document_max_text_chars),
-        stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL, env=environment, start_new_session=os.name == "posix",
-    ))
-    process = None
     try:
-        # Shield creation so cancellation cannot lose ownership of a child being spawned.
-        process = await asyncio.shield(spawning)
-        async with asyncio.timeout(settings.kairo_document_parse_timeout_seconds):
-            await process.wait()
+        returncode = await run_owned_process(
+            sys.executable, "-m", "kairo_worker.document_parser", str(source_path), str(result_path),
+            media_type, str(settings.kairo_document_max_text_chars), environment=environment,
+            timeout=settings.kairo_document_parse_timeout_seconds,
+        )
     except TimeoutError as exc:
         raise ApplicationError("Document parser exceeded configured time limit", non_retryable=True) from exc
-    finally:
-        if process is None:
-            process = await spawning
-        try:
-            if os.name == "posix":
-                # Also stop descendants that might outlive a successfully exited parser leader.
-                os.killpg(process.pid, signal.SIGKILL)
-            elif process.returncode is None:
-                process.kill()
-        except ProcessLookupError:
-            pass
-        await process.wait()  # Reap before the caller deletes the temporary directory or releases its slot.
-
-    if process.returncode != 0:
-        raise ApplicationError(f"Document parser exited with code {process.returncode}", non_retryable=True)
+    if returncode != 0:
+        raise ApplicationError(f"Document parser exited with code {returncode}", non_retryable=True)
     # JSON escaping can expand one source character to six bytes. Bound before materialization.
     if not result_path.is_file() or result_path.stat().st_size > settings.kairo_document_max_text_chars * 6 + 65536:
         raise ApplicationError("Document parser result is missing or exceeds configured limit", non_retryable=True)
@@ -158,6 +140,7 @@ async def _ingest(version_id: str) -> dict[str, Any]:
                 "source_media_type": source.get("media_type"),
                 "source_size_bytes": source_size,
                 "chunking": {"strategy": "paragraph-pack", "max_chars": 4000},
+                "work_lease_token": current_work_lease.get(),
             },
         },
     )
@@ -178,6 +161,10 @@ async def _ingest(version_id: str) -> dict[str, Any]:
 
 @activity.defn
 async def perform_document_ingestion(payload: dict[str, Any]) -> dict[str, Any]:
+    return await run_admitted(payload, lambda: _perform_document_ingestion(payload))
+
+
+async def _perform_document_ingestion(payload: dict[str, Any]) -> dict[str, Any]:
     version_id = str((payload.get("task_input") or {}).get("document_version_id") or "")
     if not version_id:
         raise ApplicationError("document.ingest task is missing document_version_id", non_retryable=True)

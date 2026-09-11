@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { kairoFetch } from './lib/apiClient'
 
@@ -34,6 +34,7 @@ type TodayTaskItem = {
 }
 
 type TodayView = {
+  next_cursors?: Partial<Record<TodayBucket, string>>
   day: string
   timezone: string
   day_start: string
@@ -117,24 +118,72 @@ export default function TodayWorkspace({ apiUrl }: Props) {
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const generation = useRef(0)
+  const requests = useRef(new Set<AbortController>())
+  const [loadingBucket, setLoadingBucket] = useState<TodayBucket | null>(null)
+  const currentDay = useRef(day)
+  currentDay.current = day
+
   const load = useCallback(async () => {
+    if (currentDay.current !== day) return
+    const version = ++generation.current
+    for (const pending of requests.current) pending.abort()
+    requests.current.clear()
+    const controller = new AbortController()
+    requests.current.add(controller)
     setLoading(true)
+    setLoadingBucket(null)
     setError(null)
     try {
       const response = await kairoFetch(
         `${apiUrl}/v1/today?day=${encodeURIComponent(day)}&timezone=${encodeURIComponent(timezone)}`,
+        { signal: controller.signal },
       )
-      setView(await readJson<TodayView>(response))
+      const result = await readJson<TodayView>(response)
+      if (version === generation.current && currentDay.current === day) setView(result)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Impossible de charger Today.')
+      if (!controller.signal.aborted && version === generation.current) setError(loadError instanceof Error ? loadError.message : 'Impossible de charger Today.')
     } finally {
-      setLoading(false)
+      requests.current.delete(controller)
+      if (version === generation.current) setLoading(false)
     }
   }, [apiUrl, day, timezone])
 
   useEffect(() => {
+    setView(null)
     void load()
+    return () => { ++generation.current; for (const pending of requests.current) pending.abort() }
   }, [load])
+
+  async function loadBucket(bucket: TodayBucket) {
+    const cursor = view?.next_cursors?.[bucket]
+    if (!cursor || loading || loadingBucket) return
+    const version = generation.current
+    const controller = new AbortController()
+    requests.current.add(controller)
+    setLoadingBucket(bucket)
+    setError(null)
+    try {
+      const response = await kairoFetch(
+        `${apiUrl}/v1/today?day=${encodeURIComponent(day)}&timezone=${encodeURIComponent(timezone)}&bucket=${bucket}&cursor=${encodeURIComponent(cursor)}`,
+        { signal: controller.signal },
+      )
+      const page = await readJson<TodayView>(response)
+      if (version !== generation.current || currentDay.current !== day) return
+      setView((current) => {
+        if (!current || current.day !== page.day) return current
+        const rows = new Map(current[bucket].map((item) => [item.task.id, item]))
+        for (const item of page[bucket]) rows.set(item.task.id, item)
+        return { ...current, [bucket]: [...rows.values()],
+          next_cursors: { ...current.next_cursors, [bucket]: page.next_cursors?.[bucket] } }
+      })
+    } catch (cause) {
+      if (!controller.signal.aborted && version === generation.current) setError(cause instanceof Error ? cause.message : 'Chargement impossible.')
+    } finally {
+      requests.current.delete(controller)
+      if (version === generation.current) setLoadingBucket(null)
+    }
+  }
 
   async function updateTask(taskId: string, payload: Record<string, unknown>) {
     setSavingTaskId(taskId)
@@ -176,7 +225,7 @@ export default function TodayWorkspace({ apiUrl }: Props) {
           <span className="eyebrow">TODAY</span>
           <h2 id="today-heading">Votre journée sur le même modèle Task que Projects et le futur Gantt.</h2>
         </div>
-        <span className="run-state">{total} tâche(s)</span>
+        <span className="run-state">{total} tâche(s) affichée(s)</span>
       </div>
 
       <div className="news-controls">
@@ -220,7 +269,8 @@ export default function TodayWorkspace({ apiUrl }: Props) {
                     <strong>{bucket.title}</strong>
                     <small style={{ display: 'block' }}>{bucket.hint}</small>
                   </div>
-                  <span>{items.length}</span>
+                  <span>{items.length} affichée(s)</span>
+                  {view.next_cursors?.[bucket.key] && <button type="button" disabled={loading || Boolean(loadingBucket)} onClick={() => void loadBucket(bucket.key)}>Charger la suite</button>}
                 </div>
                 <div className="source-list">
                   {items.map(({ task, project_name: projectName }) => {

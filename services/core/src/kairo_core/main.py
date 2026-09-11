@@ -16,6 +16,8 @@ from .auth import Principal, require_kairo_admin, require_kairo_user
 from .autonomy import router as autonomy_router
 from .components import load_component_registry
 from .config import settings
+from .pagination import PageCursor, PageLimit, page_rows
+from fastapi import Response
 from .db import get_session, ping_database
 from .documents import router as documents_router
 from .events import append_audit, enqueue_domain_event
@@ -23,6 +25,7 @@ from .knowledge import router as knowledge_router
 from .memory import router as memory_router
 from .models import OutboxEvent, Project, RelationshipRecord, Task
 from .model_admission import router as model_admission_router
+from .work_capacity import router as work_capacity_router
 from .news import router as news_router
 from .openbao import openbao_client
 from .outbox import OutboxRelay
@@ -67,10 +70,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="KAIRO Core", version=__version__, lifespan=lifespan)
 app.include_router(model_admission_router)
+app.include_router(work_capacity_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in settings.kairo_cors_origins.split(",") if origin.strip()],
     allow_credentials=True,
+    expose_headers=["X-Kairo-Next-Cursor"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -226,7 +231,10 @@ async def outbox_stats(
     )
     relay: OutboxRelay = request.app.state.outbox_relay
     return OutboxStats(
-        pending=int(pending or 0), published=int(published or 0), relay_connected=relay.connected
+        pending=int(pending or 0), published=int(published or 0), relay_connected=relay.connected,
+        oldest_pending_at=await session.scalar(select(func.min(OutboxEvent.created_at)).where(OutboxEvent.published_at.is_(None))),
+        rejection_threshold=settings.outbox_max_pending, retention_days=settings.outbox_retention_days,
+        stream_max_age_seconds=settings.nats_domain_max_age_seconds, stream_max_bytes=settings.nats_domain_max_bytes,
     )
 
 
@@ -270,13 +278,21 @@ async def create_project(
 async def list_projects(
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
+    response: Response = None,
+    limit: PageLimit = 100,
+    cursor: PageCursor = None,
 ) -> list[Project]:
-    rows = await session.execute(
-        select(Project)
-        .where(owned_project_clause(principal))
-        .order_by(Project.created_at.desc())
-    )
-    return list(rows.scalars())
+    return await page_rows(session, select(Project).where(owned_project_clause(principal)),
+                           Project, limit=limit, cursor=cursor, response=response, descending=True)
+
+
+@app.get("/v1/projects/{project_id}", response_model=ProjectRead)
+async def get_project(project_id: uuid.UUID, principal: Principal = Depends(require_kairo_user),
+                      session: AsyncSession = Depends(get_session)) -> Project:
+    project = await get_owned_project(session, project_id, principal)
+    if project is None:
+        raise HTTPException(404, "Project not found")
+    return project
 
 
 @app.post("/v1/tasks", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
@@ -320,16 +336,18 @@ async def create_task(
 
 @app.get("/v1/tasks", response_model=list[TaskRead])
 async def list_tasks(
+    project_id: uuid.UUID | None = None,
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
+    response: Response = None,
+    limit: PageLimit = 100,
+    cursor: PageCursor = None,
 ) -> list[Task]:
-    rows = await session.execute(
-        select(Task)
-        .join(Project, Project.id == Task.project_id)
-        .where(owned_project_clause(principal))
-        .order_by(Task.created_at.desc())
-    )
-    return list(rows.scalars())
+    statement = select(Task).join(Project, Project.id == Task.project_id).where(owned_project_clause(principal))
+    if project_id is not None:
+        statement = statement.where(Task.project_id == project_id)
+    return await page_rows(session, statement, Task, limit=limit, cursor=cursor,
+                           response=response, descending=True)
 
 
 @app.get("/v1/tasks/{task_id}", response_model=TaskRead)

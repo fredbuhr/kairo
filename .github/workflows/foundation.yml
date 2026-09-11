@@ -93,7 +93,7 @@ jobs:
       - name: Prove News Intelligence contract
         run: uv run --locked --project services/worker python scripts/smoke/news_contract.py
 
-  model-admission-integration:
+  capacity-and-data-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
@@ -117,6 +117,8 @@ jobs:
         run: uv run --locked alembic upgrade head
       - name: Prove concurrent model admission, budgets, expiry and settlement
         run: uv run --locked --project services/core python scripts/smoke/model_admission_contract.py
+      - name: Prove shared capacity, bounded reads, rebuild and relay recovery
+        run: uv run --locked --project services/core python scripts/smoke/capacity_and_data_contract.py
       - name: Prove D02 migration rollback and reapply on the disposable database
         working-directory: services/core
         run: |

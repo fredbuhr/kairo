@@ -12,8 +12,6 @@ import {
 } from './KnowledgeInspectorView'
 import KnowledgeWorkspaceStateView from './KnowledgeWorkspaceStateView'
 import type {
-  CanonicalDocument,
-  DocumentVersion,
   KnowledgeInspectionTarget,
 } from './knowledgeTypes'
 import { useProjectSelection } from './lib/projectSelection'
@@ -32,13 +30,14 @@ export default function KnowledgeWorkspace({
   inspectionTarget,
 }: Props) {
   const { selectedProjectId } = useProjectSelection()
-  const [documents, setDocuments] = useState<CanonicalDocument[]>([])
-  const [versions, setVersions] = useState<DocumentVersion[]>([])
-  const [versionsDocumentId, setVersionsDocumentId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [loadingVersions, setLoadingVersions] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [versionError, setVersionError] = useState<string | null>(null)
+  const { documentPage, versionPage, versionsDocumentId, setVersionsDocumentId } = useKnowledgeDocumentDataLoading({
+    apiUrl, projectId: selectedProjectId, documentId: selectedDocumentId,
+    versionId: inspectionTarget?.documentId === selectedDocumentId ? inspectionTarget.documentVersionId : null,
+  })
+  const { items: documents, setItems: setDocuments, loading, error } = documentPage
+  const { items: versions, setItems: setVersions, loading: loadingVersions } = versionPage
+  const [trackingVersionError, setVersionError] = useState<string | null>(null)
+  const versionError = versionPage.error || trackingVersionError
 
   const projectDocuments = useMemo(
     () =>
@@ -52,18 +51,6 @@ export default function KnowledgeWorkspace({
     () => projectDocuments.find((document) => document.id === selectedDocumentId) || null,
     [projectDocuments, selectedDocumentId],
   )
-
-  useKnowledgeDocumentDataLoading({
-    apiUrl,
-    documentId: selectedDocument?.id || null,
-    setDocuments,
-    setVersions,
-    setVersionsDocumentId,
-    setLoading,
-    setLoadingVersions,
-    setError,
-    setVersionError,
-  })
 
   const {
     setSelectedVersionId,
@@ -165,7 +152,7 @@ export default function KnowledgeWorkspace({
           <span className="eyebrow">KNOWLEDGE</span>
           <h2 id="knowledge-heading">Documents canoniques du projet actif.</h2>
         </div>
-        <span className="run-state">{projectDocuments.length} document(s)</span>
+        <span className="run-state">{projectDocuments.length} document(s) affiché(s)</span>
       </div>
 
       <KnowledgeWorkspaceStateView
@@ -186,6 +173,7 @@ export default function KnowledgeWorkspace({
             onSubmit={importDocument}
           />
 
+          {documentPage.hasMore && <button type="button" disabled={loading} onClick={() => void documentPage.loadMore()}>Charger les documents suivants</button>}
           <KnowledgeDocumentsView
             documents={projectDocuments}
             selectedDocument={selectedDocument}
@@ -212,6 +200,7 @@ export default function KnowledgeWorkspace({
                 onLoadChunks={() => void loadChunkPage(0)}
               />
 
+              {versionPage.hasMore && <button type="button" disabled={loadingVersions} onClick={() => void versionPage.loadMore()}>Charger les versions précédentes</button>}
               {versions.length > 0 && (
                 <KnowledgeChunksView
                   selectedVersion={selectedVersion}

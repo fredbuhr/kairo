@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any, Literal
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Response, APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .auth import Principal, require_kairo_user
 from .autonomy_models import ApprovalRequest, ModelUsageRecord
 from .config import settings
+from .pagination import PageCursor, PageLimit, page_rows
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project, Task, WorkflowExecution
@@ -251,6 +252,7 @@ async def list_approval_requests(
     approval_status: str | None = None,
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
+    response: Response = None, limit: PageLimit = 100, cursor: PageCursor = None,
 ) -> list[ApprovalRequest]:
     if task_id is not None and await get_owned_task(session, task_id, principal) is None:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -265,8 +267,7 @@ async def list_approval_requests(
         statement = statement.where(ApprovalRequest.task_id == task_id)
     if approval_status:
         statement = statement.where(ApprovalRequest.status == approval_status)
-    result = await session.execute(statement)
-    return list(result.scalars())
+    return await page_rows(session, statement, ApprovalRequest, limit=limit, cursor=cursor, response=response, descending=True)
 
 
 @router.post("/v1/approval-requests/{approval_id}/decision", response_model=ApprovalRead)

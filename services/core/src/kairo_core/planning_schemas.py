@@ -60,6 +60,7 @@ class TodayTaskItem(BaseModel):
 
 
 class TodayRead(BaseModel):
+    next_cursors: dict[str, str] = Field(default_factory=dict)
     day: date
     timezone: str
     day_start: datetime

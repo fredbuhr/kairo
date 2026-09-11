@@ -26,7 +26,7 @@ Les moteurs ne deviennent ni des produits juxtaposés ni des sources de vérité
 ## Taille des lots et définition de terminé
 
 Les IDs D01–D22 sont stables et désignent des résultats, pas des changements de deux lignes.
-Un lot vise normalement une à trois PR révisables. Si son risque/périmètre dépasse cela,
+Privilégier une PR cohérente par lot ; deux ou trois seulement si une contrainte démontrée le justifie. Si son risque/périmètre dépasse cela,
 définir une sous-livraison utilisable et sa raison dans le checkpoint avant de coder ; éviter
 une chaîne de sous-gates par fichier. Estimer le lot suivant à partir du code inspecté et du
 débit réellement observé ; ne pas promettre des dates pour 22 lots encore non exécutés.
@@ -62,8 +62,10 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
 - **Sortie :** deux propriétaires concurrents sans double dépense ni dépassement silencieux ;
   interruption sans réservation éternelle ; backlog observable et requêtes sans chargement intégral.
   Préserver les preuves SIGKILL existantes.
-- **Découpage retenu :** première tranche admission/réservation des appels IA (état exact dans le checkpoint),
-  puis admission documents/travaux non IA et matérialisation/rétention ; même objectif de saturation maîtrisée.
+- **Livraison en cours :** les budgets IA sont intégrés (#85). Regrouper tout le reste de D02
+  (admission documents/mémoire, pages SQL/UI, rebuild par lots, outbox/rétention/observation)
+  dans une seule livraison et une validation commune. Les commits sont des points de reprise,
+  pas de nouveaux fragments de lot.
   Les estimations réservées et les tokens de sortie bornés ne constituent pas un plafond fournisseur
   garanti en dollars ; enregistrer/rapprocher les coûts incertains et signaler les dépassements réels.
 

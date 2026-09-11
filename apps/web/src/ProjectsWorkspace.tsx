@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
+import { usePagedCollection } from './lib/usePagedCollection'
 import { kairoFetch } from './lib/apiClient'
 import { useProjectSelection } from './lib/projectSelection'
 
@@ -69,53 +70,23 @@ function formatDate(value?: string | null) {
 }
 
 export default function ProjectsWorkspace({ apiUrl }: Props) {
-  const [projects, setProjects] = useState<Project[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
   const { selectedProjectId, setSelectedProjectId } = useProjectSelection()
   const [newProjectName, setNewProjectName] = useState('')
   const [newTaskTitle, setNewTaskTitle] = useState('')
-  const [loading, setLoading] = useState(true)
   const [creatingProject, setCreatingProject] = useState(false)
   const [creatingTask, setCreatingTask] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const projectPage = usePagedCollection<Project>(`${apiUrl}/v1/projects`, selectedProjectId ? `${apiUrl}/v1/projects/${selectedProjectId}` : null)
+  const { items: projects, setItems: setProjects, loading } = projectPage
+  const taskPage = usePagedCollection<Task>(selectedProjectId ? `${apiUrl}/v1/tasks?project_id=${encodeURIComponent(selectedProjectId)}` : null)
+  const { items: tasks, setItems: setTasks } = taskPage
+
   useEffect(() => {
-    let cancelled = false
-
-    const load = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const [projectsResponse, tasksResponse] = await Promise.all([
-          kairoFetch(`${apiUrl}/v1/projects`),
-          kairoFetch(`${apiUrl}/v1/tasks`),
-        ])
-        const [loadedProjects, loadedTasks] = await Promise.all([
-          readJson<Project[]>(projectsResponse),
-          readJson<Task[]>(tasksResponse),
-        ])
-        if (cancelled) return
-
-        setProjects(loadedProjects)
-        setTasks(loadedTasks)
-        setSelectedProjectId((current) => {
-          if (current && loadedProjects.some((project) => project.id === current)) return current
-          return loadedProjects.find((project) => project.status === 'active')?.id || loadedProjects[0]?.id || ''
-        })
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Impossible de charger Projects.')
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+    if (!loading && !selectedProjectId && projects.length) {
+      setSelectedProjectId(projects.find((project) => project.status === 'active')?.id || projects[0].id)
     }
-
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [apiUrl, setSelectedProjectId])
+  }, [loading, projects, selectedProjectId, setSelectedProjectId])
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) || null,
@@ -201,7 +172,7 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
           <span className="eyebrow">PROJECTS</span>
           <h2 id="projects-heading">Projets et tâches canoniques KAIRO.</h2>
         </div>
-        <span className="run-state">{projects.length} projet(s)</span>
+        <span className="run-state">{projects.length} projet(s) affiché(s)</span>
       </div>
 
       <form className="news-form" onSubmit={createProject}>
@@ -221,7 +192,8 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
         </div>
       </form>
 
-      {error && <div className="error-panel">{error}</div>}
+      {(error || projectPage.error || taskPage.error) && <div className="error-panel">{error || projectPage.error || taskPage.error}</div>}
+      {projectPage.hasMore && <button type="button" disabled={loading} onClick={() => void projectPage.loadMore()}>Charger les projets suivants</button>}
       {loading && !error && (
         <div className="progress-panel">
           <strong>Chargement de vos projets KAIRO.</strong>
@@ -278,7 +250,7 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
                     : ''}
                 </span>
                 <span>
-                  {selectedTasks.length} tâche(s)
+                  {selectedTasks.length} tâche(s) affichée(s)
                   {taskStatusSummary.length
                     ? ` · ${taskStatusSummary
                         .map(([status, count]) => `${statusLabel(status)} ${count}`)
@@ -309,13 +281,14 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
             </div>
           </form>
 
+          {taskPage.hasMore && <button type="button" disabled={taskPage.loading} onClick={() => void taskPage.loadMore()}>Charger les tâches suivantes</button>}
           <section className="sources" aria-label="Tâches du projet sélectionné">
             <div className="sources-title">
               <strong>Tâches du projet</strong>
               <span>{selectedTasks.length} élément(s)</span>
             </div>
             <div className="source-list">
-              {selectedTasks.length === 0 && (
+              {selectedTasks.length === 0 && !taskPage.loading && !taskPage.error && (
                 <div className="source-card">
                   <span className="source-id">0</span>
                   <div>

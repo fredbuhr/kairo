@@ -252,6 +252,8 @@ class OutboxEvent(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    claim_token: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    claim_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         Index("ix_outbox_unpublished", "published_at", "created_at"),

@@ -128,7 +128,7 @@ Path(sys.argv[2]).write_text(json.dumps({'parser': 'controlled-slow-fixture', 'p
             patch.object(runtime.asyncio, "create_subprocess_exec", self.slow_spawn),
             patch.object(runtime, "_report_complete", AsyncMock()) as report,
         ):
-            work = asyncio.create_task(runtime.perform_document_ingestion(
+            work = asyncio.create_task(runtime._perform_document_ingestion(
                 {"task_input": {"document_version_id": "fixture"}}
             ))
             await asyncio.wait_for(downloaded.wait(), timeout=5)
@@ -159,7 +159,7 @@ Path(sys.argv[2]).write_text(json.dumps({'parser': 'controlled-slow-fixture', 'p
                 active -= 1
 
         with patch.object(runtime, "_ingest", ingest):
-            tasks = [asyncio.create_task(runtime.perform_document_ingestion(
+            tasks = [asyncio.create_task(runtime._perform_document_ingestion(
                 {"task_input": {"document_version_id": str(i)}}
             )) for i in range(3)]
             await asyncio.wait_for(first_started.wait(), timeout=5)

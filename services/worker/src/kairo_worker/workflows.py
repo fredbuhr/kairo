@@ -68,6 +68,19 @@ class TaskExecutionWorkflow:
                 non_retryable=True,
             )
 
+    async def _heavy_work(self, activity_function, work_payload, original_payload, minutes):
+        for _ in range(100):
+            result = await workflow.execute_activity(
+                activity_function, work_payload,
+                start_to_close_timeout=timedelta(minutes=minutes),
+                heartbeat_timeout=timedelta(seconds=120), retry_policy=ACTIVITY_RETRY,
+            )
+            if not result.get("waiting_for_capacity"):
+                return result
+            # The timer is durable and occupies no activity slot. Bound history growth too.
+            await workflow.sleep(5)
+        workflow.continue_as_new(original_payload)
+
     @workflow.run
     async def run(self, payload: dict[str, Any]) -> dict[str, Any]:
         workflow_id = payload["workflow_id"]
@@ -144,21 +157,9 @@ class TaskExecutionWorkflow:
                     retry_policy=ACTIVITY_RETRY,
                 )
             elif capability == "memory.project":
-                result = await workflow.execute_activity(
-                    perform_memory_projection,
-                    work_payload,
-                    start_to_close_timeout=timedelta(minutes=5),
-                    heartbeat_timeout=timedelta(seconds=120),
-                    retry_policy=ACTIVITY_RETRY,
-                )
+                result = await self._heavy_work(perform_memory_projection, work_payload, payload, 5)
             elif capability == "document.ingest":
-                result = await workflow.execute_activity(
-                    perform_document_ingestion,
-                    work_payload,
-                    start_to_close_timeout=timedelta(minutes=10),
-                    heartbeat_timeout=timedelta(seconds=120),
-                    retry_policy=ACTIVITY_RETRY,
-                )
+                result = await self._heavy_work(perform_document_ingestion, work_payload, payload, 10)
             elif capability == "tool.invoke":
                 result = await workflow.execute_activity(
                     perform_tool_invocation,

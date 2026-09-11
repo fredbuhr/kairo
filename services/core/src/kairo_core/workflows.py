@@ -8,6 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .auth import Principal, require_kairo_user
 from .command_models import CommandRecord
 from .db import get_session
+from .work_capacity import WorkAdmission, ensure_work_request
+from .pagination import PageCursor, PageLimit, page_rows
+from fastapi import Response
+from sqlalchemy import update
 from .document_models import Document, DocumentVersion
 from .events import append_audit, enqueue_domain_event
 from .models import Artifact, Project, Task, WorkflowExecution
@@ -214,6 +218,8 @@ async def run_task(
     await _require_execution_binding(task, session)
     if task.status == "completed":
         raise HTTPException(status_code=409, detail="Completed task cannot be started again")
+
+    await ensure_work_request(session, task)
 
     workflow_id = _workflow_id(task.id)
     execution = await session.scalar(
@@ -600,6 +606,9 @@ async def internal_fail_execution(
             execution=execution,
             error=body.error,
         )
+        await session.execute(update(WorkAdmission).where(WorkAdmission.task_id == task.id).values(
+            status="finished", lease_token=None, lease_holder=None, lease_until=None,
+        ))
         await session.commit()
     return {"status": execution.status}
 
@@ -609,10 +618,11 @@ async def task_artifacts(
     task_id: uuid.UUID,
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
+    response: Response = None,
+    limit: PageLimit = 100,
+    cursor: PageCursor = None,
 ) -> list[Artifact]:
     if not await get_owned_task(session, task_id, principal):
         raise HTTPException(status_code=404, detail="Task not found")
-    result = await session.execute(
-        select(Artifact).where(Artifact.task_id == task_id).order_by(Artifact.created_at)
-    )
-    return list(result.scalars())
+    return await page_rows(session, select(Artifact).where(Artifact.task_id == task_id),
+                           Artifact, limit=limit, cursor=cursor, response=response)

@@ -2,6 +2,7 @@ import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
 
 import { readKnowledgeJson } from './knowledgeApi'
 import type { CanonicalDocument, DocumentVersion } from './knowledgeTypes'
+import { mergeById } from './lib/usePagedCollection'
 import { kairoFetch } from './lib/apiClient'
 
 type Options = {
@@ -52,7 +53,7 @@ export function useKnowledgeIngestionTracking({
             )
             const loadedVersions = await readKnowledgeJson<DocumentVersion[]>(versionsResponse)
             if (!cancelled) {
-              setVersions(loadedVersions)
+              setVersions((current) => mergeById(current, loadedVersions).sort((a, b) => b.generation - a.generation))
               setVersionsDocumentId(document.id)
               setVersionError(null)
             }

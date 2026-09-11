@@ -6,16 +6,19 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from pydantic import BaseModel, Field
+from sqlalchemy import select, text, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import Principal, require_kairo_user
 from .command_models import Conversation, ConversationMessage
 from .db import get_session
+from .work_capacity import ensure_work_request, require_work_lease
 from .events import append_audit, enqueue_domain_event
 from .memory_models import MemoryProjectionRecord
-from .models import Project, Task
+from .models import AuditRecord, Project, Task
+from .pagination import decode_cursor, encode_cursor
 from .security import require_internal_token
 
 router = APIRouter()
@@ -272,6 +275,7 @@ async def ensure_memory_projection(
     task = await session.get(Task, task_id)
     if task is None:
         raise RuntimeError("Memory projection Task could not be initialized")
+    await ensure_work_request(session, task)
 
     for row in rows:
         if row.generation == requested_generation:
@@ -350,6 +354,7 @@ async def report_memory_projection(
             "reported_generation": generation,
             "status": "stale-report-ignored",
         }
+    await require_work_lease(session, rows[0].task_id, body.get("work_lease_token"))
 
     by_projector = {row.projector: row for row in rows}
     normalized_reports: list[dict[str, Any]] = []
@@ -467,30 +472,60 @@ async def get_memory_projections(
     }
 
 
-@router.post(
-    "/internal/v1/memory/rebuild",
-    dependencies=[Depends(require_internal_token)],
-)
-async def rebuild_memory_projections(
-    body: dict[str, Any],
-    session: AsyncSession = Depends(get_session),
-) -> dict[str, Any]:
-    raw_ids = body.get("message_ids")
-    query = select(ConversationMessage).order_by(
-        ConversationMessage.created_at, ConversationMessage.id
-    )
-    if raw_ids is not None:
-        if not isinstance(raw_ids, list):
-            raise HTTPException(status_code=422, detail="message_ids must be a list")
-        try:
-            message_ids = [uuid.UUID(str(value)) for value in raw_ids]
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=422, detail="message_ids contains an invalid UUID") from None
-        if not message_ids:
-            return {"queued": 0, "messages": []}
-        query = query.where(ConversationMessage.id.in_(message_ids))
+class MemoryRebuildRequest(BaseModel):
+    request_id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    message_ids: list[uuid.UUID] | None = Field(default=None, max_length=200)
+    cursor: str | None = Field(default=None, max_length=2048)
+    through: str | None = Field(default=None, max_length=2048)
+    limit: int = Field(default=100, ge=1, le=100)
 
-    messages = list((await session.execute(query)).scalars())
+
+def _rebuild_boundary(cursor: str) -> tuple[datetime, uuid.UUID]:
+    try:
+        created, identity = decode_cursor(cursor, 2)
+        timestamp = datetime.fromisoformat(created)
+        if timestamp.tzinfo is None:
+            raise ValueError()
+        return timestamp, uuid.UUID(identity)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(422, "Invalid rebuild cursor") from exc
+
+
+@router.post("/internal/v1/memory/rebuild", dependencies=[Depends(require_internal_token)])
+async def rebuild_memory_projections(
+    body: MemoryRebuildRequest, session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    # One durable receipt per bounded page: retrying a lost response cannot advance generations twice.
+    locked = await session.scalar(text("SELECT pg_try_advisory_xact_lock(1262572114, :key)"),
+                                  {"key": 100 + body.request_id.int % 2000000000})
+    if not locked:
+        raise HTTPException(429, "Rebuild page is already being processed", headers={"Retry-After": "5"})
+    receipt_id = uuid.uuid5(body.request_id, body.cursor or "first")
+    request = body.model_dump(mode="json")
+    receipt = await session.get(AuditRecord, receipt_id)
+    if receipt:
+        if receipt.request_json != request:
+            raise HTTPException(409, "Rebuild request is already bound to different parameters")
+        return receipt.result_json
+    if body.cursor and not body.through:
+        raise HTTPException(422, "Continuation requires the original through watermark")
+    query = select(ConversationMessage)
+    if body.message_ids is not None:
+        query = query.where(ConversationMessage.id.in_(body.message_ids))
+    through = body.through
+    if through is None:
+        last = await session.scalar(query.order_by(ConversationMessage.created_at.desc(), ConversationMessage.id.desc()).limit(1))
+        if last:
+            through = encode_cursor([last.created_at, last.id])
+    boundary = tuple_(ConversationMessage.created_at, ConversationMessage.id)
+    if through:
+        query = query.where(boundary <= _rebuild_boundary(through))
+    if body.cursor:
+        query = query.where(boundary > _rebuild_boundary(body.cursor))
+    page = list((await session.execute(query.order_by(ConversationMessage.created_at, ConversationMessage.id)
+                                      .limit(body.limit + 1))).scalars())
+    messages = page[:body.limit]
+    next_cursor = encode_cursor([messages[-1].created_at, messages[-1].id]) if len(page) > body.limit else None
     queued: list[dict[str, Any]] = []
     for message in messages:
         created = await _seed_projection_rows(session, message.id, 1)
@@ -526,20 +561,15 @@ async def rebuild_memory_projections(
                 "reason": "memory.rebuild",
             },
         )
-        queued.append({"message_id": message.id, "generation": next_generation})
+        queued.append({"message_id": str(message.id), "generation": next_generation})
 
-    correlation_id = uuid.uuid4()
-    await append_audit(
-        session,
-        actor_type="system",
-        actor_id="memory-rebuilder",
-        action="memory.rebuild.enqueue",
-        resource_type="memory_projection",
-        resource_id="all" if raw_ids is None else "selected",
-        authority_level=1,
-        correlation_id=correlation_id,
-        request_json={"message_count": len(messages)},
-        result_json={"queued": len(queued)},
-    )
+    result = {"request_id": str(body.request_id), "queued": len(queued), "messages": queued,
+              "next_cursor": next_cursor, "through": through, "complete": next_cursor is None}
+    session.add(AuditRecord(
+        id=receipt_id, actor_type="system", actor_id="memory-rebuilder", action="memory.rebuild.enqueue",
+        resource_type="memory_projection", resource_id=str(body.request_id), authority_level=1,
+        correlation_id=body.request_id, idempotency_key=f"memory-rebuild:{receipt_id}",
+        request_json=request, result_json=result,
+    ))
     await session.commit()
-    return {"queued": len(queued), "messages": queued}
+    return result

@@ -17,12 +17,12 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 
 | Champ | Valeur |
 |---|---|
-| Branche de développement active | **Aucune** |
+| Branche de développement active | `hardening/d02-complete-capacity-and-data` |
 | PR active | **Aucune** |
 | Dernière livraison | **D02 — admission et réservations des appels IA** |
 | Dernier lot entièrement terminé | **D01** |
-| Prochain travail | **Suite D02 — admission documents/mémoire, puis volume des données** |
-| Première action | Vérifier live main/PRs, relire D02 et inspecter admission des documents/projections : éviter qu'un propriétaire sature les activités ; choisir une tranche cohérente avant de coder |
+| Prochain travail | **Terminer D02 dans une livraison commune : capacité et volume des données** |
+| Première action | Compléter admission globale documents/mémoire avec attente Temporal, pagination SQL/UI, rebuild par lots et rétention ; valider ensemble avant merge |
 | Reste D02 | Admission hors model_gateway, SQL assets/pagination/Today, projections par lots, outbox/rétention, observation du backlog et mesure de saturation |
 | Scope | Pas de nouveau broker ni de fonction produit ; conserver les invariants budgétaires et SIGKILL |
 
@@ -81,3 +81,24 @@ Preuves des 8 workflows PR (les 8 miroirs push ont aussi réussi) :
   Les anciennes branches H1–H3b2e et `hardening/h4-task-dispatch-isolation` restent retirées.
 - Réservoirs non canoniques : `feat/kairo-test-interface-v1`, `consolidate/g49-research-durable-stages`.
   Inspection/récupération sélective uniquement, jamais reprise ou merge en bloc.
+
+## D02 — livraison groupée en cours
+
+- Base live vérifiée : `cc550150664b1c4c11924ad6b486f863831633d6`, aucune PR ouverte au départ.
+- Instruction utilisateur : conserver les lots, éviter leur fragmentation ; travail restant regroupé.
+- Inspection : documents/mémoire occupent les activités pendant leur attente ; Mem0 utilise un thread
+  non annulable ; assets/documents filtrés après chargement ; Today et rebuild lisent tout ; outbox
+  conserve ses verrous pendant NATS. Réservoir : convergence NATS bornée récupérable conceptuellement,
+  pagination Today du prototype insuffisante ; aucune admission équivalente retenue.
+- Validation prévue : même PostgreSQL réel pour concurrence/leases/pages/maintenance, vrais processus
+  contrôlés, UI et toutes intégrations existantes dont SIGKILL. Aucun nouveau service ni fonction produit.
+
+### Point de travail D02 (non encore validé)
+
+Implémentation groupée : migration 0014, admission documents/mémoire, attente Temporal,
+processus mémoire annulable, curseurs SQL et contrôles de pagination Projects/Research/Knowledge/Today,
+rebuild à reçus idempotents, outbox à claims courts et rétention bornée. Première compilation,
+reproductibilité et `git diff --check` réussis ; CI sur le nouveau head encore à lancer.
+Ne pas fusionner avant les preuves communes et tous les workflows du head final.
+Prochaine action : ouvrir/mettre à jour l'unique PR D02, terminer les preuves de processus et la
+procédure d'exploitation, résoudre la CI dans cette même branche, puis vérifier le merge.

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
+import { usePagedCollection } from './lib/usePagedCollection'
 import { kairoFetch } from './lib/apiClient'
 import { useProjectSelection } from './lib/projectSelection'
 
@@ -75,44 +76,20 @@ function sourceLabel(evidence: ResearchEvidence) {
 }
 
 export default function ResearchWorkspace({ apiUrl }: Props) {
-  const [projects, setProjects] = useState<Project[]>([])
   const { selectedProjectId: projectId, setSelectedProjectId: setProjectId } = useProjectSelection()
   const [query, setQuery] = useState('')
   const [maxToolCalls, setMaxToolCalls] = useState(3)
   const [taskId, setTaskId] = useState<string | null>(null)
   const [run, setRun] = useState<ResearchRun | null>(null)
-  const [loadingProjects, setLoadingProjects] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const projectPage = usePagedCollection<Project>(`${apiUrl}/v1/projects`, projectId ? `${apiUrl}/v1/projects/${projectId}` : null)
+  const projects = projectPage.items.filter((project) => project.status === 'active')
+  const loadingProjects = projectPage.loading
   useEffect(() => {
-    let cancelled = false
-
-    const loadProjects = async () => {
-      try {
-        const response = await kairoFetch(`${apiUrl}/v1/projects`)
-        const data = await readJson<Project[]>(response)
-        if (cancelled) return
-        const active = data.filter((project) => project.status === 'active')
-        setProjects(active)
-        setProjectId((current) => {
-          if (current && active.some((project) => project.id === current)) return current
-          return active[0]?.id || ''
-        })
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Impossible de charger les projets.')
-        }
-      } finally {
-        if (!cancelled) setLoadingProjects(false)
-      }
-    }
-
-    void loadProjects()
-    return () => {
-      cancelled = true
-    }
-  }, [apiUrl, setProjectId])
+    if (!loadingProjects && !projectId && projects.length) setProjectId(projects[0].id)
+  }, [loadingProjects, projectId, projects, setProjectId])
 
   useEffect(() => {
     if (!taskId) return
@@ -216,6 +193,7 @@ export default function ResearchWorkspace({ apiUrl }: Props) {
             </select>
           </label>
 
+          {projectPage.hasMore && <button type="button" disabled={loadingProjects} onClick={() => void projectPage.loadMore()}>Charger les projets suivants</button>}
           <label>
             <span>Appels outils max.</span>
             <select value={maxToolCalls} onChange={(event) => setMaxToolCalls(Number(event.target.value))}>
@@ -233,7 +211,7 @@ export default function ResearchWorkspace({ apiUrl }: Props) {
         </div>
       </form>
 
-      {error && <div className="error-panel">{error}</div>}
+      {(error || projectPage.error) && <div className="error-panel">{error || projectPage.error}</div>}
 
       {taskId && run && !['completed', 'failed'].includes(run.status) && !error && (
         <div className="progress-panel">

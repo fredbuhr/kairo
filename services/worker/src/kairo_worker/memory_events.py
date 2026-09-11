@@ -9,6 +9,7 @@ import httpx
 import nats
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
+from nats.js.api import ConsumerConfig
 
 from .config import settings
 
@@ -73,7 +74,7 @@ class MemoryProjectionEventConsumer:
         except Exception:
             logger.exception("Failed to hand off conversation message to memory projection")
             try:
-                await message.nak()
+                await message.nak(delay=5)
             except Exception:
                 logger.exception("Failed to NAK memory projection event")
 
@@ -90,6 +91,8 @@ class MemoryProjectionEventConsumer:
             durable=MEMORY_CONSUMER_DURABLE,
             stream=settings.nats_domain_stream,
             manual_ack=True,
+            config=ConsumerConfig(ack_wait=60, max_ack_pending=32),
+            pending_msgs_limit=64, pending_bytes_limit=4194304,
             cb=self._handle_message,
         )
 

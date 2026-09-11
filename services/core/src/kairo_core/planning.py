@@ -4,11 +4,14 @@ import uuid
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from typing import Annotated, Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import Principal, require_kairo_user
+from .pagination import PageCursor, decode_cursor, encode_cursor
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project, Task, WorkflowExecution
@@ -148,97 +151,55 @@ async def today(
     timezone_name: str = Query(default="UTC", alias="timezone", min_length=1, max_length=120),
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    bucket: Literal["overdue", "in_progress", "due_today", "planned", "completed_today", "backlog"] | None = None,
+    cursor: PageCursor = None,
 ) -> TodayRead:
     local_day, _zone, local_start, local_end = _planning_window(day, timezone_name)
-    start_utc = local_start.astimezone(UTC)
-    end_utc = local_end.astimezone(UTC)
-
-    incomplete = Task.status.notin_(TERMINAL_STATUSES)
-    planned_overlap = and_(
-        incomplete,
-        Task.planned_start_at.is_not(None),
-        Task.planned_start_at < end_utc,
-        or_(Task.planned_end_at.is_(None), Task.planned_end_at >= start_utc),
-    )
-    rows = await session.execute(
-        select(Task, Project)
-        .join(Project, Project.id == Task.project_id)
-        .where(owned_project_clause(principal))
-        .where(
-            or_(
-                Task.status.in_(ACTIVE_EXECUTION_STATUSES),
-                and_(
-                    Task.status == "completed",
-                    Task.completed_at.is_not(None),
-                    Task.completed_at >= start_utc,
-                    Task.completed_at < end_utc,
-                ),
-                and_(incomplete, Task.due_at.is_not(None), Task.due_at < end_utc),
-                planned_overlap,
-                and_(
-                    Task.status == "todo",
-                    Task.due_at.is_(None),
-                    Task.planned_start_at.is_(None),
-                    Task.planned_end_at.is_(None),
-                ),
-            )
-        )
-        .order_by(Task.priority.desc(), Task.due_at.asc().nullslast(), Task.created_at.asc())
-    )
-
-    buckets: dict[str, list[TodayTaskItem]] = {
-        "overdue": [],
-        "in_progress": [],
-        "due_today": [],
-        "planned": [],
-        "completed_today": [],
-        "backlog": [],
+    start_utc, end_utc = local_start.astimezone(UTC), local_end.astimezone(UTC)
+    if cursor and not bucket:
+        raise HTTPException(422, "A Today cursor requires its bucket")
+    inactive = Task.status.notin_(TERMINAL_STATUSES | ACTIVE_EXECUTION_STATUSES)
+    no_due_today = or_(Task.due_at.is_(None), Task.due_at >= end_utc)
+    predicates = {
+        "completed_today": and_(Task.status == "completed", Task.completed_at >= start_utc, Task.completed_at < end_utc),
+        "in_progress": Task.status.in_(ACTIVE_EXECUTION_STATUSES),
+        "overdue": and_(inactive, Task.due_at < start_utc),
+        "due_today": and_(inactive, Task.due_at >= start_utc, Task.due_at < end_utc),
+        "planned": and_(inactive, no_due_today, Task.planned_start_at < end_utc,
+                        or_(Task.planned_end_at.is_(None), Task.planned_end_at >= start_utc)),
+        "backlog": and_(Task.status == "todo", Task.due_at.is_(None), Task.planned_start_at.is_(None), Task.planned_end_at.is_(None)),
     }
-
-    for task, project in rows.all():
-        if (
-            task.status == "completed"
-            and task.completed_at is not None
-            and start_utc <= task.completed_at < end_utc
-        ):
-            buckets["completed_today"].append(_item("completed_today", task, project))
-            continue
-        if task.status in ACTIVE_EXECUTION_STATUSES:
-            buckets["in_progress"].append(_item("in_progress", task, project))
-            continue
-        if task.status in TERMINAL_STATUSES:
-            continue
-        if task.due_at is not None and task.due_at < start_utc:
-            buckets["overdue"].append(_item("overdue", task, project))
-            continue
-        if task.due_at is not None and task.due_at < end_utc:
-            buckets["due_today"].append(_item("due_today", task, project))
-            continue
-        if (
-            task.planned_start_at is not None
-            and task.planned_start_at < end_utc
-            and (task.planned_end_at is None or task.planned_end_at >= start_utc)
-        ):
-            buckets["planned"].append(_item("planned", task, project))
-            continue
-        if (
-            task.status == "todo"
-            and task.due_at is None
-            and task.planned_start_at is None
-            and task.planned_end_at is None
-            and len(buckets["backlog"]) < 20
-        ):
-            buckets["backlog"].append(_item("backlog", task, project))
-
-    return TodayRead(
-        day=local_day,
-        timezone=timezone_name,
-        day_start=local_start,
-        day_end=local_end,
-        overdue=buckets["overdue"],
-        in_progress=buckets["in_progress"],
-        due_today=buckets["due_today"],
-        planned=buckets["planned"],
-        completed_today=buckets["completed_today"],
-        backlog=buckets["backlog"],
-    )
+    buckets = {key: [] for key in predicates}
+    next_cursors = {}
+    # A deterministic total order preserves priority and places undated Tasks last.
+    far_future = datetime(9999, 1, 1, tzinfo=UTC)
+    due_key = func.coalesce(Task.due_at, far_future)
+    order_key = tuple_(-Task.priority, due_key, Task.created_at, Task.id)
+    for name in ([bucket] if bucket else predicates):
+        query = select(Task, Project).join(Project, Project.id == Task.project_id).where(
+            owned_project_clause(principal), predicates[name],
+        )
+        if cursor:
+            try:
+                scope, priority, due, created, identity = decode_cursor(cursor, 5)
+                if scope != f"{local_day}:{timezone_name}:{name}":
+                    raise ValueError()
+                due, created = datetime.fromisoformat(due), datetime.fromisoformat(created)
+                if due.tzinfo is None or created.tzinfo is None:
+                    raise ValueError()
+                query = query.where(order_key > (int(priority), due, created, uuid.UUID(identity)))
+            except (TypeError, ValueError) as exc:
+                raise HTTPException(422, "Invalid Today cursor") from exc
+        rows = list((await session.execute(query.order_by(
+            Task.priority.desc(), due_key, Task.created_at, Task.id,
+        ).limit(limit + 1))).all())
+        if len(rows) > limit:
+            last = rows[limit - 1][0]
+            next_cursors[name] = encode_cursor([
+                f"{local_day}:{timezone_name}:{name}", -last.priority,
+                last.due_at or far_future, last.created_at, last.id,
+            ])
+        buckets[name] = [_item(name, task, project) for task, project in rows[:limit]]
+    return TodayRead(day=local_day, timezone=timezone_name, day_start=local_start, day_end=local_end,
+                     next_cursors=next_cursors, **buckets)

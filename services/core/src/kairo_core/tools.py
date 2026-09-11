@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Response, APIRouter, Depends, HTTPException, status
 from jsonschema import SchemaError, ValidationError
 from jsonschema.validators import validator_for
 from pydantic import BaseModel, ConfigDict, Field
@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import Principal, require_kairo_admin, require_kairo_user
+from .pagination import PageCursor, PageLimit, page_rows
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project, Task, WorkflowExecution
@@ -349,10 +350,11 @@ async def create_tool_server(
 
 @router.get("/v1/tool-servers", response_model=list[ToolServerSummaryRead])
 async def list_tool_servers(
-    _: Principal = Depends(require_kairo_user), session: AsyncSession = Depends(get_session)
+    _: Principal = Depends(require_kairo_user), session: AsyncSession = Depends(get_session),
+    response: Response = None, limit: PageLimit = 100, cursor: PageCursor = None,
 ) -> list[ToolServer]:
-    rows = await session.execute(select(ToolServer).order_by(ToolServer.key))
-    return list(rows.scalars())
+    return await page_rows(session, select(ToolServer), ToolServer, key_name="key",
+                           limit=limit, cursor=cursor, response=response)
 
 
 @router.post(
@@ -474,12 +476,12 @@ async def list_tools(
     enabled_only: bool = False,
     _: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
+    response: Response = None, limit: PageLimit = 100, cursor: PageCursor = None,
 ) -> list[ToolDefinition]:
     statement = select(ToolDefinition).order_by(ToolDefinition.key)
     if enabled_only:
         statement = statement.where(ToolDefinition.enabled.is_(True), ToolDefinition.available.is_(True))
-    rows = await session.execute(statement)
-    return list(rows.scalars())
+    return await page_rows(session, statement, ToolDefinition, limit=limit, cursor=cursor, response=response, key_name="key")
 
 
 @router.patch("/v1/tools/{tool_key}/policy", response_model=ToolDefinitionRead)
