@@ -103,3 +103,11 @@ Finance, crypto, Home Assistant and OpenHands services can be present in optiona
 
 D03 profiles and refused prototype activations are documented in [deployment](deployment.md).
 Validation of deployment controls does not promote the optional engines to real integration evidence.
+
+## D04 branch qualification
+
+PR #88 adds actual CPU Docling/Mem0/Graphiti execution on offline read-only assets, local model
+accounting/restart and live SearXNG search; persistent OpenBao and two-host recovery are in the same
+campaign. These are branch proofs pending integration, not a blanket promotion of the canonical
+maturity table above. See [qualification](qualification-d04.md) and the exact-head checkpoint.
+The private target, mixed load, ingress and upgrade/recovery scenario remain H5 acceptance conditions.

@@ -130,6 +130,8 @@ def main():
     os.environ['KAIRO_COMPOSE_ENV_FILE']='.env'
     os.environ['KAIRO_COMPOSE_OVERLAY']='compose.qualification-recovery.yaml'
     os.environ['KAIRO_CONFIRM_RESTORE']='YES'
+    # Create bind-mount roots as the operator before Docker can create root-owned paths.
+    Path('.kairo-backup-staging').mkdir(exist_ok=True)
     if action=='backup':
         cmd(BASE+['up','-d','postgres','nats','seaweedfs','openbao']);wait_stores()
         evidence.case('seed-real-durable-state-and-openbao-policy',90,seed_and_policy)

@@ -98,6 +98,10 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
   privé, récupération prouvée et baseline/tag post-audit.
 - **Condition externe :** ne pas acheter serveur/API ni publier sans autorisation ; préparer scripts
   et protocole même si le matériel manque. La capacité commerciale sera approfondie en D21.
+- **Livraison active : #88**, une campagne commune dans `hardening/d04-real-engine-qualification`.
+  [Protocole et seuils](qualification-d04.md), vrais adaptateurs CPU, IA locale/recherche et restauration
+  chiffrée entre deux hôtes CI ; correctifs de runtime dans la même PR. D04/H5 reste ouvert jusqu’au
+  scénario privé et aux mesures de la cible, sans transformer cette condition en un nouveau sous-lot.
 
 ## Phase B — interface quotidienne et pensée visuelle
 

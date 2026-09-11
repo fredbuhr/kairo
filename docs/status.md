@@ -32,6 +32,16 @@ Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJEC
   Head `d931f9607b662272daf315ddc1988fede28af96c` : **9/9 workflows PR**, dont HTTP/TLS, PostgreSQL et réseau Docker réels.
   [Preuves et limites](archive/checkpoint-through-d03-2026-09-11.md). D04 conserve les vrais moteurs/H5.
 
+## Travail de branche D04 — pas encore canonique
+
+[#88](https://github.com/fredbuhr/kairo/pull/88) réunit la campagne des vrais moteurs et de reprise.
+Docling/PDF et Mem0/Graphiti en lecture seule sans Internet, inférence locale avec comptabilisation,
+arrêt/rejeu/redémarrage d’Ollama et recherche SearXNG ont passé des essais réels CPU sur la branche.
+Le head exact, les résultats communs et la restauration hors hôte sont enregistrés dans PROJECT_STATE.
+Corrections trouvées : bibliothèques natives OCR absentes, écritures techniques Mem0 hors TMPDIR,
+configuration OpenBao persistante incompatible avec sa version épinglée. La cible privée reste à qualifier ;
+ne pas utiliser les résultats de branche comme une validation de production du main D03.
+
 ## Capacités et limites
 
 | Domaine | Présent dans le code | Ce qui reste à prouver/livrer |

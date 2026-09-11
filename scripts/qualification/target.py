@@ -45,6 +45,7 @@ async def load(args):
     subjects={subject(token) for token in tokens}
     evidence=Evidence('target-read-load',args.output)
     evidence.data.update(authenticated_subject_count=len(subjects),
+        hardware_role='load-generator; record the server inventory separately',
         workload='three read-only requests per virtual client; no AI calls',
         concurrency=args.concurrency, thresholds={'p95_seconds':args.p95_seconds,'max_errors':0},
         target_origin_sha256=hashlib.sha256(args.core.encode()).hexdigest())

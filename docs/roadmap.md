@@ -4,7 +4,7 @@ Révision : 2026-09-11. Le [plan détaillé](implementation-plan.md) porte péri
 et critères de sortie. [PROJECT_STATE](../PROJECT_STATE.md) seul indique le lot actif et les preuves.
 La table donne le séquencement ; elle ne déclare pas tous les lots livrés. **D01–D03 sont terminés**
 (#84–#87). Le reste de D02 a été réuni en une seule PR avec validation commune.
-**Prochain lot : D04/H5**, preuves réelles avant les fonctions produit. D03 a été livré dans une seule PR #87.
+**Lot actif : D04/H5 (#88)**, campagne commune et validation de la cible avant les fonctions produit. D03 a été livré dans une seule PR #87.
 Le détail opérationnel et les preuves restent dans le checkpoint.
 
 | Phase | Lots, dans l'ordre nominal | Résultat |
