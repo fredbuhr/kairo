@@ -290,3 +290,11 @@ A production OpenBao process restored from persistent storage may still require 
 ## CI recovery proof
 
 `backup-restore-integration` performs a destructive recovery drill on disposable volumes. It seeds independent markers in PostgreSQL, NATS, SeaweedFS and OpenBao, snapshots all four stores, removes the live markers, restores the snapshot, and verifies that every marker returns. This prevents backup code that merely creates archives from being mistaken for a working recovery path.
+
+The D04 workflow extends this with two distinct CI hosts and actual service readback: a SQL row,
+a JetStream message, original filer object bytes and a persistent OpenBao secret after unseal.
+It verifies the source object before backup, transfers only the encrypted Restic repository, checks
+all packs on the destination and restores into fresh volumes. Filer HTTP readiness alone is
+insufficient: its restored volumes must be registered and the original bytes readable within the
+fixed deadline. Public CI fixture credentials are not a production recovery-key procedure.
+See the [D04 protocol and private-target acceptance conditions](qualification-d04.md).

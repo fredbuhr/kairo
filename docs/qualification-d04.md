@@ -46,8 +46,8 @@ déjà enregistré pour cacher une modification. Le Worker inclut les bibliothè
 observées dans le job `103333822364` sont figées dans `services/worker/runtime-packages.txt`.
 Une version retirée du miroir fait échouer le build au lieu de choisir une version différente ; conserver
 les images construites avec leurs digests pour le rollback. La qualification courante cible Linux x86_64.
-Les versions des packages, empreintes et fichiers de
-métadonnées de téléchargement sont enregistrés avec les résultats. Les modèles Ollama possèdent leur
+Les versions des packages, révisions amont et l'inventaire SHA-256 de tous les fichiers du bundle
+sont enregistrés avec les résultats. Les modèles Ollama possèdent leur
 digest obtenu par `/api/tags`. La préparation a révélé une dépendance système OCR manquante ; le PDF réel passe désormais
 sans réseau. Mem0 créait aussi son dossier SDK sous HOME en lecture seule : son dossier technique
 est maintenant dans le TMPDIR de l’enfant, avec historique SQLite en mémoire et télémétrie désactivée.

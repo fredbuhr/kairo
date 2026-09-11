@@ -75,7 +75,9 @@ def run(root, output):
     evidence = Evidence('real-document-memory', output)
     evidence.data['versions'] = versions(['docling', 'docling-core', 'mem0ai', 'graphiti-core', 'fastembed', 'onnxruntime'])
     evidence.data['model_manifest_sha256'] = sha256(root / 'manifest.json')
-    evidence.data['model_sources'] = json.loads((root / 'manifest.json').read_text())['sources']
+    manifest = json.loads((root / 'manifest.json').read_text())
+    evidence.data['model_sources'] = manifest['sources']
+    evidence.data['model_files_sha256'] = manifest['files']
     evidence.save()
 
     def boundaries():
