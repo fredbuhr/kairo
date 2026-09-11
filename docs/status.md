@@ -37,7 +37,8 @@ Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJEC
 [#88](https://github.com/fredbuhr/kairo/pull/88) réunit la campagne des vrais moteurs et de reprise.
 Docling/PDF et Mem0/Graphiti en lecture seule sans Internet, inférence locale avec comptabilisation,
 arrêt/rejeu/redémarrage d’Ollama et recherche SearXNG ont passé des essais réels CPU sur la branche.
-Le head exact, les résultats communs et la restauration hors hôte sont enregistrés dans PROJECT_STATE.
+Le head `10cb57c…` passe 9/9 workflows, dont les cinq jobs D04. La restauration sur une autre VM relit
+SQL, message JetStream, objet filer et secret OpenBao. [Rapport, mesures et inventaire des modèles](archive/qualification-d04-2026-09-11.md).
 Corrections trouvées : bibliothèques natives OCR absentes, écritures techniques Mem0 hors TMPDIR,
 configuration OpenBao persistante incompatible avec sa version épinglée. La cible privée reste à qualifier ;
 ne pas utiliser les résultats de branche comme une validation de production du main D03.
