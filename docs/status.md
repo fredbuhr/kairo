@@ -1,6 +1,6 @@
 # KAIRO — état fonctionnel vérifié
 
-Révision : 2026-09-11, D01 intégré par #84 à `3d37afa77e6aecee87b6001bb81884b7545d9425`.
+Révision : 2026-09-11, première tranche D02 intégrée par #85 à `759db57211dcc4960e20cc9486558a88ac063b52`.
 Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJECT_STATE.md).
 
 ## Acquis canoniques
@@ -17,14 +17,18 @@ Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJEC
   slots Worker et ressources Compose configurables. Head `45869904808d6216a967978767c19bc4a8f881f3`
   validé par 16/16 workflows, dont dix nouvelles régressions et ingestion/réingestion réelles.
 
+- #85 / D02 partiel : réservations et admission atomiques du gateway IA, limites globales/par propriétaire,
+  coûts incertains conservés/rapprochés et visibilité authentifiée. Head `3a531b967349d61e253c5d7491d95d8ff87901c3`
+  validé par 16/16 workflows, dont transactions PostgreSQL concurrentes, migration aller-retour et SIGKILL Research.
+
 ## Capacités et limites
 
 | Domaine | Présent dans le code | Ce qui reste à prouver/livrer |
 |---|---|---|
-| État durable | PostgreSQL, objets SeaweedFS, outbox/NATS, exécution Temporal, migrations jusqu'à `0012_task_planning` | Pagination/rétention, dimensionnement et saturation maîtrisée |
-| Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, plafonds locaux | Admission globale/par propriétaire, équité et mesure réelle des moteurs en D02/D04 |
-| Identité et actions | Keycloak, ownership, policy/approbations, registre MCP et invocations idempotentes | Production, privilèges internes, egress, budgets atomiques sous concurrence |
-| Intelligence | Routing sémantique, recherche bornée, Context Packs, provenance et gateway de modèles | Choix utilisateur des modèles/clés, UX Agents/Skills, preuve coûts et vrais moteurs |
+| État durable | PostgreSQL, objets SeaweedFS, outbox/NATS, exécution Temporal, migrations jusqu'à `0013_model_reservations` | Pagination/rétention, dimensionnement et saturation maîtrisée |
+| Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, plafonds locaux | Admission documents/mémoire hors gateway, équité et mesure réelle des moteurs en D02/D04 |
+| Identité et actions | Keycloak, ownership, policy/approbations, registre MCP et invocations idempotentes | Production, privilèges internes, egress et UX de rapprochement des coûts incertains |
+| Intelligence | Routing/recherche, Context Packs et gateway avec admission, estimations réservées, sortie bornée et replay comptable | Choix utilisateur des modèles/clés, UX Agents/Skills, preuve coûts et vrais moteurs |
 | Documents et mémoire | Ingestion/version/chunks, recherche/inspection Web, projections mémoire reconstruisibles | CI Documents emploie le fallback texte, mémoire emploie des stubs ; vraie intégration Docling/Mem0/Graphiti à mesurer en D04 |
 | Cockpit | Panneaux persistés par sujet, Command Center, Projects, Today, Research, News, Knowledge | Design Mycelium complet, réglages, attention et parcours cohérents |
 | Planification | Priorité, dates prévues/échéance, PATCH owner-scoped, Today/fuseaux | Gantt, calendrier complet, dépendances/jalons/Kanban et récurrences |
@@ -38,7 +42,8 @@ Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJEC
 KAIRO a un socle et un cockpit initial utilisables en développement, pas encore l'ensemble du
 produit Mycelium/Gantt/Brain. Des tests contrôlés prouvent des invariants précis ; ils ne certifient
 ni tous les moteurs réels, ni toutes les frontières de production, ni 1 000 utilisateurs.
-H4 reste partiel et H5 n'est pas terminé. Le [plan D01–D22](implementation-plan.md) conduit au
+Les budgets réservent des estimations : ils ne garantissent pas un plafond fournisseur en dollars.
+D02 reste ouvert pour l'admission hors gateway et le volume des données. H4 reste partiel et H5 n'est pas terminé. Le [plan D01–D22](implementation-plan.md) conduit au
 pilote central D13, puis aux extensions et à la distribution.
 
 L'[audit du 11 septembre](audit-2026-09-11.md) contient les preuves initiales, les services et

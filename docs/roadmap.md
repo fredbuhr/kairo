@@ -3,7 +3,9 @@
 Révision : 2026-09-11. Le [plan détaillé](implementation-plan.md) porte périmètres, dépendances
 et critères de sortie. [PROJECT_STATE](../PROJECT_STATE.md) seul indique le lot actif et les preuves.
 La table donne le séquencement ; elle ne déclare pas tous les lots livrés. D01 est intégré par #84,
-D02 est la prochaine étape. Le détail opérationnel reste dans le checkpoint.
+La première tranche D02 (admission/réservations du gateway IA) est intégrée par #85.
+La suite D02 couvre l'admission documents/mémoire et les données bornées ; D02 n'est pas terminé.
+Le détail opérationnel reste dans le checkpoint.
 
 | Phase | Lots, dans l'ordre nominal | Résultat |
 |---|---|---|
