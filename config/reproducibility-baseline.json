@@ -1,7 +1,7 @@
 {
-  "version": 2,
+  "version": 3,
   "baseline_date": "2026-09-11",
-  "validated_parent_sha": "9d2ff654552efd27461b0b395ae4305b5ce550eb",
+  "validated_parent_sha": "31bc227b9a706842379f0ebfda29268f90c5b292",
   "expected_package_manager": "pnpm@10.15.1",
   "expected_uv_version": "==0.12.13",
   "validated_digest_pins": {
@@ -42,8 +42,12 @@
     ["services/realtime/Dockerfile", "node:22-alpine"]
   ],
   "known_unlocked_install_files": {
-    "pnpm_no_frozen_lockfile": ["apps/web/Dockerfile", "services/realtime/Dockerfile"],
-    "uv_direct_install": ["services/core/Dockerfile", "services/worker/Dockerfile"]
+    "pnpm_no_frozen_lockfile": [],
+    "uv_direct_install": []
+  },
+  "required_locked_install_files": {
+    "pnpm_frozen_lockfile": ["apps/web/Dockerfile", "services/realtime/Dockerfile"],
+    "uv_locked_sync": ["services/core/Dockerfile", "services/worker/Dockerfile"]
   },
   "required_lockfiles": ["pnpm-lock.yaml", "uv.lock"]
 }
