@@ -17,7 +17,7 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head de reprise | Transition d'identité Nevolium en cours depuis `8cc34c964d34c360fe9b42e50e2ac9daca678a75` ; vérifier le nouveau head live de la PR avant reprise |
+| Head de code Nevolium | `18dff4d7507fad285fae871e35e56c0567e42c3a`, arbre `e39f8ebfe2a55a0869cafb6531a6fbabbf3a70f4` ; publié sur la PR, CI complète en attente |
 | Validation | Avant transition : **9/9 workflows**, **5/5 jobs D04** sur `a5a61db…`. Arbre renommé : contrats locaux rapides réussis ; CI/Docker complets à rejouer, aucun ancien succès ne qualifie ce nouveau head |
 | Prochaine action | Publier/contrôler le head Nevolium, exiger les 10 workflows verts, puis renommer le dépôt GitHub avant toute installation serveur |
 | Conditions manquantes | Nouveau head CI, renommage GitHub, inventaire OS réel, pare-feu, domaine/TLS, sauvegarde indépendante et modèle quotidien non validés |
