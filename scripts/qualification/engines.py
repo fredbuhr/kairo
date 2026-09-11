@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import re
 import socket
 import sys
 import tempfile
@@ -29,10 +30,22 @@ def prepare(root):
     model = TextEmbedding(model_name=MEM0_EMBEDDING_MODEL, cache_dir=str(root / 'fastembed'), threads=1)
     vector = next(iter(model.embed(['KAIRO qualification locale'])))
     assert len(vector) == 384
+    revisions = set()
+    for path in root.rglob('*.metadata'):
+        revision = path.read_text().splitlines()[0]
+        if re.fullmatch(r'[0-9a-f]{40}', revision):
+            revisions.add((path.relative_to(root).as_posix().split('/.cache/')[0], revision))
+    for path in root.rglob('snapshots'):
+        for snapshot in path.iterdir():
+            if snapshot.is_dir() and re.fullmatch(r'[0-9a-f]{40}', snapshot.name):
+                revisions.add((path.parent.relative_to(root).as_posix(), snapshot.name))
+    if not revisions:
+        raise ValueError('No upstream model revision metadata was recorded')
     source = {'packages': versions(['docling', 'mem0ai', 'graphiti-core', 'fastembed']),
               'embedding_model': MEM0_EMBEDDING_MODEL,
               'selection': 'Docling locked defaults: layout/table/rapidocr; FastEmbed multilingual 384',
-              'upstream_revisions': 'See HuggingFace snapshot paths and metadata in this inventory; do not infer revisions from tags'}
+              'upstream_revisions': [{'bundle_path': path, 'commit': revision} for path, revision in sorted(revisions)],
+              'other_assets': 'RapidOCR downloads selected by locked Docling/RapidOCR; exact file SHA-256 inventory is authoritative'}
     (root / 'manifest.json').write_text(json.dumps({'version': 1, 'sources': [source],
                                                    'files': inventory(root)}, indent=2))
     print('Explicit model preparation complete; execution proof still required', flush=True)

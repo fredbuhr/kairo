@@ -100,6 +100,12 @@ pas la portée réelle d'un token OpenBao : vérifier ses droits dans le scénar
 via son token interne en production. Le CLI de rebuild lit désormais `KAIRO_OPERATIONS_TOKEN` ; en dev,
 y mettre la valeur du token interne de développement.
 
+D04 ajoute la policy `infrastructure/openbao/policies/kairo-core-read.hcl` pour le Core actuel : lecture
+du namespace `secret/data/kairo/*`, sans écriture/liste/administration. Les anciens chemins hors de ce
+namespace doivent être migrés explicitement. L'entrypoint de l'image OpenBao charge déjà `/openbao/config` :
+utiliser `command: [server]` ; ajouter une seconde fois le fichier charge deux listeners et empêche le démarrage.
+La [campagne D04](qualification-d04.md) vérifie le serveur persistant et la restauration sur un autre hôte.
+
 Seuls Web/Core/Keycloak conservent des ports sur loopback. Le proxy TLS de l'opérateur doit publier
 uniquement le Web, l'auth et `/v1/` de Core ; refuser `/internal/`, `/docs` et `/openapi.json` à l'ingress.
 Les connexions entre moteurs sont sur des réseaux Docker internes séparés. Core/Keycloak ont

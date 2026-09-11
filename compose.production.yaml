@@ -3,7 +3,8 @@ services:
   openbao:
     command:
     - server
-    - -config=/openbao/config/config.hcl
+    # The pinned image entrypoint already loads /openbao/config. Repeating the file
+    # loads the TCP listener twice and prevents the persistent server from starting.
     environment:
       BAO_ADDR: http://127.0.0.1:8200
       BAO_DEV_ROOT_TOKEN_ID: ''

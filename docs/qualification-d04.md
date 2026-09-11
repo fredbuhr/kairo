@@ -48,7 +48,11 @@ Une version retirée du miroir fait échouer le build au lieu de choisir une ver
 les images construites avec leurs digests pour le rollback. La qualification courante cible Linux x86_64.
 Les versions des packages, empreintes et fichiers de
 métadonnées de téléchargement sont enregistrés avec les résultats. Les modèles Ollama possèdent leur
-digest obtenu par `/api/tags`. Le matériel, les quotas de conteneur et les pics RSS sont enregistrés ;
+digest obtenu par `/api/tags`. La préparation a révélé une dépendance système OCR manquante ; le PDF réel passe désormais
+sans réseau. Mem0 créait aussi son dossier SDK sous HOME en lecture seule : son dossier technique
+est maintenant dans le TMPDIR de l’enfant, avec historique SQLite en mémoire et télémétrie désactivée.
+Les modèles demeurent en lecture seule et les données canoniques restent dans PostgreSQL.
+Le matériel, les quotas de conteneur et les pics RSS sont enregistrés ;
 un maximum RSS du processus/des enfants est cumulatif, pas une mesure de toute la machine par scénario.
 
 ## Inventaire et charge sur la cible privée
