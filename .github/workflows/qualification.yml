@@ -38,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - name: Prove bounded read-only measurement and honest account counts
+      - name: Prove TLS, public access, bounded reads and honest account counts
         run: uv run --locked --project services/worker python scripts/qualification/contract.py
 
   real-document-memory:

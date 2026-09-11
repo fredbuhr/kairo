@@ -61,8 +61,11 @@ La cible privée et son stockage de sauvegarde ne sont pas fournis dans cette se
 les commandes suivantes sont prêtes pour l'environnement qui sera réellement retenu :
 
 ```bash
-python scripts/qualification/target.py inventory
+python scripts/qualification/target.py inventory --output .kairo-qualification/evidence/server-inventory.json
 # Après configuration production validée et authentification réelle :
+uv run --locked --project services/worker python scripts/qualification/target.py preflight \
+  --core https://api.example.org --tokens-file /chemin/prive/access-tokens.json \
+  --output .kairo-qualification/evidence/server-access.json
 uv run --locked --project services/worker python scripts/qualification/target.py load \
   --core https://api.example.org --tokens-file /chemin/prive/access-tokens.json \
   --output .kairo-qualification/evidence/target-load.json
@@ -76,6 +79,26 @@ cible qui accepte l'accès anonyme aux projets.
 1000 clients utilisant un compte ne deviennent pas 1000 utilisateurs authentifiés distincts. Cette
 charge ne fait que lire ; elle ne mesure pas 1000 générations IA simultanées. Les tests D02 restent
 la preuve des transactions d'admission et rafales synthétiques ; ne pas dupliquer ce simulateur ici.
+
+Le contrôle `preflight` fait dix lectures au maximum : accès anonyme et faux jeton refusés, puis
+réponses JSON KAIRO attendues sur projets/Today/capacité avec le premier jeton fourni ; enfin refus
+403/404 sur cinq chemins privés (`/internal/v1/work-capacity/acquire`, `/docs`, `/redoc`, `/openapi.json`,
+`/health/trust`). Un 405 indique que l'ingress laisse atteindre la route ; une redirection ou une
+page HTML avec statut 200 ne vaut pas une API valide. Les trois lectures authentifiées ne prouvent
+pas l'isolation entre tous les comptes ; les autres jetons seront utilisés lors des paliers de charge.
+
+Le contrôle est automatiquement répété avant `load`. Les lectures de charge vérifient elles aussi
+la forme JSON, avec Today limité à 20 par catégorie. Taille de réponse ≤2 Mio, délai total ≤10 s par
+requête, timeout socket 5 s ; réponses compressées refusées (Accept-Encoding: identity), redirections
+et proxys ambiants désactivés. Le rapport garde des codes de diagnostic, jamais les jetons ni le contenu
+des réponses. Un échec préalable préserve le rapport et empêche tout palier de charge.
+
+TLS vérifie certificat et nom d'hôte ; pour une PKI privée, ajouter `--ca-file /chemin/ca.pem` après
+vérification opérateur de cette CA. Aucune option ne désactive la vérification TLS. HTTP reste permis
+sur loopback pour les fixtures, explicitement sans preuve TLS. Les chemins privés sont sondés en GET
+uniquement : aucun POST de mutation, scan de ports ou effet externe. Ce contrôle ne remplace pas
+la revue des règles proxy pour toutes les méthodes, les droits internes SQL/réseau et le parcours
+utilisateur réel. Le test HTTP/TLS en CI qualifie cet outil, pas un proxy de production déployé.
 
 ## Restauration et passage de H5
 

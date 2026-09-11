@@ -9,9 +9,9 @@ from pathlib import Path
 import shutil
 import statistics
 import time
-from urllib.parse import urlsplit
 
 from common import Evidence, hardware
+from access import READ_PATHS, ProbeFailure, checked_get, origin, preflight, tls_context
 
 
 def inventory(output):
@@ -34,31 +34,33 @@ def subject(token):
 
 async def load(args):
     import httpx
-    url=urlsplit(args.core)
-    if url.username or url.password or url.query or url.fragment or url.path not in ('','/'):
-        raise ValueError('Provide a bare Core origin without credentials')
-    if url.scheme!='https' and not (url.scheme=='http' and url.hostname in {'127.0.0.1','localhost','::1'}):
-        raise ValueError('Target must use HTTPS, or HTTP on loopback')
+    url=origin(args.core)
     tokens=json.loads(args.tokens_file.read_text())
     if not isinstance(tokens,list) or not tokens or not all(isinstance(t,str) and 0<len(t)<16384 for t in tokens):
         raise ValueError('Token file must be a nonempty JSON array of access tokens')
     subjects={subject(token) for token in tokens}
-    evidence=Evidence('target-read-load',args.output)
+    evidence=Evidence('target-read-load' if args.action=='load' else 'target-access-preflight',args.output)
     evidence.data.update(authenticated_subject_count=len(subjects),
         hardware_role='load-generator; record the server inventory separately',
-        workload='three read-only requests per virtual client; no AI calls',
+        workload='ten read-only access probes; no load or AI calls' if args.action=='preflight' else 'three read-only requests per virtual client after access preflight; no AI calls',
         concurrency=args.concurrency, thresholds={'p95_seconds':args.p95_seconds,'max_errors':0},
-        target_origin_sha256=hashlib.sha256(args.core.encode()).hexdigest())
+        target_origin_sha256=hashlib.sha256(args.core.encode()).hexdigest(),
+        transport={'https':url.scheme=='https', 'certificate_verification_enabled':url.scheme=='https', 'tls_handshake_verified':False,
+                   'trust_source':'operator-ca' if args.ca_file else 'system', 'redirects_followed':False})
     evidence.save()
     semaphore=asyncio.Semaphore(args.concurrency)
-    async with httpx.AsyncClient(base_url=args.core,timeout=10,trust_env=False,follow_redirects=False) as client:
-        # A development/noauth deployment cannot yield an authenticated capacity proof.
-        anonymous=await client.get('/v1/projects?limit=1')
-        if anonymous.status_code not in {401,403}:
-            evidence.data['cases'].append({'id':'anonymous-access-rejected','status':'failed'})
+    async with httpx.AsyncClient(base_url=args.core,timeout=5,trust_env=False,follow_redirects=False,
+                                 verify=tls_context(args.ca_file)) as client:
+        try:
+            await preflight(client,evidence,tokens[0])
+            evidence.data['transport']['tls_handshake_verified']=url.scheme=='https'
             evidence.save()
-            raise SystemExit('Target accepts anonymous access; authenticated load refused')
-        evidence.data['anonymous_access_rejected']=True;evidence.save()
+        except (httpx.HTTPError, ProbeFailure, TimeoutError):
+            evidence.finish()
+            raise SystemExit('Public access preflight failed; sanitized report preserved, load not started') from None
+        if args.action=='preflight':
+            evidence.finish()
+            return
         for count in (1,10,100,1000):
             latencies=[];errors=0;started=time.monotonic()
             row={'id':f'read-load-{count}', 'virtual_clients':count, 'status':'running'}
@@ -66,13 +68,11 @@ async def load(args):
             async def virtual_client(index):
                 nonlocal errors
                 async with semaphore:
-                    for path in ('/v1/projects?limit=20','/v1/today','/v1/work-capacity'):
+                    for path in READ_PATHS:
                         before=time.monotonic()
                         try:
-                            response=await client.get(path,headers={'Authorization':'Bearer '+tokens[index%len(tokens)]})
-                            if response.status_code!=200:
-                                errors+=1
-                        except httpx.HTTPError:
+                            await checked_get(client,path,tokens[index%len(tokens)])
+                        except (httpx.HTTPError, ProbeFailure, TimeoutError):
                             errors+=1
                         latencies.append(time.monotonic()-before)
             try:
@@ -96,10 +96,11 @@ async def load(args):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action',choices=['inventory','load'])
+    parser.add_argument('action',choices=['inventory','preflight','load'])
     parser.add_argument('--output',default='.kairo-qualification/evidence/target.json')
     parser.add_argument('--core')
     parser.add_argument('--tokens-file',type=Path)
+    parser.add_argument('--ca-file',type=Path,help='Optional private CA bundle; TLS verification stays enabled')
     parser.add_argument('--concurrency',type=int,default=20,choices=range(1,65))
     parser.add_argument('--p95-seconds',type=float,default=2)
     parser.add_argument('--stage-timeout',type=float,default=180)
@@ -108,5 +109,5 @@ if __name__=='__main__':
         inventory(args.output)
     else:
         if not args.core or not args.tokens_file or not 0<args.p95_seconds<=30 or not 0<args.stage_timeout<=600:
-            parser.error('load requires --core, --tokens-file and positive bounded thresholds')
+            parser.error('preflight/load require --core, --tokens-file and positive bounded thresholds')
         asyncio.run(load(args))

@@ -110,6 +110,10 @@ La [campagne D04](qualification-d04.md) vérifie le serveur persistant et la res
 
 Seuls Web/Core/Keycloak conservent des ports sur loopback. Le proxy TLS de l'opérateur doit publier
 uniquement le Web, l'auth et `/v1/` de Core ; refuser `/internal/`, `/docs` et `/openapi.json` à l'ingress.
+Inclure `/redoc` et les endpoints `/health/` dans cette restriction publique ; les sondes opérateur
+restent internes. Avant la charge D04, lancer le contrôle `target.py preflight` décrit dans
+[qualification-d04](qualification-d04.md) : TLS, authentification, formes JSON de l'API et refus des
+routes privées. Ce contrôle en lecture seule ne configure ni ne démarre le proxy.
 Les connexions entre moteurs sont sur des réseaux Docker internes séparés. Core/Keycloak ont
 un pont d’entrée sans masquerading IP pour rendre leurs ports loopback joignables depuis le proxy hôte. Web MCP n'a ni token Core,
 ni accès au réseau canonique. Les composants ayant une sortie Internet restent du code de confiance.
