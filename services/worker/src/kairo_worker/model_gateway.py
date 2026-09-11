@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import uuid
 from dataclasses import dataclass
@@ -225,7 +226,7 @@ def _response_cost(headers: httpx.Headers) -> tuple[Decimal, bool]:
         value = Decimal(raw)
     except (InvalidOperation, ValueError):
         return Decimal("0"), False
-    if value < 0:
+    if not value.is_finite() or value < 0:
         return Decimal("0"), False
     return value, True
 
@@ -334,9 +335,11 @@ async def _authorize_model_call(
     workflow_execution_id: str | None,
     model_alias: str,
     estimated_cost_usd: Decimal,
+    idempotency_key: str,
 ) -> None:
     payload = {
         "task_id": task_id,
+        "idempotency_key": idempotency_key,
         "workflow_execution_id": workflow_execution_id,
         "action": "model.invoke",
         "resource_type": "model_alias",
@@ -356,7 +359,18 @@ async def _authorize_model_call(
         decision = response.json()
     if not decision.get("allowed"):
         reason = str(decision.get("reason") or "model_call_denied")
+        if reason in {"model_call_already_dispatched", "model_call_already_accounted"}:
+            raise ModelCallOutcomeUnknown(f"Core refuses blind model replay: {reason}")
         raise RuntimeError(f"KAIRO policy denied model call: {reason}")
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.post(
+            f"{settings.kairo_core_url.rstrip('/')}/internal/v1/model-reservations/start",
+            headers=_internal_headers(),
+            json={"task_id": task_id, "idempotency_key": idempotency_key},
+        )
+        if response.status_code == 409:
+            raise ModelCallOutcomeUnknown("Core model dispatch claim was already consumed")
+        response.raise_for_status()
 
 
 async def _record_usage(
@@ -513,12 +527,14 @@ async def chat_completion(
         workflow_execution_id=workflow_execution_id,
         model_alias=model_alias,
         estimated_cost_usd=estimated_cost_usd,
+        idempotency_key=idempotency_key,
     )
 
     request = {
         "model": model_alias,
         "temperature": temperature,
         "messages": messages,
+        "max_tokens": settings.kairo_model_max_output_tokens,
         "metadata": langfuse_metadata(
             task_id=task_id,
             workflow_execution_id=workflow_execution_id,
@@ -532,7 +548,9 @@ async def chat_completion(
         idempotency_key=idempotency_key,
         checkpoint_ledger=checkpoint_ledger,
     )
-    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+    # Absolute deadline, including slow streaming responses. Core's dispatch lease is
+    # 300s and proxy timeout 120s; a timed-out request remains financially uncertain.
+    async with asyncio.timeout(min(timeout_seconds, 120.0)), httpx.AsyncClient(timeout=min(timeout_seconds, 120.0)) as client:
         response = await client.post(
             f"{settings.litellm_url.rstrip('/')}/v1/chat/completions",
             headers=_litellm_headers(idempotency_key),

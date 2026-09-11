@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     mem0_database_url: str = ""
     litellm_url: str = "http://litellm:4000"
     litellm_master_key: str = ""
+    kairo_model_max_output_tokens: int = Field(default=4096, ge=1, le=32768)
     kairo_news_model: str = "smart"
     kairo_semantic_router_model: str = "local-fast"
     kairo_semantic_router_estimated_cost_usd: Decimal = Decimal("0.002")

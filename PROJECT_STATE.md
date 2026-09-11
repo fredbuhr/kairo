@@ -17,10 +17,10 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 
 | Champ | Valeur |
 |---|---|
-| Branche de développement active | **Aucune** |
+| Branche de développement active | `hardening/d02-model-admission` |
 | PR active | **Aucune** |
 | Dernier lot terminé | **D01 — Worker disponible et traitements bornés** |
-| Prochain lot | **D02 — admission, budgets et volume de données** |
+| Prochain lot | **D02 en cours — première tranche : admission et réservation des appels IA** |
 | Première action | Vérifier live main, lire D02, inspecter admission/run_task/policy/model accounting et reproduire une réservation concurrente avant de modifier |
 | Résultat attendu | Travail coûteux admis/attendu/refusé explicitement ; budgets atomiques et requêtes bornées |
 | Scope | Une tranche cohérente admission/réservation, puis matérialisation/rétention si le découpage du plan est nécessaire ; pas de nouvelle queue ni de fonction produit |
@@ -73,3 +73,14 @@ Preuves des 8 workflows PR (les 8 miroirs push ont également réussi) :
 - Toutes les anciennes branches H1–H3b2e et `hardening/h4-task-dispatch-isolation` sont retirées.
 - Réservoirs non canoniques : `feat/kairo-test-interface-v1`, `consolidate/g49-research-durable-stages`.
   Inspection/récupération sélective uniquement, jamais reprise ou merge en bloc.
+
+## Travail D02 en cours
+
+- Base live vérifiée : `ceec99309c389aa2f24e30350d0a11d232a99edf`, aucune PR ouverte au départ.
+- Objectif de cette tranche : réservation atomique avant fournisseur, admission globale/par
+  propriétaire, reprise sans double appel/dépense et expiration prudente ; pool DB configurable.
+- Reproduction locale du garde canonique : deux estimations de 0,60 sont acceptées sur 1,00
+  tant que le ledger reste à zéro. Les deux réservoirs inspectés n'ont pas de réservation.
+- Preuve PostgreSQL concurrente et SIGKILL à exécuter en CI ; rien de cette tranche encore validé.
+- D02 restant après cette tranche : admission des documents/travaux non IA, SQL/pagination/Today,
+  projections par lots, outbox/rétention et mesure de saturation. Ne pas déclarer D02 terminé.

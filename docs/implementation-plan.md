@@ -62,7 +62,10 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
 - **Sortie :** deux propriétaires concurrents sans double dépense ni dépassement silencieux ;
   interruption sans réservation éternelle ; backlog observable et requêtes sans chargement intégral.
   Préserver les preuves SIGKILL existantes.
-- **Découpage possible :** admission/réservation, puis matérialisation/rétention ; même objectif de saturation maîtrisée.
+- **Découpage retenu :** première tranche admission/réservation des appels IA (état exact dans le checkpoint),
+  puis admission documents/travaux non IA et matérialisation/rétention ; même objectif de saturation maîtrisée.
+  Les estimations réservées et les tokens de sortie bornés ne constituent pas un plafond fournisseur
+  garanti en dollars ; enregistrer/rapprocher les coûts incertains et signaler les dépassements réels.
 
 ### D03 — déploiement sûr et topologie utile
 

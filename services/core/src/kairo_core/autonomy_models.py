@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -78,5 +78,36 @@ class ModelUsageRecord(Base):
     __table_args__ = (
         Index("ix_model_usage_task_created", "task_id", "created_at"),
         Index("ix_model_usage_correlation", "correlation_id", "created_at"),
+        Index("ix_model_usage_created", "created_at"),
         Index("ux_model_usage_idempotency_key", "idempotency_key", unique=True),
+    )
+
+
+class ModelReservation(Base):
+    __tablename__ = "model_reservations"
+
+    idempotency_key: Mapped[str] = mapped_column(String(160), primary_key=True)
+    task_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_execution_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("workflow_executions.id", ondelete="SET NULL")
+    )
+    owner_subject: Mapped[str] = mapped_column(String(320), nullable=False)
+    model_alias: Mapped[str] = mapped_column(String(120), nullable=False)
+    amount_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="reserved")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        CheckConstraint("amount_usd >= 0", name="ck_model_reservation_amount"),
+        CheckConstraint(
+            "status IN ('reserved', 'started', 'settled', 'uncertain', 'expired')",
+            name="ck_model_reservation_status",
+        ),
+        Index("ix_model_reservation_task", "task_id", "status"),
+        Index("ix_model_reservation_owner", "owner_subject", "status"),
+        Index("ix_model_reservation_expiry", "status", "expires_at"),
     )

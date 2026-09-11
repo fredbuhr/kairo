@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +16,13 @@ class Settings(BaseSettings):
     asset_max_bytes: int = 25 * 1024 * 1024
 
     database_url: str = "postgresql+asyncpg://kairo:kairo@postgres:5432/kairo"
+    database_pool_size: int = Field(default=5, ge=1, le=50)
+    database_max_overflow: int = Field(default=5, ge=0, le=50)
+    database_pool_timeout: float = Field(default=10, gt=0, le=60)
+    kairo_model_global_concurrency: int = Field(default=8, ge=1, le=256)
+    kairo_model_owner_concurrency: int = Field(default=2, ge=1, le=64)
+    kairo_model_global_daily_budget_usd: Decimal = Field(default=Decimal("50"), ge=0)
+    kairo_model_owner_daily_budget_usd: Decimal = Field(default=Decimal("10"), ge=0)
     nats_url: str = "nats://nats:4222"
     nats_domain_stream: str = "KAIRO_DOMAIN"
     outbox_batch_size: int = 100

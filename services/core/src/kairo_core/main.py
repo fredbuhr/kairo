@@ -22,6 +22,7 @@ from .events import append_audit, enqueue_domain_event
 from .knowledge import router as knowledge_router
 from .memory import router as memory_router
 from .models import OutboxEvent, Project, RelationshipRecord, Task
+from .model_admission import router as model_admission_router
 from .news import router as news_router
 from .openbao import openbao_client
 from .outbox import OutboxRelay
@@ -65,6 +66,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="KAIRO Core", version=__version__, lifespan=lifespan)
+app.include_router(model_admission_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in settings.kairo_cors_origins.split(",") if origin.strip()],
