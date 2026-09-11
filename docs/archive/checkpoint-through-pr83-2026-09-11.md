@@ -364,7 +364,7 @@ Baseline v8 records **0** remaining unpinned references; this does not cover run
 ## Independent audit and Foundation repair — 2026-09-11
 
 - Live base checked: `0a03a7457df38debd28ccd7c73a634b03c393ca9`; PR #82 inspected at `997780e819f137dbd875b60ce0fa4f862a357ff1`.
-- See [independent audit](docs/audit-2026-09-11.md) for evidence, service inventory and priorities. This checkpoint supersedes claims that no work branch is active.
+- See [independent audit](../audit-2026-09-11.md) for evidence, service inventory and priorities. This checkpoint supersedes claims that no work branch is active.
 - Original final-head CI: 14/16 runs successful. Foundation PR run `34594823443` failed on the memory smoke's premature Task-completion assertion. Foundation push run `34594817407` failed earlier on a Docker Hub connection reset, not on that assertion.
 - The PR technical tree and previously green `f0b19cf…` differ only by checkpoint documentation. All 21 registry digests match Compose and baseline v8; configured tags are unchanged.
 - Repair integrated through #82: seed a canonical ORM message/outbox event without dispatching News, wait for each memory Task's actual completion with a monotonic deadline, reject failed Tasks immediately, and verify no unrelated Tasks were created.

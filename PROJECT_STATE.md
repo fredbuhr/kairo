@@ -21,10 +21,10 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Mandat | Plan détaillé durable, documentation cohérente, puis première implémentation ; demande utilisateur du 2026-09-11 |
 | Base | `4790e1eab979a1f8c4c25459fb1c57dc59e8f977` |
 | Branche | `hardening/d01-bounded-worker-execution` |
-| PR | À ouvrir sur cette branche après le premier commit reviewable |
+| PR | [#84](https://github.com/fredbuhr/kairo/pull/84) |
 | Objectif | Parsing hors boucle async, exécution bornée et nettoyage à l'annulation/timeout |
-| État | Documentation préparée ; implémentation et validation à poursuivre |
-| Prochaine action | Implémenter D01, prouver réactivité/limites/nettoyage, exécuter les intégrations finales avant merge |
+| État | Plan publié au commit `5e8598c423972ba987ee2c00e9d3ffa0d3781a30` ; implémentation D01 préparée, validation finale en cours |
+| Prochaine action | Vérifier les contrats subprocess/limites et les intégrations du head final, corriger tout échec avant merge |
 
 ## Travail et preuves de cette reprise
 
@@ -37,6 +37,9 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
   des fonctions livrées. Historique volumineux préservé en archive, protocole de reprise documenté.
 - Docker et les dépendances applicatives ne sont pas disponibles dans ce workspace ; la CI du
   head final doit fournir les preuves d'intégration. Ne pas déclarer D01 terminé sur compilation seule.
+- Implémentation D01 : parser enfant borné, sans secrets de service ; streaming source limité,
+  timeout/annulation avec kill/reap/nettoyage ; heartbeat pendant l'attente ; slots Worker et limites
+  CPU/RAM/PIDs configurables. Contrat de cycle de vie avec vrais processus contrôlés ajouté à la CI Documents.
 
 ## Limites, reprise et point d'arrêt
 
