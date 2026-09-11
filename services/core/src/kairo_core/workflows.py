@@ -348,6 +348,28 @@ async def run_owned_task(
 
 
 @router.post(
+    "/internal/v1/tasks/{task_id}/run",
+    response_model=TaskRunResponse,
+    dependencies=[Depends(require_internal_token)],
+)
+async def run_internal_system_task(
+    task_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+) -> TaskRunResponse:
+    """Start a system-owned Task from a trusted KAIRO service.
+
+    Internal callers must not use this route to bypass user ownership for ordinary user Tasks.
+    Only deterministic/system Tasks such as memory projections are eligible.
+    """
+
+    task = await session.get(Task, task_id)
+    if task is None or task.owner_type != "system":
+        raise HTTPException(status_code=404, detail="Task not found")
+    actor_id = str(task.owner_ref or "internal-system")
+    return await run_task(task_id, session, actor_id=actor_id)
+
+
+@router.post(
     "/internal/v1/executions/{workflow_id}/start",
     response_model=InternalStartResponse,
     dependencies=[Depends(require_internal_token)],

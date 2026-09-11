@@ -49,7 +49,8 @@ class MemoryProjectionEventConsumer:
     async def _run_task(self, task_id: str) -> None:
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(
-                f"{settings.kairo_core_url.rstrip('/')}/v1/tasks/{task_id}/run"
+                f"{settings.kairo_core_url.rstrip('/')}/internal/v1/tasks/{task_id}/run",
+                headers=self._headers(),
             )
             if response.status_code == 409:
                 # Core returns 409 only when the deterministic Task is already completed.
