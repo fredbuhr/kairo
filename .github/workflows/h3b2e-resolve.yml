@@ -1,0 +1,49 @@
+name: H3b2e digest resolver
+
+on:
+  push:
+    branches:
+      - hardening/h3b2e-final-image-pins
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve current immutable image digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          images=(
+            'actualbudget/actual-server:latest'
+            'binwiederhier/ntfy:latest'
+            'chrislusf/seaweedfs:4.46'
+            'clickhouse/clickhouse-server:25.12'
+            'docker.openhands.dev/openhands/openhands:1.6'
+            'ghcr.io/activepieces/activepieces:0.86.3'
+            'ghcr.io/berriai/litellm:main-latest'
+            'ghcr.io/home-assistant/home-assistant:stable'
+            'ghcr.io/remsky/kokoro-fastapi-cpu:v0.8.0'
+            'ghcr.io/searxng/searxng:2026.9.7-3e454637f'
+            'headscale/headscale:latest'
+            'hummingbot/hummingbot:latest'
+            'langfuse/langfuse-worker:3'
+            'langfuse/langfuse:3'
+            'livekit/livekit-server:v1.13.1'
+            'neo4j:5.26-community'
+            'ollama/ollama:0.33.3'
+            'openbao/openbao:2.6.2'
+            'quay.io/keycloak/keycloak:26.7.3'
+            'rotki/rotki:latest'
+            'vllm/vllm-openai:latest'
+          )
+          for image in "${images[@]}"; do
+            digest="$(docker buildx imagetools inspect "$image" | awk '/^Digest:/ {print $2; exit}')"
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "FAILED $image digest=$digest" >&2
+              exit 1
+            fi
+            printf 'RESOLVED %s@%s\n' "$image" "$digest"
+          done
