@@ -55,11 +55,17 @@ Les modèles demeurent en lecture seule et les données canoniques restent dans 
 Le matériel, les quotas de conteneur et les pics RSS sont enregistrés ;
 un maximum RSS du processus/des enfants est cumulatif, pas une mesure de toute la machine par scénario.
 
-## Préparation avant réception du serveur et répétition sur portable
+## Cible reçue et répétition ultérieure sur portable
 
-Le serveur netcup RS 4000 G12 a été demandé par l'utilisateur ; livraison et accès en attente.
+Le serveur netcup RS 4000 G12 est livré et en fonctionnement d'après les captures utilisateur.
+Elles montrent Vienne, 12 CPU AMD64, 32 Gio de RAM, un disque de 1 Tio et IPv4/IPv6 attribuées.
+Le panneau affiche zéro règle de pare-feu : vérifier la politique effective avant toute installation.
+Le type `HDD` affiché pour le périphérique de démarrage ne mesure pas le support NVMe sous-jacent ;
+`lsblk` et une mesure ultérieure établiront seulement ce que voit le système invité.
+Ne pas versionner hostname fournisseur, IP, MAC, identifiants client ou secrets issus des captures.
 Budget préféré 50 €/mois, plafond 90 €, pilote de 3–4 personnes principalement utilisé par une personne.
-L'ASUS TUF Gaming A16 est une cible locale candidate : OS, RAM, CPU, GPU et disque libre restent inconnus.
+L'ASUS TUF Gaming A16 FA608PM est une cible locale candidate : Windows x64, Ryzen 9 8940HX,
+32 Go de RAM, NVIDIA RTX 5060 Laptop 8 Go avec iGPU Radeon, environ 586 Go libres sur 954 Go.
 Aucun résultat du portable ne vaut mesure de netcup, et aucune compatibilité GPU n'est présumée.
 
 Sur Windows, relever dans le Gestionnaire des tâches (Performance) le CPU, la RAM et les GPU,
@@ -110,7 +116,7 @@ borné identique, puis ingestion documentaire concurrente. Consigner qualité su
 temps avant premier token, durée complète, mémoire totale et latence des lectures KAIRO. Le modèle
 0.5B des fixtures conserve son rôle de preuve de câblage ; ne pas le remplacer silencieusement.
 
-À réception de netcup : reprendre l'inventaire serveur, production/TLS/authentification, preflight,
+Sur netcup : reprendre l'inventaire serveur, production/TLS/authentification, preflight,
 parcours canonique, charge mixte et restauration hors hôte. Le portable peut alors servir de client de
 mesure indépendant. D04 reste ouvert ; les vues Mycelium/Gantt/mindmap restent dans les lots prévus.
 
@@ -118,8 +124,8 @@ Référence installation : [Docker Desktop Windows / WSL2](https://docs.docker.c
 
 ## Inventaire et charge sur la cible privée
 
-Le serveur netcup est demandé mais ses accès et le stockage de sauvegarde ne sont pas encore fournis. Sans les inventer,
-les commandes suivantes sont prêtes pour l'environnement qui sera réellement retenu :
+Le serveur netcup est livré mais aucun accès opérateur n'est fourni à cette session et le stockage de
+sauvegarde indépendant reste à choisir. Les commandes suivantes sont prêtes pour la cible retenue :
 
 ```bash
 python scripts/qualification/target.py inventory --output .kairo-qualification/evidence/server-inventory.json
@@ -131,6 +137,31 @@ uv run --locked --project services/worker python scripts/qualification/target.py
   --core https://api.example.org --tokens-file /chemin/prive/access-tokens.json \
   --output .kairo-qualification/evidence/target-load.json
 ```
+
+Avant de cloner le dépôt ou d'installer des paquets, ouvrir une première session SSH depuis le PC de
+l'opérateur et exécuter uniquement cet inventaire sans secrets :
+
+```bash
+cat /etc/os-release
+uname -m
+nproc
+free -h
+lsblk -o NAME,TYPE,SIZE,FSTYPE,MOUNTPOINTS
+df -hT /
+python3 --version || true
+git --version || true
+docker --version || true
+docker compose version || true
+```
+
+Ne pas transmettre le mot de passe root, une clé privée, `/etc/shadow`, les variables d'environnement
+ou les fichiers de configuration SSH. Une fois l'accès confirmé, créer l'accès par clé d'un compte
+d'administration, vérifier une seconde connexion dans un autre terminal, puis seulement désactiver
+l'authentification root/mot de passe. Appliquer la politique pare-feu hôte et fournisseur en conservant
+la session active et la console de secours. SSH est limité à l'adresse opérateur ; 80/443 ne sont ouverts
+qu'au moment de configurer l'ingress. PostgreSQL, Neo4j, NATS, OpenBao, Ollama et les interfaces
+d'administration ne sont jamais publiés. Créer un snapshot après mise à jour et durcissement, avant le
+déploiement ; ce snapshot ne remplace pas la restauration Restic hors hôte.
 
 Le fichier de tokens est un tableau JSON de jetons d'accès, jamais committé. Les jetons ne sont pas
 imprimés. L'inventaire doit être lancé sur le serveur ; le matériel enregistré par la commande `load`
