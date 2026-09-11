@@ -12,6 +12,8 @@ jobs:
   resolve:
     runs-on: ubuntu-latest
     steps:
+      - name: Install crane
+        uses: imjasonh/setup-crane@v0.4
       - name: Resolve current immutable image digests
         shell: bash
         run: |
@@ -40,7 +42,7 @@ jobs:
             'vllm/vllm-openai:latest'
           )
           for image in "${images[@]}"; do
-            digest="$(docker buildx imagetools inspect "$image" | awk '/^Digest:/ {print $2; exit}')"
+            digest="$(crane digest "$image")"
             if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
               echo "FAILED $image digest=$digest" >&2
               exit 1
