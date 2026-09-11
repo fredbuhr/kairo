@@ -1,6 +1,6 @@
 # KAIRO — état fonctionnel vérifié
 
-Révision : 2026-09-11, première tranche D02 intégrée par #85 à `759db57211dcc4960e20cc9486558a88ac063b52`.
+Révision : 2026-09-11, D02 terminé par #85/#86 ; merge final `8a9787d04cbeb346da86cc82d23dbf2b6dd01b90`.
 Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJECT_STATE.md).
 
 ## Acquis canoniques
@@ -21,12 +21,18 @@ Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJEC
   coûts incertains conservés/rapprochés et visibilité authentifiée. Head `3a531b967349d61e253c5d7491d95d8ff87901c3`
   validé par 16/16 workflows, dont transactions PostgreSQL concurrentes, migration aller-retour et SIGKILL Research.
 
+- #86 / D02 terminé : admission documents/mémoire, attente Temporal et enfants annulables,
+  pagination SQL/Web/Today, reconstruction à reçus idempotents, outbox à claims courts et rétention,
+  limites JetStream et observation des files. Head `3ed90a8bdd3eafd47d73fe21b8e2eddf3e5b1c2c`
+  validé par **17/17 workflows** ; PostgreSQL et JetStream réels, 1000 Tasks et demandes synthétiques,
+  six nouvelles preuves Worker et toutes les gates existantes. [Preuves](archive/checkpoint-through-d02-2026-09-11.md).
+
 ## Capacités et limites
 
 | Domaine | Présent dans le code | Ce qui reste à prouver/livrer |
 |---|---|---|
-| État durable | PostgreSQL, objets SeaweedFS, outbox/NATS, exécution Temporal, migrations jusqu'à `0013_model_reservations` | Pagination/rétention, dimensionnement et saturation maîtrisée |
-| Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, plafonds locaux | Admission documents/mémoire hors gateway, équité et mesure réelle des moteurs en D02/D04 |
+| État durable | PostgreSQL, objets SeaweedFS, outbox/NATS, exécution Temporal, migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Dimensionnement réel, archivage canonique et charge sur matériel identifié |
+| Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables | Production et mesure réelle des moteurs en D03/D04 |
 | Identité et actions | Keycloak, ownership, policy/approbations, registre MCP et invocations idempotentes | Production, privilèges internes, egress et UX de rapprochement des coûts incertains |
 | Intelligence | Routing/recherche, Context Packs et gateway avec admission, estimations réservées, sortie bornée et replay comptable | Choix utilisateur des modèles/clés, UX Agents/Skills, preuve coûts et vrais moteurs |
 | Documents et mémoire | Ingestion/version/chunks, recherche/inspection Web, projections mémoire reconstruisibles | CI Documents emploie le fallback texte, mémoire emploie des stubs ; vraie intégration Docling/Mem0/Graphiti à mesurer en D04 |
@@ -43,7 +49,7 @@ KAIRO a un socle et un cockpit initial utilisables en développement, pas encore
 produit Mycelium/Gantt/Brain. Des tests contrôlés prouvent des invariants précis ; ils ne certifient
 ni tous les moteurs réels, ni toutes les frontières de production, ni 1 000 utilisateurs.
 Les budgets réservent des estimations : ils ne garantissent pas un plafond fournisseur en dollars.
-D02 reste ouvert pour l'admission hors gateway et le volume des données. H4 reste partiel et H5 n'est pas terminé. Le [plan D01–D22](implementation-plan.md) conduit au
+D02 est terminé ; D03 couvre encore le déploiement et la topologie, D04 les preuves de moteurs réels. H4 reste partiel et H5 n'est pas terminé. Le [plan D01–D22](implementation-plan.md) conduit au
 pilote central D13, puis aux extensions et à la distribution.
 
 L'[audit du 11 septembre](audit-2026-09-11.md) contient les preuves initiales, les services et

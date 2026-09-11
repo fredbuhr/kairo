@@ -2,124 +2,67 @@
 
 Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 
-## État canonique établi
+## Source canonique vérifiée
 
-- Première tranche D02 intégrée par [PR #85](https://github.com/fredbuhr/kairo/pull/85).
-- Merge : `759db57211dcc4960e20cc9486558a88ac063b52` ; base vérifiée : `ceec99309c389aa2f24e30350d0a11d232a99edf`.
-- Head final testé : `3a531b967349d61e253c5d7491d95d8ff87901c3` ; **16/16 workflows réussis**.
-- Merge ref testé `9c1ac617da9b465e4be2a722dfb0fd75796da70b`, même arbre
-  `77933c65a7ecc65d243658827040c4a1cbef04e5` que le head.
-- D01 terminé (#84) ; R0–R7 terminé, baseline `r7-baseline-2026-09-11` à `6cf3647a609bbd8463cb734e87eb4088572bc037`.
-- Dernier jalon produit : G51 Daily Spine. H1–H3 intégrés, baseline images v8 sans dette recensée.
-- **D02 reste partiel ; H4 partiel ; H5 non terminé. Nouvelles fonctions produit après D04/H5.**
+- **D02 terminé**, via #85 puis [#86](https://github.com/fredbuhr/kairo/pull/86).
+- Merge #86 : `8a9787d04cbeb346da86cc82d23dbf2b6dd01b90` ; base `cc550150664b1c4c11924ad6b486f863831633d6`.
+- Head final testé : `3ed90a8bdd3eafd47d73fe21b8e2eddf3e5b1c2c` ; **17/17 workflows réussis** (9 PR, 8 push).
+- Merge ref testé : `2af631c5283af7a5ee2d547e7ed7bea5c2d03462` ; même arbre
+  `e3233b9d4cff20263a39574e1ed7e7d53b984ec9` que le head et le merge réel ; parents vérifiés.
+- Le commit de clôture qui porte ce checkpoint ne modifie que la documentation ; vérifier son
+  identité depuis GitHub et son diff contre le merge ci-dessus. Ne pas confondre ce commit avec le head de code testé.
+- D01 terminé (#84), reset R0–R7 terminé ; dernier jalon produit G51 Daily Spine.
+  H1–H3 intégrés, baseline images v8 sans dette recensée. **H4 partiel ; H5 non terminé.**
 
 ## Où reprendre
 
 | Champ | Valeur |
 |---|---|
-| Branche de développement active | `hardening/d02-complete-capacity-and-data` |
-| PR active | [#86](https://github.com/fredbuhr/kairo/pull/86) |
-| Dernière livraison | **D02 — admission et réservations des appels IA** |
-| Dernier lot entièrement terminé | **D01** |
-| Prochain travail | **Terminer D02 dans une livraison commune : capacité et volume des données** |
-| Première action | Compléter admission globale documents/mémoire avec attente Temporal, pagination SQL/UI, rebuild par lots et rétention ; valider ensemble avant merge |
-| Reste D02 | Admission hors model_gateway, SQL assets/pagination/Today, projections par lots, outbox/rétention, observation du backlog et mesure de saturation |
-| Scope | Pas de nouveau broker ni de fonction produit ; conserver les invariants budgétaires et SIGKILL |
+| Branche / PR de développement active | **Aucune** |
+| Dernier lot entièrement terminé | **D02 — admission, budgets et volume des données** |
+| Prochain lot | **D03 — déploiement sûr et topologie utile** |
+| Première action | Vérifier main/PR live, lire D03 du plan, auditer les gardes production/secrets/JWT/egress et les consommateurs de services ; construire une livraison D03 cohérente depuis main |
+| Critère de sortie D03 | Configurations/destinations interdites refusées, topologie minimale justifiée et gates préservées |
+| Méthode | Une livraison cohérente par lot ; commits/checklists internes pour reprise, sans nouveaux sous-lots sauf obstacle démontré |
+| Limite | Ne pas commencer les fonctions produit D05–D10 avant D04/H5 |
 
-## D02 — première tranche livrée et vérifiée
+## Livré et prouvé en D02
 
-- Migration `0013_model_reservations` ; réservations par clé stable, liées à Task/exécution/alias/propriétaire.
-- Admission atomique globale/par propriétaire, budgets tâche/jour, HTTP 429 explicite en surcharge.
-  Défauts : 8 appels globaux, 2 par propriétaire, 50/10 USD d'exposition quotidienne ; configurables.
-- Réservation avant départ, claim utilisable une seule fois ; expiration avant départ renouvelable
-  sans double allocation ; expiration après départ libère le créneau et conserve le coût incertain.
-- Comptabilité/settlement atomiques, rapprochement tardif, replay d'un ancien coût inconnu sans
-  écraser un coût vérifié ; dépassements enregistrés/audités. Visibilité strictement owner-scoped.
-- Worker : clé transmise à Core avant fournisseur, délai absolu de 120 s, sortie bornée à 4 096 tokens ;
-  retries LiteLLM configurés à zéro ; estimation News explicite de 0,01 USD par défaut.
-- Pool DB Core configurable (5 + 5 connexions par processus par défaut). Aucun nouveau service.
-- Reproduction initiale : garde canonique autorisant deux fois 0,60 sur un budget de 1,00.
-- Local : compilation, diff et reproductibilité. CI PostgreSQL réel : transactions concurrentes,
-  deux propriétaires, expiration, round-up, rapprochement, surcoût, limites et migration aller-retour.
-  Job `103284177709` ; identités ASGI de test, sans appel fournisseur.
-- Isolation publique avec deux vrais comptes Keycloak, Documents, Foundation et vrai SIGKILL Research
-  également réussis sur le head final. Aucun échec masqué ni fournisseur payant utilisé.
+- Réservations IA atomiques, quotas et budgets par propriétaire ; conservation/rapprochement
+  des dépenses inconnues, absence de redépart aveugle ; pool SQL configurable (#85).
+- Documents et mémoire : admission PostgreSQL partagée, backlog borné, attente Temporal,
+  leases et rapports protégés contre les anciennes tentatives ; cache des résultats terminés.
+- Mémoire dans un enfant annulable ; arrêt/récupération avant libération ; limites d'activités
+  conservant de la place pour le travail léger. Projections en échec rendues terminales.
+- Collections filtrées/paginées en SQL, Today borné par rubrique ; pagination Web et sélection
+  des anciens objets par ID. Rebuild mémoire à watermark et reçus idempotents, CLI de reprise.
+- Outbox à claims courts hors réseau, rétention technique bornée, observation des files ;
+  limites JetStream/consumer existant réconciliées et reconnexion sans multiplication des clients.
+- CI du head final : PostgreSQL/JetStream réels, 1000 Tasks, rafales 1/10/100/1000 à concurrence 20,
+  six nouvelles preuves Worker, dix régressions D01, Web build/typecheck, comptes Keycloak,
+  Documents/mémoire/Temporal, sauvegarde/restauration et vrai SIGKILL Research.
+  Jobs ciblés : `103304549425`, `103304549889`. [Preuves archivées](docs/archive/checkpoint-through-d02-2026-09-11.md).
 
-Preuves des 8 workflows PR (les 8 miroirs push ont aussi réussi) :
+## Limites et reprise
 
-- Autonomous research validation — `34605917763` — success ;
-- Baseline reproducibility validation — `34605917725` — success ;
-- Code quality validation — `34605917806` — success ;
-- Document ingestion validation — `34605917722` — success ;
-- Foundation validation — `34605917732` — success ;
-- MCP tool registry validation — `34605917705` — success ;
-- Multi-user isolation validation — `34605917759` — success ;
-- UI workspace validation — `34605917873` — success ;
-
-## Limites et récupération
-
-- Estimation réservée et borne en tokens **ne garantissent pas un plafond fournisseur en dollars**.
-  Une dépense inconnue n'est jamais effacée pour débloquer artificiellement un budget.
-- Vider/arrêter les anciens Workers avant migration 0013, puis mettre à jour Core et Workers ensemble.
-  Les anciens handoffs comptables restent acceptés pour reprise ; ils ne créent pas de réservations.
-- Après départ ambigu : pas de nouvel appel aveugle ; récupérer les coûts vérifiés et rapprocher
-  via le même Task/exécution/clé/alias. Rollback 0012 détruit les réservations : uniquement avant
-  dispatch, ou après arrêt, rapprochement et archivage de toutes les obligations.
-- Les créneaux couvrent le gateway canonique. Documents, mémoire/embeddings et SDK hors gateway
-  ne sont pas couverts ; les limites locales D01 se multiplient avec les réplicas.
-- Vrais Docling/PDF, Mem0/Graphiti, modèles et restauration hors hôte restent D04 ; production,
-  secrets/egress et topologie restent D03. Capacité réelle et comportement du proxy à mesurer.
-- Aucun déploiement utilisateur, achat ni nouvelle fonction Mycelium/Gantt/Brain dans cette tranche.
+- Une estimation réservée ne garantit pas un plafond fournisseur en dollars. Ne jamais effacer
+  une obligation inconnue pour débloquer un budget. Le seuil outbox tolère les transactions déjà concurrentes.
+- Les mesures CI sont synthétiques ; elles ne prouvent ni vrais moteurs ni 1000 utilisateurs actifs.
+  Docling/PDF, Mem0/Graphiti, modèles réels, capacité sur matériel identifié et restauration hors hôte : D04.
+- Migration `0014_capacity_and_data` : arrêter/drainer les anciens Workers et Core, migrer puis
+  redémarrer des versions/configurations compatibles. Ne pas effacer une lease dont l'enfant peut vivre.
+  Downgrade 0013 uniquement sans travail lourd actif ; 0012 supprime aussi les réservations financières.
+- Reprise mémoire : conserver l'identité du workflow/Task ; pour reconstruire, utiliser
+  `scripts/ops/rebuild_memory.py` et son même checkpoint. Au-delà de la fenêtre NATS de 14 jours,
+  reconstruire depuis les messages canoniques. Procédures dans [operations](docs/operations.md).
+- Aucun déploiement utilisateur ni achat/appel fournisseur payant effectué dans #86.
 
 ## Références et branches
 
-- [Plan détaillé](docs/implementation-plan.md), [roadmap](docs/roadmap.md), [état produit](docs/status.md),
-  [protocole de reprise](docs/development-workflow.md), [opérations](docs/operations.md).
-- [Audit initial](docs/audit-2026-09-11.md), [historique jusqu'à #83](docs/archive/checkpoint-through-pr83-2026-09-11.md),
-  [checkpoint D01 archivé](docs/archive/checkpoint-through-d01-2026-09-11.md).
-- `hardening/d02-model-admission` et `hardening/d01-bounded-worker-execution` sont **retirées**.
-  Les anciennes branches H1–H3b2e et `hardening/h4-task-dispatch-isolation` restent retirées.
-- Réservoirs non canoniques : `feat/kairo-test-interface-v1`, `consolidate/g49-research-durable-stages`.
-  Inspection/récupération sélective uniquement, jamais reprise ou merge en bloc.
+[Plan D01–D22](docs/implementation-plan.md) · [roadmap](docs/roadmap.md) · [état produit](docs/status.md) ·
+[protocole de reprise](docs/development-workflow.md) · [architecture](docs/architecture.md).
 
-## D02 — livraison groupée en cours
-
-- Base live vérifiée : `cc550150664b1c4c11924ad6b486f863831633d6`, aucune PR ouverte au départ.
-- Instruction utilisateur : conserver les lots, éviter leur fragmentation ; travail restant regroupé.
-- Inspection : documents/mémoire occupent les activités pendant leur attente ; Mem0 utilise un thread
-  non annulable ; assets/documents filtrés après chargement ; Today et rebuild lisent tout ; outbox
-  conserve ses verrous pendant NATS. Réservoir : convergence NATS bornée récupérable conceptuellement,
-  pagination Today du prototype insuffisante ; aucune admission équivalente retenue.
-- Validation prévue : même PostgreSQL réel pour concurrence/leases/pages/maintenance, vrais processus
-  contrôlés, UI et toutes intégrations existantes dont SIGKILL. Aucun nouveau service ni fonction produit.
-
-### Point de travail D02 (non encore validé)
-
-Implémentation groupée : migration 0014, admission documents/mémoire, attente Temporal,
-processus mémoire annulable, curseurs SQL et contrôles de pagination Projects/Research/Knowledge/Today,
-rebuild à reçus idempotents, outbox à claims courts et rétention bornée. Première compilation,
-reproductibilité et `git diff --check` réussis ; CI sur le nouveau head encore à lancer.
-Ne pas fusionner avant les preuves communes et tous les workflows du head final.
-Prochaine action : ouvrir/mettre à jour l'unique PR D02, terminer les preuves de processus et la
-procédure d'exploitation, résoudre la CI dans cette même branche, puis vérifier le merge.
-
-PR #86 ouverte au head `629720b0f8d9939f2ead411787584e7ed68b0c6c`, arbre
-`edb316db11ae8deb2f7b1b62735f54c6bfa646d9`. Première CI : build/typecheck Web,
-qualité, UI et Documents réussis. Contrat PostgreSQL : pagination/Today réussis ; une entrée
-expirée gardait son ancienne candidature à la file FIFO. Correction : effacer `requested_at`
-à l'expiration, puis ne recandidater qu'à la prochaine demande réelle. CI finale à refaire.
-
-Head suivant `884860a6091d7280b8ac14735b09228283bf695c`, arbre
-`01362800a711fa755df46629d796fc9ddb6b7f2f` : contrat PostgreSQL commun et six preuves Worker
-réussis (jobs `103301431517` / `103301431112`). Charge synthétique : 1/10/100/1000 demandes,
-concurrence client 20, deux créneaux actifs sans dépassement ; 1000 demandes en 17,232 s sur runner CI,
-ce qui n'est pas une capacité mesurée de vrais moteurs/utilisateurs.
-Dernière vérification avant clôture : réconcilier aussi le consumer NATS existant (un simple bind
-n'applique pas les nouvelles limites), conserver un seul client pendant reconnexion et les prouver
-sur JetStream réel. Puis refaire les gates du head final et clôturer D02 dans la même PR #86.
-
-Le head `9f32e6792cbb585d738a6468dab0c54d549fda4f` valide aussi les limites JetStream
-et la mise à jour d'un consumer durable existant (job `103303522635`). Dernier correctif de
-revue : refuser par HTTP 422 les curseurs JSON valides dont l'identifiant/type est incorrect,
-au lieu de laisser remonter une erreur Python 500. Contrat PostgreSQL étendu ; attendre tous
-les workflows du nouveau head avant clôture. Aucune nouvelle fonction ni sous-lot ajouté.
+`hardening/d02-complete-capacity-and-data`, `hardening/d02-model-admission` et les branches D01/H1–H4
+précédentes sont **retirées**. Elles ne sont pas des lignes de développement à reprendre.
+Réservoirs non canoniques : `feat/kairo-test-interface-v1`, `consolidate/g49-research-durable-stages` ;
+inspection/récupération sélective uniquement, jamais merge en bloc.

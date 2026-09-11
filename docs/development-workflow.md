@@ -17,8 +17,11 @@ Inspecter les réservoirs nommés avant de réinventer une implémentation, sans
 
 - Annoncer son ID, résultat attendu et limite ; une branche normale active, fraîche depuis `main`.
 - D'abord reproduire le problème ou fixer le scénario utilisateur ; chercher l'implémentation existante.
-- Livrer le minimum cohérent ; ne pas réécrire le modèle, ajouter une queue ou contourner la policy
-  pour rendre un test vert. Adapter les fixtures au vrai contrat et nommer les mocks.
+- Livrer le résultat complet du lot dans une PR cohérente par défaut. Les tâches techniques,
+  checklists et commits restent des points de reprise internes, pas des sous-lots à multiplier.
+  Fractionner seulement pour un obstacle ou risque distinct démontré, puis en noter la raison.
+- Ne pas réécrire le modèle, ajouter une queue ou contourner la policy pour rendre un test vert.
+  Adapter les fixtures au vrai contrat et nommer les mocks.
 - Vérifier les cas de panne/concurrence réellement introduits ; conserver les checks requis.
 - À chaque point de reprise, pousser le travail reviewable ou enregistrer le blocage exact ;
   une conversation ou un fichier scratch n'est jamais l'unique copie d'un résultat important.

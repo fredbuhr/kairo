@@ -2,6 +2,11 @@
 
 The component registry is intentionally broader than the currently implemented product. Presence in `config/components.yaml`, `compose.yaml` or a package manifest does **not** mean the capability is complete.
 
+D02 (#85/#86) adds validated shared admission, bounded SQL/Web pages, recoverable memory batches
+and finite transport retention. PostgreSQL and JetStream behavior and controlled child lifecycles
+are covered by the exact-head CI recorded in PROJECT_STATE. This does not promote the real
+Docling/Mem0/Graphiti engines or the future graphical workspaces to validated product capabilities.
+
 ## Maturity legend
 
 - **Validated** — KAIRO integration is exercised by the current canonical CI/product path.

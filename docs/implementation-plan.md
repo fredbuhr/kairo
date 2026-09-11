@@ -62,10 +62,12 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
 - **Sortie :** deux propriétaires concurrents sans double dépense ni dépassement silencieux ;
   interruption sans réservation éternelle ; backlog observable et requêtes sans chargement intégral.
   Préserver les preuves SIGKILL existantes.
-- **Livraison en cours :** les budgets IA sont intégrés (#85). Regrouper tout le reste de D02
-  (admission documents/mémoire, pages SQL/UI, rebuild par lots, outbox/rétention/observation)
-  dans une seule livraison et une validation commune. Les commits sont des points de reprise,
-  pas de nouveaux fragments de lot.
+- **État : terminé** par #85 (budgets IA) et #86 (tout le reste en une livraison commune).
+  Admission documents/mémoire, pages SQL/UI, rebuild, outbox/rétention et observation sont intégrés.
+  Head final #86 `3ed90a8bdd3eafd47d73fe21b8e2eddf3e5b1c2c` : 17/17 workflows réussis,
+  PostgreSQL/JetStream réels, contrôles d'interruption et saturation synthétique jusqu'à 1000 demandes.
+  [Preuves et limites](archive/checkpoint-through-d02-2026-09-11.md). Les commits/checklists sont des
+  points de reprise internes au lot. D03 est le prochain lot ; D04 conserve la mesure des vrais moteurs.
   Les estimations réservées et les tokens de sortie bornés ne constituent pas un plafond fournisseur
   garanti en dollars ; enregistrer/rapprocher les coûts incertains et signaler les dépassements réels.
 

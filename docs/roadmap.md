@@ -2,10 +2,10 @@
 
 Révision : 2026-09-11. Le [plan détaillé](implementation-plan.md) porte périmètres, dépendances
 et critères de sortie. [PROJECT_STATE](../PROJECT_STATE.md) seul indique le lot actif et les preuves.
-La table donne le séquencement ; elle ne déclare pas tous les lots livrés. D01 est intégré par #84,
-La première tranche D02 (admission/réservations du gateway IA) est intégrée par #85.
-La suite D02 couvre l'admission documents/mémoire et les données bornées ; D02 n'est pas terminé.
-Le détail opérationnel reste dans le checkpoint.
+La table donne le séquencement ; elle ne déclare pas tous les lots livrés. **D01 et D02 sont terminés**
+(#84, #85 et #86). Le reste de D02 a été réuni en une seule PR avec validation commune.
+**Prochaine livraison : D03**, puis les preuves réelles D04/H5 avant les fonctions produit.
+Le détail opérationnel et les preuves restent dans le checkpoint.
 
 | Phase | Lots, dans l'ordre nominal | Résultat |
 |---|---|---|
@@ -32,7 +32,7 @@ du produit visé, mais une voie 2D accessible reste disponible.
 
 - R0–R7 : reset terminé. Ne plus le reprendre comme prochaine étape.
 - H1–H3 : intégrés ; le P0 de dispatch H4 est corrigé par #83.
-- H4 restant : D01–D03 ; H5 : D04. Aucune nouvelle fonction produit avant cette sortie.
+- H4 restant : D03 (D01/D02 terminés) ; H5 : D04. Aucune nouvelle fonction produit avant cette sortie.
 - G51 : base de planification présente, reprise dans D06.
 - Anciens blocs 0–2 : fondations présentes, intégrations optionnelles encore à finir.
 - Ancien bloc 3 : D05–D13 ; bloc 4 : D11–D16 ; bloc 5 : D17–D20 ; bloc 6 : D01–D04/D21–D22.
