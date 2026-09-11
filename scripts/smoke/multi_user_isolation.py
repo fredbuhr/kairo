@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, time as dt_time
+from decimal import Decimal
 import json
 import os
 import subprocess
@@ -321,6 +322,19 @@ def main() -> int:
     )
     assert task_a["priority"] == 2 and task_a["due_at"] is None, task_a
     assert task_b["priority"] == 2 and task_b["planned_start_at"] is None, task_b
+
+    # New admission summaries inherit the real authenticated owner boundary.
+    json_request("GET", "/v1/model-admission", expected={401})
+    _, admitted = json_request("POST", "/internal/v1/policy/authorize", internal=True, payload={
+        "task_id": task_a["id"], "idempotency_key": "isolation-model-reservation-a",
+        "action": "model.invoke", "resource_type": "model_alias", "resource_id": "smart",
+        "authority_level": 1, "estimated_cost_usd": "0.01",
+    })
+    assert admitted["allowed"], admitted
+    _, admission_a = json_request("GET", "/v1/model-admission", token=token_a)
+    _, admission_b = json_request("GET", "/v1/model-admission", token=token_b)
+    assert admission_a["active_calls"] == 1 and Decimal(admission_a["daily_exposure_usd"]) == Decimal("0.01")
+    assert admission_b["active_calls"] == 0 and Decimal(admission_b["daily_exposure_usd"]) == 0
 
     # Daily planning is canonical Task state and remains owner-scoped end-to-end.
     utc_day = datetime.now(UTC).date()

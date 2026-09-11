@@ -17,7 +17,9 @@ from .model_gateway import (
 
 
 def _estimated_model_cost(task_input: dict[str, Any]) -> Decimal:
-    raw = task_input.get("model_estimated_cost_usd", task_input.get("estimated_cost_usd", "0"))
+    raw = task_input.get("model_estimated_cost_usd", task_input.get(
+        "estimated_cost_usd", settings.kairo_news_model_estimated_cost_usd
+    ))
     try:
         return max(Decimal("0"), Decimal(str(raw or "0")))
     except (InvalidOperation, ValueError):

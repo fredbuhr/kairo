@@ -93,6 +93,36 @@ jobs:
       - name: Prove News Intelligence contract
         run: uv run --locked --project services/worker python scripts/smoke/news_contract.py
 
+  model-admission-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg17@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f
+        env:
+          POSTGRES_USER: kairo
+          POSTGRES_PASSWORD: kairo-test-only
+          POSTGRES_DB: kairo_admission_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U kairo -d kairo_admission_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+asyncpg://kairo:kairo-test-only@localhost:5432/kairo_admission_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Apply canonical migrations to isolated PostgreSQL
+        working-directory: services/core
+        run: uv run --locked alembic upgrade head
+      - name: Prove concurrent model admission, budgets, expiry and settlement
+        run: uv run --locked --project services/core python scripts/smoke/model_admission_contract.py
+      - name: Prove D02 migration rollback and reapply on the disposable database
+        working-directory: services/core
+        run: |
+          uv run --locked alembic downgrade 0012_task_planning
+          uv run --locked alembic upgrade head
+
   command-kernel-integration:
     needs: validate
     runs-on: ubuntu-latest

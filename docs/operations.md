@@ -1,5 +1,68 @@
 # KAIRO operations boundary
 
+## D02 — model admission and estimated money exposure
+
+First D02 tranche; implementation validation is recorded in PROJECT_STATE, not implied here.
+PostgreSQL owns reservations for the canonical model gateway, shared by all Core/Worker replicas. A short transaction advisory
+lock serializes admission and accounting; contention and exhausted capacity return HTTP 429
+with `Retry-After: 1`. No lock or DB connection is retained during a provider request.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `KAIRO_MODEL_GLOBAL_CONCURRENCY` | 8 | Reserved/started model calls across replicas |
+| `KAIRO_MODEL_OWNER_CONCURRENCY` | 2 | Model calls across all projects of one canonical owner |
+| `KAIRO_MODEL_GLOBAL_DAILY_BUDGET_USD` | 50 | UTC-day known spend plus all outstanding estimates |
+| `KAIRO_MODEL_OWNER_DAILY_BUDGET_USD` | 10 | Same exposure per project owner |
+| `KAIRO_MODEL_MAX_OUTPUT_TOKENS` | 4096 | Non-streaming completion output bound passed to LiteLLM |
+| `KAIRO_NEWS_MODEL_ESTIMATED_COST_USD` | 0.01 | Explicit News estimate when its task has no override |
+| `DATABASE_POOL_SIZE` / `DATABASE_MAX_OVERFLOW` | 5 / 5 | Maximum ten connections per Core process by default |
+| `DATABASE_POOL_TIMEOUT` | 10 seconds | Pool checkout timeout |
+
+These are configurable initial limits, not measured throughput or a purchase authorization.
+The task budget is still authoritative. Admission counts spent + reserved + uncertain amounts;
+estimates round upward to six decimal places. Paid aliases `smart`/`alternative` require a
+positive estimate. `local-fast` permits zero. Provider prices are not inferred from the alias:
+**an estimate and output-token limit do not guarantee a strict dollar ceiling**. Actual cost
+above the estimate is recorded, audited (`estimate_exceeded`) and blocks subsequent admission
+if a budget is exceeded. `/v1/tasks/{id}/budget` exposes reserved/uncertain amounts, uncertain
+call count and `over_budget`; `/v1/model-admission` exposes only the requesting owner's usage.
+
+Lifecycle:
+
+- Policy authorization requires the deterministic model-call key and creates a reservation for
+  60 seconds. Repeating this reservation is safe and does not extend its lifetime.
+- `/internal/v1/model-reservations/start` consumes that reservation exactly once and grants a
+  300-second execution lease. A concurrent/lost start response is never blindly replayed.
+- The Worker then checkpoints and sends one request, with a 120-second absolute deadline.
+  LiteLLM router and SDK retries are configured to zero; real provider/proxy behavior remains
+  a D04 measurement. Lease expiration cannot prove remote cancellation.
+- A never-started expiry frees both money and capacity and can be re-admitted under the same key.
+  A started expiry frees capacity but retains uncertain financial exposure across UTC midnight.
+  Expired states are materialized on the next admission; read queries already respect expiry.
+- Known results replay the canonical accounting handoff. Settlement and ledger insertion share
+  a transaction and stable key. No reported price retains the unresolved estimate and is visible.
+  A later trusted `model-usage` handoff with `cost_reported: true` reconciles an unknown record,
+  audited in place; changed known costs are rejected. Never fabricate a zero cost to clear a block.
+
+Recovery/upgrade: drain and stop old Workers before applying migration `0013_model_reservations`,
+then upgrade Core and Workers together. Legacy accounting without a reservation remains accepted
+for pre-D02 checkpoint recovery; old Workers cannot acquire fresh model authorization without a
+stable key. Do not delete reservations/unknown costs to make a retry succeed. Recover verified
+usage from the provider and reconcile with the same task/execution/key/alias; a missing provider
+result still fails closed. A rollback to 0012 drops the reservation table and is only safe before
+new dispatches, or after archiving/reconciling every liability and stopping all Workers.
+
+Validation: `scripts/smoke/model_admission_contract.py` uses actual independent PostgreSQL
+transactions and Core ASGI routes with explicit identity fixtures (no provider). CI applies real
+migrations and exercises rollback/reapply on a disposable DB. Authenticated isolation and real
+Research SIGKILL tests remain required. D02 still owes document/non-model admission, pagination,
+projection batches, outbox/retention and capacity measurement. Memory SDKs/embeddings outside
+this gateway are not covered by these model slots. One short global lock is a simple
+correctness boundary; measure contention before replacing it with a more complex design.
+
+References: [PostgreSQL advisory locks](https://www.postgresql.org/docs/current/explicit-locking.html#ADVISORY-LOCKS),
+[LiteLLM configuration](https://docs.litellm.ai/docs/proxy/configs).
+
 ## D01 — Worker and document processing limits
 
 Temporal's existing queue is retained with explicit per-Worker slots. Document capacity is acquired

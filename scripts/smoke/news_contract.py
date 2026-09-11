@@ -55,7 +55,8 @@ async def fake_enrich(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return enriched
 
 
-async def fake_chat_completion(**_: Any) -> ChatCompletionResult:
+async def fake_chat_completion(**kwargs: Any) -> ChatCompletionResult:
+    assert kwargs["estimated_cost_usd"] == Decimal("0.01")
     return ChatCompletionResult(
         content=(
             '{"headline":"Paris aujourd\u0027hui — briefing KAIRO",'
@@ -109,7 +110,6 @@ async def main() -> None:
                 "language": "fr",
                 "time_range": "day",
                 "max_sources": 10,
-                "model_estimated_cost_usd": "0.01",
             },
         }
     )

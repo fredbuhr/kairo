@@ -8,7 +8,7 @@ from typing import Any, Literal
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import Principal, require_kairo_user
@@ -17,6 +17,9 @@ from .config import settings
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project, Task, WorkflowExecution
+from .model_admission import (
+    expire_reservations, lock_admission, reserve_model_call, settle_reservation, task_exposure,
+)
 from .project_access import get_owned_task, owned_project_clause
 from .security import require_internal_token
 
@@ -67,12 +70,13 @@ class ApprovalDecision(BaseModel):
 
 class PolicyAuthorizeRequest(BaseModel):
     task_id: uuid.UUID
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=160)
     workflow_execution_id: uuid.UUID | None = None
     action: str = Field(min_length=1, max_length=160)
     resource_type: str = Field(default="tool", min_length=1, max_length=80)
     resource_id: str | None = Field(default=None, max_length=320)
     authority_level: int = Field(ge=1, le=10)
-    estimated_cost_usd: Decimal = Field(default=Decimal("0"), ge=0)
+    estimated_cost_usd: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("999999.999999"))
     scope: dict[str, Any] = Field(default_factory=dict)
     reason: str = Field(default="Autonomous activity requires policy authorization", max_length=4000)
 
@@ -120,15 +124,10 @@ class BudgetRead(BaseModel):
     spent_usd: Decimal
     remaining_usd: Decimal | None
     exhausted: bool
-
-
-async def _spent_usd(session: AsyncSession, task_id: uuid.UUID) -> Decimal:
-    value = await session.scalar(
-        select(func.coalesce(func.sum(ModelUsageRecord.cost_usd), 0)).where(
-            ModelUsageRecord.task_id == task_id
-        )
-    )
-    return Decimal(str(value or 0))
+    reserved_usd: Decimal = Decimal("0")
+    uncertain_usd: Decimal = Decimal("0")
+    uncertain_calls: int = 0
+    over_budget: bool = False
 
 
 def _remaining(task: Task, spent: Decimal) -> Decimal | None:
@@ -138,15 +137,21 @@ def _remaining(task: Task, spent: Decimal) -> Decimal | None:
 
 
 async def _budget_read(session: AsyncSession, task: Task) -> BudgetRead:
-    spent = await _spent_usd(session, task.id)
+    exposure = await task_exposure(session, task.id)
+    spent = exposure["spent"]
     budget = Decimal(task.budget_usd) if task.budget_usd is not None else None
-    remaining = _remaining(task, spent)
+    committed = spent + exposure["reserved"] + exposure["uncertain"]
+    remaining = _remaining(task, committed)
     return BudgetRead(
         task_id=task.id,
         budget_usd=budget,
         spent_usd=spent,
         remaining_usd=remaining,
-        exhausted=budget is not None and spent >= budget,
+        exhausted=budget is not None and committed >= budget,
+        reserved_usd=exposure["reserved"],
+        uncertain_usd=exposure["uncertain"],
+        uncertain_calls=exposure["uncertain_calls"],
+        over_budget=budget is not None and committed > budget,
     )
 
 
@@ -343,6 +348,12 @@ async def authorize_activity(
     body: PolicyAuthorizeRequest,
     session: AsyncSession = Depends(get_session),
 ) -> PolicyAuthorizeResponse:
+    is_model = body.action == "model.invoke"
+    if is_model:
+        if not body.idempotency_key or body.resource_type != "model_alias" or body.resource_id not in {"smart", "alternative", "local-fast"}:
+            raise HTTPException(422, "Model authorization requires a stable call key and canonical alias")
+        await lock_admission(session)
+        await expire_reservations(session)
     task = await session.get(Task, body.task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -351,9 +362,11 @@ async def authorize_activity(
         if not execution or execution.task_id != task.id:
             raise HTTPException(status_code=404, detail="Workflow execution not found for task")
 
-    spent = await _spent_usd(session, task.id)
+    exposure = await task_exposure(session, task.id)
+    spent = exposure["spent"]
     budget = Decimal(task.budget_usd) if task.budget_usd is not None else None
-    remaining = _remaining(task, spent)
+    committed = spent + exposure["reserved"] + exposure["uncertain"]
+    remaining = _remaining(task, committed)
     if body.authority_level > task.authority_ceiling:
         return PolicyAuthorizeResponse(
             allowed=False,
@@ -362,7 +375,7 @@ async def authorize_activity(
             budget_usd=budget,
             remaining_usd=remaining,
         )
-    if budget is not None and spent + body.estimated_cost_usd > budget:
+    if not is_model and budget is not None and committed + body.estimated_cost_usd > budget:
         return PolicyAuthorizeResponse(
             allowed=False,
             reason="hard_budget_exceeded",
@@ -444,6 +457,16 @@ async def authorize_activity(
                 remaining_usd=remaining,
             )
 
+    if is_model:
+        denial = await reserve_model_call(
+            session, task=task, key=body.idempotency_key,
+            execution_id=body.workflow_execution_id, model_alias=body.resource_id,
+            amount=body.estimated_cost_usd,
+        )
+        await session.commit()
+        if denial:
+            return PolicyAuthorizeResponse(allowed=False, reason=denial, spent_usd=spent,
+                                           budget_usd=budget, remaining_usd=remaining)
     token = _mint_policy_token(
         task=task,
         action=body.action,
@@ -499,6 +522,7 @@ async def record_model_usage(
 ) -> BudgetRead:
     # Locking the task serializes ledger writes for one durable task. Combined with the unique
     # idempotency key, a Worker can safely retry a request after an ambiguous HTTP response.
+    await lock_admission(session)
     task = await session.get(Task, body.task_id, with_for_update=True)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -514,12 +538,45 @@ async def record_model_usage(
             )
         )
         if existing:
-            if existing.task_id != task.id or existing.model_alias != body.model_alias:
+            if (existing.task_id != task.id or existing.model_alias != body.model_alias
+                    or existing.workflow_execution_id != body.workflow_execution_id):
                 raise HTTPException(
                     status_code=409,
                     detail="Model usage idempotency key is already bound to another invocation",
                 )
+            if existing.provider != body.provider:
+                raise HTTPException(409, "Model usage provider differs from canonical accounting")
+            if existing.metadata_json.get("cost_reported") is True and body.metadata.get("cost_reported") is False:
+                # A recovered old heartbeat may still contain unknown cost after verified
+                # reconciliation. Return canonical accounting without downgrading it.
+                return await _budget_read(session, task)
+            if existing.metadata_json.get("cost_reported") is False and body.metadata.get("cost_reported") is True:
+                await settle_reservation(
+                    session, key=body.idempotency_key, task=task,
+                    execution_id=body.workflow_execution_id, model_alias=body.model_alias,
+                    cost=body.cost_usd, cost_reported=True,
+                )
+                previous = existing.cost_usd
+                existing.cost_usd = body.cost_usd
+                existing.metadata_json = {**existing.metadata_json, **body.metadata}
+                await append_audit(
+                    session, actor_type="worker", actor_id=body.model_alias,
+                    action="model.usage.reconcile", resource_type="task", resource_id=str(task.id),
+                    authority_level=1, correlation_id=body.correlation_id,
+                    result_json={"idempotency_key": body.idempotency_key,
+                                 "previous_cost_usd": str(previous), "cost_usd": str(body.cost_usd)},
+                )
+                await session.commit()
+                return await _budget_read(session, task)
+            if existing.cost_usd != body.cost_usd or existing.provider != body.provider:
+                raise HTTPException(409, "Model usage replay differs from canonical accounting")
             return await _budget_read(session, task)
+
+    settlement = await settle_reservation(
+        session, key=body.idempotency_key, task=task, execution_id=body.workflow_execution_id,
+        model_alias=body.model_alias, cost=body.cost_usd,
+        cost_reported=body.metadata.get("cost_reported", True) is True,
+    )
 
     total_tokens = body.total_tokens or body.prompt_tokens + body.completion_tokens
     record = ModelUsageRecord(
@@ -534,7 +591,7 @@ async def record_model_usage(
         completion_tokens=body.completion_tokens,
         total_tokens=total_tokens,
         cost_usd=body.cost_usd,
-        metadata_json=body.metadata,
+        metadata_json={**body.metadata, **settlement},
     )
     session.add(record)
     await session.flush()
@@ -553,6 +610,7 @@ async def record_model_usage(
             "idempotency_key": body.idempotency_key,
             "total_tokens": total_tokens,
             "cost_usd": str(body.cost_usd),
+            **settlement,
         },
     )
     await session.commit()

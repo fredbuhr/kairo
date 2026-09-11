@@ -75,6 +75,7 @@ async def main() -> None:
             provider_posts.append(dict(kwargs))
             payload = kwargs["json"]
             assert payload["model"] == "smart", payload
+            assert payload["max_tokens"] == model_gateway.settings.kairo_model_max_output_tokens
             metadata = payload["metadata"]
             assert metadata == {
                 "generation_name": "kairo.model.invoke",
@@ -280,6 +281,9 @@ async def main() -> None:
     assert missing_cost.total_tokens == 5, missing_cost
     assert missing_cost.cost_usd == Decimal("0"), missing_cost
     assert missing_cost.cost_reported is False, missing_cost
+    for invalid_cost in ("NaN", "Infinity", "-1", "bad-cost"):
+        cost, reported = model_gateway._response_cost(httpx.Headers({"x-litellm-response-cost": invalid_cost}))
+        assert cost == 0 and reported is False
 
     print(
         "MODEL GATEWAY CONTRACT PASS: stable model-call identity, W3C trace correlation, provider replay "
