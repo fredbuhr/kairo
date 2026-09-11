@@ -344,6 +344,18 @@ PR #82 must not merge until this checkpoint-created final PR head has its own gr
 
 H3b2 technical debt is now **0** on the PR branch. Do not begin H4 until H3b2e is merged and canonicalized.
 
+## Independent audit and Foundation repair — 2026-09-11
+
+- Live base checked: `0a03a7457df38debd28ccd7c73a634b03c393ca9`; PR #82 inspected at `997780e819f137dbd875b60ce0fa4f862a357ff1`.
+- See [independent audit](docs/audit-2026-09-11.md) for evidence, service inventory and priorities. This checkpoint supersedes claims that no work branch is active.
+- Original final-head CI: 14/16 runs successful. Foundation PR run `34594823443` failed on the memory smoke's premature Task-completion assertion. Foundation push run `34594817407` failed earlier on a Docker Hub connection reset, not on that assertion.
+- The PR technical tree and previously green `f0b19cf…` differ only by checkpoint documentation. All 21 registry digests match Compose and baseline v8; configured tags are unchanged.
+- Repair in progress on the existing #82 branch: seed a canonical ORM message/outbox event without dispatching News, wait for each memory Task's actual completion with a monotonic deadline, reject failed Tasks immediately, and verify no unrelated Tasks were created.
+- Four synchronization regression cases pass locally; source compilation and the existing reproducibility contract pass. Docker integration and final-head CI remain required before merge.
+- **P0 discovered:** generic public Task creation can choose internal capabilities; the completed MCP-result path does not bind its context to the currently executing Task. The exact Worker function reproduced a foreign-result return using synthetic data. After #82, the first security gate must close public dispatch and add cross-owner execution/replay regressions. Do not call the multi-user boundary fully secure based only on existing green reads/ownership tests.
+- Other audited concerns: blocking Docling call in the async Worker; admission/resource/budget limits; shared deployment credentials/network; unbounded SQL/result materialization; retry/retention; unused components and incomplete real-engine proof.
+- No H4/H5 completion and no product feature work are claimed. Per the current user mandate, continue from #82 into the explicit P0 security gate once #82 is validated and canonicalized; do not silently resume feature development.
+
 ## Canonical branch policy
 
 Canonical truth is `main`. Two non-canonical salvage reservoirs remain intentionally available:
