@@ -11,13 +11,13 @@ Current work is **Repository Reset**, not new product development.
 - R0 — establish repository truth: complete;
 - R1 — install `AGENTS.md` + `PROJECT_STATE.md`: complete;
 - R2 — validate and promote G51 / PR #73: complete;
-- R3 — synchronize canonical status/roadmap/component maturity: complete in this commit;
-- R4 — inventory branches and PRs: next;
-- R5 — close/remove superseded Git refs;
-- R6 — inventory/archive/remove true repository vestiges;
-- R7 — create a clean tagged baseline with green CI.
+- R3 — synchronize canonical status/roadmap/component maturity: complete;
+- R4 — inventory branches and PRs: complete;
+- R5a/R5b/R5c — close/remove superseded Git refs: complete;
+- R6 — inventory files/directories and archive true historical evidence: complete;
+- R7 — create a clean tagged baseline with green CI: next.
 
-No Gantt, Calendar, Brain, Finance/Crypto, voice or other new product slice should start before R7.
+R6 found no safely removable active implementation files; intentional scaffolds remain explicit and one dated implementation audit was moved to the historical archive. No Gantt, Calendar, Brain, Finance/Crypto, voice or other new product slice should start before R7.
 
 ## Foundation
 

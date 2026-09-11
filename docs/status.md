@@ -4,15 +4,19 @@ Last updated: 2026-09-11
 
 ## Current phase
 
-KAIRO is in **Repository Reset / Block 3 stabilization**.
+KAIRO is in **Repository Reset / baseline hardening**.
 
-The canonical product line has reached **G51 — Daily Spine**. G51 was promoted to `main` through PR #73 together with the repository recovery protocol (`AGENTS.md` + `PROJECT_STATE.md`). There is currently **no active development branch and no active pull request**. Repository cleanup takes precedence over new product work until R7 establishes the clean tagged baseline.
+The canonical product line has reached **G51 — Daily Spine**. Git-ref cleanup (R4–R5c) is complete and the repository file/directory inventory (R6) is complete. There is currently **no active development branch and no active pull request**. The only remaining reset gate is R7: establish a clean tagged baseline with green CI before product work resumes.
 
 ## Canonical baseline
 
 `main` is the only integrated source of truth.
 
-Current checkpoint after R2:
+R5c completion checkpoint before the R6 documentation/archive cleanup:
+
+`b715f2952bad0976dadbe33cb6191e0402698e9c`
+
+The last fully revalidated product checkpoint remains:
 
 `69cf0dd52eea93f7e5b9bf7413cde2cb51c2c8b5`
 
@@ -140,21 +144,21 @@ KAIRO is not yet production/commercial-ready. Remaining work includes stronger s
 - R0 — establish repository truth: **complete**
 - R1 — install recovery protocol: **complete**
 - R2 — validate/promote G51: **complete**
-- R3 — synchronize canonical documentation: **complete in this commit**
-- R4 — inventory branches and pull requests: **next**
-- R5 — close/remove superseded Git refs
-- R6 — inventory files/directories and archive/remove true vestiges
-- R7 — establish a clean tagged, green baseline
+- R3 — synchronize canonical documentation: **complete**
+- R4 — inventory branches and pull requests: **complete**
+- R5a/R5b/R5c — close/remove superseded Git refs: **complete**
+- R6 — inventory files/directories and archive true historical evidence: **complete**
+- R7 — establish a clean tagged, green baseline: **next**
+
+R6 found no active implementation file that could be safely removed. All current smoke scripts are referenced by CI workflows, the Web/Core/Worker code is active canonical implementation, and the Desktop/Realtime/Gantt/Graph/shared-package skeletons are intentional scaffolds. The dated 2026-09-08 implementation audit is historical evidence and is archived under `docs/archive/`.
 
 ## Branch discipline
 
-`main` is the only canonical integrated line. A development branch is temporary workspace, not a KAIRO version. Old consolidation, review, backup and stacked feature branches must not be used as restart points unless R4 explicitly classifies unique work to salvage.
-
-`feat/kairo-test-interface-v1` remains a large experimental code reservoir only. It must never be merged wholesale.
+`main` is the only canonical integrated line. Exactly two non-canonical branches remain temporarily for salvage: `feat/kairo-test-interface-v1` (broad prototype reservoir) and `consolidate/g49-research-durable-stages` (focused Research design reservoir). Neither may be merged wholesale or resumed as the active line.
 
 ## Next action
 
-The next gate is **R4 — branch/PR inventory**. No product code should be changed during R4.
+The next gate is **R7 — clean tagged baseline with green CI**. No product feature work should start before R7 is complete.
 
 After R7, the intended product sequence is:
 

@@ -42,7 +42,7 @@ The exit is enforced by four CI gates: general build/topology validation, Tempor
 
 ## Block 2 — Intelligence, memory and safe autonomy
 
-**Status: core exit reached — 2026-09-11; baseline consolidation in progress before Block 3.**
+**Status: core exit reached — 2026-09-11; Repository Reset through R6 complete, awaiting R7 baseline.**
 
 **Purpose:** make KAIRO reason and work durably without coupling intelligence to one provider/runtime.
 
@@ -68,7 +68,7 @@ Some integration-depth items listed above are intentionally not treated as block
 
 ## Block 3 — KAIRO Cockpit, graph and planning workspace
 
-**Status: early foundation present; deeper product work resumes after baseline consolidation.**
+**Status: G51 foundation present; deeper product work resumes after the R7 clean tagged baseline.**
 
 **Purpose:** deliver the daily interface instead of exposing specialist tools.
 
