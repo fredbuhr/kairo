@@ -7,13 +7,15 @@ KAIRO is not a chatbot wrapper and it is not a fork of another assistant. KAIRO 
 ## Current delivery line — September 2026
 
 Repository Reset R0–R7 is complete; G51 planning foundations, H1–H3 and the H4 Task-dispatch
-isolation repair are integrated. Remaining H4/H5 work precedes new product features.
+isolation repair are integrated. D01–D03 (#84–#87) complete the assigned H4 controls; D04/H5 real-engine and operations evidence precedes new product features.
 The current Web cockpit exists; the complete Mycelium 3D, editable mindmaps and Gantt are planned,
 not delivered merely by installing their rendering libraries.
 
 Start with [PROJECT_STATE.md](PROJECT_STATE.md) for live recovery, the
 [detailed D01–D22 plan](docs/implementation-plan.md) for delivery scope, and the
 [development/recovery protocol](docs/development-workflow.md) when changing conversations.
+See the [deployment and profiles guide](docs/deployment.md) for minimal startup, SQL identities,
+production checks, model assets and upgrades. Optional engines no longer start as a mandatory bundle.
 
 ## Architecture history
 
@@ -140,7 +142,8 @@ Useful validation and recovery commands:
 
 ```bash
 make config       # validate local development topology
-make prod-config  # validate production overlay
+make prod-template # check template syntax only
+make prod-config  # check the real private .env.production (placeholders are rejected)
 make ops-config   # validate production + Restic operations topology
 make backup       # quiesced Restic snapshot using the selected environment/overlay
 ```

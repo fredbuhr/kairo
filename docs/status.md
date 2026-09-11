@@ -1,14 +1,13 @@
 # KAIRO — état fonctionnel vérifié
 
-Révision : 2026-09-11, D02 terminé par #85/#86 ; merge final `8a9787d04cbeb346da86cc82d23dbf2b6dd01b90`.
-D03 est en validation dans #87 ; son code de branche n’est pas encore un acquis canonique.
+Révision : 2026-09-11, D03 terminé par #87 ; merge `d8b8025bb9143e49093eaaac3295affefc6fc07f`.
 Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJECT_STATE.md).
 
 ## Acquis canoniques
 
 - Reset R0–R7 terminé, G51 Daily Spine intégré.
-- H1–H3 intégrés : handoff mémoire authentifié, nettoyage, lockfiles et builds figés,
-  digests des images recensées. Baseline v8 : zéro référence non épinglée dans son périmètre.
+- H1–H4 intégrés dans leurs périmètres ; H5 reste D04. H1–H3 : handoff mémoire authentifié, nettoyage, lockfiles et builds figés,
+  digests des images recensées. Baseline v9 : zéro référence non épinglée dans son périmètre.
 - #82 : attente de complétion mémoire corrigée, fixture sans News parasite ; 16/16 workflows verts.
 - #83 : création publique de capacités internes interdite, rattachements d'exécution et rejeu
   MCP protégés ; 18/18 workflows verts dont isolation authentifiée et vrai SIGKILL Research.
@@ -28,13 +27,18 @@ Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJEC
   validé par **17/17 workflows** ; PostgreSQL et JetStream réels, 1000 Tasks et demandes synthétiques,
   six nouvelles preuves Worker et toutes les gates existantes. [Preuves](archive/checkpoint-through-d02-2026-09-11.md).
 
+- #87 / D03 terminé : production/JWT/SQL/ops, lecteur Web à IP vérifiée, topologie optionnelle,
+  images applicatives non root et Web statique, modèles inventoriés, CI sans doublons de push de branche.
+  Head `d931f9607b662272daf315ddc1988fede28af96c` : **9/9 workflows PR**, dont HTTP/TLS, PostgreSQL et réseau Docker réels.
+  [Preuves et limites](archive/checkpoint-through-d03-2026-09-11.md). D04 conserve les vrais moteurs/H5.
+
 ## Capacités et limites
 
 | Domaine | Présent dans le code | Ce qui reste à prouver/livrer |
 |---|---|---|
 | État durable | PostgreSQL, objets SeaweedFS, outbox/NATS, exécution Temporal, migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Dimensionnement réel, archivage canonique et charge sur matériel identifié |
-| Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables | Production et mesure réelle des moteurs en D03/D04 |
-| Identité et actions | Keycloak, ownership, policy/approbations, registre MCP et invocations idempotentes | Production, privilèges internes, egress et UX de rapprochement des coûts incertains |
+| Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables | Mesure réelle des moteurs et du matériel en D04 |
+| Identité et actions | Keycloak, ownership, policy/approbations, registre MCP et invocations idempotentes | Policies/ingress sur cible réelle D04 ; UX de rapprochement des coûts incertains |
 | Intelligence | Routing/recherche, Context Packs et gateway avec admission, estimations réservées, sortie bornée et replay comptable | Choix utilisateur des modèles/clés, UX Agents/Skills, preuve coûts et vrais moteurs |
 | Documents et mémoire | Ingestion/version/chunks, recherche/inspection Web, projections mémoire reconstruisibles | CI Documents emploie le fallback texte, mémoire emploie des stubs ; vraie intégration Docling/Mem0/Graphiti à mesurer en D04 |
 | Cockpit | Panneaux persistés par sujet, Command Center, Projects, Today, Research, News, Knowledge | Design Mycelium complet, réglages, attention et parcours cohérents |
@@ -50,7 +54,7 @@ KAIRO a un socle et un cockpit initial utilisables en développement, pas encore
 produit Mycelium/Gantt/Brain. Des tests contrôlés prouvent des invariants précis ; ils ne certifient
 ni tous les moteurs réels, ni toutes les frontières de production, ni 1 000 utilisateurs.
 Les budgets réservent des estimations : ils ne garantissent pas un plafond fournisseur en dollars.
-D02 est terminé ; D03 couvre encore le déploiement et la topologie, D04 les preuves de moteurs réels. H4 reste partiel et H5 n'est pas terminé. Le [plan D01–D22](implementation-plan.md) conduit au
+D01–D03 et le périmètre H4 associé sont terminés ; D04 porte les preuves de moteurs réels et H5, encore non terminé. Le [plan D01–D22](implementation-plan.md) conduit au
 pilote central D13, puis aux extensions et à la distribution.
 
 L'[audit du 11 septembre](audit-2026-09-11.md) contient les preuves initiales, les services et

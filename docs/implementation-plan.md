@@ -67,7 +67,7 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
   Head final #86 `3ed90a8bdd3eafd47d73fe21b8e2eddf3e5b1c2c` : 17/17 workflows réussis,
   PostgreSQL/JetStream réels, contrôles d'interruption et saturation synthétique jusqu'à 1000 demandes.
   [Preuves et limites](archive/checkpoint-through-d02-2026-09-11.md). Les commits/checklists sont des
-  points de reprise internes au lot. D03 est le prochain lot ; D04 conserve la mesure des vrais moteurs.
+  points de reprise internes au lot. D03 est intégré par #87 ; D04 conserve la mesure des vrais moteurs.
   Les estimations réservées et les tokens de sortie bornés ne constituent pas un plafond fournisseur
   garanti en dollars ; enregistrer/rapprocher les coûts incertains et signaler les dépassements réels.
 
@@ -81,9 +81,10 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
   dynamiques et modèles téléchargés ; upgrades explicites ; moins de CI dupliquée sans perdre les gates.
 - **Sortie :** configurations et destinations interdites refusées ; topologie minimale utilisable ;
   services optionnels justifiés ; aucune promesse de sandbox non testée.
-- **Livraison en cours : #87**, une seule PR pour production/JWT, SQL/ops, lecteur Web, topologie,
-  images/modèles et CI. Le [guide de déploiement](deployment.md) et l’ADR-028 portent les décisions et
-  procédures ; PROJECT_STATE porte la validation exacte et le passage de gate.
+- **État : terminé par #87**, une seule PR pour production/JWT, SQL/ops, lecteur Web, topologie,
+  images/modèles et CI. Head `d931f9607b662272daf315ddc1988fede28af96c` : 9/9 workflows PR réussis, PostgreSQL/TLS/Docker réels et
+  gates existantes conservées. [Preuves](archive/checkpoint-through-d03-2026-09-11.md),
+  [guide de déploiement](deployment.md), ADR-028. D04 reste la preuve des vrais moteurs et de la cible.
 
 ### D04 — moteurs réels et exploitation (H5)
 
