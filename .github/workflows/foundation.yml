@@ -36,7 +36,7 @@ jobs:
           node-version: 22
 
       - name: Install JS dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Typecheck protocol package
         run: pnpm --filter @kairo/protocol typecheck
@@ -64,6 +64,9 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
+      - name: Prove uv workspace lockfile matches declarations
+        run: uv lock --check
+
       - name: Validate Python packages
         run: |
           uv build --package kairo-core
@@ -73,19 +76,19 @@ jobs:
         run: python -m compileall services/core/src services/worker/src scripts/smoke
 
       - name: Prove deterministic conversational routing
-        run: uv run --project services/core python scripts/smoke/assistant_router.py
+        run: uv run --locked --project services/core python scripts/smoke/assistant_router.py
 
       - name: Prove Assistant conversation ownership contract
-        run: uv run --project services/core python scripts/smoke/assistant_ownership_contract.py
+        run: uv run --locked --project services/core python scripts/smoke/assistant_ownership_contract.py
 
       - name: Prove PydanticAI semantic routing contract
-        run: uv run --project services/worker python scripts/smoke/semantic_router_contract.py
+        run: uv run --locked --project services/worker python scripts/smoke/semantic_router_contract.py
 
       - name: Prove LiteLLM accounting contract
-        run: uv run --project services/worker python scripts/smoke/model_gateway_contract.py
+        run: uv run --locked --project services/worker python scripts/smoke/model_gateway_contract.py
 
       - name: Prove News Intelligence contract
-        run: uv run --project services/worker python scripts/smoke/news_contract.py
+        run: uv run --locked --project services/worker python scripts/smoke/news_contract.py
 
   command-kernel-integration:
     needs: validate
