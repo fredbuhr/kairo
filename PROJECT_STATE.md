@@ -16,6 +16,8 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 - H3b2b Core Compose service digest pins: PR #79, merge `f510043eb69b63919c6d012208f9b64b2bb63749`.
 - H3b2c Temporal Compose digest pins: PR #80, merge `082a296650d77ebbe247bb3d5360b15e621c2596`.
 - H3b2d Backup/restore operations digest pins: PR #81, merge `2e6fffffb09d8cc0fd191b79773d50b5daa8381b`.
+- H3b2e Final external image pins and Foundation repair: PR #82, merge `6286819f1cf924dd1338311e8e43a1941c496dba`.
+- H4 Task dispatch isolation: PR #83, merge `b4f7b8e49f0afbe74643f78f12523bf69b4871d1`.
 - `AGENTS.md` and this file define repository recovery/resume discipline.
 - Rule: always fetch live `main` before acting. GitHub wins over chat memory or recorded checkpoint SHAs.
 
@@ -40,12 +42,12 @@ Product feature work remains paused until H5 is complete.
      - **H3b2d — Backup/restore operations digest pins: complete and canonical.**
      - **H3b2e — Final external image digest pins: complete and canonical.**
      - **Remaining H3b2 image debt on canonical main: 0 references.**
-4. **H4 — Production/auth boundary: in progress; first slice is Task dispatch isolation.**
+4. **H4 — Production/auth boundary: in progress; Task dispatch isolation P0 is complete and canonical.**
 5. **H5 — Full revalidation + real-engine/production checks + post-audit tag: not started.**
 
-Active development branch: **`hardening/h4-task-dispatch-isolation`**, from live `main` `faa199a66c8b40230c6c52cf2df5fce6bf2ad92f`.
-Active work pull request: **being opened for H4 Task dispatch isolation**.
-Current implementation gate: **H4 first security slice — close public Task dispatch / execution binding P0**.
+Active development branch: **none**.
+Active work pull request: **none**.
+Next implementation gate: **H4 execution/resource safety — blocking parsing, bounded work and admission**.
 H3b2e merged as `6286819f1cf924dd1338311e8e43a1941c496dba`. `hardening/h3b2e-final-image-pins` is retired and must not be reused. Product work remains paused.
 
 ### H1 — Memory/Auth handoff
@@ -365,7 +367,7 @@ Baseline v8 records **0** remaining unpinned references; this does not cover run
 - The PR technical tree and previously green `f0b19cf…` differ only by checkpoint documentation. All 21 registry digests match Compose and baseline v8; configured tags are unchanged.
 - Repair integrated through #82: seed a canonical ORM message/outbox event without dispatching News, wait for each memory Task's actual completion with a monotonic deadline, reject failed Tasks immediately, and verify no unrelated Tasks were created.
 - Four synchronization regression cases pass locally; source compilation and the existing reproducibility contract pass. The real Docker memory integration and all final-head CI subsequently passed, as recorded above.
-- **P0 discovered:** generic public Task creation can choose internal capabilities; the completed MCP-result path does not bind its context to the currently executing Task. The exact Worker function reproduced a foreign-result return using synthetic data. After #82, the first security gate must close public dispatch and add cross-owner execution/replay regressions. Do not call the multi-user boundary fully secure based only on existing green reads/ownership tests.
+- **P0 discovered and corrected in #83:** the audited base allowed generic public Task inputs to choose internal capabilities, and the completed MCP-result path did not bind the context to the executing Task. The exact Worker function reproduced a foreign-result return using synthetic data. The canonical fix and its authenticated cross-owner/replay evidence are recorded below. This is a specific boundary repair, not blanket multi-user security certification.
 - Other audited concerns: blocking Docling call in the async Worker; admission/resource/budget limits; shared deployment credentials/network; unbounded SQL/result materialization; retry/retention; unused components and incomplete real-engine proof.
 - No H4/H5 completion and no product feature work are claimed. Per the current user mandate, continue from #82 into the explicit P0 security gate once #82 is validated and canonicalized; do not silently resume feature development.
 
@@ -388,19 +390,35 @@ The exact R7 baseline `6cf3647a...` passed the canonical workflow suite, includi
 
 ## Next action
 
-Finish the active **H4 Task dispatch isolation slice**, validate its final head, merge with an expected-head guard and update this checkpoint. This explicit gate is authorized by the current audit mandate; no product features are included.
+Open the next bounded **H4 execution/resource safety gate** from live `main`, after reading the independent audit and verifying live refs. The current session closed #82 and the demonstrated dispatch P0; no new gate is already active.
 
-- Reject public creation of tasks reserved for internal capability dispatch and system/agent identity.
-- Verify runtime Task/resource bindings before returning completed tool results or propagating failures; cover already-created foreign-task payloads.
-- Add authenticated two-user regression evidence and retain legitimate replay, ownership, Research and policy behavior.
-- Keep remaining H4 production/resource work and H5 real-engine/load validation open.
-- Do not reuse the retired H3b2e branch.
+- Move blocking Docling conversion off the Worker's async event loop using an existing execution primitive; inspect timeout, cancellation and converter lifetime together.
+- Define bounded Worker admission/concurrency and resource budgets from the current topology, preserving Temporal durability. Avoid a new queue, cache or service.
+- Then address production secrets/internal access/egress, SQL materialization and retention, and remove only proven unused runtime components/dependencies.
+- Keep H4 overall and H5 real-engine/load validation open. Product feature work remains paused.
+- Do not reuse either retired branch from this session.
 
-### H4 Task dispatch isolation — work in progress
+### H4 Task dispatch isolation — complete and canonical
 
-- Public Task creation now accepts only user ownership and default/`foundation` dispatch. Internal/unknown capabilities must use dedicated Core adapters.
+- PR #83, merge `b4f7b8e49f0afbe74643f78f12523bf69b4871d1`; validated final head `41a31005885884382674f11913d7b213a7fe7937`.
+- Fresh base was live `main` `faa199a66c8b40230c6c52cf2df5fce6bf2ad92f`. `hardening/h4-task-dispatch-isolation` is retired and must not be reused.
+- Public Task creation accepts only user ownership and default/`foundation` dispatch. Internal/unknown capabilities must use dedicated Core adapters.
 - Core validates Task/resource bindings before Temporal dispatch and again at internal execution start, including legacy queued Tasks. The Worker checks tool Task identity before the completed-result fast path; terminal failure requests carry and validate the current Task ID before touching the invocation ledger.
-- New Core/Worker contracts cover reserved dispatch, every existing specialist binding, missing/foreign Task context, legitimate completed replay and failure transport. The authenticated two-user smoke now covers forged public creation, a real legacy queued Task, foreign pending/completed invocation protection, no leaked Artifact and real Worker replay for the rightful owner.
-- The Research boundary fixture now uses the dedicated Research API; tool failure fixtures include the newly required Task ID. Core and Worker must be released together; invalid legacy queued Tasks remain blocked for inspection.
-- Local source compilation, the four memory wait regressions and reproducibility contract passed. Application dependency and Docker execution are unavailable in this workspace; GitHub contract/integration CI is the required remaining proof. Do not merge while those final-head checks are pending or failing.
-- Remaining production/resource/security findings and H5 stay open. No blanket production or multi-user security claim follows from closing this specific P0.
+- Seven Core and four Worker behavioral contract tests passed. The authenticated two-user integration passed public forgery rejection, real legacy queued Task rejection, pending/completed foreign invocation protection, no leaked Artifact and real Worker replay for the rightful owner.
+- The Research boundary fixture uses the dedicated Research API; tool failure fixtures include the newly required Task ID. Core and Worker must be upgraded together. Invalid legacy queued Tasks remain blocked for inspection; no automatic cleanup/migration is included.
+- Local source compilation, four memory wait regressions and reproducibility contract passed. Full GitHub validation passed **18/18 workflows** (9 push + 9 pull_request) on that final head, including Foundation, authenticated isolation and real Worker SIGKILL Research replay.
+- The tested PR merge ref `74fdb3325c1c0d95d494ece4d66966afdfbdc2a8` and head share tree `31c3f8e34ccc8ddcf52908ea65139f18bdee4067`. Expected-head merge and live-main/tree verification succeeded.
+
+Final PR run evidence:
+
+- Autonomous research validation — `34599264240` — success;
+- Baseline reproducibility validation — `34599264326` — success;
+- Code quality validation — `34599264277` — success;
+- Document ingestion validation — `34599264179` — success;
+- Foundation validation — `34599264280` — success;
+- MCP tool registry validation — `34599264212` — success;
+- Multi-user isolation validation — `34599264318` — success;
+- News ownership validation — `34599264259` — success;
+- UI workspace validation — `34599264294` — success;
+
+This checkpoint is a documentation-only follow-up to the validated merged tree. Remaining production/resource/security findings and H5 stay open; no blanket production-readiness or load-capacity claim is made.
