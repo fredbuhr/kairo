@@ -104,6 +104,8 @@ D04 ajoute la policy `infrastructure/openbao/policies/kairo-core-read.hcl` pour 
 du namespace `secret/data/kairo/*`, sans écriture/liste/administration. Les anciens chemins hors de ce
 namespace doivent être migrés explicitement. L'entrypoint de l'image OpenBao charge déjà `/openbao/config` :
 utiliser `command: [server]` ; ajouter une seconde fois le fichier charge deux listeners et empêche le démarrage.
+OpenBao 2.6.2 refuse aussi l'ancienne option `disable_mlock` : elle et la capacité IPC_LOCK inutilisée
+sont retirées. La politique mémoire/swap de l'hôte reste à vérifier sur la cible D04.
 La [campagne D04](qualification-d04.md) vérifie le serveur persistant et la restauration sur un autre hôte.
 
 Seuls Web/Core/Keycloak conservent des ports sur loopback. Le proxy TLS de l'opérateur doit publier

@@ -198,7 +198,6 @@ services:
     pids_limit: 256
     stop_grace_period: 30s
     restart: unless-stopped
-    cap_add: [IPC_LOCK]
     environment:
       BAO_DEV_ROOT_TOKEN_ID: ${OPENBAO_DEV_TOKEN}
       BAO_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
