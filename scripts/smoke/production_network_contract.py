@@ -60,7 +60,11 @@ def main():
             core_id=run('ps','-q','kairo-core')
             run('stop','kairo-core')
             state=json.loads(subprocess.check_output(['docker','inspect',core_id],text=True))[0]['State']
-            assert state['ExitCode']==0 and not state['OOMKilled'], 'Core did not stop cleanly'
+            # Uvicorn restores/re-raises SIGTERM after graceful teardown; Docker may record 143.
+            # Require completed application teardown too, so accepting 143 cannot hide an abort.
+            logs=run('logs','--no-color','kairo-core')
+            assert state['ExitCode'] in {0,143} and not state['OOMKilled'], 'Core did not stop cleanly'
+            assert 'Application shutdown complete.' in logs and 'Finished server process' in logs
             print('PASS: production provisioning/migration, Core restricted startup/authentication, static Web, real network allow/deny and clean shutdown')
         except Exception:
             result=subprocess.run([*compose,'logs','--no-color','--tail','90','kairo-core'],cwd=ROOT,capture_output=True,text=True)

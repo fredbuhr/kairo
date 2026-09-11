@@ -1,6 +1,7 @@
 # KAIRO — état fonctionnel vérifié
 
 Révision : 2026-09-11, D02 terminé par #85/#86 ; merge final `8a9787d04cbeb346da86cc82d23dbf2b6dd01b90`.
+D03 est en validation dans #87 ; son code de branche n’est pas encore un acquis canonique.
 Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJECT_STATE.md).
 
 ## Acquis canoniques

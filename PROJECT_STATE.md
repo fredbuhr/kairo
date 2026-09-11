@@ -70,7 +70,9 @@ inspection/récupération sélective uniquement, jamais merge en bloc.
 
 ## Reprise interne D03 (une seule livraison)
 
-Premier head `daa75ac3…` : builds/static Web, qualité, UI, Documents, News, MCP et isolation verts ;
-Foundation a trouvé l'ordre de création des rôles SQL et une commande Compose `null` non gérée.
-Corrections dans le même lot, contrats conservés. En cours : relance du head commun, revue des
-frontières et guide [deployment](docs/deployment.md). Ne pas déclarer D03 terminé avant les gates.
+PR #87 : code, procédures et tests D03 réunis. Head `7944cb85…` : nouvelles preuves JWT/configuration,
+HTTP/TLS réel, PostgreSQL/migrations/droits et régressions Worker réussies ; Docker prouve désormais
+Core en production, refus anonyme et Web sans accès direct PostgreSQL. Ajustement de la preuve d’arrêt
+Uvicorn : SIGTERM peut rendre 143 après teardown réussi ; exiger aussi les marqueurs de fin, jamais
+accepter SIGKILL/OOM. Relancer les neuf workflows sur le head final puis vérifier parents/arbre du merge.
+D04 reste ensuite la preuve des vrais moteurs, assets locaux, matériel, charge et restauration hors hôte.
