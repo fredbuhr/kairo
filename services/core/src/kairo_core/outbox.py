@@ -53,11 +53,20 @@ class OutboxRelay:
     def connected(self) -> bool:
         return bool(self._nc and self._nc.is_connected)
 
+    async def _reconnected(self) -> None:
+        self._js = None  # Reconcile limits/stream again after transport recovery.
+
     async def _connect(self) -> None:
         if self.connected and self._js:
             return
-        self._nc = await nats.connect(settings.nats_url, name="kairo-core-outbox",
-                                      reconnect_time_wait=1, max_reconnect_attempts=-1)
+        if self._nc and not self._nc.is_closed:
+            if not self._nc.is_connected:
+                raise ConnectionError("NATS client is reconnecting")
+        else:
+            self._js = None
+            self._nc = await nats.connect(settings.nats_url, name="kairo-core-outbox",
+                                          reconnect_time_wait=1, max_reconnect_attempts=-1,
+                                          reconnected_cb=self._reconnected)
         js = self._nc.jetstream()
         limits = dict(max_age=settings.nats_domain_max_age_seconds,
                       max_bytes=settings.nats_domain_max_bytes, max_msgs=100000, discard=DiscardPolicy.NEW)

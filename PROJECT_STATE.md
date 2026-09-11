@@ -108,3 +108,12 @@ PR #86 ouverte au head `629720b0f8d9939f2ead411787584e7ed68b0c6c`, arbre
 qualité, UI et Documents réussis. Contrat PostgreSQL : pagination/Today réussis ; une entrée
 expirée gardait son ancienne candidature à la file FIFO. Correction : effacer `requested_at`
 à l'expiration, puis ne recandidater qu'à la prochaine demande réelle. CI finale à refaire.
+
+Head suivant `884860a6091d7280b8ac14735b09228283bf695c`, arbre
+`01362800a711fa755df46629d796fc9ddb6b7f2f` : contrat PostgreSQL commun et six preuves Worker
+réussis (jobs `103301431517` / `103301431112`). Charge synthétique : 1/10/100/1000 demandes,
+concurrence client 20, deux créneaux actifs sans dépassement ; 1000 demandes en 17,232 s sur runner CI,
+ce qui n'est pas une capacité mesurée de vrais moteurs/utilisateurs.
+Dernière vérification avant clôture : réconcilier aussi le consumer NATS existant (un simple bind
+n'applique pas les nouvelles limites), conserver un seul client pendant reconnexion et les prouver
+sur JetStream réel. Puis refaire les gates du head final et clôturer D02 dans la même PR #86.

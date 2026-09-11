@@ -89,7 +89,9 @@ retain their existing bounded queries.
 3. For NATS outage/full stream, restore connectivity/capacity and observe outbox drain. Do not purge
    unpublished rows. Stream configuration is reconciled on Core connection; one durable memory
    event consumer hands off Tasks, while all Workers may execute admitted Tasks. Admission rejection
-   NAKs for five seconds; unacknowledged delivery and local buffers are bounded.
+   NAKs for five seconds; unacknowledged delivery and local buffers are bounded. Existing durable
+   consumer limits are reconciled explicitly on startup; binding alone does not upgrade them.
+   Core reuses its reconnecting NATS client and reconciles stream limits after reconnection.
 4. After an outage beyond the 14-day replay window, rebuild derived memory from canonical messages.
    Set `KAIRO_INTERNAL_TOKEN` in the environment; do not put it in shell history or the checkpoint.
    Run `python scripts/ops/rebuild_memory.py --core http://127.0.0.1:8000 --checkpoint /safe/path/memory-rebuild.json`.
