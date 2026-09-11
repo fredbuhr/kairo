@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -21,6 +22,7 @@ def json_request(
     payload: dict[str, Any] | None = None,
     expected: int = 200,
     headers: dict[str, str] | None = None,
+    timeout: float = 10.0,
 ) -> tuple[int, Any]:
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     request_headers = {"Content-Type": "application/json", **(headers or {})}
@@ -31,7 +33,7 @@ def json_request(
         headers=request_headers,
     )
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             status = response.status
             body = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
@@ -65,6 +67,64 @@ def expected_task_id(message_id: str, generation: int) -> str:
     )
 
 
+def seed_message() -> str:
+    """Commit a real source and its ORM outbox event without dispatching another capability."""
+
+    result = subprocess.run(
+        [
+            "docker", "compose", "-f", "compose.yaml", "-f", "compose.test-noauth.yaml",
+            "exec", "-T", "kairo-core", "python", "-",
+        ],
+        input='''
+import asyncio
+import json
+from kairo_core.command_models import Conversation, ConversationMessage
+from kairo_core.db import SessionFactory, engine
+
+async def seed():
+    try:
+        async with SessionFactory() as session:
+            conversation = Conversation(subject_ref="development-user", locale="fr-FR")
+            session.add(conversation)
+            await session.flush()
+            session.add(ConversationMessage(
+                conversation_id=conversation.id,
+                role="user",
+                content="Source canonique pour la projection mémoire.",
+                metadata_json={"fixture": "memory-projection-smoke"},
+            ))
+            # ConversationMessage.after_insert creates the real transactional outbox event.
+            await session.commit()
+            print(json.dumps({"conversation_id": str(conversation.id)}))
+    finally:
+        await engine.dispose()
+
+asyncio.run(seed())
+''',
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+    if result.returncode:
+        raise RuntimeError(f"Memory source fixture failed: {result.stderr[-4000:]}")
+    return str(json.loads(result.stdout)["conversation_id"])
+
+
+def wait_for_task_completion(task_id: str, *, timeout: float = 90.0) -> dict[str, Any]:
+    """Projection reports precede the separate Temporal completion activity."""
+
+    deadline = time.monotonic() + timeout
+    last: Any = None
+    while (remaining := deadline - time.monotonic()) > 0:
+        _, last = json_request("GET", f"/v1/tasks/{task_id}", timeout=min(10.0, remaining))
+        if last["status"] == "completed":
+            return last
+        if last["status"] not in {"todo", "queued", "running"}:
+            raise AssertionError(f"Memory Task {task_id} did not complete successfully: {last}")
+        time.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
+    raise TimeoutError(f"Memory Task {task_id} did not complete within {timeout}s: {last}")
+
+
 def wait_for_projection(message_id: str, generation: int) -> list[dict[str, Any]]:
     deadline = time.time() + 90
     last: Any = None
@@ -91,19 +151,12 @@ def wait_for_projection(message_id: str, generation: int) -> list[dict[str, Any]
 
 def main() -> None:
     wait_ready()
+    _, existing_tasks = json_request("GET", "/v1/tasks")
+    existing_task_ids = {task["id"] for task in existing_tasks}
 
-    # A canonical ConversationMessage is the only source needed to trigger both derived stores.
-    _, routed = json_request(
-        "POST",
-        "/v1/assistant/commands",
-        expected=202,
-        payload={
-            "text": "Quelles sont les nouvelles du jour sur la ville de Lyon ?",
-            "locale": "fr-FR",
-            "output": "auto",
-        },
-    )
-    conversation_id = routed["conversation_id"]
+    # Exercise ORM -> outbox -> JetStream -> Worker -> Temporal without unrelated News/LLM work.
+    # Assistant command dispatch remains covered by command-kernel and semantic-command smokes.
+    conversation_id = seed_message()
     _, before_messages = json_request(
         "GET", f"/v1/conversations/{conversation_id}/messages"
     )
@@ -123,8 +176,7 @@ def main() -> None:
         "graphiti": f"stub:graphiti:{message_id}",
     }, first_keys
 
-    _, first_task = json_request("GET", f"/v1/tasks/{first_task_id}")
-    assert first_task["status"] == "completed", first_task
+    first_task = wait_for_task_completion(first_task_id)
     assert first_task["input"]["capability"] == "memory.project", first_task
     assert first_task["input"]["source_id"] == message_id, first_task
     assert first_task["input"]["projection_generation"] == 1, first_task
@@ -148,8 +200,7 @@ def main() -> None:
     second_keys = {row["projector"]: row["projection_key"] for row in second}
     assert second_keys == first_keys, (first_keys, second_keys)
 
-    _, second_task = json_request("GET", f"/v1/tasks/{second_task_id}")
-    assert second_task["status"] == "completed", second_task
+    second_task = wait_for_task_completion(second_task_id)
     assert second_task["input"]["projection_generation"] == 2, second_task
 
     # A delayed generation-1 delivery cannot roll the projection back after a rebuild.
@@ -170,6 +221,11 @@ def main() -> None:
         canonical_snapshot,
         after_messages,
     )
+
+    _, after_tasks = json_request("GET", "/v1/tasks")
+    created_tasks = [task for task in after_tasks if task["id"] not in existing_task_ids]
+    assert {task["id"] for task in created_tasks} == {first_task_id, second_task_id}, created_tasks
+    assert all(task["status"] == "completed" for task in created_tasks), created_tasks
 
     print(
         "MEMORY PROJECTION INTEGRATION PASS: canonical ConversationMessage events drive "

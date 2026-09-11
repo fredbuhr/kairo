@@ -1,7 +1,7 @@
 {
-  "version": 7,
+  "version": 8,
   "baseline_date": "2026-09-11",
-  "validated_parent_sha": "7791effba66e40d832a784d4609eb0974d69321a",
+  "validated_parent_sha": "0a03a7457df38debd28ccd7c73a634b03c393ca9",
   "expected_package_manager": "pnpm@10.15.1",
   "expected_uv_version": "==0.12.13",
   "validated_digest_pins": {
@@ -11,45 +11,140 @@
     "services/worker/Dockerfile": "ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58"
   },
   "validated_compose_digest_pins": [
-    ["compose.ops.yaml", "alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce"],
-    ["compose.ops.yaml", "restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510"],
-    ["compose.yaml", "nats:2.14.5-alpine@sha256:d4ac35882ac65aff236cd65b9d3fa4d24332c681e1a85f94eedccd3cdd65b1da"],
-    ["compose.yaml", "pgvector/pgvector:0.8.6-pg17@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f"],
-    ["compose.yaml", "temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}@sha256:dbc5fcd6ee8f0f4d808bf765af9a87dea9d8a283abfdcfbd2fc148496ba66107"],
-    ["compose.yaml", "temporalio/server:${TEMPORAL_VERSION}@sha256:b5ecdb8282bededae2a10c36e8d862e27d0bc2d247fc73c5416025997ab4a1da"],
-    ["compose.yaml", "temporalio/ui:${TEMPORAL_UI_VERSION}@sha256:810eba47f77a89b0e64e2e751478ca585d037bbd90c0951a2974a92a6c5adeb9"],
-    ["compose.yaml", "valkey/valkey:8.1.10-alpine@sha256:d2e18f3410b6f616de1417f570fa55261af2898b9c5b2cfb6781ce2373ea43d1"]
+    [
+      "compose.ops.yaml",
+      "alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce"
+    ],
+    [
+      "compose.ops.yaml",
+      "restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510"
+    ],
+    [
+      "compose.yaml",
+      "actualbudget/actual-server:latest@sha256:552beab3dec8c93d46b8b9245612d63c3f123b8a45063a474f53e229b17621d3"
+    ],
+    [
+      "compose.yaml",
+      "binwiederhier/ntfy:latest@sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da"
+    ],
+    [
+      "compose.yaml",
+      "chrislusf/seaweedfs:4.46@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62"
+    ],
+    [
+      "compose.yaml",
+      "clickhouse/clickhouse-server:25.12@sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6"
+    ],
+    [
+      "compose.yaml",
+      "docker.openhands.dev/openhands/openhands:1.6@sha256:5c0dc26f467bf8e47a6e76308edb7a30af4084b17e23a3460b5467008b12111b"
+    ],
+    [
+      "compose.yaml",
+      "ghcr.io/activepieces/activepieces:0.86.3@sha256:208517c4f0d798a477a0c594bf432dd0f4918433f4b6f5b5f188a6e10e638c6c"
+    ],
+    [
+      "compose.yaml",
+      "ghcr.io/berriai/litellm:main-latest@sha256:29a0daf2593d5eaee14e76f851c4e6802cc1bf22770691a76d48e9810075ffd0"
+    ],
+    [
+      "compose.yaml",
+      "ghcr.io/home-assistant/home-assistant:stable@sha256:612d76760b544cb40b7ba01387fdac964c59a6a550a50a4d30b4773c822d2918"
+    ],
+    [
+      "compose.yaml",
+      "ghcr.io/remsky/kokoro-fastapi-cpu:v0.8.0@sha256:d32322c61254a871e0bc9c38d4e60cd18539cf9b1a2fc8f3ae04409061d0793b"
+    ],
+    [
+      "compose.yaml",
+      "ghcr.io/searxng/searxng:2026.9.7-3e454637f@sha256:1dab138ea70a8ceb4d1c182f5c8f256088406c1742b99e279976157dbe1e9759"
+    ],
+    [
+      "compose.yaml",
+      "headscale/headscale:latest@sha256:0e7f1c6e4ce6c2a2a001103ecd3fa645a045adf30ac8a5234fe037b43000cd72"
+    ],
+    [
+      "compose.yaml",
+      "hummingbot/hummingbot:latest@sha256:632d2b07aa156b761310f2f7258a78c9660a1c28b6df4b33874e09a0c7d06c85"
+    ],
+    [
+      "compose.yaml",
+      "langfuse/langfuse-worker:3@sha256:93207bd67d2e789ea55fa3d47eeba065dd6b1869187127ab24201784c52b96bc"
+    ],
+    [
+      "compose.yaml",
+      "langfuse/langfuse:3@sha256:a27fe525f52984fa6d36fd34e8b8c6e5ae4af43f34134cafc833b467fa9580ae"
+    ],
+    [
+      "compose.yaml",
+      "livekit/livekit-server:v1.13.1@sha256:2c6869d2d5ff6c9c0166f47be1c92dad6928bfecfa5e4060a6ece48db8accfa3"
+    ],
+    [
+      "compose.yaml",
+      "nats:2.14.5-alpine@sha256:d4ac35882ac65aff236cd65b9d3fa4d24332c681e1a85f94eedccd3cdd65b1da"
+    ],
+    [
+      "compose.yaml",
+      "neo4j:5.26-community@sha256:22ec5cd05a8cbb372fc4bed5e384c30bc75fd92504c72be4462039761b105f61"
+    ],
+    [
+      "compose.yaml",
+      "ollama/ollama:0.33.3@sha256:32931b46719f673c05fdbaa81ccb26da18ea4a1c57590a754874ab28ba269eb2"
+    ],
+    [
+      "compose.yaml",
+      "openbao/openbao:2.6.2@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641"
+    ],
+    [
+      "compose.yaml",
+      "pgvector/pgvector:0.8.6-pg17@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f"
+    ],
+    [
+      "compose.yaml",
+      "quay.io/keycloak/keycloak:26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
+    ],
+    [
+      "compose.yaml",
+      "rotki/rotki:latest@sha256:918e35cfbcce68633eafc9cdcc206bb2b45a1110f86e544d48d1fded04c280ff"
+    ],
+    [
+      "compose.yaml",
+      "temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}@sha256:dbc5fcd6ee8f0f4d808bf765af9a87dea9d8a283abfdcfbd2fc148496ba66107"
+    ],
+    [
+      "compose.yaml",
+      "temporalio/server:${TEMPORAL_VERSION}@sha256:b5ecdb8282bededae2a10c36e8d862e27d0bc2d247fc73c5416025997ab4a1da"
+    ],
+    [
+      "compose.yaml",
+      "temporalio/ui:${TEMPORAL_UI_VERSION}@sha256:810eba47f77a89b0e64e2e751478ca585d037bbd90c0951a2974a92a6c5adeb9"
+    ],
+    [
+      "compose.yaml",
+      "valkey/valkey:8.1.10-alpine@sha256:d2e18f3410b6f616de1417f570fa55261af2898b9c5b2cfb6781ce2373ea43d1"
+    ],
+    [
+      "compose.yaml",
+      "vllm/vllm-openai:latest@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1"
+    ]
   ],
-  "known_unpinned_images": [
-    ["compose.yaml", "actualbudget/actual-server:latest"],
-    ["compose.yaml", "binwiederhier/ntfy:latest"],
-    ["compose.yaml", "chrislusf/seaweedfs:4.46"],
-    ["compose.yaml", "clickhouse/clickhouse-server:25.12"],
-    ["compose.yaml", "docker.openhands.dev/openhands/openhands:1.6"],
-    ["compose.yaml", "ghcr.io/activepieces/activepieces:0.86.3"],
-    ["compose.yaml", "ghcr.io/berriai/litellm:main-latest"],
-    ["compose.yaml", "ghcr.io/home-assistant/home-assistant:stable"],
-    ["compose.yaml", "ghcr.io/remsky/kokoro-fastapi-cpu:v0.8.0"],
-    ["compose.yaml", "ghcr.io/searxng/searxng:2026.9.7-3e454637f"],
-    ["compose.yaml", "headscale/headscale:latest"],
-    ["compose.yaml", "hummingbot/hummingbot:latest"],
-    ["compose.yaml", "langfuse/langfuse-worker:3"],
-    ["compose.yaml", "langfuse/langfuse:3"],
-    ["compose.yaml", "livekit/livekit-server:v1.13.1"],
-    ["compose.yaml", "neo4j:5.26-community"],
-    ["compose.yaml", "ollama/ollama:0.33.3"],
-    ["compose.yaml", "openbao/openbao:2.6.2"],
-    ["compose.yaml", "quay.io/keycloak/keycloak:26.7.3"],
-    ["compose.yaml", "rotki/rotki:latest"],
-    ["compose.yaml", "vllm/vllm-openai:latest"]
-  ],
+  "known_unpinned_images": [],
   "known_unlocked_install_files": {
     "pnpm_no_frozen_lockfile": [],
     "uv_direct_install": []
   },
   "required_locked_install_files": {
-    "pnpm_frozen_lockfile": ["apps/web/Dockerfile", "services/realtime/Dockerfile"],
-    "uv_locked_sync": ["services/core/Dockerfile", "services/worker/Dockerfile"]
+    "pnpm_frozen_lockfile": [
+      "apps/web/Dockerfile",
+      "services/realtime/Dockerfile"
+    ],
+    "uv_locked_sync": [
+      "services/core/Dockerfile",
+      "services/worker/Dockerfile"
+    ]
   },
-  "required_lockfiles": ["pnpm-lock.yaml", "uv.lock"]
+  "required_lockfiles": [
+    "pnpm-lock.yaml",
+    "uv.lock"
+  ]
 }

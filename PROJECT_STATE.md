@@ -33,18 +33,19 @@ Product feature work remains paused until H5 is complete.
 3. **H3 — Reproducibility: split into bounded sub-gates.**
    - **H3a — Dependency locks/frozen direct CI: complete and canonical.**
    - **H3b1 — Locked KAIRO container builds: complete and canonical.**
-   - **H3b2 — External image pinning/debt reduction: in progress through bounded sub-gates.**
+   - **H3b2 — External image pinning/debt reduction: in progress; final implementation gate H3b2e is technically validated.**
      - **H3b2a — KAIRO Node build-base digest pins: complete and canonical.**
      - **H3b2b — Core Compose service digest pins: complete and canonical.**
      - **H3b2c — Temporal Compose digest pins: complete and canonical.**
      - **H3b2d — Backup/restore operations digest pins: complete and canonical.**
-     - **Remaining H3b2 image debt: 21 references.**
+     - **H3b2e — Final external image digest pins: technically validated; PR #82 pending final-head validation/merge.**
+     - **Remaining H3b2 image debt after H3b2e technical changes: 0 references.**
 4. **H4 — Production/auth boundary: not started.**
 5. **H5 — Full revalidation + real-engine/production checks + post-audit tag: not started.**
 
-Active development branch: **none**.
-Active work pull request: **none**.
-Next implementation gate: **H3b2 only — next small, coherent image-pin batch from the remaining 21 references**.
+Active development branch: **`hardening/h3b2e-final-image-pins`**.
+Active work pull request: **#82 — `H3b2e: complete external image digest pinning`**.
+Next implementation gate: **H3b2e only — validate the final PR head, merge if green, canonicalize H3/H3b2 completion, retire the branch, then stop**.
 
 ### H1 — Memory/Auth handoff
 
@@ -286,7 +287,74 @@ The same exact final head also triggered eight push-event mirrors. The final che
 
 `hardening/h3b2d-backup-image-pins` is retired after merge and must not be reused. The inert remote ref may remain.
 
-H3b2 is **not complete**: 21 unpinned/moving image references remain recorded in the reproducibility baseline. Do not begin H4 yet.
+### H3b2e — Final external image digest pins
+
+Pending merge checkpoint:
+
+- PR #82 — `H3b2e: complete external image digest pinning`;
+- base `main` at branch creation: `0a03a7457df38debd28ccd7c73a634b03c393ca9`;
+- validated technical head: `f0b19cfaaffd5a6563a229af2858cb02579a30cd`;
+- final PR head: this checkpoint commit, pending final-head CI validation before merge.
+
+H3b2e is the **final H3b2 implementation gate**. It consumes the complete remaining baseline debt set in one bounded final batch. No H3b2f is planned unless final validation exposes a genuine blocking defect.
+
+H3b2e technical changes:
+
+1. All 21 remaining `compose.yaml` external image references keep their configured tag/version strings and add the live registry digest resolved before application:
+   - `actualbudget/actual-server:latest` → `sha256:552beab3dec8c93d46b8b9245612d63c3f123b8a45063a474f53e229b17621d3`;
+   - `binwiederhier/ntfy:latest` → `sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da`;
+   - `chrislusf/seaweedfs:4.46` → `sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62`;
+   - `clickhouse/clickhouse-server:25.12` → `sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6`;
+   - `docker.openhands.dev/openhands/openhands:1.6` → `sha256:5c0dc26f467bf8e47a6e76308edb7a30af4084b17e23a3460b5467008b12111b`;
+   - `ghcr.io/activepieces/activepieces:0.86.3` → `sha256:208517c4f0d798a477a0c594bf432dd0f4918433f4b6f5b5f188a6e10e638c6c`;
+   - `ghcr.io/berriai/litellm:main-latest` → `sha256:29a0daf2593d5eaee14e76f851c4e6802cc1bf22770691a76d48e9810075ffd0`;
+   - `ghcr.io/home-assistant/home-assistant:stable` → `sha256:612d76760b544cb40b7ba01387fdac964c59a6a550a50a4d30b4773c822d2918`;
+   - `ghcr.io/remsky/kokoro-fastapi-cpu:v0.8.0` → `sha256:d32322c61254a871e0bc9c38d4e60cd18539cf9b1a2fc8f3ae04409061d0793b`;
+   - `ghcr.io/searxng/searxng:2026.9.7-3e454637f` → `sha256:1dab138ea70a8ceb4d1c182f5c8f256088406c1742b99e279976157dbe1e9759`;
+   - `headscale/headscale:latest` → `sha256:0e7f1c6e4ce6c2a2a001103ecd3fa645a045adf30ac8a5234fe037b43000cd72`;
+   - `hummingbot/hummingbot:latest` → `sha256:632d2b07aa156b761310f2f7258a78c9660a1c28b6df4b33874e09a0c7d06c85`;
+   - `langfuse/langfuse-worker:3` → `sha256:93207bd67d2e789ea55fa3d47eeba065dd6b1869187127ab24201784c52b96bc`;
+   - `langfuse/langfuse:3` → `sha256:a27fe525f52984fa6d36fd34e8b8c6e5ae4af43f34134cafc833b467fa9580ae`;
+   - `livekit/livekit-server:v1.13.1` → `sha256:2c6869d2d5ff6c9c0166f47be1c92dad6928bfecfa5e4060a6ece48db8accfa3`;
+   - `neo4j:5.26-community` → `sha256:22ec5cd05a8cbb372fc4bed5e384c30bc75fd92504c72be4462039761b105f61`;
+   - `ollama/ollama:0.33.3` → `sha256:32931b46719f673c05fdbaa81ccb26da18ea4a1c57590a754874ab28ba269eb2`;
+   - `openbao/openbao:2.6.2` → `sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641`;
+   - `quay.io/keycloak/keycloak:26.7.3` → `sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54`;
+   - `rotki/rotki:latest` → `sha256:918e35cfbcce68633eafc9cdcc206bb2b45a1110f86e544d48d1fded04c280ff`;
+   - `vllm/vllm-openai:latest` → `sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1`.
+2. The complete 21-image set was resolved live with `crane digest`; resolver run `34593893012` completed successfully before the pins were applied.
+3. `config/reproducibility-baseline.json` advances to version 8, records every exact Compose digest tuple, and reduces `known_unpinned_images` from **21 to 0**.
+4. The existing H3b2b fail-closed Compose digest contract remains unchanged and protects all validated digest tuples against silent removal or digest substitution.
+5. Temporary resolver/applicator/CI-trigger files were branch-only execution aids and are absent from the final tree. The net technical diff from the live branch base contains exactly two files:
+   - `compose.yaml`;
+   - `config/reproducibility-baseline.json`.
+
+Technical-head validation on exact technical tree/head `f0b19cfaaffd5a6563a229af2858cb02579a30cd`: **8/8 push workflows success**:
+
+- Baseline reproducibility validation — run `34594207035` — success;
+- Foundation validation — run `34594207117` — success across the full integration suite;
+- Autonomous Research validation — run `34594207062` — success, including `Prove real Worker SIGKILL replay invariants`;
+- MCP tool registry validation — run `34594207088` — success;
+- Multi-user isolation validation — run `34594207105` — success;
+- Document ingestion validation — run `34594207108` — success;
+- UI workspace validation — run `34594207102` — success;
+- Code quality validation — run `34594207064` — success.
+
+PR #82 must not merge until this checkpoint-created final PR head has its own green pull-request workflow proof. H3b2 and H3 become canonical complete only after that merge and the post-merge checkpoint update.
+
+H3b2 technical debt is now **0** on the PR branch. Do not begin H4 until H3b2e is merged and canonicalized.
+
+## Independent audit and Foundation repair — 2026-09-11
+
+- Live base checked: `0a03a7457df38debd28ccd7c73a634b03c393ca9`; PR #82 inspected at `997780e819f137dbd875b60ce0fa4f862a357ff1`.
+- See [independent audit](docs/audit-2026-09-11.md) for evidence, service inventory and priorities. This checkpoint supersedes claims that no work branch is active.
+- Original final-head CI: 14/16 runs successful. Foundation PR run `34594823443` failed on the memory smoke's premature Task-completion assertion. Foundation push run `34594817407` failed earlier on a Docker Hub connection reset, not on that assertion.
+- The PR technical tree and previously green `f0b19cf…` differ only by checkpoint documentation. All 21 registry digests match Compose and baseline v8; configured tags are unchanged.
+- Repair in progress on the existing #82 branch: seed a canonical ORM message/outbox event without dispatching News, wait for each memory Task's actual completion with a monotonic deadline, reject failed Tasks immediately, and verify no unrelated Tasks were created.
+- Four synchronization regression cases pass locally; source compilation and the existing reproducibility contract pass. Docker integration and final-head CI remain required before merge.
+- **P0 discovered:** generic public Task creation can choose internal capabilities; the completed MCP-result path does not bind its context to the currently executing Task. The exact Worker function reproduced a foreign-result return using synthetic data. After #82, the first security gate must close public dispatch and add cross-owner execution/replay regressions. Do not call the multi-user boundary fully secure based only on existing green reads/ownership tests.
+- Other audited concerns: blocking Docling call in the async Worker; admission/resource/budget limits; shared deployment credentials/network; unbounded SQL/result materialization; retry/retention; unused components and incomplete real-engine proof.
+- No H4/H5 completion and no product feature work are claimed. Per the current user mandate, continue from #82 into the explicit P0 security gate once #82 is validated and canonicalized; do not silently resume feature development.
 
 ## Canonical branch policy
 
@@ -307,17 +375,18 @@ The exact R7 baseline `6cf3647a...` passed the canonical workflow suite, includi
 
 ## Next action
 
-Continue **H3b2 only — External image pinning/debt reduction** through another small branch created fresh from live `main`.
+Complete **H3b2e only — the final H3b2 external-image gate**:
 
-The next H3b2 sub-gate should:
+- validate this checkpoint-created final PR head on PR #82;
+- require all 8 canonical pull-request workflows to complete successfully, including Foundation and the real Worker SIGKILL Research replay;
+- verify the PR head has not moved and remains mergeable;
+- merge PR #82 using the expected-head guard;
+- fetch live `main` and canonicalize H3b2e with the merge SHA and final-head workflow evidence;
+- mark **H3b2 complete** and therefore **H3 complete**;
+- retire `hardening/h3b2e-final-image-pins` and stop.
 
-- select one coherent, verifiable subset from the remaining **21** unpinned/moving image references;
-- preserve service versions and runtime behavior while replacing moving references with immutable digests where verifiable;
-- update the reproducibility baseline only alongside concrete debt reduction;
-- remain narrow enough for targeted runtime/CI validation;
-- not mix H4 production/auth-boundary work or product features;
-- stop and checkpoint after that sub-gate before selecting another batch.
+Do not create H3b2f unless final H3b2e validation exposes a genuine blocking defect.
 
-Do not begin H4 until H3b2 is explicitly complete.
+Do not begin H4 in the same gate execution. H4 becomes the next gate only after H3b2/H3 are canonical complete.
 
 Do not begin Gantt, Calendar, Brain, Finance/Crypto, voice or other product work until H5 is complete.

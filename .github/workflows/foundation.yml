@@ -75,6 +75,9 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall services/core/src services/worker/src scripts/smoke
 
+      - name: Prove memory Task completion synchronization
+        run: python scripts/smoke/memory_projection_wait_contract.py
+
       - name: Prove deterministic conversational routing
         run: uv run --locked --project services/core python scripts/smoke/assistant_router.py
 

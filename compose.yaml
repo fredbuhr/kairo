@@ -21,7 +21,7 @@ services:
     networks: [kairo]
 
   neo4j:
-    image: neo4j:5.26-community
+    image: neo4j:5.26-community@sha256:22ec5cd05a8cbb372fc4bed5e384c30bc75fd92504c72be4462039761b105f61
     restart: unless-stopped
     environment:
       NEO4J_AUTH: ${NEO4J_USER}/${NEO4J_PASSWORD}
@@ -59,7 +59,7 @@ services:
     networks: [kairo]
 
   seaweedfs:
-    image: chrislusf/seaweedfs:4.46
+    image: chrislusf/seaweedfs:4.46@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62
     restart: unless-stopped
     command: ["server", "-dir=/data", "-s3", "-s3.port=8333"]
     ports:
@@ -143,7 +143,7 @@ services:
     networks: [kairo]
 
   openbao:
-    image: openbao/openbao:2.6.2
+    image: openbao/openbao:2.6.2@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641
     restart: unless-stopped
     cap_add: [IPC_LOCK]
     environment:
@@ -155,7 +155,7 @@ services:
     networks: [kairo]
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.7.3
+    image: quay.io/keycloak/keycloak:26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54
     restart: unless-stopped
     command: ["start-dev"]
     environment:
@@ -173,7 +173,7 @@ services:
     networks: [kairo]
 
   litellm:
-    image: ghcr.io/berriai/litellm:main-latest
+    image: ghcr.io/berriai/litellm:main-latest@sha256:29a0daf2593d5eaee14e76f851c4e6802cc1bf22770691a76d48e9810075ffd0
     restart: unless-stopped
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     environment:
@@ -194,7 +194,7 @@ services:
     networks: [kairo]
 
   activepieces:
-    image: ghcr.io/activepieces/activepieces:0.86.3
+    image: ghcr.io/activepieces/activepieces:0.86.3@sha256:208517c4f0d798a477a0c594bf432dd0f4918433f4b6f5b5f188a6e10e638c6c
     restart: unless-stopped
     environment:
       AP_CONTAINER_TYPE: WORKER_AND_APP
@@ -223,7 +223,7 @@ services:
     networks: [kairo]
 
   searxng:
-    image: ghcr.io/searxng/searxng:2026.9.7-3e454637f
+    image: ghcr.io/searxng/searxng:2026.9.7-3e454637f@sha256:1dab138ea70a8ceb4d1c182f5c8f256088406c1742b99e279976157dbe1e9759
     restart: unless-stopped
     environment:
       SEARXNG_SECRET: ${SEARXNG_SECRET}
@@ -240,7 +240,7 @@ services:
     networks: [kairo]
 
   ollama:
-    image: ollama/ollama:0.33.3
+    image: ollama/ollama:0.33.3@sha256:32931b46719f673c05fdbaa81ccb26da18ea4a1c57590a754874ab28ba269eb2
     restart: unless-stopped
     ports:
       - "127.0.0.1:11434:11434"
@@ -249,7 +249,7 @@ services:
     networks: [kairo]
 
   ntfy:
-    image: binwiederhier/ntfy:latest
+    image: binwiederhier/ntfy:latest@sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da
     restart: unless-stopped
     command: ["serve"]
     environment:
@@ -262,7 +262,7 @@ services:
     networks: [kairo]
 
   clickhouse:
-    image: clickhouse/clickhouse-server:25.12
+    image: clickhouse/clickhouse-server:25.12@sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6
     restart: unless-stopped
     environment:
       CLICKHOUSE_DB: default
@@ -277,7 +277,7 @@ services:
     networks: [kairo]
 
   langfuse-worker:
-    image: langfuse/langfuse-worker:3
+    image: langfuse/langfuse-worker:3@sha256:93207bd67d2e789ea55fa3d47eeba065dd6b1869187127ab24201784c52b96bc
     restart: unless-stopped
     environment: &langfuse-env
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/langfuse
@@ -300,7 +300,7 @@ services:
     networks: [kairo]
 
   langfuse-web:
-    image: langfuse/langfuse:3
+    image: langfuse/langfuse:3@sha256:a27fe525f52984fa6d36fd34e8b8c6e5ae4af43f34134cafc833b467fa9580ae
     restart: unless-stopped
     environment:
       <<: *langfuse-env
@@ -312,7 +312,7 @@ services:
     networks: [kairo]
 
   livekit:
-    image: livekit/livekit-server:v1.13.1
+    image: livekit/livekit-server:v1.13.1@sha256:2c6869d2d5ff6c9c0166f47be1c92dad6928bfecfa5e4060a6ece48db8accfa3
     restart: unless-stopped
     command: ["--dev", "--bind", "0.0.0.0"]
     ports:
@@ -322,7 +322,7 @@ services:
     networks: [kairo]
 
   kokoro-tts:
-    image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.8.0
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.8.0@sha256:d32322c61254a871e0bc9c38d4e60cd18539cf9b1a2fc8f3ae04409061d0793b
     profiles: [voice]
     restart: unless-stopped
     environment:
@@ -431,7 +431,7 @@ services:
     networks: [kairo]
 
   rotki:
-    image: rotki/rotki:latest
+    image: rotki/rotki:latest@sha256:918e35cfbcce68633eafc9cdcc206bb2b45a1110f86e544d48d1fded04c280ff
     profiles: [finance]
     restart: unless-stopped
     ports:
@@ -442,7 +442,7 @@ services:
     networks: [kairo]
 
   actual-budget:
-    image: actualbudget/actual-server:latest
+    image: actualbudget/actual-server:latest@sha256:552beab3dec8c93d46b8b9245612d63c3f123b8a45063a474f53e229b17621d3
     profiles: [finance]
     restart: unless-stopped
     ports:
@@ -452,7 +452,7 @@ services:
     networks: [kairo]
 
   hummingbot:
-    image: hummingbot/hummingbot:latest
+    image: hummingbot/hummingbot:latest@sha256:632d2b07aa156b761310f2f7258a78c9660a1c28b6df4b33874e09a0c7d06c85
     profiles: [finance]
     restart: unless-stopped
     tty: true
@@ -464,7 +464,7 @@ services:
     networks: [kairo]
 
   home-assistant:
-    image: ghcr.io/home-assistant/home-assistant:stable
+    image: ghcr.io/home-assistant/home-assistant:stable@sha256:612d76760b544cb40b7ba01387fdac964c59a6a550a50a4d30b4773c822d2918
     profiles: [home]
     restart: unless-stopped
     network_mode: host
@@ -474,7 +474,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
 
   openhands:
-    image: docker.openhands.dev/openhands/openhands:1.6
+    image: docker.openhands.dev/openhands/openhands:1.6@sha256:5c0dc26f467bf8e47a6e76308edb7a30af4084b17e23a3460b5467008b12111b
     profiles: [dev-agent]
     restart: unless-stopped
     environment:
@@ -491,7 +491,7 @@ services:
     networks: [kairo]
 
   vllm:
-    image: vllm/vllm-openai:latest
+    image: vllm/vllm-openai:latest@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
     profiles: [gpu]
     restart: unless-stopped
     gpus: all
@@ -503,7 +503,7 @@ services:
     networks: [kairo]
 
   headscale:
-    image: headscale/headscale:latest
+    image: headscale/headscale:latest@sha256:0e7f1c6e4ce6c2a2a001103ecd3fa645a045adf30ac8a5234fe037b43000cd72
     profiles: [remote]
     restart: unless-stopped
     command: ["serve"]
