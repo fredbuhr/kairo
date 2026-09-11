@@ -1,6 +1,6 @@
 # KAIRO — état fonctionnel vérifié
 
-Révision : 2026-09-11, base inspectée `4790e1eab979a1f8c4c25459fb1c57dc59e8f977`.
+Révision : 2026-09-11, D01 intégré par #84 à `3d37afa77e6aecee87b6001bb81884b7545d9425`.
 Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJECT_STATE.md).
 
 ## Acquis canoniques
@@ -13,11 +13,16 @@ Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJEC
   MCP protégés ; 18/18 workflows verts dont isolation authentifiée et vrai SIGKILL Research.
 - Les huit workflows déclenchés par le checkpoint `4790e1e…` ont ensuite réussi.
 
+- #84 / D01 : plan D01–D22 et reprise documentés, parsing enfant borné/annulable, streaming limité,
+  slots Worker et ressources Compose configurables. Head `45869904808d6216a967978767c19bc4a8f881f3`
+  validé par 16/16 workflows, dont dix nouvelles régressions et ingestion/réingestion réelles.
+
 ## Capacités et limites
 
 | Domaine | Présent dans le code | Ce qui reste à prouver/livrer |
 |---|---|---|
 | État durable | PostgreSQL, objets SeaweedFS, outbox/NATS, exécution Temporal, migrations jusqu'à `0012_task_planning` | Pagination/rétention, dimensionnement et saturation maîtrisée |
+| Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, plafonds locaux | Admission globale/par propriétaire, équité et mesure réelle des moteurs en D02/D04 |
 | Identité et actions | Keycloak, ownership, policy/approbations, registre MCP et invocations idempotentes | Production, privilèges internes, egress, budgets atomiques sous concurrence |
 | Intelligence | Routing sémantique, recherche bornée, Context Packs, provenance et gateway de modèles | Choix utilisateur des modèles/clés, UX Agents/Skills, preuve coûts et vrais moteurs |
 | Documents et mémoire | Ingestion/version/chunks, recherche/inspection Web, projections mémoire reconstruisibles | CI Documents emploie le fallback texte, mémoire emploie des stubs ; vraie intégration Docling/Mem0/Graphiti à mesurer en D04 |
