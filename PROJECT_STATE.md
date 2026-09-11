@@ -9,7 +9,7 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 - Clean post-reset CI baseline: `6cf3647a609bbd8463cb734e87eb4088572bc037`.
 - Baseline tag: `r7-baseline-2026-09-11` → `6cf3647a609bbd8463cb734e87eb4088572bc037`.
 - H1 Memory/Auth handoff is canonical via PR #74, merge `3fa1aa5a67628c97ee4367e9a0224cff9086fbf0`.
-- Canonical main checkpoint before H2: `6e8b838b787678bcf5254bb9ef2c20a05f23ca2d`.
+- H2 Code hygiene is canonical via PR #75, merge `31e53b88135ac2db4600bb00a4112bc14d46ba5d`.
 - `AGENTS.md` and this file define repository recovery/resume discipline.
 - Rule: always fetch live `main` before acting. GitHub wins over chat memory or recorded checkpoint SHAs.
 
@@ -23,14 +23,14 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 Product feature work remains paused until H5 is complete.
 
 1. **H1 — Memory/Auth handoff: complete and canonical.**
-2. **H2 — Code hygiene: implementation validated; PR/merge next.**
-3. **H3 — Reproducibility: not started.**
+2. **H2 — Code hygiene: complete and canonical.**
+3. **H3 — Reproducibility: next; not started.**
 4. **H4 — Production/auth boundary: not started.**
 5. **H5 — Full revalidation + real-engine/production checks + post-audit tag: not started.**
 
-Active development branch: `hardening/h2-code-hygiene`.
-Active work pull request: **none yet**.
-H2 validated implementation head: `70febab5c06840620557d0fcefd596e20e3f9758`.
+Active development branch: **none**.
+Active work pull request: **none**.
+Next implementation gate: **H3 only — Reproducibility**.
 
 ### H1 — Memory/Auth handoff
 
@@ -52,20 +52,27 @@ Key evidence:
 
 ### H2 — Code hygiene
 
-H2 is deliberately limited to proven cleanup and static-quality guardrails. No broad refactor and no H3 reproducibility work is included.
+Canonical merge:
 
-Implementation changes on exact code head `70febab5c06840620557d0fcefd596e20e3f9758`:
+- PR #75 — `H2: remove dead code and add static-quality guardrails`;
+- merge commit: `31e53b88135ac2db4600bb00a4112bc14d46ba5d`;
+- validated implementation head: `70febab5c06840620557d0fcefd596e20e3f9758`;
+- final PR head: `ca2464b70114de4d4d9ad5e91071f8f38982943f`.
 
-1. `.gitattributes` added to keep shell/source/config files on LF across Windows/Linux checkouts.
-2. `.github/workflows/code-quality.yml` added with:
+H2 remained deliberately limited to proven cleanup and static-quality guardrails. No broad refactor and no H3 reproducibility work was included.
+
+Canonical H2 changes:
+
+1. `.gitattributes` keeps shell/source/config files on LF across Windows/Linux checkouts.
+2. `.github/workflows/code-quality.yml` adds:
    - Ruff `F,E9` correctness/dead-import checks on Core, Worker and smoke scripts;
    - `bash -n` parsing for all tracked shell scripts under `scripts/`.
-3. `scripts/bootstrap.sh` removed after usage search proved it had no live consumer; the Makefile already owns bootstrap/config setup.
+3. `scripts/bootstrap.sh` was removed after usage search proved it had no live consumer; the Makefile already owns bootstrap/config setup.
 4. `services/worker/src/kairo_worker/activities.py` removed the obsolete duplicate News summarizer/activity while retaining shared search/enrichment/fallback helpers used by `news_activity.py`.
-5. Unused direct `boto3` dependencies removed from Core and Worker after repository-wide usage search found no imports/consumers.
-6. Four unused Core settings removed after usage search proved they were read nowhere: `seaweed_s3_endpoint`, `litellm_url`, `keycloak_url`, `keycloak_realm`.
+5. Unused direct `boto3` dependencies were removed from Core and Worker after repository-wide usage search found no imports/consumers.
+6. Four unused Core settings were removed after usage search proved they were read nowhere: `seaweed_s3_endpoint`, `litellm_url`, `keycloak_url`, `keycloak_realm`.
 
-H2 implementation diff versus canonical pre-H2 `main` is exactly seven files:
+H2 implementation diff versus canonical pre-H2 `main` was exactly seven implementation/config files plus this checkpoint file:
 
 - `.gitattributes` — added;
 - `.github/workflows/code-quality.yml` — added;
@@ -73,7 +80,8 @@ H2 implementation diff versus canonical pre-H2 `main` is exactly seven files:
 - `services/core/pyproject.toml` — unused dependency removed;
 - `services/core/src/kairo_core/config.py` — unused settings removed;
 - `services/worker/pyproject.toml` — unused dependency removed;
-- `services/worker/src/kairo_worker/activities.py` — dead legacy News implementation removed.
+- `services/worker/src/kairo_worker/activities.py` — dead legacy News implementation removed;
+- `PROJECT_STATE.md` — gate/checkpoint evidence only.
 
 Validation on exact H2 implementation head `70febab5...` — **8/8 workflows success**:
 
@@ -86,9 +94,11 @@ Validation on exact H2 implementation head `70febab5...` — **8/8 workflows suc
 7. Foundation validation — run `34580077301` — success.
 8. Autonomous research validation — run `34580077260` — success, including the real Worker SIGKILL replay proof.
 
+Final PR-head validation on `ca2464b...` also finished green across all eight workflows. Foundation run `34580502091` initially exposed a timing race in `memory-projection-integration`: the smoke read a projection Task while it was still `running`, immediately before the Worker completed it. A targeted rerun of that same job on the unchanged PR head passed; the workflow run then concluded **success**. No product/code change was made to mask the transient failure.
+
 Local/static pre-push checks also passed: Python compile/AST parsing, workflow YAML parsing, `git diff --check`, and an import-usage scan.
 
-H2 is not canonical until its PR is merged. Do not start H3 on this branch.
+`hardening/h2-code-hygiene` is retired after merge and must not be reused. The connector does not expose branch-ref deletion, so the inert remote ref may remain.
 
 ## Canonical branch policy
 
@@ -109,14 +119,14 @@ The exact R7 baseline `6cf3647a...` passed the canonical workflow suite, includi
 
 ## Next action
 
-Finish **H2 only**:
+Perform **H3 only — Reproducibility** from a fresh branch created from live `main`.
 
-1. open a PR from `hardening/h2-code-hygiene` to live `main`;
-2. verify the PR diff remains the seven H2 files plus this checkpoint file only;
-3. require PR checks to be green on the final checkpoint head;
-4. merge H2;
-5. update canonical `PROJECT_STATE.md` with the PR/merge result and mark H2 complete;
-6. retire/delete the H2 branch;
-7. stop before H3.
+H3 should remain bounded to reproducibility work already identified by the post-R7 audit:
 
-After H2 is canonical, **H3 — Reproducibility** is next. Do not begin Gantt, Calendar, Brain, Finance/Crypto, voice or other product work until H5 is complete.
+- introduce lockfiles/frozen dependency installs where appropriate;
+- reduce critical moving Docker tags/digests while keeping the reproducibility contract truthful;
+- preserve the existing reproducibility-debt drift guard or update it only alongside concrete debt reduction;
+- avoid production/auth-boundary work reserved for H4;
+- stop after H3 merge/checkpoint before beginning H4.
+
+Do not begin Gantt, Calendar, Brain, Finance/Crypto, voice or other product work until H5 is complete.
