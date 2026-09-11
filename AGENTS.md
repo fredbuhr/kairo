@@ -8,7 +8,7 @@ Before proposing or making any change:
 
 1. read `PROJECT_STATE.md`;
 2. fetch the live `main` head from GitHub;
-3. fetch the active pull request/branch named in `PROJECT_STATE.md`;
+3. fetch the active pull request/branch named in `PROJECT_STATE.md` and read the active Dxx lot in `docs/implementation-plan.md`;
 4. compare the live refs with the checkpoint;
 5. inspect existing code before creating files, branches, migrations, APIs or duplicate implementations.
 
@@ -43,12 +43,18 @@ Use these roles consistently:
 - `PROJECT_STATE.md` — operational checkpoint: where to resume now;
 - `docs/status.md` — current implemented/validated product state;
 - `docs/roadmap.md` — planned sequencing;
+- `docs/implementation-plan.md` — stable Dxx delivery lots, dependencies and acceptance scenarios;
+- `docs/development-workflow.md` — checkpoint format and recovery after interruption or failed validation;
 - `docs/architecture.md` — architectural boundaries and system design;
 - `docs/component-matrix.md` — implementation/integration maturity by component;
 - `docs/decisions/` — durable architectural decisions;
 - historical audits/plans — evidence only, never the current source of truth.
 
 Do not make a historical document look current. Move superseded material to `docs/archive/` during the documentation cleanup gate rather than deleting useful history blindly.
+
+Keep the active checkpoint compact: verified base, one active branch/PR, completed work, exact-head
+validation, remaining uncertainty and one executable next action. Preserve long evidence in the
+archive. A configured engine or successful mock must never be recorded as a verified real integration.
 
 ## 5. Safety against duplicate work
 

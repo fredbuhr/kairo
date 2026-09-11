@@ -9,6 +9,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  document-execution-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Prove bounded document execution and real subprocess cleanup
+        run: uv run --locked --project services/worker python scripts/smoke/document_execution_contract.py
+
   document-ingestion-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 25

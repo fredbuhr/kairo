@@ -2,6 +2,9 @@
 
 ## Product definition
 
+This is the target product, not a completion checklist. The executable sequence and coverage of
+these spaces are in [implementation-plan](implementation-plan.md); current capabilities are in [status](status.md).
+
 KAIRO is a self-hosted Personal AI Operating System that gives one user a persistent, inspectable and increasingly autonomous intelligence layer across their work and personal systems.
 
 The product should feel like one coherent application even though it delegates specialized capabilities to multiple open-source engines.

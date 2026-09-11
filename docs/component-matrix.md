@@ -12,6 +12,10 @@ The component registry is intentionally broader than the currently implemented p
 
 The maturity column describes the **KAIRO integration**, not the upstream project's own maturity.
 
+Validation is scenario-specific: controlled text fallback and memory stubs do not prove real
+Docling/Mem0/Graphiti execution. D04 supplies that missing evidence. Future delivery lots are
+mapped in [implementation-plan](implementation-plan.md); present progress lives in [PROJECT_STATE](../PROJECT_STATE.md).
+
 | Capability | Component | Mode/profile | KAIRO ownership rule | Current maturity |
 |---|---|---|---|---|
 | Canonical database | PostgreSQL + pgvector | service / core | authoritative domain state; vectors rebuildable | **Validated** |
@@ -26,7 +30,7 @@ The maturity column describes the **KAIRO integration**, not the upstream projec
 | Local model edge | llama.cpp | sidecar/host / desktop | model provider only | **Declared** |
 | Local model GPU | vLLM | service / `gpu` | model provider only | **Configured** |
 | Long-term memory | Mem0 | worker library / core | derived memory projection | **Integrated** |
-| Document parsing | Docling | worker library / core | produces canonical document/chunk provenance | **Validated** |
+| Document parsing | Docling | worker library / core | produces canonical document/chunk provenance | **Integrated; deterministic text fallback validated, real engine pending D04** |
 | External automation | Activepieces | service / core | delegated engine; KAIRO owns intent/policy/run link | **Configured** |
 | Tool protocol | MCP | protocol / core | preferred AI tool boundary | **Validated** |
 | Deterministic browser | Playwright | worker/sandbox / core | side effects policy-gated | **Configured** |

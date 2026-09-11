@@ -26,6 +26,8 @@ async def serve() -> None:
     worker = Worker(
         client,
         task_queue=settings.temporal_task_queue,
+        max_concurrent_activities=settings.kairo_worker_max_concurrent_activities,
+        max_concurrent_workflow_tasks=settings.kairo_worker_max_concurrent_workflow_tasks,
         workflows=[TaskExecutionWorkflow, FoundationWorkflow],
         activities=[
             begin_execution,

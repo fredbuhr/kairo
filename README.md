@@ -4,13 +4,25 @@ KAIRO is a self-hosted **Personal AI Operating System**: one coherent interface 
 
 KAIRO is not a chatbot wrapper and it is not a fork of another assistant. KAIRO owns the user experience, system-of-record, policy model and integration contracts; specialized open-source engines remain replaceable behind those boundaries.
 
-## Architecture reset — September 2026
+## Current delivery line — September 2026
+
+Repository Reset R0–R7 is complete; G51 planning foundations, H1–H3 and the H4 Task-dispatch
+isolation repair are integrated. Remaining H4/H5 work precedes new product features.
+The current Web cockpit exists; the complete Mycelium 3D, editable mindmaps and Gantt are planned,
+not delivered merely by installing their rendering libraries.
+
+Start with [PROJECT_STATE.md](PROJECT_STATE.md) for live recovery, the
+[detailed D01–D22 plan](docs/implementation-plan.md) for delivery scope, and the
+[development/recovery protocol](docs/development-workflow.md) when changing conversations.
+
+## Architecture history
 
 The original V0 proved several important properties with an OpenClaw-based runtime and a filesystem/Markdown domain store: durable project capture, explicit epistemic status, background execution, restart recovery, conservative failure behavior and the need for replay-safe autonomous actions.
 
-Those experiments achieved their purpose. The target product is now broader, so the repository is being reset around the full platform architecture from the beginning instead of extending the V0 runtime.
+Those experiments achieved their purpose. The repository reset established the permanent platform architecture instead of extending the V0 runtime.
 
-The new foundation deliberately includes the complete dependency graph early so integrations, identity, storage, authorization, eventing, observability, realtime collaboration, model routing and durable execution are designed together rather than retrofitted later.
+The component registry records the wider target architecture. Runtime activation and implementation
+follow proven needs and the delivery plan; configured components do not all need to run by default.
 
 ## KAIRO-owned layers
 
@@ -137,6 +149,8 @@ Restore is destructive and requires `KAIRO_CONFIRM_RESTORE=YES`. See [`docs/oper
 
 ## Implementation
 
-The implementation plan is organized by large coherent platform blocks rather than dozens of micro-phases. See [`docs/implementation-plan.md`](docs/implementation-plan.md).
+The implementation plan uses bounded D01–D22 deliveries with prerequisites, observable exits and
+recovery criteria. See [`docs/implementation-plan.md`](docs/implementation-plan.md).
 
-Current branch status is tracked in [`docs/status.md`](docs/status.md).
+Active branch/PR and next action: [`PROJECT_STATE.md`](PROJECT_STATE.md).
+Implemented capabilities and limitations: [`docs/status.md`](docs/status.md).

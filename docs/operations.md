@@ -1,5 +1,47 @@
 # KAIRO operations boundary
 
+## D01 — Worker and document processing limits
+
+Temporal's existing queue is retained with explicit per-Worker slots. Document capacity is acquired
+before download; conversion/chunking run in a short-lived child receiving model/cache paths but no
+Core/DB/API credentials. No new service or broker is introduced.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `KAIRO_WORKER_MAX_CONCURRENT_ACTIVITIES` | 16 | All concurrent activities per Worker |
+| `KAIRO_WORKER_MAX_CONCURRENT_WORKFLOW_TASKS` | 8 | Workflow-task concurrency; minimum 2 with the current cache |
+| `KAIRO_DOCUMENT_MAX_CONCURRENT` | 1 | Download/parse/report concurrency; below activity limit |
+| `KAIRO_DOCUMENT_MAX_SOURCE_BYTES` | 26214400 | 25 MiB cap, enforced during streaming without requiring Content-Length |
+| `KAIRO_DOCUMENT_MAX_TEXT_CHARS` | 1000000 | Parsed text limit before chunking |
+| `KAIRO_DOCUMENT_PARSE_TIMEOUT_SECONDS` | 180 | Child wall-time; configurable up to 420 seconds |
+| `KAIRO_WORKER_CPUS` | 2.0 | CPU ceiling per Worker container |
+| `KAIRO_WORKER_MEMORY_LIMIT` | 4g | Memory ceiling per Worker container |
+| `KAIRO_WORKER_PIDS_LIMIT` | 256 | PID/thread ceiling per Worker container |
+
+These initial safety settings are not measured capacity guarantees. D04 must measure real
+Docling/model memory and cold starts on the chosen hardware. Total usage multiplies with replicas.
+Compose passes these settings through and uses `init: true` to reap descendants. Core's upload
+`ASSET_MAX_BYTES` is independent; keep it consistent with the intended ingestion limit.
+
+The activity has a 540-second local deadline, including capacity wait, inside the existing
+600-second Temporal deadline. Heartbeats continue every five seconds. Cancellation/timeout kills
+and reaps the parser group before deleting temporary files and releasing capacity. The output file
+is bounded before reading. Empty/oversize/unsupported input fails without repeated retries;
+transient parser failures retain the existing bounded retry policy. Generation/chunk provenance is preserved.
+
+Each child owns its converter; caching models/converters across conversions remains a measured
+future optimization. Waiting documents still occupy bounded Worker activity slots: **per-user
+fairness and interactive priority during a document flood are not provided by D01**. D02 owns
+global/owner admission. Other AI libraries and service budgets remain to be hardened; this is
+not a complete production sandbox. Reverting restores the blocking parser but requires no data migration.
+
+`uv run --locked --project services/worker python scripts/smoke/document_execution_contract.py`
+tests actual controlled subprocesses and the text fallback, without model downloads. The existing
+Documents integration exercises real Core/Temporal/Worker ingestion/reingestion. D04 supplies the
+real Docling/PDF and memory/model proof. References:
+[Python subprocess lifecycle](https://docs.python.org/3.12/library/asyncio-subprocess.html),
+[Temporal Worker concurrency](https://python.temporal.io/temporalio.worker.Worker.html).
+
 This document defines how the Block 1 substrate is run, backed up and restored without mixing local-development conveniences with production trust assumptions.
 
 ## Development

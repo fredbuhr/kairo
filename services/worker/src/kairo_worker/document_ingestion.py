@@ -1,89 +1,113 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
-import importlib.metadata
-import importlib.util
+import json
 import os
+from pathlib import Path
+import signal
+import sys
 import tempfile
 from typing import Any
 
 import httpx
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
 
 from .config import settings
+
+# Waiting activities remain bounded by Temporal's Worker slots. D02 adds global/owner admission.
+_document_slots = asyncio.Semaphore(settings.kairo_document_max_concurrent)
+DOCUMENT_ACTIVITY_SECONDS = 540  # Below the existing ten-minute Temporal activity deadline.
+
+
+def _heartbeat(value: dict[str, Any]) -> None:
+    if activity.in_activity():
+        activity.heartbeat(value)
+
+
+async def _keep_alive(version_id: str) -> None:
+    while True:
+        _heartbeat({"stage": "ingesting", "document_version_id": version_id})
+        await asyncio.sleep(5)
+
+
+async def _run_parser(source_path: Path, media_type: str) -> dict[str, Any]:
+    result_path = source_path.parent / "parsed.json"
+    # The parser needs model/cache paths, not Core tokens, database passwords or API keys.
+    allowed = {"PATH", "PYTHONPATH", "HOME", "LANG", "LC_ALL", "HF_HOME",
+               "HF_HUB_CACHE", "TRANSFORMERS_CACHE", "DOCLING_ARTIFACTS_PATH", "CUDA_VISIBLE_DEVICES"}
+    environment = {key: value for key, value in os.environ.items() if key in allowed}
+    environment.update({"OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1",
+                        "TMPDIR": str(source_path.parent)})
+    spawning = asyncio.create_task(asyncio.create_subprocess_exec(
+        sys.executable, "-m", "kairo_worker.document_parser", str(source_path), str(result_path),
+        media_type, str(settings.kairo_document_max_text_chars),
+        stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL, env=environment, start_new_session=os.name == "posix",
+    ))
+    process = None
+    try:
+        # Shield creation so cancellation cannot lose ownership of a child being spawned.
+        process = await asyncio.shield(spawning)
+        async with asyncio.timeout(settings.kairo_document_parse_timeout_seconds):
+            await process.wait()
+    except TimeoutError as exc:
+        raise ApplicationError("Document parser exceeded configured time limit", non_retryable=True) from exc
+    finally:
+        if process is None:
+            process = await spawning
+        try:
+            if os.name == "posix":
+                # Also stop descendants that might outlive a successfully exited parser leader.
+                os.killpg(process.pid, signal.SIGKILL)
+            elif process.returncode is None:
+                process.kill()
+        except ProcessLookupError:
+            pass
+        await process.wait()  # Reap before the caller deletes the temporary directory or releases its slot.
+
+    if process.returncode != 0:
+        raise ApplicationError(f"Document parser exited with code {process.returncode}", non_retryable=True)
+    # JSON escaping can expand one source character to six bytes. Bound before materialization.
+    if not result_path.is_file() or result_path.stat().st_size > settings.kairo_document_max_text_chars * 6 + 65536:
+        raise ApplicationError("Document parser result is missing or exceeds configured limit", non_retryable=True)
+    try:
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+    except (ValueError, UnicodeError) as exc:
+        raise ApplicationError("Document parser produced invalid output", non_retryable=True) from exc
+    if not isinstance(result, dict):
+        raise ApplicationError("Document parser produced invalid output", non_retryable=True)
+    if result.get("error"):
+        raise ApplicationError(str(result["error"]), non_retryable=not result.get("retryable", False))
+    return result
+
+
+async def _download_source(source: dict[str, Any], path: Path) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=False) as client:
+        async with client.stream("GET", str(source["download_url"])) as response:
+            response.raise_for_status()
+            content_length = response.headers.get("content-length")
+            if content_length and int(content_length) > settings.kairo_document_max_source_bytes:
+                raise ApplicationError("Document source exceeds configured byte limit", non_retryable=True)
+            with path.open("wb") as handle:
+                async for piece in response.aiter_bytes(chunk_size=65536):
+                    size += len(piece)
+                    if size > settings.kairo_document_max_source_bytes:
+                        raise ApplicationError("Document source exceeds configured byte limit", non_retryable=True)
+                    digest.update(piece)
+                    handle.write(piece)
+    actual = digest.hexdigest()
+    expected = str(source.get("source_sha256") or "")
+    if expected and actual != expected:
+        raise ApplicationError("Source asset digest does not match canonical metadata", non_retryable=True)
+    return actual, size
 
 
 def _headers() -> dict[str, str]:
     return {"X-Kairo-Internal-Token": settings.kairo_internal_token}
-
-
-def _chunk_text(text: str, *, max_chars: int = 4000) -> list[dict[str, Any]]:
-    normalized = text.replace("\r\n", "\n").replace("\r", "\n").strip()
-    if not normalized:
-        return []
-    paragraphs = [part.strip() for part in normalized.split("\n\n") if part.strip()]
-    chunks: list[dict[str, Any]] = []
-    current: list[str] = []
-    current_len = 0
-    for paragraph in paragraphs:
-        if len(paragraph) > max_chars:
-            if current:
-                chunks.append({"text": "\n\n".join(current), "metadata": {"kind": "text"}})
-                current = []
-                current_len = 0
-            for offset in range(0, len(paragraph), max_chars):
-                piece = paragraph[offset : offset + max_chars].strip()
-                if piece:
-                    chunks.append({"text": piece, "metadata": {"kind": "text", "split": True}})
-            continue
-        extra = len(paragraph) + (2 if current else 0)
-        if current and current_len + extra > max_chars:
-            chunks.append({"text": "\n\n".join(current), "metadata": {"kind": "text"}})
-            current = []
-            current_len = 0
-        current.append(paragraph)
-        current_len += extra
-    if current:
-        chunks.append({"text": "\n\n".join(current), "metadata": {"kind": "text"}})
-    return chunks
-
-
-def _plain_text_fallback(content: bytes, media_type: str | None) -> tuple[str, str, str | None, dict[str, Any]]:
-    allowed = {
-        "text/plain",
-        "text/markdown",
-        "text/x-markdown",
-        "application/json",
-        "text/csv",
-        "text/html",
-    }
-    if (media_type or "").split(";", 1)[0].lower() not in allowed:
-        raise RuntimeError("Docling is unavailable and this media type has no deterministic fallback parser")
-    return content.decode("utf-8", errors="replace"), "text-fallback", None, {"docling_available": False}
-
-
-def _parse_with_docling(content: bytes, filename: str | None) -> tuple[str, str, str | None, dict[str, Any]]:
-    from docling.document_converter import DocumentConverter
-
-    suffix = os.path.splitext(filename or "document.bin")[1] or ".bin"
-    temp_path = ""
-    try:
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
-            handle.write(content)
-            temp_path = handle.name
-        result = DocumentConverter().convert(temp_path)
-        text = result.document.export_to_markdown()
-        try:
-            version = importlib.metadata.version("docling")
-        except importlib.metadata.PackageNotFoundError:
-            version = None
-        return text, "docling", version, {"docling_available": True, "export": "markdown"}
-    finally:
-        if temp_path:
-            try:
-                os.unlink(temp_path)
-            except OSError:
-                pass
 
 
 async def _fetch_source(version_id: str) -> dict[str, Any]:
@@ -107,37 +131,20 @@ async def _report_complete(version_id: str, payload: dict[str, Any]) -> dict[str
         return response.json()
 
 
-@activity.defn
-async def perform_document_ingestion(payload: dict[str, Any]) -> dict[str, Any]:
-    task_input = payload.get("task_input") or {}
-    version_id = str(task_input.get("document_version_id") or "")
-    if not version_id:
-        raise RuntimeError("document.ingest task is missing document_version_id")
-
+async def _ingest(version_id: str) -> dict[str, Any]:
     source = await _fetch_source(version_id)
-    activity.heartbeat({"stage": "source-resolved", "document_version_id": version_id})
-    async with httpx.AsyncClient(timeout=60.0, follow_redirects=False) as client:
-        response = await client.get(str(source["download_url"]))
-        response.raise_for_status()
-        content = response.content
+    _heartbeat({"stage": "source-resolved", "document_version_id": version_id})
+    suffix = Path(str(source.get("filename") or "document.bin")).suffix
+    # Source metadata cannot choose a directory or an unbounded filename.
+    suffix = suffix if suffix and len(suffix) <= 16 else ".bin"
+    with tempfile.TemporaryDirectory(prefix="kairo-document-") as directory:
+        path = Path(directory) / ("source" + suffix)
+        actual_sha256, source_size = await _download_source(source, path)
+        parsed = await _run_parser(path, str(source.get("media_type") or ""))
 
-    actual_sha256 = hashlib.sha256(content).hexdigest()
-    expected_sha256 = str(source.get("source_sha256") or "")
-    if expected_sha256 and actual_sha256 != expected_sha256:
-        raise RuntimeError("Source asset digest does not match canonical metadata")
-
-    media_type = source.get("media_type")
-    if importlib.util.find_spec("docling") is not None:
-        text, parser, parser_version, parser_metadata = _parse_with_docling(
-            content, source.get("filename")
-        )
-    else:
-        text, parser, parser_version, parser_metadata = _plain_text_fallback(content, media_type)
-
-    chunks = _chunk_text(text)
-    if not chunks:
-        raise RuntimeError("Document parser produced no textual chunks")
-    activity.heartbeat({"stage": "parsed", "chunk_count": len(chunks)})
+    chunks = parsed["chunks"]
+    parser, parser_version = parsed["parser"], parsed["parser_version"]
+    _heartbeat({"stage": "parsed", "chunk_count": len(chunks)})
 
     report = await _report_complete(
         version_id,
@@ -147,9 +154,9 @@ async def perform_document_ingestion(payload: dict[str, Any]) -> dict[str, Any]:
             "source_sha256": actual_sha256,
             "chunks": chunks,
             "metadata": {
-                **parser_metadata,
-                "source_media_type": media_type,
-                "source_size_bytes": len(content),
+                **parsed["metadata"],
+                "source_media_type": source.get("media_type"),
+                "source_size_bytes": source_size,
                 "chunking": {"strategy": "paragraph-pack", "max_chars": 4000},
             },
         },
@@ -167,3 +174,21 @@ async def perform_document_ingestion(payload: dict[str, Any]) -> dict[str, Any]:
             "source_sha256": actual_sha256,
         },
     }
+
+
+@activity.defn
+async def perform_document_ingestion(payload: dict[str, Any]) -> dict[str, Any]:
+    version_id = str((payload.get("task_input") or {}).get("document_version_id") or "")
+    if not version_id:
+        raise ApplicationError("document.ingest task is missing document_version_id", non_retryable=True)
+    heartbeat = asyncio.create_task(_keep_alive(version_id), name="document-ingestion-heartbeat")
+    try:
+        async with asyncio.timeout(DOCUMENT_ACTIVITY_SECONDS):
+            # Acquire before download: queued documents do not retain source bytes/files/models.
+            async with _document_slots:
+                return await _ingest(version_id)
+    except TimeoutError as exc:
+        raise ApplicationError("Document ingestion exceeded bounded processing window", non_retryable=True) from exc
+    finally:
+        heartbeat.cancel()
+        await asyncio.gather(heartbeat, return_exceptions=True)
