@@ -19,12 +19,13 @@ jobs:
         run: |
           cp .env.example .env
           echo 'KAIRO_WORKER_EXTRAS=' >> .env
+          echo 'KAIRO_MEMORY_PROJECTOR_MODE=stub' >> .env
 
       - name: Start identity and canonical control plane
         run: |
           docker compose up -d --build \
             postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace \
-            keycloak kairo-core
+            keycloak kairo-core kairo-worker
 
       - name: Prove authenticated user-world isolation
         run: python scripts/smoke/multi_user_isolation.py
@@ -35,7 +36,7 @@ jobs:
           docker compose ps -a
           docker compose logs --no-color --tail=650 \
             postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace \
-            keycloak kairo-core
+            keycloak kairo-core kairo-worker
 
       - name: Tear down isolation stack
         if: always()
