@@ -21,6 +21,7 @@ from kairo_core.main import app
 from kairo_core.memory_models import MemoryProjectionRecord
 from kairo_core.models import Asset, OutboxEvent, Project, Task, WorkflowExecution
 from kairo_core.outbox import OutboxRelay, prune_technical_history
+from kairo_core.pagination import encode_cursor
 from kairo_core.work_capacity import WorkAdmission
 
 OWNER = "d02-data-owner"
@@ -113,6 +114,9 @@ async def main():
             assert (await client.get(f"/v1/document-versions/{foreign_version}")).status_code == 404
             for path in ("/v1/tasks?limit=1000", "/v1/documents?cursor=not-a-cursor", "/v1/today?limit=1000"):
                 assert (await client.get(path)).status_code == 422, path
+            for identity in (123, {}, []):
+                cursor = encode_cursor(["created_at", True, datetime.now(UTC).isoformat(), identity])
+                assert (await client.get(f"/v1/tasks?cursor={cursor}")).status_code == 422
             view = (await client.get("/v1/today?timezone=UTC&limit=10")).json()
             for bucket in ("overdue", "in_progress", "due_today", "planned", "completed_today", "backlog"):
                 seen = {row["task"]["id"] for row in view[bucket]}

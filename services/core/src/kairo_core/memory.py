@@ -487,7 +487,7 @@ def _rebuild_boundary(cursor: str) -> tuple[datetime, uuid.UUID]:
         if timestamp.tzinfo is None:
             raise ValueError()
         return timestamp, uuid.UUID(identity)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, AttributeError, OverflowError) as exc:
         raise HTTPException(422, "Invalid rebuild cursor") from exc
 
 

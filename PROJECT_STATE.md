@@ -117,3 +117,9 @@ ce qui n'est pas une capacité mesurée de vrais moteurs/utilisateurs.
 Dernière vérification avant clôture : réconcilier aussi le consumer NATS existant (un simple bind
 n'applique pas les nouvelles limites), conserver un seul client pendant reconnexion et les prouver
 sur JetStream réel. Puis refaire les gates du head final et clôturer D02 dans la même PR #86.
+
+Le head `9f32e6792cbb585d738a6468dab0c54d549fda4f` valide aussi les limites JetStream
+et la mise à jour d'un consumer durable existant (job `103303522635`). Dernier correctif de
+revue : refuser par HTTP 422 les curseurs JSON valides dont l'identifiant/type est incorrect,
+au lieu de laisser remonter une erreur Python 500. Contrat PostgreSQL étendu ; attendre tous
+les workflows du nouveau head avant clôture. Aucune nouvelle fonction ni sous-lot ajouté.

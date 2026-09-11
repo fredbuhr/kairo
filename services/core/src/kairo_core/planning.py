@@ -189,7 +189,7 @@ async def today(
                 if due.tzinfo is None or created.tzinfo is None:
                     raise ValueError()
                 query = query.where(order_key > (int(priority), due, created, uuid.UUID(identity)))
-            except (TypeError, ValueError) as exc:
+            except (TypeError, ValueError, AttributeError, OverflowError) as exc:
                 raise HTTPException(422, "Invalid Today cursor") from exc
         rows = list((await session.execute(query.order_by(
             Task.priority.desc(), due_key, Task.created_at, Task.id,

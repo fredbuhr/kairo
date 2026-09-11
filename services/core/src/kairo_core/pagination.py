@@ -43,7 +43,7 @@ async def page_rows(session, statement, model, *, limit: int = 100, cursor: str 
             if isinstance(value, datetime) and value.tzinfo is None:
                 raise ValueError()
             identity = uuid.UUID(raw_id)
-        except (ValueError, TypeError) as exc:
+        except (ValueError, TypeError, AttributeError, OverflowError) as exc:
             raise HTTPException(422, "Invalid page cursor") from exc
         boundary = tuple_(key, model.id)
         statement = statement.where(boundary < (value, identity) if descending else boundary > (value, identity))
