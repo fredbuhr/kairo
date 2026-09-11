@@ -18,10 +18,10 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Champ | Valeur |
 |---|---|
 | Branche de développement active | `hardening/d02-model-admission` |
-| PR active | **Aucune** |
+| PR active | [#85](https://github.com/fredbuhr/kairo/pull/85) |
 | Dernier lot terminé | **D01 — Worker disponible et traitements bornés** |
 | Prochain lot | **D02 en cours — première tranche : admission et réservation des appels IA** |
-| Première action | Vérifier live main, lire D02, inspecter admission/run_task/policy/model accounting et reproduire une réservation concurrente avant de modifier |
+| Première action | Inspecter les checks du head live de #85, notamment PostgreSQL, isolation authentifiée et Research SIGKILL ; ne pas extrapoler le succès du premier head |
 | Résultat attendu | Travail coûteux admis/attendu/refusé explicitement ; budgets atomiques et requêtes bornées |
 | Scope | Une tranche cohérente admission/réservation, puis matérialisation/rétention si le découpage du plan est nécessaire ; pas de nouvelle queue ni de fonction produit |
 
@@ -81,6 +81,12 @@ Preuves des 8 workflows PR (les 8 miroirs push ont également réussi) :
   propriétaire, reprise sans double appel/dépense et expiration prudente ; pool DB configurable.
 - Reproduction locale du garde canonique : deux estimations de 0,60 sont acceptées sur 1,00
   tant que le ledger reste à zéro. Les deux réservoirs inspectés n'ont pas de réservation.
-- Preuve PostgreSQL concurrente et SIGKILL à exécuter en CI ; rien de cette tranche encore validé.
+- Premier head `e7eefa0bbccb3249c77121cb3b93599db917a014` : 8/8 workflows PR réussis,
+  dont PostgreSQL concurrent et migration aller-retour (job `103282867108`) et Research SIGKILL.
+- Révision préparée : rapprochement suivi d'un ancien heartbeat, renouvellement sûr avant dispatch,
+  concurrence monétaire entre deux propriétaires, visibilité avec vrais tokens et estimation News.
+  **Revérifier tous les checks sur le head révisé avant merge.**
+- Migration 0013 ; vider/arrêter les anciens Workers avant upgrade. Aucune migration sur une
+  installation utilisateur, aucun fournisseur payant appelé. Retenir/rapprocher les coûts incertains.
 - D02 restant après cette tranche : admission des documents/travaux non IA, SQL/pagination/Today,
   projections par lots, outbox/rétention et mesure de saturation. Ne pas déclarer D02 terminé.

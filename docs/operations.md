@@ -3,7 +3,7 @@
 ## D02 — model admission and estimated money exposure
 
 First D02 tranche; implementation validation is recorded in PROJECT_STATE, not implied here.
-PostgreSQL owns reservations shared by all Core/Worker replicas. A short transaction advisory
+PostgreSQL owns reservations for the canonical model gateway, shared by all Core/Worker replicas. A short transaction advisory
 lock serializes admission and accounting; contention and exhausted capacity return HTTP 429
 with `Retry-After: 1`. No lock or DB connection is retained during a provider request.
 
@@ -14,6 +14,7 @@ with `Retry-After: 1`. No lock or DB connection is retained during a provider re
 | `KAIRO_MODEL_GLOBAL_DAILY_BUDGET_USD` | 50 | UTC-day known spend plus all outstanding estimates |
 | `KAIRO_MODEL_OWNER_DAILY_BUDGET_USD` | 10 | Same exposure per project owner |
 | `KAIRO_MODEL_MAX_OUTPUT_TOKENS` | 4096 | Non-streaming completion output bound passed to LiteLLM |
+| `KAIRO_NEWS_MODEL_ESTIMATED_COST_USD` | 0.01 | Explicit News estimate when its task has no override |
 | `DATABASE_POOL_SIZE` / `DATABASE_MAX_OVERFLOW` | 5 / 5 | Maximum ten connections per Core process by default |
 | `DATABASE_POOL_TIMEOUT` | 10 seconds | Pool checkout timeout |
 
@@ -55,7 +56,8 @@ Validation: `scripts/smoke/model_admission_contract.py` uses actual independent 
 transactions and Core ASGI routes with explicit identity fixtures (no provider). CI applies real
 migrations and exercises rollback/reapply on a disposable DB. Authenticated isolation and real
 Research SIGKILL tests remain required. D02 still owes document/non-model admission, pagination,
-projection batches, outbox/retention and capacity measurement. One short global lock is a simple
+projection batches, outbox/retention and capacity measurement. Memory SDKs/embeddings outside
+this gateway are not covered by these model slots. One short global lock is a simple
 correctness boundary; measure contention before replacing it with a more complex design.
 
 References: [PostgreSQL advisory locks](https://www.postgresql.org/docs/current/explicit-locking.html#ADVISORY-LOCKS),

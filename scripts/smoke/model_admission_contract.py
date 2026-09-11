@@ -10,7 +10,7 @@ from decimal import Decimal
 import uuid
 
 import httpx
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select, text, update
 
 from kairo_core.auth import Principal, require_kairo_user
 from kairo_core.autonomy_models import ModelReservation, ModelUsageRecord
@@ -149,9 +149,12 @@ async def main():
             assert sorted(d["allowed"] for d in decisions) == [False, True]
             assert any(d["reason"] == "model_owner_daily_budget_exceeded" for d in decisions)
             settings.kairo_model_owner_daily_budget_usd = Decimal("10")
+            await reset()
             settings.kairo_model_global_daily_budget_usd = Decimal("1")
-            b1 = await seed(OWNER_B, "10")
-            assert (await reserve(client, b1, "money-global"))["reason"] == "model_global_daily_budget_exceeded"
+            a1, b1 = await seed(budget="10"), await seed(OWNER_B, "10")
+            decisions = await asyncio.gather(reserve(client, a1, "money-global-a"), reserve(client, b1, "money-global-b"))
+            assert sorted(d["allowed"] for d in decisions) == [False, True]
+            assert any(d["reason"] == "model_global_daily_budget_exceeded" for d in decisions)
             settings.kairo_model_global_daily_budget_usd = Decimal("50")
             print("PASS owner/global money admission under concurrent transactions")
 
@@ -175,6 +178,8 @@ async def main():
             assert state["uncertain_calls"] == 1
             state = await account(client, task, "safe-new-call", cost="0.2", reported=True)
             assert state["uncertain_calls"] == 0 and Decimal(state["spent_usd"]) == Decimal("0.3")
+            state = await account(client, task, "safe-new-call", cost="0", reported=False)
+            assert state["uncertain_calls"] == 0 and Decimal(state["spent_usd"]) == Decimal("0.3")
             # A real cost above the estimate is recorded and surfaced, never discarded to fake a ceiling.
             assert (await reserve(client, task, "overrun", amount="0.1"))["allowed"]
             await start(client, task, "overrun")
@@ -185,6 +190,16 @@ async def main():
 
             await reset()
             task = await seed()
+            async with SessionFactory() as held:
+                assert await held.scalar(text("SELECT pg_try_advisory_xact_lock(1262572114, 2)"))
+                busy = await client.post("/internal/v1/model-reservations/start", headers=INTERNAL,
+                                         json={"task_id": task, "idempotency_key": "busy"})
+                assert busy.status_code == 429 and busy.headers["Retry-After"] == "1"
+                await held.rollback()
+            assert (await reserve(client, task, "renew-never-started", amount="0.1"))["allowed"]
+            await expire("renew-never-started")
+            assert (await reserve(client, task, "renew-never-started", amount="0.1"))["allowed"]
+            await expire("renew-never-started")
             assert (await reserve(client, task, "zero", amount="0"))["reason"] == "paid_model_requires_positive_estimate"
             await reserve(client, task, "fine", amount="0.0000001")
             async with SessionFactory() as session:

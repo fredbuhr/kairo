@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     litellm_master_key: str = ""
     kairo_model_max_output_tokens: int = Field(default=4096, ge=1, le=32768)
     kairo_news_model: str = "smart"
+    kairo_news_model_estimated_cost_usd: Decimal = Field(default=Decimal("0.01"), gt=0, le=Decimal("999999.999999"))
     kairo_semantic_router_model: str = "local-fast"
     kairo_semantic_router_estimated_cost_usd: Decimal = Decimal("0.002")
     searxng_url: str = "http://searxng:8080"

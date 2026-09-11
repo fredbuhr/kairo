@@ -76,7 +76,7 @@ class PolicyAuthorizeRequest(BaseModel):
     resource_type: str = Field(default="tool", min_length=1, max_length=80)
     resource_id: str | None = Field(default=None, max_length=320)
     authority_level: int = Field(ge=1, le=10)
-    estimated_cost_usd: Decimal = Field(default=Decimal("0"), ge=0)
+    estimated_cost_usd: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("999999.999999"))
     scope: dict[str, Any] = Field(default_factory=dict)
     reason: str = Field(default="Autonomous activity requires policy authorization", max_length=4000)
 
@@ -546,6 +546,10 @@ async def record_model_usage(
                 )
             if existing.provider != body.provider:
                 raise HTTPException(409, "Model usage provider differs from canonical accounting")
+            if existing.metadata_json.get("cost_reported") is True and body.metadata.get("cost_reported") is False:
+                # A recovered old heartbeat may still contain unknown cost after verified
+                # reconciliation. Return canonical accounting without downgrading it.
+                return await _budget_read(session, task)
             if existing.metadata_json.get("cost_reported") is False and body.metadata.get("cost_reported") is True:
                 await settle_reservation(
                     session, key=body.idempotency_key, task=task,
