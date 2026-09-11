@@ -78,7 +78,7 @@ mutation. Core and Worker must be upgraded together because this internal failur
 requires that field. Reverting the restriction would reopen the audited dispatch vulnerability.
 
 These controls protect against public-client dispatch forgery. They do not make the shared
-internal service token a per-Task credential, and do not complete the production/auth review.
+internal service token a per-Task credential, and must be read with the D03 production boundary below.
 
 ## Secrets
 
@@ -155,3 +155,18 @@ restic performs encrypted off-host backups of canonical databases/config/object 
 ## Self-modification
 
 KAIRO may diagnose itself and prepare code/config changes. It may not silently alter core policy, authentication, secrets, production infrastructure or deploy unreviewed code. Self-change flows require a diff, tests, backup/rollback plan and approval.
+
+
+## D03 production boundary
+
+Production enforces access-token audience/authorized party/type, denies development configuration,
+separates runtime SQL DML from migrations and verifies actual Core privileges before serving.
+Global memory rebuild requires an operations token absent from Workers; trusted Worker execution
+still uses its shared service token plus existing task/lease/owner bindings.
+
+Public HTML reads use a validated numeric IP for the connection, origin Host and TLS SNI, no ambient
+proxy/credentials, validation of each redirect, streamed 2.5 MB limits and a 30-second deadline.
+Internal networks and resource ceilings narrow exposure; they do not isolate hostile code from a
+trusted Worker or replace a multi-host TLS design. Secret value validation cannot establish an
+OpenBao token's real policy. See [deployment](deployment.md) and [ADR-028](decisions/ADR-028-production-boundaries-and-optional-topology.md)
+for preparation, trust assumptions and D04 evidence still required.

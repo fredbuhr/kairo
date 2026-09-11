@@ -3,6 +3,11 @@ name: kairo
 services:
   postgres:
     image: pgvector/pgvector:0.8.6-pg17@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f
+    init: true
+    cpus: 2.0
+    mem_limit: 4g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -21,7 +26,13 @@ services:
     networks: [kairo]
 
   neo4j:
+    profiles: [memory]
     image: neo4j:5.26-community@sha256:22ec5cd05a8cbb372fc4bed5e384c30bc75fd92504c72be4462039761b105f61
+    init: true
+    cpus: 2.0
+    mem_limit: 4g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     environment:
       NEO4J_AUTH: ${NEO4J_USER}/${NEO4J_PASSWORD}
@@ -33,7 +44,13 @@ services:
     networks: [kairo]
 
   valkey:
+    profiles: [search, automation, observability]
     image: valkey/valkey:8.1.10-alpine@sha256:d2e18f3410b6f616de1417f570fa55261af2898b9c5b2cfb6781ce2373ea43d1
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     command: ["valkey-server", "--appendonly", "yes"]
     ports:
@@ -44,6 +61,11 @@ services:
 
   nats:
     image: nats:2.14.5-alpine@sha256:d4ac35882ac65aff236cd65b9d3fa4d24332c681e1a85f94eedccd3cdd65b1da
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     command: ["-js", "-sd", "/data", "-m", "8222"]
     ports:
@@ -60,6 +82,11 @@ services:
 
   seaweedfs:
     image: chrislusf/seaweedfs:4.46@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     command: ["server", "-dir=/data", "-s3", "-s3.port=8333"]
     ports:
@@ -71,6 +98,11 @@ services:
 
   temporal-admin-tools:
     image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}@sha256:dbc5fcd6ee8f0f4d808bf765af9a87dea9d8a283abfdcfbd2fc148496ba66107
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: on-failure:6
     environment:
       DB: postgres12
@@ -90,6 +122,11 @@ services:
 
   temporal:
     image: temporalio/server:${TEMPORAL_VERSION}@sha256:b5ecdb8282bededae2a10c36e8d862e27d0bc2d247fc73c5416025997ab4a1da
+    init: true
+    cpus: 2.0
+    mem_limit: 4g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     environment:
       DB: postgres12
@@ -116,6 +153,11 @@ services:
 
   temporal-create-namespace:
     image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}@sha256:dbc5fcd6ee8f0f4d808bf765af9a87dea9d8a283abfdcfbd2fc148496ba66107
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: on-failure:5
     environment:
       TEMPORAL_ADDRESS: temporal:7233
@@ -131,7 +173,13 @@ services:
     networks: [kairo]
 
   temporal-ui:
+    profiles: [admin]
     image: temporalio/ui:${TEMPORAL_UI_VERSION}@sha256:810eba47f77a89b0e64e2e751478ca585d037bbd90c0951a2974a92a6c5adeb9
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     environment:
       TEMPORAL_ADDRESS: temporal:7233
@@ -144,6 +192,11 @@ services:
 
   openbao:
     image: openbao/openbao:2.6.2@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     cap_add: [IPC_LOCK]
     environment:
@@ -156,6 +209,11 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     command: ["start-dev"]
     environment:
@@ -173,7 +231,13 @@ services:
     networks: [kairo]
 
   litellm:
+    profiles: [ai]
     image: ghcr.io/berriai/litellm:main-latest@sha256:29a0daf2593d5eaee14e76f851c4e6802cc1bf22770691a76d48e9810075ffd0
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     environment:
@@ -194,7 +258,13 @@ services:
     networks: [kairo]
 
   activepieces:
+    profiles: [automation]
     image: ghcr.io/activepieces/activepieces:0.86.3@sha256:208517c4f0d798a477a0c594bf432dd0f4918433f4b6f5b5f188a6e10e638c6c
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     environment:
       AP_CONTAINER_TYPE: WORKER_AND_APP
@@ -223,7 +293,13 @@ services:
     networks: [kairo]
 
   searxng:
+    profiles: [search]
     image: ghcr.io/searxng/searxng:2026.9.7-3e454637f@sha256:1dab138ea70a8ceb4d1c182f5c8f256088406c1742b99e279976157dbe1e9759
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     environment:
       SEARXNG_SECRET: ${SEARXNG_SECRET}
@@ -240,7 +316,13 @@ services:
     networks: [kairo]
 
   ollama:
+    profiles: [local-ai]
     image: ollama/ollama:0.33.3@sha256:32931b46719f673c05fdbaa81ccb26da18ea4a1c57590a754874ab28ba269eb2
+    init: true
+    cpus: 2.0
+    mem_limit: 4g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     ports:
       - "127.0.0.1:11434:11434"
@@ -249,7 +331,13 @@ services:
     networks: [kairo]
 
   ntfy:
+    profiles: [notifications]
     image: binwiederhier/ntfy:latest@sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     command: ["serve"]
     environment:
@@ -262,7 +350,13 @@ services:
     networks: [kairo]
 
   clickhouse:
+    profiles: [observability]
     image: clickhouse/clickhouse-server:25.12@sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6
+    init: true
+    cpus: 2.0
+    mem_limit: 4g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     environment:
       CLICKHOUSE_DB: default
@@ -277,7 +371,13 @@ services:
     networks: [kairo]
 
   langfuse-worker:
+    profiles: [observability]
     image: langfuse/langfuse-worker:3@sha256:93207bd67d2e789ea55fa3d47eeba065dd6b1869187127ab24201784c52b96bc
+    init: true
+    cpus: 2.0
+    mem_limit: 4g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     environment: &langfuse-env
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/langfuse
@@ -300,7 +400,13 @@ services:
     networks: [kairo]
 
   langfuse-web:
+    profiles: [observability]
     image: langfuse/langfuse:3@sha256:a27fe525f52984fa6d36fd34e8b8c6e5ae4af43f34134cafc833b467fa9580ae
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     environment:
       <<: *langfuse-env
@@ -312,18 +418,29 @@ services:
     networks: [kairo]
 
   livekit:
+    profiles: [voice-experimental]
     image: livekit/livekit-server:v1.13.1@sha256:2c6869d2d5ff6c9c0166f47be1c92dad6928bfecfa5e4060a6ece48db8accfa3
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     command: ["--dev", "--bind", "0.0.0.0"]
     ports:
       - "127.0.0.1:7880:7880"
       - "127.0.0.1:7881:7881"
-      - "7882:7882/udp"
+      - "127.0.0.1:7882:7882/udp"
     networks: [kairo]
 
   kokoro-tts:
     image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.8.0@sha256:d32322c61254a871e0bc9c38d4e60cd18539cf9b1a2fc8f3ae04409061d0793b
     profiles: [voice]
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     environment:
       USE_GPU: "false"
@@ -337,6 +454,11 @@ services:
     build:
       context: .
       dockerfile: services/core/Dockerfile
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     environment:
       KAIRO_ENV: ${KAIRO_ENV}
@@ -365,10 +487,7 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: default
       TEMPORAL_TASK_QUEUE: kairo-default
-      SEAWEED_S3_ENDPOINT: http://seaweedfs:8333
-      LITELLM_URL: http://litellm:4000
       OPENBAO_ADDR: http://openbao:8200
-      KEYCLOAK_URL: http://keycloak:8080
       KOKORO_TTS_URL: http://kokoro-tts:8880
       KOKORO_DEFAULT_VOICE: ${KOKORO_DEFAULT_VOICE}
     volumes:
@@ -395,6 +514,7 @@ services:
         KAIRO_WORKER_EXTRAS: ${KAIRO_WORKER_EXTRAS}
     restart: unless-stopped
     init: true
+    stop_grace_period: 45s
     cpus: ${KAIRO_WORKER_CPUS:-2.0}
     mem_limit: ${KAIRO_WORKER_MEMORY_LIMIT:-4g}
     pids_limit: ${KAIRO_WORKER_PIDS_LIMIT:-256}
@@ -423,7 +543,6 @@ services:
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: ${NEO4J_USER}
       NEO4J_PASSWORD: ${NEO4J_PASSWORD}
-      OLLAMA_BASE_URL: http://ollama:11434
       SEARXNG_URL: http://searxng:8080
       KAIRO_CORE_URL: http://kairo-core:8000
     depends_on:
@@ -434,14 +553,19 @@ services:
     networks: [kairo]
 
   kairo-realtime:
+    profiles: [collaboration-experimental]
     build:
       context: .
       dockerfile: services/realtime/Dockerfile
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     environment:
       PORT: 1234
-      KAIRO_CORE_URL: http://kairo-core:8000
-      NATS_URL: nats://nats:4222
+      KAIRO_ENV: ${KAIRO_ENV}
     depends_on: [kairo-core, nats]
     ports:
       - "127.0.0.1:${KAIRO_REALTIME_PORT}:1234"
@@ -451,11 +575,18 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        VITE_KAIRO_API_URL: http://localhost:${KAIRO_API_PORT}
+        VITE_KEYCLOAK_URL: ${KEYCLOAK_PUBLIC_URL}
+        VITE_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+        VITE_KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
-    environment:
-      VITE_KAIRO_API_URL: http://localhost:${KAIRO_API_PORT}
-      VITE_KAIRO_REALTIME_URL: ws://localhost:${KAIRO_REALTIME_PORT}
-    depends_on: [kairo-core, kairo-realtime]
+    depends_on: [kairo-core]
     ports:
       - "127.0.0.1:${KAIRO_WEB_PORT}:5173"
     networks: [kairo]
@@ -463,6 +594,11 @@ services:
   rotki:
     image: rotki/rotki:latest@sha256:918e35cfbcce68633eafc9cdcc206bb2b45a1110f86e544d48d1fded04c280ff
     profiles: [finance]
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     ports:
       - "127.0.0.1:8084:80"
@@ -474,6 +610,11 @@ services:
   actual-budget:
     image: actualbudget/actual-server:latest@sha256:552beab3dec8c93d46b8b9245612d63c3f123b8a45063a474f53e229b17621d3
     profiles: [finance]
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     ports:
       - "127.0.0.1:5006:5006"
@@ -484,6 +625,11 @@ services:
   hummingbot:
     image: hummingbot/hummingbot:latest@sha256:632d2b07aa156b761310f2f7258a78c9660a1c28b6df4b33874e09a0c7d06c85
     profiles: [finance]
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     tty: true
     stdin_open: true
@@ -496,6 +642,11 @@ services:
   home-assistant:
     image: ghcr.io/home-assistant/home-assistant:stable@sha256:612d76760b544cb40b7ba01387fdac964c59a6a550a50a4d30b4773c822d2918
     profiles: [home]
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     network_mode: host
     privileged: true
@@ -506,10 +657,16 @@ services:
   openhands:
     image: docker.openhands.dev/openhands/openhands:1.6@sha256:5c0dc26f467bf8e47a6e76308edb7a30af4084b17e23a3460b5467008b12111b
     profiles: [dev-agent]
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     environment:
-      AGENT_SERVER_IMAGE_REPOSITORY: ghcr.io/openhands/agent-server
-      AGENT_SERVER_IMAGE_TAG: 1.19.1-python
+      # Enable only after resolving/reviewing the child digest; the preflight checks it too.
+      AGENT_SERVER_IMAGE_REPOSITORY: ${OPENHANDS_AGENT_REPOSITORY:-ghcr.io/openhands/agent-server}
+      AGENT_SERVER_IMAGE_TAG: ${OPENHANDS_AGENT_TAG:-UNCONFIGURED}
       LOG_ALL_EVENTS: "true"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -523,9 +680,14 @@ services:
   vllm:
     image: vllm/vllm-openai:latest@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
     profiles: [gpu]
+    init: true
+    cpus: 2.0
+    mem_limit: 4g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     gpus: all
-    command: ["--model", "${VLLM_MODEL}"]
+    command: ["--model", "${VLLM_MODEL}", "--revision", "${VLLM_MODEL_REVISION:-UNCONFIGURED}"]
     ports:
       - "127.0.0.1:8001:8000"
     volumes:
@@ -535,6 +697,11 @@ services:
   headscale:
     image: headscale/headscale:latest@sha256:0e7f1c6e4ce6c2a2a001103ecd3fa645a045adf30ac8a5234fe037b43000cd72
     profiles: [remote]
+    init: true
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
     restart: unless-stopped
     command: ["serve"]
     ports:

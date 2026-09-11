@@ -1,35 +1,49 @@
+# Compose >= 2.24.4. Run scripts/ops/production.py check before activation.
 services:
   openbao:
-    command: ["server", "-config=/openbao/config/config.hcl"]
+    command:
+    - server
+    - -config=/openbao/config/config.hcl
     environment:
       BAO_ADDR: http://127.0.0.1:8200
-      # Explicitly erase development-only values inherited from compose.yaml.
-      BAO_DEV_ROOT_TOKEN_ID: ""
-      BAO_DEV_LISTEN_ADDRESS: ""
+      BAO_DEV_ROOT_TOKEN_ID: ''
+      BAO_DEV_LISTEN_ADDRESS: ''
     volumes:
-      - ./infrastructure/openbao/config.hcl:/openbao/config/config.hcl:ro
-      - openbao_data:/openbao/file
+    - ./infrastructure/openbao/config.hcl:/openbao/config/config.hcl:ro
+    - openbao_data:/openbao/file
     healthcheck:
-      test: ["CMD-SHELL", "bao status >/dev/null 2>&1"]
+      test:
+      - CMD-SHELL
+      - bao status >/dev/null 2>&1
       interval: 10s
       timeout: 5s
       retries: 30
-
+    networks: !override
+    - secrets
+    ports: !reset []
   keycloak:
-    command: ["start"]
+    command:
+    - start
     environment:
       KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL}
-      KC_HTTP_ENABLED: "true"
+      KC_HTTP_ENABLED: 'true'
       KC_PROXY_HEADERS: xforwarded
-      KC_HEALTH_ENABLED: "true"
-      KC_METRICS_ENABLED: "true"
-
+      KC_HEALTH_ENABLED: 'true'
+      KC_METRICS_ENABLED: 'true'
+      KC_DB_USERNAME: keycloak_app
+      KC_DB_PASSWORD: ${KEYCLOAK_DATABASE_PASSWORD}
+      KC_PROXY_TRUSTED_ADDRESSES: ${KEYCLOAK_PROXY_TRUSTED_ADDRESSES}
+    networks: !override
+    - identity
+    - ingress
   litellm:
     environment:
-      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
-      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
-      LANGFUSE_OTEL_HOST: http://langfuse-web:3000
-
+      DATABASE_URL: postgresql://litellm_app:${LITELLM_DATABASE_PASSWORD}@postgres:5432/litellm
+    networks: !override
+    - models
+    - telemetry
+    - egress
+    ports: !reset []
   langfuse-worker:
     environment:
       LANGFUSE_INIT_ORG_ID: ${LANGFUSE_INIT_ORG_ID}
@@ -38,7 +52,9 @@ services:
       LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_INIT_PROJECT_NAME}
       LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
       LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
-
+      DATABASE_URL: postgresql://langfuse_app:${LANGFUSE_DATABASE_PASSWORD}@postgres:5432/langfuse
+    networks: !override
+    - telemetry
   langfuse-web:
     environment:
       LANGFUSE_INIT_ORG_ID: ${LANGFUSE_INIT_ORG_ID}
@@ -47,10 +63,14 @@ services:
       LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_INIT_PROJECT_NAME}
       LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
       LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
-
+      DATABASE_URL: postgresql://langfuse_app:${LANGFUSE_DATABASE_PASSWORD}@postgres:5432/langfuse
+    networks: !override
+    - telemetry
+    ports: !reset []
   kairo-core:
     environment:
-      KAIRO_AUTH_ENABLED: "true"
+      KAIRO_OPERATIONS_TOKEN: ${KAIRO_OPERATIONS_TOKEN}
+      KAIRO_AUTH_ENABLED: 'true'
       KAIRO_POLICY_SIGNING_KEY: ${KAIRO_POLICY_SIGNING_KEY}
       ASSET_MAX_BYTES: ${ASSET_MAX_BYTES}
       SEAWEED_FILER_ENDPOINT: http://seaweedfs:8888
@@ -59,6 +79,277 @@ services:
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
       KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      KAIRO_ENV: production
+      DATABASE_URL: postgresql+asyncpg://kairo_app:${KAIRO_DATABASE_PASSWORD}@postgres:5432/kairo
+      KEYCLOAK_AUDIENCE: kairo-core
+    networks: !override
+    - canonical
+    - identity
+    - secrets
+    - execution
+    - ingress
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    read_only: true
+    tmpfs:
+    - /tmp:size=268435456,mode=1777
+    command:
+    - uvicorn
+    - kairo_core.main:app
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8000'
+    - --no-proxy-headers
+  postgres:
+    networks: !override
+    - canonical
+    - identity
+    - memory
+    - telemetry
+    ports: !reset []
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: !override
+    - postgres_data:/var/lib/postgresql/data
+  neo4j:
+    networks: !override
+    - memory
+    ports: !reset []
+  valkey:
+    networks: !override
+    - search
+    - telemetry
+    ports: !reset []
+  nats:
+    networks: !override
+    - canonical
+    - execution
+    ports: !reset []
+  seaweedfs:
+    networks: !override
+    - canonical
+    - telemetry
+    ports: !reset []
+  temporal-admin-tools:
+    networks: !override
+    - canonical
+    environment:
+      POSTGRES_USER: temporal_app
+      POSTGRES_PWD: ${TEMPORAL_DATABASE_PASSWORD}
+      SQL_PASSWORD: ${TEMPORAL_DATABASE_PASSWORD}
+  temporal:
+    networks: !override
+    - canonical
+    - execution
+    ports: !reset []
+    environment:
+      POSTGRES_USER: temporal_app
+      POSTGRES_PWD: ${TEMPORAL_DATABASE_PASSWORD}
+  temporal-create-namespace:
+    networks: !override
+    - canonical
+  temporal-ui:
+    networks: !override
+    - execution
+    ports: !reset []
+  activepieces:
+    networks: !override
+    - optional
+    ports: !reset []
+    environment:
+      AP_POSTGRES_USERNAME: activepieces_app
+      AP_POSTGRES_PASSWORD: ${ACTIVEPIECES_DATABASE_PASSWORD}
+  searxng:
+    networks: !override
+    - search
+    - egress
+    ports: !reset []
+  ollama:
+    networks: !override
+    - models
+    ports: !reset []
+  ntfy:
+    networks: !override
+    - optional
+    ports: !reset []
+  clickhouse:
+    networks: !override
+    - telemetry
+    ports: !reset []
+  livekit:
+    networks: !override
+    - optional
+    ports: !reset []
+  kokoro-tts:
+    networks: !override
+    - execution
+    ports: !reset []
+  kairo-worker:
+    networks: !override
+    - execution
+    - memory
+    - models
+    - search
+    - egress
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    read_only: true
+    tmpfs:
+    - /tmp:size=268435456,mode=1777
+    environment:
+      KAIRO_ENV: production
+      DATABASE_URL: postgresql+asyncpg://mem0_app:${MEM0_DATABASE_PASSWORD}@postgres:5432/mem0
+      MEM0_DATABASE_URL: postgresql://mem0_app:${MEM0_DATABASE_PASSWORD}@postgres:5432/mem0
+      KAIRO_MEMORY_PROJECTOR_MODE: real
+      KAIRO_MODEL_ASSETS_MANIFEST: /models/manifest.json
+      HF_HOME: /models/huggingface
+      HF_HUB_OFFLINE: '1'
+      TRANSFORMERS_OFFLINE: '1'
+      DOCLING_ARTIFACTS_PATH: /models/docling
+      FASTEMBED_CACHE_PATH: /models/fastembed
+    volumes:
+    - ${KAIRO_MODEL_ASSETS_PATH:-./model-assets}:/models:ro
+  kairo-realtime:
+    networks: !override
+    - optional
+    ports: !reset []
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    read_only: true
+    tmpfs:
+    - /tmp:size=268435456,mode=1777
+    environment:
+      KAIRO_ENV: production
+  kairo-web:
+    networks: !override
+    - frontend
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+    read_only: true
+    tmpfs:
+    - /tmp:size=268435456,mode=1777
+    build:
+      args:
+        VITE_KAIRO_API_URL: ${KAIRO_PUBLIC_API_URL}
+        VITE_KEYCLOAK_URL: ${KEYCLOAK_PUBLIC_URL}
+        VITE_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+        VITE_KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+  rotki:
+    networks: !override
+    - optional
+    ports: !reset []
+  actual-budget:
+    networks: !override
+    - optional
+    ports: !reset []
+  hummingbot:
+    networks: !override
+    - optional
+  home-assistant:
+    network_mode: !reset null
+    privileged: false
+    networks: !override
+    - optional
+  openhands:
+    networks: !override
+    - optional
+    ports: !reset []
+  vllm:
+    networks: !override
+    - optional
+    ports: !reset []
+  headscale:
+    networks: !override
+    - optional
+    ports: !reset []
+  kairo-migrate:
+    profiles:
+    - ops
+    build:
+      context: .
+      dockerfile: services/core/Dockerfile
+    command:
+    - alembic
+    - -c
+    - alembic.ini
+    - upgrade
+    - head
+    environment:
+      KAIRO_MIGRATION_DATABASE_URL: postgresql+asyncpg://kairo_migrator:${KAIRO_MIGRATOR_PASSWORD}@postgres:5432/kairo
+    networks: !override
+    - canonical
+    init: true
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+  kairo-db-provision:
+    profiles: [ops]
+    build:
+      context: .
+      dockerfile: services/core/Dockerfile
+    command: [python, /ops/provision_database.py, --env-file, /dev/null, --host, postgres]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      KAIRO_DATABASE_PASSWORD: ${KAIRO_DATABASE_PASSWORD}
+      KAIRO_MIGRATOR_PASSWORD: ${KAIRO_MIGRATOR_PASSWORD}
+      MEM0_DATABASE_PASSWORD: ${MEM0_DATABASE_PASSWORD}
+      KEYCLOAK_DATABASE_PASSWORD: ${KEYCLOAK_DATABASE_PASSWORD}
+      TEMPORAL_DATABASE_PASSWORD: ${TEMPORAL_DATABASE_PASSWORD}
+      LITELLM_DATABASE_PASSWORD: ${LITELLM_DATABASE_PASSWORD}
+      LANGFUSE_DATABASE_PASSWORD: ${LANGFUSE_DATABASE_PASSWORD}
+      ACTIVEPIECES_DATABASE_PASSWORD: ${ACTIVEPIECES_DATABASE_PASSWORD}
+    volumes:
+      - ./scripts/ops/provision_database.py:/ops/provision_database.py:ro
+    networks: [canonical]
+    init: true
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
 
 volumes:
-  openbao_data:
+  openbao_data: null
+networks:
+  # Publish loopback ports without giving Core/Keycloak a masqueraded Internet gateway.
+  ingress:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+  canonical:
+    internal: true
+  identity:
+    internal: true
+  memory:
+    internal: true
+  telemetry:
+    internal: true
+  execution:
+    internal: true
+  secrets:
+    internal: true
+  models:
+    internal: true
+  search:
+    internal: true
+  egress:
+    driver: bridge
+  frontend:
+    driver: bridge
+  optional:
+    driver: bridge

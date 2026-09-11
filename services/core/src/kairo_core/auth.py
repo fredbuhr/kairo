@@ -12,7 +12,7 @@ from jwt import PyJWKClient
 from .config import settings
 
 _bearer = HTTPBearer(auto_error=False)
-_jwks_client = PyJWKClient(settings.keycloak_jwks_url, cache_keys=True, lifespan=300)
+_jwks_client = PyJWKClient(settings.keycloak_jwks_url, cache_keys=True, lifespan=300, timeout=5)
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,21 +28,31 @@ class Principal:
 
 
 def _decode_token(token: str) -> Principal:
+    if len(token) > 16384:
+        raise jwt.InvalidTokenError("Oversized token")
     signing_key = _jwks_client.get_signing_key_from_jwt(token)
     claims = jwt.decode(
         token,
         signing_key.key,
         algorithms=["RS256"],
         issuer=settings.keycloak_issuer,
-        options={"verify_aud": False, "require": ["exp", "iat", "sub", "iss"]},
+        audience=settings.keycloak_audience,
+        options={"require": ["exp", "iat", "sub", "iss", "aud", "azp", "typ"]},
     )
 
     authorized_party = claims.get("azp")
-    if authorized_party and authorized_party != settings.keycloak_client_id:
+    if authorized_party != settings.keycloak_client_id:
         raise jwt.InvalidTokenError("Token was issued to another Keycloak client")
 
-    realm_access = claims.get("realm_access") or {}
-    roles = frozenset(str(role) for role in realm_access.get("roles") or [])
+    if claims.get("typ") != "Bearer" or not isinstance(claims["sub"], str) or not claims["sub"].strip():
+        raise jwt.InvalidTokenError("An access token with a nonempty subject is required")
+    realm_access = claims.get("realm_access", {})
+    if not isinstance(realm_access, dict):
+        raise jwt.InvalidTokenError("Invalid role claims")
+    role_values = realm_access.get("roles", [])
+    if not isinstance(role_values, list) or any(not isinstance(role, str) for role in role_values):
+        raise jwt.InvalidTokenError("Invalid role claims")
+    roles = frozenset(role_values)
     return Principal(
         subject=str(claims["sub"]),
         username=str(claims.get("preferred_username")) if claims.get("preferred_username") else None,

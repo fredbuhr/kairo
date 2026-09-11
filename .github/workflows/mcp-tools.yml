@@ -2,6 +2,7 @@ name: MCP tool registry validation
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 concurrency:

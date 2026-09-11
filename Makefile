@@ -18,8 +18,11 @@ web-tools: bootstrap
 	@echo "KAIRO Web MCP tools are running and explicitly registered."
 
 prod-config:
+	python scripts/ops/production.py check --env-file $${KAIRO_PRODUCTION_ENV:-.env.production}
+
+prod-template:
 	docker compose --env-file .env.production.example -f compose.yaml -f compose.production.yaml config >/dev/null
-	@echo "Production Compose overlay is valid."
+	@echo "Production Compose template syntax is valid; credentials/runtime are not validated."
 
 ops-config:
 	docker compose --env-file .env.production.example -f compose.yaml -f compose.production.yaml -f compose.ops.yaml --profile ops config >/dev/null
@@ -49,5 +52,5 @@ backup: bootstrap
 restore:
 	bash scripts/ops/restore.sh $${SNAPSHOT:-latest}
 
-check: config web-tools-config prod-config ops-config
+check: config web-tools-config prod-template ops-config
 	pnpm typecheck

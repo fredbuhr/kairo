@@ -36,18 +36,18 @@ mapped in [implementation-plan](implementation-plan.md); present progress lives 
 | Local model GPU | vLLM | service / `gpu` | model provider only | **Configured** |
 | Long-term memory | Mem0 | worker library / core | derived memory projection | **Integrated** |
 | Document parsing | Docling | worker library / core | produces canonical document/chunk provenance | **Integrated; deterministic text fallback validated, real engine pending D04** |
-| External automation | Activepieces | service / core | delegated engine; KAIRO owns intent/policy/run link | **Configured** |
+| External automation | Activepieces | service / `automation` | delegated engine; KAIRO owns intent/policy/run link | **Configured** |
 | Tool protocol | MCP | protocol / core | preferred AI tool boundary | **Validated** |
-| Deterministic browser | Playwright | worker/sandbox / core | side effects policy-gated | **Configured** |
-| AI browser | Browser Use | worker/sandbox / core | side effects policy-gated | **Configured** |
+| Deterministic browser | Playwright | future browser boundary | side effects policy-gated | **Declared; unused direct Worker dependency retired in D03** |
+| AI browser | Browser Use | future browser boundary | side effects policy-gated | **Declared; unused direct Worker dependency retired in D03** |
 | Dev agent | OpenHands | service / `dev-agent` | KAIRO owns task/approval/diff references | **Configured** |
-| Search | SearXNG | service / core | sourced search adapter, never canonical truth | **Integrated** |
+| Search | SearXNG | service / `search` | sourced search adapter, never canonical truth | **Integrated** |
 | Secrets | OpenBao | service / core | secret values never stored in domain DB | **Validated** |
 | Identity | Keycloak | service / core | authentication provider; KAIRO owns domain permissions | **Validated** |
-| AI observability | Langfuse + ClickHouse | services / core | tracing/eval projection; not security audit source | **Configured** |
-| Notifications | ntfy | service / core | delivery adapter | **Configured** |
-| Realtime docs | Hocuspocus + Yjs | service/library / core+web | realtime state must materialize to canonical state | **Scaffold / configured** |
-| Voice realtime | LiveKit | service / core | transport only | **Configured** |
+| AI observability | Langfuse + ClickHouse | services / `observability` + overlay | tracing/eval projection; not security audit source | **Configured** |
+| Notifications | ntfy | service / `notifications` | delivery adapter | **Configured** |
+| Realtime docs | Hocuspocus + Yjs | `collaboration-experimental` | realtime state must materialize to canonical state | **Scaffold / configured** |
+| Voice realtime | LiveKit | `voice-experimental` | transport only | **Configured** |
 | Speech synthesis | Kokoro-FastAPI | service / `voice` | speech synthesis adapter | **Configured** |
 | Speech-to-text | whisper.cpp | sidecar/worker / desktop | local transcription engine | **Declared** |
 | Voice activity | Silero VAD | sidecar library / desktop | local signal processing | **Declared** |
@@ -100,3 +100,6 @@ Finance, crypto, Home Assistant and OpenHands services can be present in optiona
 - FalkorDB: not selected due licensing concerns; Neo4j Community is the Graphiti backend.
 - Kuzu: not selected because the project is archived/deprecated for this use.
 - OpenClaw: the V0 proof runtime is removed from the target architecture; its durable-execution lessons are carried forward into Temporal and KAIRO policy contracts.
+
+D03 profiles and refused prototype activations are documented in [deployment](deployment.md).
+Validation of deployment controls does not promote the optional engines to real integration evidence.

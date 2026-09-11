@@ -1,12 +1,15 @@
 from decimal import Decimal
+from typing import Literal
+from urllib.parse import urlsplit, unquote
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore", hide_input_in_errors=True)
 
+    kairo_env: Literal["development", "test", "production"] = "development"
     temporal_address: str = "temporal:7233"
     temporal_namespace: str = "default"
     temporal_task_queue: str = "kairo-default"
@@ -44,6 +47,15 @@ class Settings(BaseSettings):
             raise ValueError("Document concurrency must be lower than the Worker activity limit")
         if self.kairo_work_global_concurrency >= self.kairo_worker_max_concurrent_activities:
             raise ValueError("Global heavy-work concurrency must leave free Worker activity slots")
+        if self.kairo_env == "production":
+            for value in (self.kairo_internal_token, self.litellm_master_key):
+                if len(value) < 32 or any(marker in value.lower() for marker in ("change_me", "change-me", "development", "kairo-dev")):
+                    raise ValueError("Production Worker requires provisioned secrets")
+            db = urlsplit(self.mem0_database_url)
+            if db.username != "mem0_app" or db.path != "/mem0" or len(unquote(db.password or "")) < 32:
+                raise ValueError("Production Worker requires an explicit restricted Mem0 SQL identity")
+            if self.kairo_memory_projector_mode != "real":
+                raise ValueError("Production cannot silently use stub memory projections")
         return self
 
 

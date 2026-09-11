@@ -1,17 +1,16 @@
 import asyncio
 import html
-import ipaddress
 import json
 import re
-import socket
 from typing import Any
-from urllib.parse import urljoin, urlsplit, urlunsplit
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from temporalio import activity
 from trafilatura import extract
 
 from .config import settings
+from .public_web import fetch_public_html, resolve_public
 
 _MARKET_TERMS: dict[str, int] = {
     "fed": 18,
@@ -81,59 +80,12 @@ def _domain(value: str) -> str:
 
 
 async def _is_public_http_url(value: str) -> bool:
-    """Reject URLs that can reach KAIRO/private network services during article enrichment."""
-
-    try:
-        parts = urlsplit(value)
-    except ValueError:
-        return False
-    if parts.scheme.lower() not in {"http", "https"} or not parts.hostname:
-        return False
-
-    hostname = parts.hostname.rstrip(".").lower()
-    if hostname == "localhost" or hostname.endswith((".localhost", ".local", ".internal")):
-        return False
-
-    try:
-        addresses = [ipaddress.ip_address(hostname)]
-    except ValueError:
-        port = parts.port or (443 if parts.scheme.lower() == "https" else 80)
-        try:
-            infos = await asyncio.to_thread(
-                socket.getaddrinfo,
-                hostname,
-                port,
-                0,
-                socket.SOCK_STREAM,
-            )
-        except OSError:
-            return False
-        addresses = []
-        for info in infos:
-            try:
-                addresses.append(ipaddress.ip_address(str(info[4][0]).split("%", 1)[0]))
-            except ValueError:
-                return False
-
-    return bool(addresses) and all(address.is_global for address in addresses)
+    return await resolve_public(value) is not None
 
 
 async def _fetch_public_html(client: httpx.AsyncClient, value: str) -> httpx.Response | None:
-    """Follow a small redirect chain, validating every destination before issuing the request."""
-
-    current = value
-    for _ in range(4):
-        if not await _is_public_http_url(current):
-            return None
-        response = await client.get(current, follow_redirects=False)
-        if response.status_code in {301, 302, 303, 307, 308}:
-            location = response.headers.get("location")
-            if not location:
-                return None
-            current = urljoin(current, location)
-            continue
-        return response
-    return None
+    # Caller clients are for trusted services only; public reads own a credential-free transport.
+    return await fetch_public_html(value)
 
 
 def _market_score(source: dict[str, Any]) -> int:

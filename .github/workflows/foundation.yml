@@ -2,6 +2,7 @@ name: Foundation validation
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 concurrency:
@@ -93,6 +94,18 @@ jobs:
       - name: Prove heavy-work timers, lease loss and real memory subprocess ownership
         run: uv run --locked --project services/worker python scripts/smoke/heavy_work_execution_contract.py
 
+      - name: Prove production settings, JWT claims, ops separation and effective topologies
+        run: uv run --locked --all-packages python scripts/smoke/deployment_contract.py
+
+      - name: Prepare isolated public-address alias for real TLS/DNS proofs
+        run: |
+          sudo ip addr add 93.184.216.34/32 dev lo
+          # Disposable runner only: permit the unprivileged fixture to bind HTTP/TLS ports.
+          sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0
+
+      - name: Prove real HTTP/TLS pinning, forbidden destinations and bounded bodies
+        run: uv run --locked --all-packages python scripts/smoke/public_web_contract.py
+
       - name: Prove News Intelligence contract
         run: uv run --locked --project services/worker python scripts/smoke/news_contract.py
 
@@ -133,6 +146,8 @@ jobs:
       - name: Clean up isolated JetStream
         if: always()
         run: docker rm -f kairo-d02-nats || true
+      - name: Prove separate production SQL roles and restricted migrations on disposable databases
+        run: uv run --locked --project services/core python scripts/smoke/database_privileges_contract.py
       - name: Prove D02 migration rollback and reapply on the disposable database
         working-directory: services/core
         run: |
@@ -190,7 +205,7 @@ jobs:
             --network kairo_kairo \
             --network-alias litellm \
             -v "$PWD/scripts/smoke/fake_litellm.py:/app/server.py:ro" \
-            python:3.12-alpine python /app/server.py
+            ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58 python /app/server.py
 
       - name: Prove durable PydanticAI routing and replay-safe capability handoff
         run: python scripts/smoke/semantic_command.py
@@ -227,6 +242,13 @@ jobs:
 
       - name: Prove rebuildable memory projection generations
         run: python scripts/smoke/memory_projection.py
+
+      - name: Prove clean Worker SIGTERM after completed projections
+        run: |
+          worker_id=$(docker compose ps -q kairo-worker)
+          docker compose stop kairo-worker
+          test "$(docker inspect -f '{{.State.ExitCode}}' "$worker_id")" = 0
+          test "$(docker inspect -f '{{.State.OOMKilled}}' "$worker_id")" = false
 
       - name: Dump memory-projection state on failure
         if: failure()

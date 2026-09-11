@@ -81,6 +81,9 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
   dynamiques et modèles téléchargés ; upgrades explicites ; moins de CI dupliquée sans perdre les gates.
 - **Sortie :** configurations et destinations interdites refusées ; topologie minimale utilisable ;
   services optionnels justifiés ; aucune promesse de sandbox non testée.
+- **Livraison en cours : #87**, une seule PR pour production/JWT, SQL/ops, lecteur Web, topologie,
+  images/modèles et CI. Le [guide de déploiement](deployment.md) et l’ADR-028 portent les décisions et
+  procédures ; PROJECT_STATE porte la validation exacte et le passage de gate.
 
 ### D04 — moteurs réels et exploitation (H5)
 

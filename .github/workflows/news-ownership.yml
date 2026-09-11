@@ -2,6 +2,7 @@ name: News ownership validation
 
 on:
   push:
+    branches: [main]
     paths:
       - 'services/core/src/kairo_core/news.py'
       - 'services/core/src/kairo_core/auth.py'

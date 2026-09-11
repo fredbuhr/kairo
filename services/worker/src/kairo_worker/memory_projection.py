@@ -265,7 +265,7 @@ async def _run_projection(source: dict[str, Any], mode: str) -> list[dict[str, A
         if len(encoded.encode()) > 262144:
             raise RuntimeError("Memory source exceeds bounded projection input")
         path.write_text(encoded, encoding="utf-8")
-        allowed = {"PATH", "PYTHONPATH", "HOME", "LANG", "LC_ALL", "HF_HOME", "HF_HUB_CACHE",
+        allowed = {"HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "PATH", "PYTHONPATH", "HOME", "LANG", "LC_ALL", "HF_HOME", "HF_HUB_CACHE",
                    "FASTEMBED_CACHE_PATH", "DATABASE_URL", "MEM0_DATABASE_URL", "NEO4J_URI",
                    "NEO4J_USER", "NEO4J_PASSWORD"}
         environment = {key: value for key, value in os.environ.items() if key in allowed}

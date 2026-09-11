@@ -1,7 +1,7 @@
 {
-  "version": 8,
+  "version": 9,
   "baseline_date": "2026-09-11",
-  "validated_parent_sha": "0a03a7457df38debd28ccd7c73a634b03c393ca9",
+  "validated_parent_sha": "ec38ce3b8c479be9ff56df36a24e7ee895754ada",
   "expected_package_manager": "pnpm@10.15.1",
   "expected_uv_version": "==0.12.13",
   "validated_digest_pins": {

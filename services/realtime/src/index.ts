@@ -1,3 +1,5 @@
+if (process.env.KAIRO_ENV === 'production') throw new Error('Realtime collaboration is not integrated; production activation is blocked until D12')
+
 import { Server } from '@hocuspocus/server'
 
 const port = Number(process.env.PORT ?? 1234)

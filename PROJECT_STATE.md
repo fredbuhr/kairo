@@ -18,10 +18,10 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 
 | Champ | Valeur |
 |---|---|
-| Branche / PR de développement active | **Aucune** |
+| Branche / PR de développement active | `hardening/d03-safe-deployment` ; [PR #87](https://github.com/fredbuhr/kairo/pull/87) |
 | Dernier lot entièrement terminé | **D02 — admission, budgets et volume des données** |
-| Prochain lot | **D03 — déploiement sûr et topologie utile** |
-| Première action | Vérifier main/PR live, lire D03 du plan, auditer les gardes production/secrets/JWT/egress et les consommateurs de services ; construire une livraison D03 cohérente depuis main |
+| Lot actif | **D03 — déploiement sûr et topologie utile** |
+| Reprise D03 | Base live `ec38ce3b8c479be9ff56df36a24e7ee895754ada`, aucun autre PR au démarrage ; implémentation et validation communes des gardes production, SQL/réseau, lecteur Web et topologie |
 | Critère de sortie D03 | Configurations/destinations interdites refusées, topologie minimale justifiée et gates préservées |
 | Méthode | Une livraison cohérente par lot ; commits/checklists internes pour reprise, sans nouveaux sous-lots sauf obstacle démontré |
 | Limite | Ne pas commencer les fonctions produit D05–D10 avant D04/H5 |
@@ -66,3 +66,13 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 précédentes sont **retirées**. Elles ne sont pas des lignes de développement à reprendre.
 Réservoirs non canoniques : `feat/kairo-test-interface-v1`, `consolidate/g49-research-durable-stages` ;
 inspection/récupération sélective uniquement, jamais merge en bloc.
+
+
+## Reprise interne D03 (une seule livraison)
+
+PR #87 : code, procédures et tests D03 réunis. Head `7944cb85…` : nouvelles preuves JWT/configuration,
+HTTP/TLS réel, PostgreSQL/migrations/droits et régressions Worker réussies ; Docker prouve désormais
+Core en production, refus anonyme et Web sans accès direct PostgreSQL. Ajustement de la preuve d’arrêt
+Uvicorn : SIGTERM peut rendre 143 après teardown réussi ; exiger aussi les marqueurs de fin, jamais
+accepter SIGKILL/OOM. Relancer les neuf workflows sur le head final puis vérifier parents/arbre du merge.
+D04 reste ensuite la preuve des vrais moteurs, assets locaux, matériel, charge et restauration hors hôte.

@@ -93,7 +93,7 @@ retain their existing bounded queries.
    consumer limits are reconciled explicitly on startup; binding alone does not upgrade them.
    Core reuses its reconnecting NATS client and reconciles stream limits after reconnection.
 4. After an outage beyond the 14-day replay window, rebuild derived memory from canonical messages.
-   Set `KAIRO_INTERNAL_TOKEN` in the environment; do not put it in shell history or the checkpoint.
+   Set `KAIRO_OPERATIONS_TOKEN` in the environment (development: use the development internal token); do not put it in shell history or the checkpoint.
    Run `python scripts/ops/rebuild_memory.py --core http://127.0.0.1:8000 --checkpoint /safe/path/memory-rebuild.json`.
    Use `--message-id UUID` for a selected recovery (at most 200 IDs) or `--limit 40` on a new run.
    On interruption rerun the same Core/checkpoint command without selection/limit overrides.
@@ -111,7 +111,7 @@ Validation combines the PostgreSQL capacity/data contract (1000 synthetic Tasks,
 page ties, per-bucket traversal, lease expiry, idempotent rebuild and retention), real controlled
 child-process tests, the existing authenticated Core/Temporal integrations and Research SIGKILL.
 Real model/Docling/embedding load, hardware throughput and backup recovery off-host remain D04;
-production secrets, network policy and topology remain D03.
+D03 deployment controls are documented in [deployment](deployment.md); its exact-head validation is in PROJECT_STATE.
 
 References: [nats.py stream and consumer configuration](https://nats-io.github.io/nats.py/modules.html),
 [NATS stream limits](https://docs.nats.io/learn/jetstream/your-first-stream).
@@ -236,34 +236,13 @@ make up
 
 ## Production configuration boundary
 
-Production is represented by `compose.production.yaml` and `.env.production.example`.
-
-Validate it with:
-
-```bash
-make prod-config
-make ops-config
-```
-
-A production invocation uses explicit files so Docker Compose does not automatically load the development override:
-
-```bash
-cp .env.production.example .env.production
-# Replace every CHANGE_ME value before starting anything.
-docker compose --env-file .env.production \
-  -f compose.yaml \
-  -f compose.production.yaml \
-  up -d
-```
-
-The production overlay changes the trust-sensitive behavior:
-
-- OpenBao uses persistent file storage instead of `-dev` mode and explicitly erases inherited `BAO_DEV_*` values;
-- Keycloak uses `start` instead of `start-dev` and does not import the development realm fixture;
-- KAIRO Core always has authentication enabled;
-- KAIRO Core receives an explicit OpenBao workload token and production Keycloak issuer/JWKS configuration.
-
-The repository intentionally does not contain production credentials or a pre-created production user. On first deployment, initialize/unseal OpenBao, provision a least-privilege KAIRO workload token, and configure the production Keycloak realm/client through the operator boundary. Block 6 will add the final TLS/reverse-proxy/private-network deployment hardening; the Block 1 overlay exists to prevent development bootstrap behavior from silently becoming production behavior.
+D03 replaces the earlier bootstrap-only production instructions. Follow the complete
+[deployment procedure](deployment.md): effective configuration check, separate SQL provisioning
+and migration, identity/secrets, networks, model inventory and explicit profiles. Do not run the
+development override, noauth overlay or a blanket `up` before preparing those prerequisites.
+`make prod-template` checks template syntax; `make prod-config` checks the real private environment.
+Runtime Core/Worker enforce their own production guards as well. D04 retains the actual private
+installation, real-engine, capacity and encrypted off-host restore proof.
 
 ## Restic backup set
 

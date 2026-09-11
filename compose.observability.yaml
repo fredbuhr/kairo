@@ -1,0 +1,8 @@
+services:
+  litellm:
+    environment:
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_OTEL_HOST: http://langfuse-web:3000
+    volumes:
+      - ./infrastructure/litellm/config.observability.yaml:/app/config.yaml:ro

@@ -4,7 +4,7 @@ This document combines implemented boundaries and target responsibilities. Curre
 in [component-matrix](component-matrix.md), current delivery in [status](status.md), and planned
 work in [implementation-plan](implementation-plan.md). In particular, realtime persistence,
 Desktop/voice, general browser automation and specialist adapters described below remain targets.
-The component registry is not a requirement to start every service; D03 simplifies actual topology.
+The component registry is not a requirement to start every service; D03 assigns optional profiles and isolated production networks; see [deployment](deployment.md).
 
 ## Architectural objective
 
@@ -213,3 +213,12 @@ This keeps dependencies explicit without forcing every development laptop to run
 ## Replaceability rule
 
 Every engine has a KAIRO adapter or protocol boundary. Replacing Mem0, Graphiti, Activepieces, LiteLLM, the Gantt renderer or a model provider must not require rewriting the canonical domain model.
+
+
+## D03 deployment boundaries
+
+[ADR-028](decisions/ADR-028-production-boundaries-and-optional-topology.md) defines production settings,
+JWT claims, separate SQL identities/migration and operator rebuild authority. The static Web has no
+canonical network access. Worker/MCP public HTML connects validated IPs with origin Host/SNI, bounded
+streaming and no ambient proxy. Resource ceilings and shutdown do not constitute a hostile-code sandbox.
+The model-byte inventory is separate from container pins and from D04 real-engine compatibility evidence.
