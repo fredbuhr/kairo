@@ -4,45 +4,50 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 
 ## Canonical integrated line
 
-- Canonical branch: `main`
-- Verified `main` head before R1: `f524ed7c8e8a71fa3de882f4d294c224cb8d207f`
-- Integrated milestone: validated consolidation through G50 via PR #72
-- Rule: always fetch the live `main` head before acting; the SHA above is a checkpoint, not permission to ignore newer GitHub state.
+- Canonical branch: `main`.
+- Last integrated product milestone: **G51 Daily Spine**, promoted through PR #73 together with the repository recovery protocol.
+- G51 merge commit: `f1dbb6e6ae1a4d419bc35a924639be713263fb77`.
+- The exact PR head validated before merge was `9af0573d7295d3da10c06477752f07ec4ac51541`.
+- All eight workflows on that exact PR head completed successfully: Foundation, Autonomous Research, MCP tool registry, Document ingestion, UI workspace, Multi-user isolation, News ownership, and Baseline reproducibility.
+- `AGENTS.md` and this file are now part of the canonical line.
+- Rule: always fetch the live `main` head before acting. Recorded SHAs are checkpoints, not permission to ignore newer GitHub state.
 
 ## Active work
 
 - Repository Reset is in progress.
-- Current reset gate: **R1 — install recovery protocol**.
-- Active development branch: `block3/g51-daily-spine`
-- Active pull request: **#73 — Block 3: establish canonical Daily Spine with Today**
-- Last verified functional G51 head before R1 metadata commits: `90951161a8cdd8f0194148aa6bc498bc0d018671`
-- PR #73 is based directly on current `main`, was 12 commits ahead / 0 behind at R0, and was mergeable.
-- The eight workflows associated with that verified functional head were green: Foundation, Autonomous Research, MCP, Documents, UI, Multi-user isolation, News ownership, and Baseline reproducibility.
-
-R1 adds only repository-recovery metadata. The live PR head will therefore advance beyond the functional SHA above; always query PR #73 before editing or merging.
+- R0 — repository truth: **complete**.
+- R1 — recovery protocol: **complete**.
+- R2 — validate and promote G51 / PR #73: **complete**.
+- Active development branch: **none**.
+- Active pull request: **none**.
+- The merged branch `block3/g51-daily-spine` may still physically exist until the branch-cleanup gate. It is historical after PR #73 and must not be resumed as an active workspace.
 
 ## Next action
 
-After R1 is complete, perform **R2 only**:
+Perform **R3 only — synchronize current documentation**.
 
-1. re-fetch `main` and PR #73;
-2. confirm PR #73 is still based on canonical `main` and remains mergeable;
-3. review the small R1 metadata addition separately from the already-validated G51 functional changes;
-4. run/inspect any CI triggered by R1;
-5. merge PR #73 only if the resulting head is green and coherent;
-6. update this file immediately after merge so `main` becomes the recorded G51 baseline.
+1. fetch the live `main` head;
+2. compare `docs/status.md`, `docs/roadmap.md`, and `docs/component-matrix.md` with the actual canonical implementation;
+3. update those documents so they describe the G51 `main` line without stale branch/SHA claims;
+4. move no historical files yet unless required to prevent them being mistaken for current truth — broad archive cleanup belongs to R6;
+5. make no product-code changes;
+6. update this file at the end of R3 with the exact result and next gate.
 
-Do not start Gantt/Calendar before R2 is resolved.
+Do **not** start Gantt, Calendar, Brain, Finance/Crypto or any other product slice before the Repository Reset reaches its clean baseline.
 
 ## Lines that are NOT canonical workspaces
 
 ### `consolidate/g49-research-durable-stages`
 
-Diverged from current `main`. It contains three unique experimental Research-stage commits but is behind the canonical line. Do not resume work there and do not merge it wholesale. Any potentially useful idea must be reviewed and salvaged as an isolated change from current `main`.
+Diverged from canonical `main`. It contains three unique experimental Research-stage commits but is behind the integrated line. Do not resume work there and do not merge it wholesale. Any potentially useful idea must be reviewed and salvaged as an isolated change from current `main`.
 
 ### `consolidate/g50-baseline`
 
 Historical consolidation line already represented by the G50 merge into `main`. Do not resume development there.
+
+### `block3/g51-daily-spine`
+
+Merged through PR #73. Treat as historical until R5 removes absorbed branches.
 
 ### `feat/kairo-test-interface-v1`
 
@@ -55,9 +60,9 @@ Treat as historical until the repository branch/PR inventory gate classifies the
 ## Repository reset sequence
 
 - R0 — establish repository truth: **complete**
-- R1 — add `AGENTS.md` + `PROJECT_STATE.md`: **current gate**
-- R2 — resolve/promote PR #73 if still valid
-- R3 — synchronize current documentation (`status`, roadmap, component matrix)
+- R1 — add `AGENTS.md` + `PROJECT_STATE.md`: **complete**
+- R2 — resolve/promote PR #73: **complete**
+- R3 — synchronize current documentation (`status`, roadmap, component matrix): **next**
 - R4 — inventory all branches and PRs: keep / absorbed / archive / delete
 - R5 — close superseded PRs and remove absorbed branches
 - R6 — inventory repository files/directories: active / intentional scaffold / historical / duplicate / removable
