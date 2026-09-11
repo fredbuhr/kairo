@@ -43,6 +43,11 @@ Corrections trouvées : bibliothèques natives OCR absentes, écritures techniqu
 configuration OpenBao persistante incompatible avec sa version épinglée. La cible privée reste à qualifier ;
 ne pas utiliser les résultats de branche comme une validation de production du main D03.
 
+La campagne réexécutée sur `a5a61db…` passe 9/9 workflows et 5/5 jobs D04.
+Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
+avec lectures bornées et diagnostics sans secrets. Six tests HTTP/TLS du runner réussis en CI ;
+[portée et reprise serveur](archive/d04-public-access-2026-09-11.md). Aucun serveur utilisateur qualifié par cette fixture.
+
 ## Orientation multi-appareil — décidée, non implémentée
 
 [ADR-029](decisions/ADR-029-server-personal-and-offline-clients.md) : serveur prioritaire, même
