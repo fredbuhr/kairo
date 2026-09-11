@@ -62,6 +62,7 @@ def run(root, output):
     evidence = Evidence('real-document-memory', output)
     evidence.data['versions'] = versions(['docling', 'docling-core', 'mem0ai', 'graphiti-core', 'fastembed', 'onnxruntime'])
     evidence.data['model_manifest_sha256'] = sha256(root / 'manifest.json')
+    evidence.data['model_sources'] = json.loads((root / 'manifest.json').read_text())['sources']
     evidence.save()
 
     def boundaries():
@@ -116,8 +117,8 @@ def run(root, output):
 
     def isolation():
         instance = memory._get_mem0_instance()
-        own = instance.search(source['content'], filters={'user_id': memory._memory_scope(source)}, limit=5)
-        other = instance.search(source['content'], filters={'user_id': 'subject:d04:other'}, limit=5)
+        own = instance.search(source['content'], filters={'user_id': memory._memory_scope(source)}, top_k=5)
+        other = instance.search(source['content'], filters={'user_id': 'subject:d04:other'}, top_k=5)
         assert own['results'] and not other['results']
         from neo4j import GraphDatabase
         from kairo_worker.config import settings
@@ -139,6 +140,7 @@ def run(root, output):
         return {'missing_cache_rejected': True}
     evidence.case('missing-model-fails-closed', 45, missing_assets)
     evidence.case('model-bundle-unchanged', 30, lambda: verify_manifest(root / 'manifest.json'))
+    evidence.finish()
 
 
 if __name__ == '__main__':

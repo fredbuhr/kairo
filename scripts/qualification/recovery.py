@@ -40,14 +40,24 @@ def bao(client, method, path, *, token=None, data=None, expected=(200,204)):
 
 
 def wait_stores():
+    state={}
     with httpx.Client(timeout=4, trust_env=False) as client:
         for _ in range(90):
             try:
-                if sql('SELECT 1') == '1' and client.get('http://127.0.0.1:8888/').status_code == 200 and client.get('http://127.0.0.1:8200/v1/sys/seal-status').status_code == 200:
-                    return
-            except (subprocess.CalledProcessError, httpx.HTTPError):
-                pass
+                state['postgres']=sql('SELECT 1')=='1'
+            except subprocess.CalledProcessError:
+                state['postgres']=False
+            for name,url in [('filer','http://127.0.0.1:8888/'),('openbao','http://127.0.0.1:8200/v1/sys/seal-status')]:
+                try:
+                    state[name]=client.get(url).status_code==200
+                except httpx.HTTPError:
+                    state[name]=False
+            if all(state.values()):
+                return
             time.sleep(2)
+    print(json.dumps({'startup_ready':state}),flush=True)
+    # Startup is before initialization: no tokens exist to leak in these diagnostic logs.
+    cmd(BASE+['logs','--no-color','--tail=80','openbao','seaweedfs','postgres'])
     raise TimeoutError('Recovery stores startup')
 
 
@@ -135,6 +145,7 @@ def main():
         evidence.case('off-host-volume-restore',300,lambda: (cmd(['bash','scripts/ops/restore.sh',transfer['snapshot']]) and {}))
         cmd(BASE+['up','-d','postgres','nats','seaweedfs','openbao']);wait_stores()
         evidence.case('off-host-real-service-readback',90,readback)
+    evidence.finish()
 
 
 if __name__=='__main__':

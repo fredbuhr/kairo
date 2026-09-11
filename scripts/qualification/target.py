@@ -53,6 +53,8 @@ async def load(args):
     async with httpx.AsyncClient(base_url=args.core,timeout=10,trust_env=False,follow_redirects=False) as client:
         for count in (1,10,100,1000):
             latencies=[];errors=0;started=time.monotonic()
+            row={'id':f'read-load-{count}', 'virtual_clients':count, 'status':'running'}
+            evidence.data['cases'].append(row);evidence.save()
             async def virtual_client(index):
                 nonlocal errors
                 async with semaphore:
@@ -65,16 +67,23 @@ async def load(args):
                         except httpx.HTTPError:
                             errors+=1
                         latencies.append(time.monotonic()-before)
-            async with asyncio.timeout(args.stage_timeout):
-                await asyncio.gather(*(virtual_client(i) for i in range(count)))
+            try:
+                async with asyncio.timeout(args.stage_timeout):
+                    await asyncio.gather(*(virtual_client(i) for i in range(count)))
+            except TimeoutError:
+                row.update(status='failed', error_class='TimeoutError', completed_requests=len(latencies),
+                           elapsed_seconds=round(time.monotonic()-started,3))
+                evidence.save()
+                raise SystemExit('Read-load stage timed out; partial results preserved') from None
             latencies.sort();p95=latencies[min(len(latencies)-1,int(len(latencies)*0.95))]
-            row={'id':f'read-load-{count}', 'virtual_clients':count,'requests':len(latencies),
+            row.update({'requests':len(latencies),
                  'authenticated_subjects_used':len({subject(tokens[i%len(tokens)]) for i in range(count)}),
                  'elapsed_seconds':round(time.monotonic()-started,3), 'p50_seconds':round(statistics.median(latencies),3),
-                 'p95_seconds':round(p95,3),'errors':errors,'status':'passed' if errors==0 and p95<=args.p95_seconds else 'failed'}
-            evidence.data['cases'].append(row);evidence.save();print(json.dumps(row))
+                 'p95_seconds':round(p95,3),'errors':errors,'status':'passed' if errors==0 and p95<=args.p95_seconds else 'failed'})
+            evidence.save();print(json.dumps(row))
             if row['status']!='passed':
                 raise SystemExit('Read-load threshold exceeded; stop before higher pressure')
+    evidence.finish()
 
 
 if __name__=='__main__':

@@ -42,7 +42,11 @@ docker compose -f compose.yaml -f compose.qualification.yaml run --rm --no-deps 
 
 Ne pas superposer les overlays `qualification` et `production`. La CI conserve les JSON de mesure,
 pas les clés ou documents. Un nouveau bundle possède son propre inventaire ; ne pas écraser un bundle
-déjà enregistré pour cacher une modification. Les versions des packages, empreintes et fichiers de
+déjà enregistré pour cacher une modification. Le Worker inclut les bibliothèques système requises par OpenCV/RapidOCR ; leurs versions Debian
+observées dans le job `103333822364` sont figées dans `services/worker/runtime-packages.txt`.
+Une version retirée du miroir fait échouer le build au lieu de choisir une version différente ; conserver
+les images construites avec leurs digests pour le rollback. La qualification courante cible Linux x86_64.
+Les versions des packages, empreintes et fichiers de
 métadonnées de téléchargement sont enregistrés avec les résultats. Les modèles Ollama possèdent leur
 digest obtenu par `/api/tags`. Le matériel, les quotas de conteneur et les pics RSS sont enregistrés ;
 un maximum RSS du processus/des enfants est cumulatif, pas une mesure de toute la machine par scénario.

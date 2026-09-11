@@ -100,6 +100,7 @@ def run():
         assert public and all(item.get('url','').startswith(('https://','http://')) for item in public)
         return {'source_count':len(public), 'adapter':'KAIRO SearXNG', 'live_external_search':True}
     evidence.case('searxng-live-worker-search', 65, search)
+    evidence.finish()
 
 
 def inference_after_restart(params):

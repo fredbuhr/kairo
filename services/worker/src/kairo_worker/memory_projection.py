@@ -67,10 +67,16 @@ def _get_mem0_instance() -> Any:
 
         # Mem0 is only a projection engine here. `infer=False` is mandatory below and this
         # unreachable endpoint makes any accidental direct LLM path fail closed.
-        os.environ.setdefault("MEM0_TELEMETRY", "false")
+        os.environ["MEM0_TELEMETRY"] = "false"
+        # Mem0 creates its SDK config directory during import. Keep this disposable state
+        # in the owned child's TMPDIR; production HOME and model bundles are read-only.
+        os.environ["MEM0_DIR"] = str(Path(tempfile.gettempdir()) / "mem0")
         from mem0 import Memory
 
         config = {
+            # Mem0 history is derived bookkeeping, not KAIRO canonical state. Each child
+            # reconstructs from PostgreSQL projections; no SQLite file survives its lifetime.
+            "history_db_path": ":memory:",
             "llm": {
                 "provider": "openai",
                 "config": {

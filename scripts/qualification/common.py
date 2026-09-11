@@ -49,6 +49,11 @@ class Evidence:
         temp.write_text(json.dumps(self.data, indent=2) + '\n')
         temp.replace(self.output)
 
+    def finish(self):
+        self.data['finished_at'] = datetime.now(timezone.utc).isoformat()
+        self.save()
+        print(json.dumps(self.data), flush=True)
+
     def case(self, name, deadline, call):
         started = time.monotonic()
         row = {'id': name, 'threshold_seconds': deadline, 'status': 'running'}
