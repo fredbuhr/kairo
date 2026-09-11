@@ -579,7 +579,7 @@ async def internal_complete_document_ingestion(
     version.status = "completed"
     version.last_error = None
     version.completed_at = datetime.now(UTC)
-    version.metadata_json = {**(version.metadata_json or {}), **body.metadata}
+    version.metadata_json = {**(version.metadata_json or {}), **{key: value for key, value in body.metadata.items() if key != "work_lease_token"}}
     document.status = "ready"
 
     correlation_id = uuid.uuid4()
@@ -641,6 +641,7 @@ async def internal_fail_document_ingestion(
         raise HTTPException(status_code=410, detail="Document source asset is unavailable")
 
     await _require_internal_source_binding(version, document, asset, session)
+    await require_work_lease(session, version.task_id, body.get("work_lease_token"))
     version.status = "failed"
     version.last_error = str(body.get("error") or "Document ingestion failed")[:4000]
     version.completed_at = datetime.now(UTC)

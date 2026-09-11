@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     temporal_task_queue: str = "kairo-default"
     kairo_worker_max_concurrent_activities: int = Field(default=16, ge=2, le=256)
     kairo_worker_max_concurrent_workflow_tasks: int = Field(default=8, ge=2, le=64)
+    kairo_work_global_concurrency: int = Field(default=4, ge=1, le=128)
     kairo_document_max_concurrent: int = Field(default=1, ge=1, le=16)
     kairo_document_max_source_bytes: int = Field(default=26214400, ge=1, le=104857600)
     kairo_document_max_text_chars: int = Field(default=1000000, ge=1, le=10000000)
@@ -41,6 +42,8 @@ class Settings(BaseSettings):
     def validate_execution_limits(self) -> "Settings":
         if self.kairo_document_max_concurrent >= self.kairo_worker_max_concurrent_activities:
             raise ValueError("Document concurrency must be lower than the Worker activity limit")
+        if self.kairo_work_global_concurrency >= self.kairo_worker_max_concurrent_activities:
+            raise ValueError("Global heavy-work concurrency must leave free Worker activity slots")
         return self
 
 

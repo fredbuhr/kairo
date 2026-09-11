@@ -7,6 +7,7 @@ only in the disposable kairo_admission_test database.
 import asyncio
 from datetime import UTC, datetime, timedelta
 import uuid
+from time import perf_counter
 
 import httpx
 from sqlalchemy import delete, func, select, update
@@ -15,10 +16,10 @@ from kairo_core.auth import Principal, require_kairo_user
 from kairo_core.command_models import Conversation, ConversationMessage
 from kairo_core.config import settings
 from kairo_core.db import SessionFactory, engine
-from kairo_core.document_models import Document
+from kairo_core.document_models import Document, DocumentVersion
 from kairo_core.main import app
 from kairo_core.memory_models import MemoryProjectionRecord
-from kairo_core.models import Asset, OutboxEvent, Project, Task
+from kairo_core.models import Asset, OutboxEvent, Project, Task, WorkflowExecution
 from kairo_core.outbox import OutboxRelay, prune_technical_history
 from kairo_core.work_capacity import WorkAdmission
 
@@ -58,15 +59,22 @@ async def seed():
                         due_at=now - timedelta(days=2) if bucket == 0 else now if bucket == 2 else None,
                         planned_start_at=now if bucket == 3 else None)
             session.add(task)
+        documents = []
         for i in range(250):
             project = owned if i < 123 else foreign
             owner = OWNER if i < 123 else FOREIGN
             asset = Asset(project_id=project.id, bucket="d02-fixture", object_key=str(uuid.uuid4()), metadata_json={"owner_subject": owner})
             session.add(asset)
             await session.flush()
-            session.add(Document(asset_id=asset.id, project_id=project.id, title=f"Document {i}", metadata_json={"owner_subject": owner}))
+            document = Document(asset_id=asset.id, project_id=project.id, title=f"Document {i}", metadata_json={"owner_subject": owner})
+            session.add(document)
+            documents.append(document)
+        await session.flush()
+        versions = [DocumentVersion(document_id=documents[0].id, generation=i + 1) for i in range(123)]
+        foreign_version = DocumentVersion(document_id=documents[-1].id, generation=1)
+        session.add_all([*versions, foreign_version])
         await session.commit()
-        return str(owned.id), [str(message.id) for message in messages]
+        return str(owned.id), [str(message.id) for message in messages], str(documents[0].id), str(foreign.id), str(foreign_version.id)
 
 
 async def all_pages(client, path, size, expected):
@@ -93,13 +101,16 @@ async def main():
     settings.kairo_work_owner_concurrency = 1
     app.dependency_overrides[require_kairo_user] = lambda: Principal(
         subject=OWNER, username=None, email=None, roles=frozenset(), claims={})
-    project_id, messages = await seed()
+    project_id, messages, document_id, foreign_project, foreign_version = await seed()
     try:
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://core") as client:
             for size in (1, 10, 100):
                 await all_pages(client, "/v1/documents", size, 123)
             await all_pages(client, f"/v1/tasks?project_id={project_id}", 100, 600)
             await all_pages(client, "/v1/assets", 40, 123)
+            await all_pages(client, f"/v1/documents/{document_id}/versions", 40, 123)
+            assert (await client.get(f"/v1/projects/{foreign_project}")).status_code == 404
+            assert (await client.get(f"/v1/document-versions/{foreign_version}")).status_code == 404
             for path in ("/v1/tasks?limit=1000", "/v1/documents?cursor=not-a-cursor", "/v1/today?limit=1000"):
                 assert (await client.get(path)).status_code == 422, path
             view = (await client.get("/v1/today?timezone=UTC&limit=10")).json()
@@ -129,6 +140,18 @@ async def main():
             active, waiting = tasks[active_index], tasks[1 - active_index]
             lease = {"task_id": active, "lease_token": (first if active_index == 0 else second)["lease_token"]}
             assert not (await acquire(active, "replacement"))["admitted"]
+            for burst in (1, 10, 100, 1000):
+                start = perf_counter()
+                slots = asyncio.Semaphore(20)
+                async def poll(index):
+                    async with slots:
+                        # A replacement cannot start while either owner's lease remains active.
+                        response = await acquire(tasks[index % 3], f"burst-{burst}-{index}")
+                        assert not response["admitted"]
+                await asyncio.gather(*(poll(i) for i in range(burst)))
+                async with SessionFactory() as session:
+                    assert await session.scalar(select(func.count()).select_from(WorkAdmission).where(WorkAdmission.status == "active")) == 2
+                print(f"PASS saturation: {burst} requests / concurrency 20 / {perf_counter() - start:.3f}s / active=2")
             await post(client, "/internal/v1/work-capacity/renew", lease)
             assert (await client.get("/v1/work-capacity")).json()["active"] == 1
             async with SessionFactory() as session:
@@ -148,6 +171,18 @@ async def main():
             await post(client, f"/internal/v1/memory/projections/conversation-messages/{messages[2]}/ensure", {}, expected=429)
             settings.kairo_work_owner_max_pending = 100
             print("PASS global/owner concurrency, transactional backlog, expiry fencing and completed replay")
+            workflow_id = f"d02-failure-{active}"
+            async with SessionFactory() as session:
+                session.add(WorkflowExecution(task_id=uuid.UUID(active), workflow_id=workflow_id,
+                                             status="running", correlation_id=uuid.uuid4()))
+                await session.commit()
+            await post(client, f"/internal/v1/executions/{workflow_id}/fail", {"error": "controlled projector timeout"})
+            async with SessionFactory() as session:
+                assert (await session.get(WorkAdmission, uuid.UUID(active))).status == "finished"
+                rows = list((await session.execute(select(MemoryProjectionRecord).where(MemoryProjectionRecord.task_id == uuid.UUID(active)))).scalars())
+                assert rows and all(row.status == "failed" for row in rows)
+            assert (await client.post("/internal/v1/work-capacity/acquire", json={"task_id": active, "holder": "untrusted"})).status_code in {401, 403}
+            print("PASS failed child propagates terminal projection status and internal token remains mandatory")
 
             request = {"request_id": str(uuid.uuid4()), "message_ids": messages[:-1], "limit": 40}
             first_page = await post(client, "/internal/v1/memory/rebuild", request)

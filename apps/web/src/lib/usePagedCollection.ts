@@ -15,6 +15,8 @@ export function usePagedCollection<T extends { id: string }>(url: string | null,
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const pinned = useRef<T | null>(null)
+  const activeUrl = useRef<string | null>(null)
+  const activePin = useRef<string | null | undefined>(null)
   const scope = useRef(0)
   const busy = useRef(false)
   const request = useRef<AbortController | null>(null)
@@ -45,6 +47,7 @@ export function usePagedCollection<T extends { id: string }>(url: string | null,
   }, [url])
 
   useEffect(() => {
+    activeUrl.current = url
     const generation = ++scope.current
     busy.current = false
     setItems([])
@@ -59,6 +62,7 @@ export function usePagedCollection<T extends { id: string }>(url: string | null,
   const [pinLoading, setPinLoading] = useState(false)
   const [pinError, setPinError] = useState<string | null>(null)
   useEffect(() => {
+    activePin.current = pinnedUrl
     pinned.current = null
     if (!url || !pinnedUrl) { setPinLoading(false); setPinError(null); return }
     const controller = new AbortController()
@@ -80,6 +84,7 @@ export function usePagedCollection<T extends { id: string }>(url: string | null,
     return () => controller.abort()
   }, [url, pinnedUrl])
 
-  return { items, setItems, loading: loading || pinLoading, error: error || pinError, hasMore: Boolean(cursor),
+  const sameScope = activeUrl.current === url
+  return { items: sameScope ? items : [], setItems, loading: loading || pinLoading || !sameScope || Boolean(url && pinnedUrl && activePin.current !== pinnedUrl), error: sameScope ? error || pinError : null, hasMore: sameScope && Boolean(cursor),
     loadMore: () => cursor ? readPage(cursor, true, scope.current) : Promise.resolve(), reload: () => readPage(null, false, scope.current) }
 }

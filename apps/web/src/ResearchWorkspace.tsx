@@ -88,8 +88,8 @@ export default function ResearchWorkspace({ apiUrl }: Props) {
   const projects = projectPage.items.filter((project) => project.status === 'active')
   const loadingProjects = projectPage.loading
   useEffect(() => {
-    if (!loadingProjects && !projectId && projects.length) setProjectId(projects[0].id)
-  }, [loadingProjects, projectId, projects, setProjectId])
+    if (!loadingProjects && !projectPage.error && !projects.some((project) => project.id === projectId) && (projectId || projects.length)) setProjectId(projects[0]?.id || '')
+  }, [loadingProjects, projectPage.error, projectId, projects, setProjectId])
 
   useEffect(() => {
     if (!taskId) return

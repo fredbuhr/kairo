@@ -9,7 +9,7 @@ from sqlalchemy import DateTime, ForeignKey, Index, String, case, func, select, 
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .auth import Principal, require_kairo_user
+from .auth import Principal, require_kairo_admin, require_kairo_user
 from .command_models import Conversation, ConversationMessage
 from .config import settings
 from .db import Base, get_session
@@ -90,7 +90,7 @@ class WorkLease(BaseModel):
 async def acquire_work(body: WorkClaim, session=Depends(get_session)) -> dict:
     from .workflows import _require_execution_binding
 
-    task = await session.get(Task, body.task_id)
+    task = await session.get(Task, body.task_id, with_for_update=True)
     if task is None:
         raise HTTPException(404, "Task not found")
     await _require_execution_binding(task, session)
@@ -104,7 +104,7 @@ async def acquire_work(body: WorkClaim, session=Depends(get_session)) -> dict:
     now = await session.scalar(select(func.clock_timestamp()))
     await session.execute(update(WorkAdmission).where(
         WorkAdmission.status == "active", WorkAdmission.lease_until <= now,
-    ).values(status="waiting", lease_token=None, lease_holder=None, lease_until=None))
+    ).values(status="waiting", lease_token=None, lease_holder=None, lease_until=None, requested_at=None))
     await session.refresh(row)
     if row.status == "active":
         if row.lease_holder == body.holder:
@@ -179,14 +179,26 @@ async def release_work(body: WorkLease, session=Depends(get_session)) -> dict:
     return {"released": released is not None or body.completed}
 
 
-@router.get("/v1/work-capacity")
-async def work_capacity(principal: Principal = Depends(require_kairo_user), session=Depends(get_session)) -> dict:
+async def _capacity_counts(session, owner: str | None = None) -> dict:
     visible_status = case((WorkAdmission.lease_until <= func.clock_timestamp(), "waiting"),
                           else_=WorkAdmission.status)
-    rows = await session.execute(select(visible_status, func.count()).where(
-        WorkAdmission.owner_subject == principal.subject, WorkAdmission.status != "finished",
-    ).group_by(visible_status))
+    predicate = WorkAdmission.status != "finished"
+    if owner is not None:
+        predicate &= WorkAdmission.owner_subject == owner
+    rows = await session.execute(select(visible_status, func.count()).where(predicate).group_by(visible_status))
     counts = dict(rows.all())
-    return {"waiting": counts.get("waiting", 0), "active": counts.get("active", 0),
+    oldest = await session.scalar(select(func.min(WorkAdmission.created_at)).where(predicate, visible_status == "waiting"))
+    return {"waiting": counts.get("waiting", 0), "active": counts.get("active", 0), "oldest_waiting_at": oldest}
+
+
+@router.get("/v1/work-capacity")
+async def work_capacity(principal: Principal = Depends(require_kairo_user), session=Depends(get_session)) -> dict:
+    return {**await _capacity_counts(session, principal.subject),
             "concurrency_limit": settings.kairo_work_owner_concurrency,
             "pending_limit": settings.kairo_work_owner_max_pending}
+
+
+@router.get("/v1/system/work-capacity")
+async def system_work_capacity(_principal: Principal = Depends(require_kairo_admin), session=Depends(get_session)) -> dict:
+    return {**await _capacity_counts(session), "concurrency_limit": settings.kairo_work_global_concurrency,
+            "pending_limit": settings.kairo_work_max_pending, "lease_seconds": LEASE_SECONDS}

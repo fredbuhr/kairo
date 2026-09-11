@@ -14,6 +14,7 @@ from fastapi import Response
 from sqlalchemy import update
 from .document_models import Document, DocumentVersion
 from .events import append_audit, enqueue_domain_event
+from .memory_models import MemoryProjectionRecord
 from .models import Artifact, Project, Task, WorkflowExecution
 from .tool_models import ToolInvocation
 from .project_access import get_owned_task
@@ -606,6 +607,12 @@ async def internal_fail_execution(
             execution=execution,
             error=body.error,
         )
+        # A timeout/terminated child cannot send its own projector report. Mark only this
+        # generation's unfinished projections; a rebuild or successful projection stays intact.
+        if (task.input or {}).get("capability") == "memory.project":
+            await session.execute(update(MemoryProjectionRecord).where(
+                MemoryProjectionRecord.task_id == task.id, MemoryProjectionRecord.status != "projected",
+            ).values(status="failed", last_error=body.error[:4000]))
         await session.execute(update(WorkAdmission).where(WorkAdmission.task_id == task.id).values(
             status="finished", lease_token=None, lease_holder=None, lease_until=None,
         ))

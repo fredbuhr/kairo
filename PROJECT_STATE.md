@@ -18,7 +18,7 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Champ | Valeur |
 |---|---|
 | Branche de développement active | `hardening/d02-complete-capacity-and-data` |
-| PR active | **Aucune** |
+| PR active | [#86](https://github.com/fredbuhr/kairo/pull/86) |
 | Dernière livraison | **D02 — admission et réservations des appels IA** |
 | Dernier lot entièrement terminé | **D01** |
 | Prochain travail | **Terminer D02 dans une livraison commune : capacité et volume des données** |
@@ -102,3 +102,9 @@ reproductibilité et `git diff --check` réussis ; CI sur le nouveau head encore
 Ne pas fusionner avant les preuves communes et tous les workflows du head final.
 Prochaine action : ouvrir/mettre à jour l'unique PR D02, terminer les preuves de processus et la
 procédure d'exploitation, résoudre la CI dans cette même branche, puis vérifier le merge.
+
+PR #86 ouverte au head `629720b0f8d9939f2ead411787584e7ed68b0c6c`, arbre
+`edb316db11ae8deb2f7b1b62735f54c6bfa646d9`. Première CI : build/typecheck Web,
+qualité, UI et Documents réussis. Contrat PostgreSQL : pagination/Today réussis ; une entrée
+expirée gardait son ancienne candidature à la file FIFO. Correction : effacer `requested_at`
+à l'expiration, puis ne recandidater qu'à la prochaine demande réelle. CI finale à refaire.

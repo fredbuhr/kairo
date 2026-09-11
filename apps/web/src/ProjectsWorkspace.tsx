@@ -83,10 +83,10 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
   const { items: tasks, setItems: setTasks } = taskPage
 
   useEffect(() => {
-    if (!loading && !selectedProjectId && projects.length) {
-      setSelectedProjectId(projects.find((project) => project.status === 'active')?.id || projects[0].id)
+    if (!loading && !projectPage.error && !projects.some((project) => project.id === selectedProjectId) && (selectedProjectId || projects.length)) {
+      setSelectedProjectId(projects.find((project) => project.status === 'active')?.id || projects[0]?.id || '')
     }
-  }, [loading, projects, selectedProjectId, setSelectedProjectId])
+  }, [loading, projectPage.error, projects, selectedProjectId, setSelectedProjectId])
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) || null,

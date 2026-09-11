@@ -114,6 +114,22 @@ Optimizes concurrent editing and presence. Durable snapshots and domain mutation
 ### Workflow state — Temporal
 Temporal is authoritative for in-flight workflow execution semantics. KAIRO remains authoritative for intent, authority, approval, cost budget, user-visible status and resulting domain artefacts.
 
+## Shared execution capacity and bounded reads
+
+D02 uses PostgreSQL WorkAdmission rows and Temporal timers over existing Tasks. Heavy document
+and memory activities share global/owner quotas; memory derives its owner from the canonical
+conversation. Leases fence canonical reports; owned subprocesses terminate before their capacity
+is released. Model money reservations remain a separate ledger that retains uncertain obligations.
+No extra broker or queue service is introduced. Core and Workers must run compatible revisions.
+
+Collection APIs apply ownership before keyset LIMIT and expose continuation cursors. Today queries
+each mutually exclusive bucket separately. Web consumers request further pages explicitly and
+resolve selected records by identity. Bounded memory rebuild pages carry a fixed watermark and
+transactional audit receipts, allowing recovery after a lost response without double generation.
+Outbox claims are short SQL transactions; network publication holds no database connection.
+Published transport history has finite retention; canonical records and financial obligations are
+preserved. Limits, observability, upgrade and replay procedures are in `docs/operations.md`.
+
 ## Eventing
 
 KAIRO uses a transactional outbox in PostgreSQL and publishes committed domain events to NATS JetStream.
