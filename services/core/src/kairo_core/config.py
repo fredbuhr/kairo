@@ -23,16 +23,11 @@ class Settings(BaseSettings):
     temporal_namespace: str = "default"
     temporal_task_queue: str = "kairo-default"
 
-    seaweed_s3_endpoint: str = "http://seaweedfs:8333"
     seaweed_filer_endpoint: str = "http://seaweedfs:8888"
-
-    litellm_url: str = "http://litellm:4000"
 
     openbao_addr: str = "http://openbao:8200"
     openbao_token: str = "development-only-change-me"
 
-    keycloak_url: str = "http://keycloak:8080"
-    keycloak_realm: str = "kairo"
     keycloak_client_id: str = "kairo-web"
     keycloak_issuer: str = "http://localhost:8081/realms/kairo"
     keycloak_jwks_url: str = "http://keycloak:8080/realms/kairo/protocol/openid-connect/certs"
