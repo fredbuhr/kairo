@@ -1,7 +1,7 @@
 {
-  "version": 6,
+  "version": 7,
   "baseline_date": "2026-09-11",
-  "validated_parent_sha": "8a85918ab8fed681093a32ba1b2e1d4242050433",
+  "validated_parent_sha": "7791effba66e40d832a784d4609eb0974d69321a",
   "expected_package_manager": "pnpm@10.15.1",
   "expected_uv_version": "==0.12.13",
   "validated_digest_pins": {
@@ -11,6 +11,8 @@
     "services/worker/Dockerfile": "ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58"
   },
   "validated_compose_digest_pins": [
+    ["compose.ops.yaml", "alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce"],
+    ["compose.ops.yaml", "restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510"],
     ["compose.yaml", "nats:2.14.5-alpine@sha256:d4ac35882ac65aff236cd65b9d3fa4d24332c681e1a85f94eedccd3cdd65b1da"],
     ["compose.yaml", "pgvector/pgvector:0.8.6-pg17@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f"],
     ["compose.yaml", "temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}@sha256:dbc5fcd6ee8f0f4d808bf765af9a87dea9d8a283abfdcfbd2fc148496ba66107"],
@@ -19,8 +21,6 @@
     ["compose.yaml", "valkey/valkey:8.1.10-alpine@sha256:d2e18f3410b6f616de1417f570fa55261af2898b9c5b2cfb6781ce2373ea43d1"]
   ],
   "known_unpinned_images": [
-    ["compose.ops.yaml", "alpine:3.22"],
-    ["compose.ops.yaml", "restic/restic:0.19.1"],
     ["compose.yaml", "actualbudget/actual-server:latest"],
     ["compose.yaml", "binwiederhier/ntfy:latest"],
     ["compose.yaml", "chrislusf/seaweedfs:4.46"],
