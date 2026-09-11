@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -66,6 +67,14 @@ def main() -> None:
             f"packageManager drift: expected {expected_package_manager!r}, got {package_manager!r}"
         )
 
+    uv_config = tomllib.loads((ROOT / "uv.toml").read_text(encoding="utf-8"))
+    uv_version = uv_config.get("required-version")
+    expected_uv_version = baseline["expected_uv_version"]
+    if uv_version != expected_uv_version:
+        problems.append(
+            f"uv toolchain drift: expected {expected_uv_version!r}, got {uv_version!r}"
+        )
+
     required_lockfiles = set(baseline["required_lockfiles"])
     missing_lockfiles = sorted(path for path in required_lockfiles if not (ROOT / path).is_file())
     if missing_lockfiles:
@@ -114,9 +123,9 @@ def main() -> None:
         raise SystemExit("REPRODUCIBILITY CONTRACT FAILED:\n- " + "\n- ".join(problems))
 
     print(
-        "REPRODUCIBILITY CONTRACT PASSED: canonical pnpm/uv lockfiles are required, "
-        "validated build digests and the pnpm toolchain are fixed, and all remaining "
-        "unpinned-image/unlocked-container-install debt exactly matches the explicit H3a baseline."
+        "REPRODUCIBILITY CONTRACT PASSED: canonical pnpm/uv lockfiles and toolchains are "
+        "required, validated build digests are fixed, and all remaining unpinned-image/"
+        "unlocked-container-install debt exactly matches the explicit H3a baseline."
     )
 
 
