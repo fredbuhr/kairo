@@ -102,6 +102,23 @@ def main() -> None:
                 f"got {actual_image!r}"
             )
 
+    validated_compose_pins = {
+        tuple(item) for item in baseline.get("validated_compose_digest_pins", [])
+    }
+    invalid_compose_pins = sorted(
+        ref
+        for ref in validated_compose_pins
+        if not ref[0].startswith("compose") or "@sha256:" not in ref[1]
+    )
+    if invalid_compose_pins:
+        problems.append(
+            "validated Compose image pins must name compose files and immutable digests: "
+            f"{invalid_compose_pins}"
+        )
+    missing_compose_pins = sorted(validated_compose_pins - all_images)
+    if missing_compose_pins:
+        problems.append(f"validated Compose digest drift: {missing_compose_pins}")
+
     install_baseline = baseline["known_unlocked_install_files"]
     pnpm_actual = _find_install_files("pnpm install --no-frozen-lockfile")
     pnpm_expected = set(install_baseline["pnpm_no_frozen_lockfile"])
@@ -141,9 +158,9 @@ def main() -> None:
 
     print(
         "REPRODUCIBILITY CONTRACT PASSED: canonical pnpm/uv lockfiles and toolchains are "
-        "required, KAIRO container installs are frozen/locked, validated build digests are "
-        "fixed, and all remaining unpinned-image debt exactly matches the explicit "
-        "reproducibility baseline."
+        "required, KAIRO container installs are frozen/locked, validated build and Compose "
+        "digests are fixed, and all remaining unpinned-image debt exactly matches the "
+        "explicit reproducibility baseline."
     )
 
 
