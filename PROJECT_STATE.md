@@ -17,10 +17,10 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/kairo/pull/88), ouverte en draft, non fusionnée |
-| Head de code à contrôler | `10cb57c27e8018ea55b738dbf02495a3eff44aff` |
-| Arbre de ce head | `bfd2bdd857da639d2792428d7659e246d11abaf6` |
-| Validation | **9/9 workflows réussis** sur ce head, dont **5/5 jobs D04** ; rapport et JSON versionnés ci-dessous |
-| Prochaine action | Identifier la machine privée retenue, y lancer l'inventaire D04, puis exécuter le scénario commun avec la configuration réelle |
+| Head de code à contrôler | `a5a61db38191a9f8f37551fba7fe44df06c8a3be` |
+| Arbre de ce head | `c3ea2b7928bd11b45a607a22a9a6f9f0371a1179` |
+| Validation | **9/9 workflows réussis**, **5/5 jobs D04** ; contrôleur accès : **6 tests HTTP/TLS** ; rapports versionnés ci-dessous |
+| Prochaine action | Identifier le serveur privé, lancer inventaire/configuration puis `target.py preflight` avant la charge et le scénario commun |
 | Condition manquante | Matériel/cible privée et destination indépendante de sauvegarde non fournis ; aucun accès ni modèle quotidien inventé |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
@@ -35,8 +35,9 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 - OpenBao persistant corrigé pour la version épinglée ; policy de lecture KAIRO et quatre refus vérifiés.
 - Sauvegarde Restic chiffrée et restauration sur un autre hôte CI avec vrais SQL, message JetStream,
   objet filer et secret OpenBao. Attente bornée des volumes SeaweedFS au démarrage, contenu original exigé.
-- Inventaire cible et générateur de charge en lecture seule prêts ; arrêt sur erreur/seuil, accès anonyme
-  refusé, distinction entre clients virtuels et comptes réellement utilisés. Ce contrat HTTP n'est pas une mesure de capacité KAIRO.
+- Inventaire et contrôle préalable cible prêts : TLS, refus anonyme/faux jeton, JSON KAIRO attendu et
+  routes privées bloquées avant la charge ; réponses bornées et erreurs sans secrets. Six tests HTTP/TLS
+  réussis en CI. Les clients virtuels ne sont pas des comptes distincts ; le serveur de fixture ne mesure pas la capacité KAIRO.
 
 ## Conditions de sortie et reprise après interruption
 
@@ -61,6 +62,8 @@ D04 reste centré sur le premier serveur Linux ; modèle/matériel exacts non ch
 ces cibles produit avec trois serveurs à synchroniser ou exiger tous les OS/mobiles avant de fermer H5.
 
 ## Références
+
+- [Complément accès public et validation](https://github.com/fredbuhr/kairo/blob/hardening/d04-real-engine-qualification/docs/archive/d04-public-access-2026-09-11.md)
 
 - [Protocole D04](https://github.com/fredbuhr/kairo/blob/hardening/d04-real-engine-qualification/docs/qualification-d04.md)
 - [Rapport D04 daté et preuves](https://github.com/fredbuhr/kairo/blob/hardening/d04-real-engine-qualification/docs/archive/qualification-d04-2026-09-11.md)
