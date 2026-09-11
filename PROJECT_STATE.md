@@ -7,9 +7,10 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 - Canonical branch: `main`.
 - Last integrated product milestone: **G51 Daily Spine**, promoted through PR #73 together with the repository recovery protocol.
 - G51 merge commit: `f1dbb6e6ae1a4d419bc35a924639be713263fb77`.
-- The exact PR head validated before merge was `9af0573d7295d3da10c06477752f07ec4ac51541`.
-- All eight workflows on that exact PR head completed successfully: Foundation, Autonomous Research, MCP tool registry, Document ingestion, UI workspace, Multi-user isolation, News ownership, and Baseline reproducibility.
-- `AGENTS.md` and this file are now part of the canonical line.
+- Last fully revalidated product/checkpoint parent before R3 documentation: `69cf0dd52eea93f7e5b9bf7413cde2cb51c2c8b5`.
+- The seven workflows triggered on that R2 checkpoint passed, including Foundation and real Research Worker `SIGKILL` replay.
+- News ownership was not retriggered by the R2 documentation-only checkpoint; it passed on the exact validated PR #73 head `9af0573d7295d3da10c06477752f07ec4ac51541`, where all eight workflows were green.
+- `AGENTS.md` and this file are part of the canonical line.
 - Rule: always fetch the live `main` head before acting. Recorded SHAs are checkpoints, not permission to ignore newer GitHub state.
 
 ## Active work
@@ -18,22 +19,32 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 - R0 — repository truth: **complete**.
 - R1 — recovery protocol: **complete**.
 - R2 — validate and promote G51 / PR #73: **complete**.
+- R3 — synchronize canonical documentation: **complete in the current documentation commit**.
 - Active development branch: **none**.
 - Active pull request: **none**.
-- The merged branch `block3/g51-daily-spine` may still physically exist until the branch-cleanup gate. It is historical after PR #73 and must not be resumed as an active workspace.
+- No product code was changed in R3.
+
+R3 synchronized exactly these current-truth documents:
+
+- `docs/status.md` — G51/main baseline, validation state, implemented vs not-ready capabilities and Repository Reset status;
+- `docs/roadmap.md` — Repository Reset first, then post-R7 Block 3 sequencing;
+- `docs/component-matrix.md` — explicit maturity states so declared/configured dependencies are not confused with validated KAIRO capabilities.
 
 ## Next action
 
-Perform **R3 only — synchronize current documentation**.
+Perform **R4 only — inventory all branches and pull requests**.
 
-1. fetch the live `main` head;
-2. compare `docs/status.md`, `docs/roadmap.md`, and `docs/component-matrix.md` with the actual canonical implementation;
-3. update those documents so they describe the G51 `main` line without stale branch/SHA claims;
-4. move no historical files yet unless required to prevent them being mistaken for current truth — broad archive cleanup belongs to R6;
-5. make no product-code changes;
-6. update this file at the end of R3 with the exact result and next gate.
+R4 is read-only classification work:
 
-Do **not** start Gantt, Calendar, Brain, Finance/Crypto or any other product slice before the Repository Reset reaches its clean baseline.
+1. fetch the live `main` head first;
+2. enumerate branches and open/closed PRs relevant to the current repository;
+3. classify each meaningful branch/PR as `keep`, `absorbed`, `archive/salvage`, or `delete/close candidate`;
+4. compare divergent branches against `main` before classifying unique work;
+5. pay special attention to `feat/kairo-test-interface-v1` as a code reservoir and to old consolidation/review/backup branches;
+6. make **no branch deletions, PR closures or product-code changes** in R4;
+7. record the inventory/result here before ending the gate.
+
+Do **not** start Gantt, Calendar, Brain, Finance/Crypto or any other product slice before the Repository Reset reaches R7.
 
 ## Lines that are NOT canonical workspaces
 
@@ -55,15 +66,15 @@ Large experimental reservoir, hundreds of commits diverged from `main`. Keep tem
 
 ### Other Block 2 / Block 3 stacked branches and old PRs
 
-Treat as historical until the repository branch/PR inventory gate classifies them. Do not use them as a starting point merely because they contain a familiar feature name.
+Treat as historical until R4 classifies them. Do not use them as a starting point merely because they contain a familiar feature name.
 
 ## Repository reset sequence
 
 - R0 — establish repository truth: **complete**
 - R1 — add `AGENTS.md` + `PROJECT_STATE.md`: **complete**
 - R2 — resolve/promote PR #73: **complete**
-- R3 — synchronize current documentation (`status`, roadmap, component matrix): **next**
-- R4 — inventory all branches and PRs: keep / absorbed / archive / delete
+- R3 — synchronize current documentation: **complete**
+- R4 — inventory all branches and PRs: **next**
 - R5 — close superseded PRs and remove absorbed branches
 - R6 — inventory repository files/directories: active / intentional scaffold / historical / duplicate / removable
 - R7 — establish a clean tagged baseline with green CI
@@ -72,7 +83,7 @@ Treat as historical until the repository branch/PR inventory gate classifies the
 
 The intended next product sequence remains:
 
-1. Gantt + Calendar on the canonical Task planning model;
+1. Gantt + Calendar on the canonical G51 Task planning model;
 2. 2D/3D Brain / graph;
 3. collaboration and universal search;
 4. desktop/voice/presence;

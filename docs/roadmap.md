@@ -1,45 +1,103 @@
 # KAIRO roadmap
 
-The roadmap is intentionally aligned with the large implementation blocks in [`implementation-plan.md`](implementation-plan.md).
+The roadmap is aligned with the implementation blocks in [`implementation-plan.md`](implementation-plan.md), but this file reflects the **current sequencing from canonical `main`**.
 
 ## Current sequencing — 2026-09-11
 
-The platform/system-of-record block is complete and the core intelligence/autonomy exit has been reached on the validated G49 baseline. Current work is a short consolidation gate before deeper Cockpit/planning work: reproducibility debt is being made explicit, documentation is being synchronized with the code, and the validated line will be promoted before new specialist surface is added.
+The platform/system-of-record foundation is complete, the core Block 2 intelligence/autonomy exit has been reached, and **G51 Daily Spine is integrated in `main`**.
+
+Current work is **Repository Reset**, not new product development.
+
+- R0 — establish repository truth: complete;
+- R1 — install `AGENTS.md` + `PROJECT_STATE.md`: complete;
+- R2 — validate and promote G51 / PR #73: complete;
+- R3 — synchronize canonical status/roadmap/component maturity: complete in this commit;
+- R4 — inventory branches and PRs: next;
+- R5 — close/remove superseded Git refs;
+- R6 — inventory/archive/remove true repository vestiges;
+- R7 — create a clean tagged baseline with green CI.
+
+No Gantt, Calendar, Brain, Finance/Crypto, voice or other new product slice should start before R7.
 
 ## Foundation
 
-Reset the repository around the complete permanent platform architecture and component dependency graph. Remove the OpenClaw/filesystem proof implementation from the target branch while retaining its lessons in architecture contracts and Git history.
+**Status: complete for current development scope.**
+
+PostgreSQL/pgvector, object storage, eventing, identity, secrets, Temporal, canonical migrations, recovery and core service topology are established as the permanent substrate.
+
+Production hardening continues later; “foundation complete” does not mean commercial production-ready.
 
 ## System of record
 
 **Status: complete.**
 
-Bring up PostgreSQL/pgvector, object storage, eventing, identity, secrets, Temporal and backups as one coherent substrate. Establish migrations, outbox events, health and recovery before higher-level modules depend on them.
+PostgreSQL remains authoritative for domain state. SeaweedFS owns binary objects behind KAIRO references. NATS events are derived from the transactional outbox. Temporal owns in-flight workflow execution rather than replacing canonical business state.
 
 ## Intelligence and autonomy
 
-**Status: core exit reached; consolidation in progress.**
+**Status: core exit reached and integrated.**
 
-Add LiteLLM routing/cost control, PydanticAI agents, rebuildable memory/context projections, Docling ingestion, MCP tools, research, policy/approval boundaries and durable Temporal replay semantics. General browser automation and Activepieces-specific workflows can deepen later when required by concrete product slices, but must use the same canonical policy/Task/Artifact/audit boundaries.
+The canonical line includes LiteLLM routing/accounting, PydanticAI routing/agents, rebuildable memory projections, Docling ingestion, MCP tools, bounded Research, policy/approval/budget boundaries and destructive replay tests.
+
+Later deepening of browser automation, automation engines and specialist agents must reuse the same Task/Artifact/policy/audit ownership contracts rather than inventing parallel control planes.
 
 ## Cockpit and planning
 
-**Status: early foundation present; next major product block.**
+**Status: G51 Daily Spine integrated; major Block 3 work remains.**
 
-Build the customizable KAIRO interface, universal project/knowledge views, realtime documents, 2D/3D mindmap, Gantt/scheduling, calendar, dashboards, maps and universal search.
+Already present:
 
-The implementation order after consolidation is: Projects/Tasks/Today first, then Gantt/calendar planning, then the 2D/3D Brain/graph, followed by collaboration and universal search.
+- Cockpit shell and subject-scoped workspace layouts;
+- Projects;
+- Today;
+- Research;
+- News;
+- Knowledge ingestion/search/inspection;
+- canonical Task priority/planning/due fields;
+- owner-scoped planning updates;
+- timezone-aware Today semantics.
+
+After Repository Reset, continue Block 3 in this order:
+
+1. **Gantt + Calendar** directly on the G51 Task planning model;
+2. **2D/3D Brain / graph** on canonical Relationships and derived knowledge context;
+3. **collaboration/realtime** with canonical persistence;
+4. **universal search** across Projects, Tasks, documents, knowledge and graph surfaces.
+
+Do not treat installed UI dependencies as completed capabilities: the current Gantt and graph packages are still scaffolds.
 
 ## Presence and devices
 
-Build the Tauri Sidecar, voice plane, local permissions, cross-device presence, notifications and private remote connectivity.
+**Status: architecture/scaffolding only.**
+
+Build the Tauri Sidecar, bounded local permissions, notifications, microphone/screen/clipboard/filesystem access, voice orchestration, global summon and private cross-device presence only after Block 3 shares stable canonical state.
 
 ## Specialist systems
 
-Integrate OpenHands, crypto/finance engines and Home Assistant behind the same KAIRO domain/policy/audit contracts.
+**Status: declared/configured engines; stable product integrations not complete.**
+
+Integrate OpenHands, Finance/Crypto engines and Home Assistant behind KAIRO-owned domain, policy, approval, secret and audit contracts.
+
+Optional Compose profiles are not considered product completion.
 
 ## Production hardening
 
-Harden sandboxing, backups, observability, upgrades, immutable dependency/SBOM policy, self-maintenance proposals, recovery, resource control and data lifecycle.
+**Status: continuous; commercial readiness not reached.**
 
-The component registry is complete from the beginning; roadmap sequencing controls **implementation depth**, not whether a dependency is acknowledged.
+Remaining work includes:
+
+- complete dependency lock/reproducibility policy;
+- immutable image/SBOM controls;
+- stronger sandboxing;
+- controlled upgrades and rollback;
+- off-host encrypted backup drills;
+- load/performance testing;
+- production TLS/network exposure policy;
+- observability/alerting maturity;
+- complete data lifecycle and erasure behavior.
+
+## Architectural rule
+
+The component registry is intentionally broader than the current implementation. A component may be declared early so dependencies, licensing and ownership boundaries are explicit.
+
+Roadmap sequencing controls **implementation depth**, not whether an eventual dependency is acknowledged. Component maturity is tracked separately in [`component-matrix.md`](component-matrix.md).

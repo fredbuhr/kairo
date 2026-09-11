@@ -4,209 +4,162 @@ Last updated: 2026-09-11
 
 ## Current phase
 
-KAIRO is now in **Block 3 — Cockpit, daily planning and graph workspace**.
+KAIRO is in **Repository Reset / Block 3 stabilization**.
 
-Block 1 (platform substrate/system of record) is complete. The core exit criterion for Block 2 (intelligence, memory and safe autonomy) has been reached and the G48–G50 consolidation line was promoted to `main` through PR #72. The resulting `main` merge commit `f524ed7c8e8a71fa3de882f4d294c224cb8d207f` passed all eight workflows triggered after merge, including real Research `SIGKILL` replay, destructive Restic restore and multi-user ownership isolation.
+The canonical product line has reached **G51 — Daily Spine**. G51 was promoted to `main` through PR #73 together with the repository recovery protocol (`AGENTS.md` + `PROJECT_STATE.md`). There is currently **no active development branch and no active pull request**. Repository cleanup takes precedence over new product work until R7 establishes the clean tagged baseline.
 
-G51 is the first coherent product slice after that consolidation. It establishes a **Daily Spine** so Projects, Today and the future Gantt/Calendar use the same canonical Task planning state rather than separate UI-specific JSON.
+## Canonical baseline
 
-## Last fully validated baseline
+`main` is the only integrated source of truth.
 
-The current production-development baseline on `main` is:
+Current checkpoint after R2:
 
-`f524ed7c8e8a71fa3de882f4d294c224cb8d207f`
+`69cf0dd52eea93f7e5b9bf7413cde2cb51c2c8b5`
 
-That merge commit completed all eight triggered push workflows successfully:
+The G51 merge commit is:
 
-- Baseline reproducibility validation;
-- Foundation validation;
-- Autonomous research validation;
-- MCP tool registry validation;
-- Document ingestion validation;
-- UI workspace validation;
-- Multi-user isolation validation;
-- News ownership validation.
+`f1dbb6e6ae1a4d419bc35a924639be713263fb77`
 
-The G51 feature branch `block3/g51-daily-spine` has also passed all seven workflows triggered by its final functional SHA before documentation synchronization, including the actual two-Keycloak-user Daily Spine integration proof.
+The exact PR #73 head validated before merge was `9af0573d7295d3da10c06477752f07ec4ac51541`. All eight workflows associated with that exact head passed: Foundation, Autonomous Research, MCP tool registry, Document ingestion, UI workspace, Multi-user isolation, News ownership and Baseline reproducibility.
 
-## What is materially implemented
+After the R2 checkpoint commit, the seven workflows triggered on the new `main` checkpoint also passed, including Foundation and the real Autonomous Research Worker `SIGKILL` replay. News ownership was not retriggered by that documentation-only checkpoint; its most recent validation remains the green PR #73 head.
+
+Recorded SHAs are checkpoints only. Every new work session must fetch the live `main` head before acting.
+
+## What is materially implemented and validated
 
 ### Platform and canonical state
 
-- PostgreSQL + pgvector are the authoritative system of record.
-- SeaweedFS stores object/blob state behind KAIRO-owned references.
-- NATS JetStream publishes canonical domain events/outbox state.
-- Temporal is the durable execution substrate.
-- Keycloak provides authenticated user identity.
-- OpenBao provides secret-reference boundaries.
-- backup/restore, readiness and recovery smoke tests exist and are exercised in CI.
-- canonical migrations now run through `0012_task_planning` on G51.
+- PostgreSQL + pgvector are the authoritative domain system of record.
+- SeaweedFS stores binary/object state behind KAIRO-owned references.
+- NATS JetStream carries transactional-outbox-derived domain events.
+- Temporal is the durable execution authority for in-flight workflows.
+- Keycloak provides authenticated identity; KAIRO owns domain authorization.
+- OpenBao provides the secret-reference boundary used by Core.
+- Restic backup/restore and destructive recovery are exercised in CI.
+- Canonical migrations currently run through `0012_task_planning`.
 
 ### Command, policy and safe autonomy
 
-- canonical Conversation/Command/Task/Artifact execution contracts exist;
-- policy authorization, approval requests and budgets are represented in canonical state;
-- LiteLLM-facing model calls are routed through KAIRO's model gateway with usage/idempotency accounting;
-- replay-critical model call checkpoints are persisted through bounded Temporal heartbeats;
-- ToolInvocation is canonical, owner-scoped and replay-aware;
-- detailed internal diagnostics are not exposed as ordinary user-world surfaces.
+- canonical Conversation, Command, Task, WorkflowExecution and Artifact contracts exist;
+- policy authorization, approvals and hard budgets are represented in canonical state;
+- LiteLLM-facing model calls use KAIRO model-gateway accounting/idempotency contracts;
+- PydanticAI semantic routing and bounded autonomous research are integrated;
+- ToolInvocation is canonical, subject-owned and replay-aware;
+- public ownership boundaries fail closed and the real two-Keycloak-user isolation workflow is green.
 
-### Memory and knowledge
+### Memory, documents and knowledge
 
-- rebuildable derived-memory projection contracts exist;
-- Mem0/Graphiti/Neo4j remain derived context engines rather than the source of truth;
-- document ingestion, canonical document/chunk provenance and Knowledge inspection/search surfaces are present;
-- Research Context Packs can combine canonical document context and owner-scoped derived memory without making those projections authoritative.
+- derived memory is rebuildable and non-authoritative;
+- Mem0 and Graphiti/Neo4j are treated as context/projection engines rather than canonical state;
+- Docling-backed document ingestion, versioning, chunks and provenance are implemented;
+- Knowledge ingestion, inspection and search surfaces exist in the Web workspace;
+- Research Context Packs can consume canonical document context plus owner-scoped derived memory.
 
 ### Research and tools
 
 - canonical MCP server/tool registry and policy metadata exist;
-- first-party Web MCP is read-only at its current boundary;
-- autonomous Research includes bounded planning, tool use and grounded synthesis;
+- first-party Web MCP is read-only at its validated boundary;
+- autonomous Research performs bounded planning, tool use and grounded synthesis;
 - Research results are owner-scoped canonical Artifacts;
-- the real hard-kill replay smoke verifies that already-accounted model/tool work is not silently duplicated after Worker death.
+- the destructive Research smoke kills the real Worker and proves replay does not silently duplicate already-accounted external work.
 
-### Web/Cockpit surface
+### Cockpit and everyday planning
 
-The validated line contains meaningful product surfaces rather than only architecture scaffolding:
+The canonical Web line contains working product foundations rather than only architecture declarations:
 
-- Cockpit shell and persisted owner-scoped workspace layouts;
-- Command Center panel;
-- Today workspace;
+- Cockpit shell with persisted subject-scoped workspace layouts;
+- Command Center;
 - Projects workspace;
+- Today workspace;
 - Research workspace;
 - News workspace;
-- Knowledge workspace, ingestion, inspection and search helpers;
-- authenticated API/session helpers and Project selection state.
+- Knowledge ingestion/search/inspection workspace;
+- authenticated Web session/API helpers and project selection state.
 
-These are usable Block 3 foundations, not the final Cockpit.
+G51 adds the shared planning model used by Today and future scheduling surfaces:
 
-## G48 — multi-user boundary hardening
-
-G48 introduced a coherent ownership pass instead of isolated route patches:
-
-- canonical subject ownership for polymorphic Relationships;
-- owner-scoped ToolInvocations and owner-local idempotency;
-- database-level consistency between ToolInvocation Task ownership and Project ownership;
-- stronger approval/budget and diagnostic boundaries;
-- Research propagation of ToolInvocation ownership;
-- a real two-user Keycloak isolation workflow.
-
-This removed a class of cross-user risks before additional product modules were added.
-
-## G49 — durable Research replay
-
-G49 fixed the last known Block 2 destructive-recovery failure.
-
-The failure was not ordinary Research correctness: normal Research contracts and integration were already green. The failing invariant was a Worker `SIGKILL` after canonical MCP completion. The planner provider call could be repeated because the SDK heartbeat containing the replay-critical accounted checkpoint could remain coalesced in process memory too long.
-
-G49 therefore:
-
-- bounds Temporal heartbeat throttling for the KAIRO Worker to one second;
-- makes successful `tool.invoke` Tasks return the canonical Artifact-shaped result expected by the generic Task execution workflow;
-- preserves the single canonical ToolInvocation during replay;
-- makes the backup/restore smoke wait for the durable PostgreSQL TCP server rather than the entrypoint's transient initialization socket server.
-
-## G50 — baseline consolidation
-
-G50 established the single trustworthy baseline used by later Block 3 work:
-
-- Core and Worker `uv` build image pinned to the exact digest observed in validated CI;
-- explicit reproducibility debt baseline and CI guard;
-- status/roadmap/implementation-plan synchronized with the actual repository;
-- Block 2 core exit recorded without claiming production readiness;
-- consolidation promoted to `main` through one reviewed PR instead of merging the broad experimental spatial branch wholesale.
-
-JavaScript/Python dependency lockfiles and several third-party immutable image digests remain explicit reproducibility debt. They are tracked rather than hidden or fabricated.
-
-## G51 — Daily Spine
-
-G51 establishes one canonical planning contract for everyday work.
-
-### Canonical Task planning
-
-`Task` now carries:
-
-- `priority` (0–4);
+- `Task.priority` from 0 to 4;
 - `planned_start_at`;
 - `planned_end_at`;
-- `due_at`.
+- `due_at`;
+- owner-scoped `PATCH /v1/tasks/{task_id}` planning updates;
+- workflow-managed status protection once Temporal owns execution;
+- timezone-aware `GET /v1/today` with correct local-day/DST semantics.
 
-The database enforces priority range and valid planning windows, and public Task creation requires timezone-aware timestamps.
+## Consolidation milestones represented in `main`
 
-### Owner-scoped Task updates
+### G48 — multi-user boundary hardening
 
-`PATCH /v1/tasks/{task_id}` can update title, description, priority and planning metadata. Manual status transitions are intentionally limited to `todo` / `completed`.
+G48 introduced coherent subject ownership for Relationships and ToolInvocations, owner-local idempotency, stronger approval/budget boundaries, safer diagnostics and the real two-user Keycloak isolation proof.
 
-Once a Task has a Temporal `WorkflowExecution`, its status becomes execution-owned and a user cannot forge completion through the planning endpoint. Planning metadata can still be adjusted without rewriting the workflow state machine.
+### G49 — replay and execution repair
 
-### Timezone-aware Today
+The G49 line ultimately promoted to `main` fixed the destructive Research replay failure by bounding Temporal heartbeat throttling, repaired the generic `tool.invoke` Task result so it matches the canonical Artifact contract, and corrected backup/restore PostgreSQL readiness detection. The alternative later `consolidate/g49-research-durable-stages` branch is **not** canonical and must not be treated as the implementation in `main`.
 
-`GET /v1/today?day=YYYY-MM-DD&timezone=<IANA zone>` builds an owner-scoped daily view using local calendar boundaries rather than assuming every day is 24 hours.
+### G50 — reproducibility baseline
 
-Tasks are grouped into:
+G50 pinned the Core/Worker uv build image to the observed validated digest, added an explicit reproducibility-debt baseline and CI guard, synchronized consolidation documentation and promoted the G48–G50 line to `main` without merging the broad experimental spatial branch wholesale.
 
-- overdue;
-- in progress;
-- due today;
-- planned today;
-- completed today;
-- unscheduled backlog.
+Known reproducibility debt remains explicit rather than hidden: JavaScript/Python dependency lockfiles are not yet complete, and several optional or external service images still use floating tags.
 
-The contract explicitly tests a DST transition day to preserve correct local-day semantics.
+### G51 — Daily Spine
 
-### Today Cockpit panel
-
-The Web Cockpit now exposes a dockable Today workspace that can:
-
-- browse a local day;
-- see project context and timing;
-- change priority;
-- quickly plan one hour from the backlog;
-- complete or reopen manual Tasks;
-- show Workflow-managed Tasks as Temporal-controlled rather than offering a false manual status button.
-
-### Security proof
-
-The existing two-Keycloak-user integration test now also proves that:
-
-- one user cannot patch another user's planning state;
-- `/v1/today` never leaks another user's Task;
-- manual completion appears in the correct owner's `completed_today` bucket;
-- once a Task is submitted to Temporal, manual completion is rejected.
+G51 establishes one canonical Task planning contract for Projects, Today and future Gantt/Calendar work. Its owner-scoped update rules, timezone-aware Today endpoint, Web Today panel and two-user security proof are integrated in `main`.
 
 ## What is not ready yet
 
-### Gantt and graph/Brain
+### Gantt and Calendar
 
-`packages/gantt` and `packages/graph` are still scaffolds on the validated line. The mature simple Gantt and realtime 2D/3D Brain/mycelium experience required by the product vision are **not complete**.
+`packages/gantt` currently contains only planning data interfaces; the mature Gantt renderer/editor is not implemented. SVAR React Gantt and Schedule-X are installed dependencies, not evidence of a completed product capability.
 
-G51 deliberately adds the canonical dates/priority first so the Gantt does not invent a second planning model.
+Calendar normalization/adapters and a complete Calendar workspace are also not yet part of the stabilized line.
 
-### Desktop/Sidecar and voice
+### Brain / graph
 
-The stabilized `apps/desktop` is still skeletal. Global summon, microphone, screenshot, clipboard, selected-filesystem access, wake word, realtime voice and local computer-use permissions are Block 4 work.
+`packages/graph` currently contains only graph snapshot interfaces on canonical `main`. React Flow, React Three Fiber and react-force-graph-3d are installed, but the realtime 2D/3D mycelium Brain experience remains future Block 3 work.
+
+### Realtime collaboration
+
+The Hocuspocus/Yjs realtime service exists as scaffolding/configuration, but canonical collaborative persistence and a mature multi-user document workflow are not production-ready.
+
+### Desktop, presence and voice
+
+`apps/desktop` is still skeletal. Tauri native permissions, global summon, screen/clipboard/filesystem access, microphone/wake word, LiveKit voice orchestration and local computer-use controls remain later work. Voice services being declared or present in Compose does not mean the end-user voice plane is complete.
 
 ### Finance, crypto, home and development agent
 
-The permanent architecture recognizes these specialist systems and Compose profiles exist for several engines, but the stabilized KAIRO domain adapters and user workflows are not complete. They remain Block 5 work.
+Rotki, Actual Budget, Hummingbot, Home Assistant, OpenHands and related libraries/profiles are architecture targets or optional engines. The stabilized KAIRO-owned adapters, policy flows and user workspaces are not complete on `main`.
 
-### Production hardening
+### Production/commercial readiness
 
-KAIRO is not yet a production/commercial release. Remaining work includes stronger sandboxing, full immutable dependency/SBOM policy, controlled upgrades, off-host encrypted backup drills, load/performance testing, production exposure/TLS/network policy and the complete data lifecycle.
+KAIRO is not yet production/commercial-ready. Remaining work includes stronger sandboxing, complete immutable dependency/SBOM policy, controlled upgrades, off-host encrypted backup drills, load/performance testing, production TLS/network exposure policy and full data lifecycle/erasure hardening.
+
+## Repository reset status
+
+- R0 — establish repository truth: **complete**
+- R1 — install recovery protocol: **complete**
+- R2 — validate/promote G51: **complete**
+- R3 — synchronize canonical documentation: **complete in this commit**
+- R4 — inventory branches and pull requests: **next**
+- R5 — close/remove superseded Git refs
+- R6 — inventory files/directories and archive/remove true vestiges
+- R7 — establish a clean tagged, green baseline
 
 ## Branch discipline
 
-`main` is now the validated source of truth after the G48–G50 consolidation. New Block 3 work should branch from the last validated `main` commit and return through small coherent PRs.
+`main` is the only canonical integrated line. A development branch is temporary workspace, not a KAIRO version. Old consolidation, review, backup and stacked feature branches must not be used as restart points unless R4 explicitly classifies unique work to salvage.
 
-Large experimental work, especially the broad draft spatial-interface branch, remains a reservoir of ideas/code and must not be merged wholesale over this baseline.
+`feat/kairo-test-interface-v1` remains a large experimental code reservoir only. It must never be merged wholesale.
 
-## Next implementation block
+## Next action
 
-After G51 promotion, continue Block 3 in this order:
+The next gate is **R4 — branch/PR inventory**. No product code should be changed during R4.
 
-1. **Gantt + Calendar** on the canonical Task planning fields established by G51;
+After R7, the intended product sequence is:
+
+1. Gantt + Calendar on the canonical G51 Task planning fields;
 2. 2D/3D Brain/graph on canonical Relationships and knowledge context;
-3. collaboration/realtime and universal search across those surfaces.
-
-Do not start Block 4/5 specialist expansion until these Block 3 foundations share the same ownership, Task, Artifact and workflow model.
+3. collaboration/realtime and universal search;
+4. desktop/voice/presence;
+5. specialist Finance/Crypto/Home capabilities behind KAIRO-owned contracts.

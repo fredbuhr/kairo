@@ -1,59 +1,88 @@
 # Component matrix
 
-The component list is declared early to make dependencies and ownership explicit. Inclusion here does not mean every process must run on every laptop continuously.
+The component registry is intentionally broader than the currently implemented product. Presence in `config/components.yaml`, `compose.yaml` or a package manifest does **not** mean the capability is complete.
 
-| Capability | Component | Mode | KAIRO ownership rule |
-|---|---|---|---|
-| Canonical database | PostgreSQL + pgvector | service | authoritative domain state; vectors rebuildable |
-| Temporal context graph | Graphiti + Neo4j | worker library + service | derived projection only |
-| Cache/locks | Valkey | service | ephemeral only |
-| Event bus | NATS JetStream | service | events from transactional outbox |
-| Object storage | SeaweedFS | service | authoritative binary objects |
-| Durable workflows | Temporal | service + SDK | runtime execution authority, correlated to KAIRO records |
-| Agent framework | PydanticAI | worker library | agents act under KAIRO policy |
-| Model gateway | LiteLLM | service | provider abstraction/routing boundary |
-| Local model simple | Ollama | service | model provider only |
-| Local model edge | llama.cpp | sidecar/host | model provider only |
-| Local model GPU | vLLM | `gpu` profile | model provider only |
-| Long-term memory | Mem0 | worker library | derived memory projection |
-| Document parsing | Docling | worker library | produces canonical sources/assets |
-| External automation | Activepieces | service | engine state delegated; KAIRO owns intent/policy/run link |
-| Tool protocol | MCP | protocol | preferred AI tool boundary |
-| Deterministic browser | Playwright | worker/sandbox | side effects policy-gated |
-| AI browser | Browser Use | worker/sandbox | side effects policy-gated |
-| Dev agent | OpenHands | `dev-agent` profile | KAIRO owns task/approval/diff references |
-| Search | SearXNG | service | results become sourced research records |
-| Secrets | OpenBao | service | secret values never stored in domain DB |
-| Identity | Keycloak | service | authentication provider; KAIRO owns domain permissions |
-| AI observability | Langfuse + ClickHouse | services | tracing/eval; not security audit source |
-| Notifications | ntfy | service | delivery adapter |
-| Realtime docs | Hocuspocus + Yjs | KAIRO service/library | realtime state materialized to canonical state |
-| Voice realtime | LiveKit | service | transport only |
-| Speech-to-text | whisper.cpp | sidecar/worker | local transcription engine |
-| Voice activity | Silero VAD | sidecar library | local signal processing |
-| Wake word | openWakeWord | sidecar library | custom KAIRO model preferred |
-| Desktop runtime | Tauri | app | KAIRO-owned Sidecar trust boundary |
-| Workspace shell | Dockview + shadcn/ui | web libraries | KAIRO UX |
-| Data views | TanStack Table/Query | web libraries | KAIRO UX |
-| Drag/drop | dnd-kit | web library | KAIRO UX |
-| Rich text | Lexical | web library | canonical document model/snapshots |
-| Whiteboard | Excalidraw | web library | assets/doc objects linked to domain |
-| Calendar UI | Schedule-X | web library | view over normalized calendar state |
-| Dashboards | Apache ECharts | web library | view only |
-| Maps | MapLibre GL JS | web library | view over place/location state |
-| 2D graph | React Flow | web library | view over KAIRO graph |
-| 3D graph | React Three Fiber + react-force-graph-3d | web libraries | view over KAIRO graph |
-| Gantt | SVAR React Gantt | web library | renderer/editor over KAIRO Plan/Task data |
-| Crypto accounting | rotki | `finance` profile | portfolio source/adapter, private network only |
-| Exchange APIs | CCXT | integration library | no raw secret exposure to models |
-| EVM | viem | web/worker library | prepare/read; signing isolated |
-| Trading engine | Hummingbot | `finance` profile | disabled for live authority by default |
-| Personal finance | Actual Budget | `finance` profile | external ledger adapter |
-| Smart home | Home Assistant | `home` profile | upstream device authority |
-| Sandbox | gVisor | host runtime | hardened execution boundary |
-| Backup | restic | `ops`/host | encrypted off-host backup |
-| Private access | Headscale | `remote` profile | private network overlay |
-| Deployment UI | Coolify (optional) | host platform | deployment convenience, not KAIRO dependency |
+## Maturity legend
+
+- **Validated** — KAIRO integration is exercised by the current canonical CI/product path.
+- **Integrated** — KAIRO code/adapters use the component, but the end-user capability or production hardening is not complete.
+- **Configured** — dependency/service is wired into manifests or Compose, but no stable KAIRO product workflow is complete.
+- **Scaffold** — placeholder contracts/package/application skeleton exists.
+- **Declared** — architectural target only on canonical `main`.
+
+The maturity column describes the **KAIRO integration**, not the upstream project's own maturity.
+
+| Capability | Component | Mode/profile | KAIRO ownership rule | Current maturity |
+|---|---|---|---|---|
+| Canonical database | PostgreSQL + pgvector | service / core | authoritative domain state; vectors rebuildable | **Validated** |
+| Temporal context graph | Graphiti + Neo4j | worker library + service / core | derived projection only | **Integrated** |
+| Cache/locks | Valkey | service / core | ephemeral only | **Configured** |
+| Event bus | NATS JetStream | service / core | events from transactional outbox | **Validated** |
+| Object storage | SeaweedFS | service / core | authoritative binary objects | **Validated** |
+| Durable workflows | Temporal | service + SDK / core | in-flight execution authority correlated to KAIRO records | **Validated** |
+| Agent framework | PydanticAI | worker library / core | agents act under KAIRO policy | **Validated** |
+| Model gateway | LiteLLM | service / core | provider abstraction/routing boundary | **Validated** |
+| Local model simple | Ollama | service / core | model provider only | **Configured** |
+| Local model edge | llama.cpp | sidecar/host / desktop | model provider only | **Declared** |
+| Local model GPU | vLLM | service / `gpu` | model provider only | **Configured** |
+| Long-term memory | Mem0 | worker library / core | derived memory projection | **Integrated** |
+| Document parsing | Docling | worker library / core | produces canonical document/chunk provenance | **Validated** |
+| External automation | Activepieces | service / core | delegated engine; KAIRO owns intent/policy/run link | **Configured** |
+| Tool protocol | MCP | protocol / core | preferred AI tool boundary | **Validated** |
+| Deterministic browser | Playwright | worker/sandbox / core | side effects policy-gated | **Configured** |
+| AI browser | Browser Use | worker/sandbox / core | side effects policy-gated | **Configured** |
+| Dev agent | OpenHands | service / `dev-agent` | KAIRO owns task/approval/diff references | **Configured** |
+| Search | SearXNG | service / core | sourced search adapter, never canonical truth | **Integrated** |
+| Secrets | OpenBao | service / core | secret values never stored in domain DB | **Validated** |
+| Identity | Keycloak | service / core | authentication provider; KAIRO owns domain permissions | **Validated** |
+| AI observability | Langfuse + ClickHouse | services / core | tracing/eval projection; not security audit source | **Configured** |
+| Notifications | ntfy | service / core | delivery adapter | **Configured** |
+| Realtime docs | Hocuspocus + Yjs | service/library / core+web | realtime state must materialize to canonical state | **Scaffold / configured** |
+| Voice realtime | LiveKit | service / core | transport only | **Configured** |
+| Speech synthesis | Kokoro-FastAPI | service / `voice` | speech synthesis adapter | **Configured** |
+| Speech-to-text | whisper.cpp | sidecar/worker / desktop | local transcription engine | **Declared** |
+| Voice activity | Silero VAD | sidecar library / desktop | local signal processing | **Declared** |
+| Wake word | openWakeWord | sidecar library / desktop | custom KAIRO model preferred | **Declared** |
+| Desktop runtime | Tauri | app / desktop | KAIRO-owned local trust boundary | **Scaffold** |
+| Workspace shell | Dockview | web library | KAIRO UX/layout surface | **Validated** |
+| Data views | TanStack Table/Query | web libraries | KAIRO UX/data access | **Integrated** |
+| Drag/drop | dnd-kit | web library | KAIRO UX | **Integrated** |
+| Rich text | Lexical | web library | future canonical document/editor surface | **Configured** |
+| Whiteboard | Excalidraw | web library target | assets/doc objects linked to domain | **Declared** |
+| Calendar UI | Schedule-X | web library | view over normalized calendar state | **Configured** |
+| Dashboards | Apache ECharts | web library | view only | **Configured** |
+| Maps | MapLibre GL JS | web library | view over place/location state | **Configured** |
+| 2D graph | React Flow | web library | view over KAIRO graph | **Configured** |
+| 3D graph | React Three Fiber + react-force-graph-3d | web libraries | view over KAIRO graph | **Configured** |
+| Gantt | SVAR React Gantt | web library | renderer/editor over canonical Task/Plan data | **Scaffold / configured** |
+| Crypto accounting | rotki | service / `finance` | portfolio source/adapter, private network only | **Configured** |
+| Exchange APIs | CCXT | integration library / finance | no raw secret exposure to models | **Declared** |
+| EVM | viem | web/worker library / finance | prepare/read; signing isolated | **Declared** |
+| Trading engine | Hummingbot | service / `finance` | disabled for live authority by default | **Configured** |
+| Personal finance | Actual Budget | service / `finance` | external ledger adapter | **Configured** |
+| Smart home | Home Assistant | service / `home` | upstream device authority | **Configured** |
+| Sandbox | gVisor | host runtime / ops | hardened execution boundary | **Declared** |
+| Backup | restic | host job / ops | encrypted recovery layer | **Validated** |
+| Private access | Headscale | service / `remote` | private network overlay | **Configured** |
+| Deployment UI | Coolify (optional) | host platform | deployment convenience, not KAIRO dependency | **Declared / optional** |
+
+## Important capability notes
+
+### Gantt and Calendar
+
+The current `packages/gantt` package contains only `ScheduledTask` / `PlanVersion` interfaces. SVAR React Gantt and Schedule-X being installed does not make Gantt/Calendar complete. G51 intentionally established canonical Task planning fields first.
+
+### Brain / graph
+
+The current `packages/graph` package contains only canonical graph snapshot interfaces. React Flow, React Three Fiber and react-force-graph-3d are installed but the 2D/3D mycelium Brain is not implemented on canonical `main`.
+
+### Realtime and desktop
+
+Hocuspocus/Yjs, Tauri and voice dependencies represent intended architecture boundaries and scaffolding. They are not yet mature end-user capabilities.
+
+### Specialist engines
+
+Finance, crypto, Home Assistant and OpenHands services can be present in optional profiles while still lacking stabilized KAIRO adapters, ownership rules, policy flows and UX. Optional Compose presence is not considered integration completion.
 
 ## Deliberately not foundational
 
