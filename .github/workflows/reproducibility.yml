@@ -35,3 +35,11 @@ jobs:
 
       - name: Prove reproducibility baseline cannot drift silently
         run: python scripts/smoke/reproducibility_contract.py
+
+      - name: Prepare locked container build environment
+        run: cp .env.example .env
+
+      - name: Prove KAIRO containers build from canonical locked graphs
+        env:
+          KAIRO_WORKER_EXTRAS: ""
+        run: docker compose build kairo-core kairo-worker kairo-realtime kairo-web
