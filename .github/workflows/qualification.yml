@@ -1,0 +1,61 @@
+name: D04 real engine qualification
+
+on:
+  pull_request:
+    paths:
+      - 'services/worker/**'
+      - 'scripts/qualification/**'
+      - 'scripts/ops/**'
+      - 'compose*.yaml'
+      - 'uv.lock'
+      - '.github/workflows/qualification.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: qualification-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  real-document-memory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      KAIRO_QUALIFICATION_SCOPE: github-actions-cpu
+      KAIRO_QUALIFICATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated original fixtures
+        run: |
+          cp .env.example .env
+          mkdir -p .kairo-qualification/models .kairo-qualification/evidence
+          chmod 777 .kairo-qualification/models .kairo-qualification/evidence
+      - name: Build full locked Worker with real intelligence packages
+        run: docker compose -f compose.yaml -f compose.qualification.yaml build kairo-model-prepare kairo-qualification
+      - name: Explicitly provision models before offline execution
+        timeout-minutes: 15
+        run: docker compose -f compose.yaml -f compose.qualification.yaml run --rm --no-deps kairo-model-prepare
+      - name: Start real derived stores
+        run: |
+          docker compose -f compose.yaml -f compose.qualification.yaml up -d postgres neo4j
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:7474/ >/dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:7474/ >/dev/null
+      - name: Prove actual adapters offline with immutable model files
+        timeout-minutes: 12
+        run: docker compose -f compose.yaml -f compose.qualification.yaml run --rm --no-deps kairo-qualification
+      - name: Preserve sanitized measurements even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d04-real-document-memory-${{ github.run_id }}
+          path: .kairo-qualification/evidence/*.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Stop isolated stores
+        if: always()
+        run: docker compose -f compose.yaml -f compose.qualification.yaml down -v --remove-orphans

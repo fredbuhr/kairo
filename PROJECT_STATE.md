@@ -18,9 +18,9 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 
 | Champ | Valeur |
 |---|---|
-| Branche / PR de développement active | **Aucune** |
+| Branche / PR de développement active | `hardening/d04-real-engine-qualification` ; PR D04 à vérifier live |
 | Dernier lot terminé | **D03 — déploiement sûr et topologie utile** |
-| Prochain lot | **D04 — moteurs réels et exploitation (H5)** |
+| Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Première action | Vérifier main/PR live, lire D04 et docs/deployment.md ; inventorier le matériel, les accès et les assets réellement disponibles, puis préparer/exécuter le scénario privé commun |
 | Sortie D04 | Rapport daté avec versions/assets/matériel, PDF/mémoire/recherche/modèle réels, mesures et restauration hors hôte ; aucune preuve remplacée par un mock |
 | Méthode | Une livraison cohérente par lot ; commits/checklists internes pour reprise, pas une suite de fragments |
@@ -63,3 +63,14 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 `hardening/d03-safe-deployment` et les branches D01/D02/H1–H4 précédentes sont **retirées**.
 Réservoirs non canoniques : `feat/kairo-test-interface-v1`, `consolidate/g49-research-durable-stages` ;
 inspection/récupération sélective uniquement, jamais merge en bloc. Historiques D01/D02 dans les archives.
+
+## Travail D04 en cours — une seule livraison
+
+Base vérifiée `0e2d22d8b49d1ddda6f2c0432de8dfe991b3ee0a`. Campagne commune : PDF/Docling,
+Mem0/Graphiti, modèle local/recherche, droits OpenBao, récupération et rapport mesuré.
+Le workspace ne possède ni Docker, ni GPU, ni assets ; utiliser la CI pour les preuves CPU réelles.
+Premier scénario ajouté : build Worker avec intelligence complète, provisionnement explicite des
+modèles puis adaptateurs réels dans un conteneur en lecture seule sans sortie Internet. Validation en
+cours ; aucune exécution réelle déclarée réussie à ce stade. D04/H5 reste ouvert, D05 n'est pas commencé.
+La cible privée, ses accès et la sauvegarde distante ne sont pas fournis ; préparer le protocole commun
+avant de demander ces éléments. Aucune infrastructure utilisateur ni fournisseur payant touché.
