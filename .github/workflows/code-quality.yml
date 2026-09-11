@@ -1,0 +1,27 @@
+name: Code quality validation
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: code-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Ruff correctness and dead-import checks
+        run: uvx ruff==0.13.0 check services/core/src services/worker/src scripts/smoke --select F,E9
+
+      - name: Verify shell scripts parse under Bash
+        shell: bash
+        run: |
+          while IFS= read -r -d '' script; do
+            bash -n "$script"
+          done < <(find scripts -type f -name '*.sh' -print0)
