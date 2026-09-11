@@ -11,15 +11,22 @@ import time
 from datetime import datetime, timezone
 
 
+def optional_text(path):
+    try:
+        return Path(path).read_text()
+    except OSError:
+        return ''
+
+
 def hardware():
-    memory = next((line.split()[1] for line in Path('/proc/meminfo').read_text().splitlines()
+    memory = next((line.split()[1] for line in optional_text('/proc/meminfo').splitlines()
                    if line.startswith('MemTotal:')), None)
     limits = {}
     for key in ('memory.max', 'cpu.max', 'pids.max'):
         path = Path('/sys/fs/cgroup') / key
         if path.is_file():
             limits[key] = path.read_text().strip()
-    cpu = next((line.split(':', 1)[1].strip() for line in Path('/proc/cpuinfo').read_text().splitlines()
+    cpu = next((line.split(':', 1)[1].strip() for line in optional_text('/proc/cpuinfo').splitlines()
                 if line.startswith('model name')), platform.machine())
     return {'os': platform.platform(), 'architecture': platform.machine(), 'cpu': cpu,
             'logical_cpus': os.cpu_count(), 'memory_kib': int(memory) if memory else None,

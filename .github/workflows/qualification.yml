@@ -59,7 +59,7 @@ jobs:
           retention-days: 14
       - name: Stop isolated stores
         if: always()
-        run: docker compose -f compose.yaml -f compose.qualification.yaml down -v --remove-orphans
+        run: docker compose -f compose.yaml -f compose.qualification.yaml --profile '*' down -v --remove-orphans
 
   real-local-services:
     runs-on: ubuntu-latest
@@ -75,6 +75,7 @@ jobs:
           cp .env.example .env
           cat >> .env <<'EOF'
           KAIRO_WORKER_EXTRAS=
+          KAIRO_INTERNAL_TOKEN=d04-internal-fixture-token
           OPENAI_API_KEY=
           ANTHROPIC_API_KEY=
           LITELLM_MASTER_KEY=d04-local-fixture-no-provider-key
@@ -96,7 +97,7 @@ jobs:
           retention-days: 14
       - name: Stop local fixtures
         if: always()
-        run: docker compose down -v --remove-orphans
+        run: docker compose --profile '*' down -v --remove-orphans
 
   recovery-source:
     runs-on: ubuntu-latest
@@ -135,7 +136,7 @@ jobs:
           retention-days: 14
       - name: Stop source volumes
         if: always()
-        run: docker compose -f compose.yaml -f compose.qualification-recovery.yaml -f compose.ops.yaml down -v --remove-orphans
+        run: docker compose -f compose.yaml -f compose.qualification-recovery.yaml -f compose.ops.yaml --profile '*' down -v --remove-orphans
 
   recovery-target:
     needs: recovery-source
@@ -172,4 +173,4 @@ jobs:
           retention-days: 14
       - name: Stop restored fixtures
         if: always()
-        run: docker compose -f compose.yaml -f compose.qualification-recovery.yaml -f compose.ops.yaml down -v --remove-orphans
+        run: docker compose -f compose.yaml -f compose.qualification-recovery.yaml -f compose.ops.yaml --profile '*' down -v --remove-orphans

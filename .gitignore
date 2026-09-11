@@ -8,6 +8,8 @@ runtime/
 data/
 backups/
 .kairo-backup-staging/
+.kairo-qualification/
+d04-encrypted-repository.tar
 
 # Node
 node_modules/

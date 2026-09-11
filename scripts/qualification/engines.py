@@ -57,7 +57,7 @@ def make_pdf(path):
 
 
 def run(root, output):
-    from kairo_worker.model_assets import verify_manifest, inventory
+    from kairo_worker.model_assets import verify_manifest
     from kairo_worker import memory_projection as memory
     evidence = Evidence('real-document-memory', output)
     evidence.data['versions'] = versions(['docling', 'docling-core', 'mem0ai', 'graphiti-core', 'fastembed', 'onnxruntime'])

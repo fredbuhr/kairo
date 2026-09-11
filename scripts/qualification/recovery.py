@@ -15,7 +15,7 @@ import time
 import httpx
 import nats
 
-from common import Evidence, sha256
+from common import Evidence
 
 ROOT = Path(__file__).resolve().parents[2]
 PROOF = b'KAIRO original D04 recovery fixture, no private user data'

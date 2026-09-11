@@ -1,9 +1,7 @@
 """Real local LiteLLM/Ollama/Core accounting and SearXNG adapters; no paid model path."""
 import asyncio
 from decimal import Decimal
-import json
 import os
-from pathlib import Path
 import subprocess
 import time
 import uuid
@@ -29,6 +27,7 @@ def run():
         raise SystemExit('This destructive stop/restart fixture runs only in isolated CI; use the D04 target protocol elsewhere')
     evidence = Evidence('real-local-services', '.kairo-qualification/evidence/local-services.json')
     settings.kairo_core_url = CORE
+    settings.kairo_internal_token = 'd04-internal-fixture-token'
     settings.litellm_url = 'http://127.0.0.1:4000'
     settings.litellm_master_key = 'd04-local-fixture-no-provider-key'
     settings.kairo_model_max_output_tokens = 48
