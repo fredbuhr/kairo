@@ -14,16 +14,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+      - name: Prove uv workspace lockfile matches declarations
+        run: uv lock --check
       - name: Prove canonical owner-scoped workspace layout contract
-        run: uv run --project services/core python scripts/smoke/workspace_layout_contract.py
+        run: uv run --locked --project services/core python scripts/smoke/workspace_layout_contract.py
       - name: Prove canonical Project ownership contract
-        run: uv run --project services/core python scripts/smoke/project_ownership_contract.py
+        run: uv run --locked --project services/core python scripts/smoke/project_ownership_contract.py
       - name: Prove Project-bound Task access contract
-        run: uv run --project services/core python scripts/smoke/project_bound_task_contract.py
+        run: uv run --locked --project services/core python scripts/smoke/project_bound_task_contract.py
       - name: Prove Task execution and Artifact ownership wrapper
-        run: uv run --project services/core python scripts/smoke/task_execution_ownership_contract.py
+        run: uv run --locked --project services/core python scripts/smoke/task_execution_ownership_contract.py
       - name: Prove Daily Spine planning and Today workspace contract
-        run: uv run --project services/core python scripts/smoke/daily_spine_contract.py
+        run: uv run --locked --project services/core python scripts/smoke/daily_spine_contract.py
       - name: Compile Core UI ownership and planning modules
         run: >-
           python -m compileall
