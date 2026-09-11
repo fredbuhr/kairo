@@ -23,9 +23,19 @@ class Settings(BaseSettings):
     kairo_model_owner_concurrency: int = Field(default=2, ge=1, le=64)
     kairo_model_global_daily_budget_usd: Decimal = Field(default=Decimal("50"), ge=0)
     kairo_model_owner_daily_budget_usd: Decimal = Field(default=Decimal("10"), ge=0)
+    kairo_work_global_concurrency: int = Field(default=4, ge=1, le=128)
+    kairo_work_owner_concurrency: int = Field(default=1, ge=1, le=16)
+    kairo_work_max_pending: int = Field(default=1000, ge=1, le=10000)
+    kairo_work_owner_max_pending: int = Field(default=100, ge=1, le=1000)
+    outbox_max_pending: int = Field(default=10000, ge=100, le=100000)
+    outbox_payload_max_bytes: int = Field(default=65536, ge=1024, le=1048576)
+    outbox_retention_days: int = Field(default=30, ge=1, le=365)
+    maintenance_batch_size: int = Field(default=500, ge=1, le=1000)
+    nats_domain_max_age_seconds: int = Field(default=1209600, ge=60, le=31536000)
+    nats_domain_max_bytes: int = Field(default=268435456, ge=1048576)
     nats_url: str = "nats://nats:4222"
     nats_domain_stream: str = "KAIRO_DOMAIN"
-    outbox_batch_size: int = 100
+    outbox_batch_size: int = Field(default=20, ge=1, le=20)
     outbox_poll_interval_seconds: float = 0.5
     outbox_retry_interval_seconds: float = 2.0
 

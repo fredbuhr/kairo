@@ -90,10 +90,13 @@ jobs:
       - name: Prove LiteLLM accounting contract
         run: uv run --locked --project services/worker python scripts/smoke/model_gateway_contract.py
 
+      - name: Prove heavy-work timers, lease loss and real memory subprocess ownership
+        run: uv run --locked --project services/worker python scripts/smoke/heavy_work_execution_contract.py
+
       - name: Prove News Intelligence contract
         run: uv run --locked --project services/worker python scripts/smoke/news_contract.py
 
-  model-admission-integration:
+  capacity-and-data-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
@@ -117,6 +120,19 @@ jobs:
         run: uv run --locked alembic upgrade head
       - name: Prove concurrent model admission, budgets, expiry and settlement
         run: uv run --locked --project services/core python scripts/smoke/model_admission_contract.py
+      - name: Prove shared capacity, bounded reads, rebuild and relay recovery
+        run: uv run --locked --project services/core python scripts/smoke/capacity_and_data_contract.py
+      - name: Start isolated JetStream for capacity and reconnection validation
+        run: >-
+          docker run -d --name kairo-d02-nats -p 127.0.0.1:4222:4222
+          nats:2.14.5-alpine@sha256:d4ac35882ac65aff236cd65b9d3fa4d24332c681e1a85f94eedccd3cdd65b1da -js
+      - name: Prove real transport limits and existing durable upgrade
+        env:
+          NATS_URL: nats://127.0.0.1:4222
+        run: uv run --locked --all-packages python scripts/smoke/transport_capacity_contract.py
+      - name: Clean up isolated JetStream
+        if: always()
+        run: docker rm -f kairo-d02-nats || true
       - name: Prove D02 migration rollback and reapply on the disposable database
         working-directory: services/core
         run: |

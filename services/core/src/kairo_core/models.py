@@ -17,6 +17,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -46,7 +47,8 @@ class Project(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
-    __table_args__ = (Index("ix_projects_owner_status", "owner_subject", "status"),)
+    __table_args__ = (Index("ix_projects_owner_status", "owner_subject", "status"),
+                      Index("ix_projects_owner_page", "owner_subject", "created_at", "id"))
 
 
 class Task(Base):
@@ -80,6 +82,7 @@ class Task(Base):
     )
 
     __table_args__ = (
+        Index("ix_tasks_project_page", "project_id", "created_at", "id"),
         Index("ix_tasks_project_status", "project_id", "status"),
         Index("ix_tasks_due_status", "due_at", "status"),
         Index("ix_tasks_planned_window", "planned_start_at", "planned_end_at"),
@@ -177,7 +180,8 @@ class Asset(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    __table_args__ = (UniqueConstraint("bucket", "object_key", name="uq_assets_object"),)
+    __table_args__ = (UniqueConstraint("bucket", "object_key", name="uq_assets_object"),
+                      Index("ix_assets_owner_page", metadata_json["owner_subject"].astext, "created_at", "id"))
 
 
 class DeviceRegistration(Base):
@@ -252,8 +256,11 @@ class OutboxEvent(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    claim_token: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    claim_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         Index("ix_outbox_unpublished", "published_at", "created_at"),
+        Index("ix_outbox_pending_claim", "claim_until", "created_at", "id", postgresql_where=text("published_at IS NULL")),
         Index("ix_outbox_correlation", "correlation_id"),
     )

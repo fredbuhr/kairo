@@ -23,6 +23,8 @@ from .capabilities import (
     synchronize_capabilities,
 )
 from .command_models import CommandRecord, Conversation, ConversationMessage
+from .pagination import PageCursor, PageLimit, page_rows
+from fastapi import Response
 from .db import get_session
 from .events import append_audit, enqueue_domain_event
 from .models import Project, Task
@@ -703,14 +705,14 @@ async def get_conversation_messages(
     conversation_id: uuid.UUID,
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
+    response: Response = None,
+    limit: PageLimit = 100,
+    cursor: PageCursor = None,
 ) -> list[ConversationMessage]:
     await _owned_conversation(conversation_id, principal, session)
-    result = await session.execute(
-        select(ConversationMessage)
-        .where(ConversationMessage.conversation_id == conversation_id)
-        .order_by(ConversationMessage.created_at, ConversationMessage.id)
-    )
-    return list(result.scalars())
+    return await page_rows(session, select(ConversationMessage).where(
+        ConversationMessage.conversation_id == conversation_id), ConversationMessage,
+        limit=limit, cursor=cursor, response=response)
 
 
 @router.get("/v1/commands/{command_id}", response_model=CommandRead)

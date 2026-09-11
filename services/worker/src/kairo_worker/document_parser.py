@@ -80,6 +80,10 @@ def parse_document(path: Path, media_type: str, max_chars: int) -> dict[str, Any
 
 
 def main() -> None:
+    # Independent lifetime also applies if the parent Worker is killed abruptly.
+    import signal
+    signal.signal(signal.SIGALRM, signal.SIG_DFL)
+    signal.alarm(480)
     source, destination, media_type, max_chars = sys.argv[1:]
     try:
         result = parse_document(Path(source), media_type, int(max_chars))

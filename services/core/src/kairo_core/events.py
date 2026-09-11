@@ -1,4 +1,10 @@
+import json
 import uuid
+
+from fastapi import HTTPException
+from sqlalchemy import func, select
+
+from .config import settings
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +21,15 @@ async def enqueue_domain_event(
     payload: dict[str, Any],
     correlation_id: uuid.UUID,
 ) -> OutboxEvent:
+    if len(json.dumps(payload, default=str, separators=(",", ":")).encode()) > settings.outbox_payload_max_bytes:
+        raise HTTPException(422, "Domain event exceeds configured payload limit")
+    # This rejection threshold may overshoot by bounded concurrent in-flight writes.
+    # Never serialize unrelated domain row locks globally for this technical counter.
+    pending = int(await session.scalar(select(func.count()).select_from(OutboxEvent).where(
+        OutboxEvent.published_at.is_(None),
+    )) or 0)
+    if pending >= settings.outbox_max_pending:
+        raise HTTPException(503, "Event backlog is full; retry after recovery", headers={"Retry-After": "5"})
     event = OutboxEvent(
         subject=f"kairo.domain.{event_type}",
         event_type=event_type,

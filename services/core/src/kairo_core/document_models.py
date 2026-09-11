@@ -38,7 +38,8 @@ class Document(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
-    __table_args__ = (Index("ix_documents_project_status", "project_id", "status"),)
+    __table_args__ = (Index("ix_documents_project_status", "project_id", "status"),
+                      Index("ix_documents_owner_page", metadata_json["owner_subject"].astext, "project_id", "created_at", "id"))
 
 
 class DocumentVersion(Base):

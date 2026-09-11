@@ -14,7 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import Principal, require_kairo_user
 from .config import settings
+from .pagination import PageCursor, PageLimit, page_rows
+from fastapi import Response
 from .db import get_session
+from .work_capacity import ensure_work_request, require_work_lease
 from .document_models import DOCUMENTS_PROJECT_ID, Document, DocumentChunk, DocumentVersion
 from .events import append_audit, enqueue_domain_event
 from .models import Asset, Project, Task
@@ -293,6 +296,7 @@ async def _start_version(
     await session.flush()
     version.task_id = task.id
     document.status = "processing"
+    await ensure_work_request(session, task)
 
     await enqueue_domain_event(
         session,
@@ -414,15 +418,18 @@ async def reingest_document(
 
 @router.get("/v1/documents", response_model=list[DocumentRead])
 async def list_documents(
+    project_id: uuid.UUID | None = None,
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
+    response: Response = None,
+    limit: PageLimit = 100,
+    cursor: PageCursor = None,
 ) -> list[Document]:
-    result = await session.execute(select(Document).order_by(Document.created_at.desc()))
-    return [
-        row
-        for row in result.scalars()
-        if str((row.metadata_json or {}).get("owner_subject") or "") == principal.subject
-    ]
+    statement = select(Document).where(Document.metadata_json["owner_subject"].astext == principal.subject)
+    if project_id is not None:
+        statement = statement.where(Document.project_id == project_id)
+    return await page_rows(session, statement, Document, limit=limit, cursor=cursor,
+                           response=response, descending=True)
 
 
 @router.get("/v1/documents/{document_id}", response_model=DocumentRead)
@@ -442,14 +449,24 @@ async def list_document_versions(
     document_id: uuid.UUID,
     principal: Principal = Depends(require_kairo_user),
     session: AsyncSession = Depends(get_session),
+    response: Response = None,
+    limit: PageLimit = 100,
+    cursor: PageCursor = None,
 ) -> list[DocumentVersion]:
     await get_document(document_id, principal, session)
-    result = await session.execute(
-        select(DocumentVersion)
-        .where(DocumentVersion.document_id == document_id)
-        .order_by(DocumentVersion.generation.desc())
-    )
-    return list(result.scalars())
+    return await page_rows(session, select(DocumentVersion).where(DocumentVersion.document_id == document_id),
+                           DocumentVersion, limit=limit, cursor=cursor, response=response,
+                           descending=True, key_name="generation")
+
+
+@router.get("/v1/document-versions/{version_id}", response_model=DocumentVersionRead)
+async def get_document_version(version_id: uuid.UUID, principal: Principal = Depends(require_kairo_user),
+                               session: AsyncSession = Depends(get_session)) -> DocumentVersion:
+    version = await session.get(DocumentVersion, version_id)
+    if version is None:
+        raise HTTPException(404, "Document version not found")
+    await get_document(version.document_id, principal, session)
+    return version
 
 
 @router.get("/v1/document-versions/{version_id}/chunks", response_model=list[DocumentChunkRead])
@@ -524,6 +541,7 @@ async def internal_complete_document_ingestion(
         raise HTTPException(status_code=410, detail="Document source asset is unavailable")
 
     await _require_internal_source_binding(version, document, asset, session)
+    await require_work_lease(session, version.task_id, body.metadata.get("work_lease_token"))
     if version.source_sha256 and body.source_sha256 != version.source_sha256:
         raise HTTPException(status_code=409, detail="Document source digest changed during ingestion")
 
@@ -561,7 +579,7 @@ async def internal_complete_document_ingestion(
     version.status = "completed"
     version.last_error = None
     version.completed_at = datetime.now(UTC)
-    version.metadata_json = {**(version.metadata_json or {}), **body.metadata}
+    version.metadata_json = {**(version.metadata_json or {}), **{key: value for key, value in body.metadata.items() if key != "work_lease_token"}}
     document.status = "ready"
 
     correlation_id = uuid.uuid4()
@@ -623,6 +641,7 @@ async def internal_fail_document_ingestion(
         raise HTTPException(status_code=410, detail="Document source asset is unavailable")
 
     await _require_internal_source_binding(version, document, asset, session)
+    await require_work_lease(session, version.task_id, body.get("work_lease_token"))
     version.status = "failed"
     version.last_error = str(body.get("error") or "Document ingestion failed")[:4000]
     version.completed_at = datetime.now(UTC)

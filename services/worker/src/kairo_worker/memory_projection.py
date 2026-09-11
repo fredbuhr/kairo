@@ -3,6 +3,10 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import os
+import json
+from pathlib import Path
+import sys
+import tempfile
 import threading
 from datetime import datetime
 from typing import Any
@@ -11,6 +15,8 @@ import httpx
 from temporalio import activity
 
 from .config import settings
+from .owned_process import run_owned_process
+from .work_capacity import current_work_lease, run_admitted
 
 MEM0_COLLECTION = "kairo_mem0_memory_v1"
 MEM0_EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
@@ -226,71 +232,108 @@ async def _report(message_id: str, generation: int, reports: list[dict[str, Any]
             f"{settings.kairo_core_url.rstrip('/')}/internal/v1/memory/"
             f"projections/conversation-messages/{message_id}/report",
             headers=_headers(),
-            json={"generation": generation, "projectors": reports},
+            json={"generation": generation, "projectors": reports, "work_lease_token": current_work_lease.get()},
         )
         response.raise_for_status()
 
 
-@activity.defn
-async def perform_memory_projection(payload: dict[str, Any]) -> dict[str, Any]:
-    task_input = payload.get("task_input") or {}
-    message_id = str(task_input.get("source_id") or "")
-    if not message_id:
-        raise RuntimeError("memory.project requires source_id")
-    generation = int(task_input.get("projection_generation") or 1)
-    source = await _fetch_source(message_id)
-    mode = memory_projector_mode()
-
-    reports: list[dict[str, Any]] = []
-    errors: list[str] = []
+async def _project_source(source: dict[str, Any], mode: str) -> list[dict[str, Any]]:
+    reports = []
     for projector in ("mem0", "graphiti"):
         try:
             if mode == "stub":
                 report = _stub_projection(projector, source)
             elif projector == "mem0":
-                report = await asyncio.to_thread(_mem0_project_sync, source)
+                # Synchronous inference lives only in the owned child process.
+                report = _mem0_project_sync(source)
             else:
                 report = await _graphiti_project(source)
-        except Exception as exc:  # noqa: BLE001 - each derived projector reports independently
-            error = f"{type(exc).__name__}: {exc}"[:4000]
+        except Exception as exc:
             report = {
-                "projector": projector,
-                "status": "failed",
-                "projection_key": None,
+                "projector": projector, "status": "failed", "projection_key": None,
                 "metadata": {"backend": mode, "generative_extraction": False},
-                "error": error,
+                "error": f"Projection failed ({type(exc).__name__})",
             }
-            errors.append(f"{projector}: {error}")
         reports.append(report)
-        activity.heartbeat(
-            {
-                "kind": "kairo.memory-projection",
-                "source_id": message_id,
-                "generation": generation,
-                "completed_projectors": [item["projector"] for item in reports],
-            }
+    return reports
+
+
+async def _run_projection(source: dict[str, Any], mode: str) -> list[dict[str, Any]]:
+    with tempfile.TemporaryDirectory(prefix="kairo-memory-") as directory:
+        path, output = Path(directory) / "source.json", Path(directory) / "result.json"
+        encoded = json.dumps(source, default=str)
+        if len(encoded.encode()) > 262144:
+            raise RuntimeError("Memory source exceeds bounded projection input")
+        path.write_text(encoded, encoding="utf-8")
+        allowed = {"PATH", "PYTHONPATH", "HOME", "LANG", "LC_ALL", "HF_HOME", "HF_HUB_CACHE",
+                   "FASTEMBED_CACHE_PATH", "DATABASE_URL", "MEM0_DATABASE_URL", "NEO4J_URI",
+                   "NEO4J_USER", "NEO4J_PASSWORD"}
+        environment = {key: value for key, value in os.environ.items() if key in allowed}
+        environment.update({"OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1",
+                            "TMPDIR": directory})
+        returncode = await run_owned_process(
+            sys.executable, "-m", "kairo_worker.memory_projection", str(path), str(output), mode,
+            environment=environment, timeout=240,
         )
+        if returncode != 0 or not output.is_file() or output.stat().st_size > 65536:
+            raise RuntimeError("Memory projector failed or exceeded bounded result")
+        reports = json.loads(output.read_text(encoding="utf-8"))
+        if not isinstance(reports, list) or len(reports) != 2:
+            raise RuntimeError("Memory projector returned invalid reports")
+        return reports
 
-    await _report(message_id, generation, reports)
-    if errors:
-        raise RuntimeError("Memory projection failed: " + "; ".join(errors))
 
-    return {
-        "kind": "memory-projection",
-        "title": f"Memory projection — {message_id}",
-        "content": {
-            "source_type": "conversation_message",
-            "source_id": message_id,
-            "source_version": int(source["source_version"]),
-            "projection_generation": generation,
-            "projector_mode": mode,
-            "projectors": [
-                {
-                    "projector": item["projector"],
-                    "projection_key": item["projection_key"],
-                    "metadata": item["metadata"],
-                }
-                for item in reports
-            ],
-        },
-    }
+async def _keep_alive(message_id: str) -> None:
+    while True:
+        if activity.in_activity():
+            activity.heartbeat({"kind": "kairo.memory-projection", "source_id": message_id})
+        await asyncio.sleep(5)
+
+
+@activity.defn
+async def perform_memory_projection(payload: dict[str, Any]) -> dict[str, Any]:
+    return await run_admitted(payload, lambda: _perform_memory_projection(payload))
+
+
+async def _perform_memory_projection(payload: dict[str, Any]) -> dict[str, Any]:
+    task_input = payload.get("task_input") or {}
+    message_id = str(task_input.get("source_id") or "")
+    if not message_id:
+        raise RuntimeError("memory.project requires source_id")
+    generation = int(task_input.get("projection_generation") or 1)
+    heartbeat = asyncio.create_task(_keep_alive(message_id))
+    try:
+        async with asyncio.timeout(280):  # Below the five-minute Temporal deadline.
+            source = await _fetch_source(message_id)
+            mode = memory_projector_mode()
+            reports = await _run_projection(source, mode)
+            await _report(message_id, generation, reports)
+            if any(item["status"] == "failed" for item in reports):
+                raise RuntimeError("Memory projection failed; see canonical projector status")
+            return {
+                "kind": "memory-projection", "title": f"Memory projection — {message_id}",
+                "content": {
+                    "source_type": "conversation_message", "source_id": message_id,
+                    "source_version": int(source["source_version"]), "projection_generation": generation,
+                    "projector_mode": mode,
+                    "projectors": [{key: item[key] for key in ("projector", "projection_key", "metadata")}
+                                   for item in reports],
+                },
+            }
+    finally:
+        heartbeat.cancel()
+        await asyncio.gather(heartbeat, return_exceptions=True)
+
+
+def main() -> None:
+    import signal
+    signal.signal(signal.SIGALRM, signal.SIG_DFL)
+    signal.alarm(270)
+    source_path, result_path, mode = sys.argv[1:]
+    source = json.loads(Path(source_path).read_text(encoding="utf-8"))
+    reports = asyncio.run(_project_source(source, mode))
+    Path(result_path).write_text(json.dumps(reports), encoding="utf-8")
+
+
+if __name__ == "__main__":
+    main()

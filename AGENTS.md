@@ -24,9 +24,12 @@ Conversation history, model memory and previous-chat summaries are advisory only
 - Preserve milestones with Git tags/releases, not long-lived implementation branches.
 - Experimental reservoirs such as `feat/kairo-test-interface-v1` must never be merged wholesale; salvage isolated components only after explicit review.
 
-## 3. Work in small recoverable gates
+## 3. Deliver coherent recoverable lots
 
-Each gate must have one primary objective, a bounded set of files, targeted validation and a clear stop point. Do not silently start the next gate in the same work session.
+Each Dxx lot has one primary objective, coordinated changes, shared validation and a clear stop point.
+Default to completing the lot in one coherent delivery; commits and internal checklists are recovery
+points, not new sub-lots. Do not split by file or technical layer. Split only when an observed blocker
+or a separately reviewable risk requires it, and record the reason. Do not silently start the next Dxx lot.
 
 Before editing, state the current gate. After editing:
 

@@ -262,6 +262,11 @@ class SystemReadiness(BaseModel):
 
 
 class OutboxStats(BaseModel):
+    oldest_pending_at: datetime | None = None
+    rejection_threshold: int = 10000
+    retention_days: int = 30
+    stream_max_age_seconds: int = 1209600
+    stream_max_bytes: int = 268435456
     pending: int
     published: int
     relay_connected: bool

@@ -89,6 +89,7 @@ class ConversationMessage(Base):
     )
 
     __table_args__ = (
+        Index("ix_messages_rebuild_page", "created_at", "id"),
         Index("ix_conversation_messages_conversation_created", "conversation_id", "created_at"),
     )
 
@@ -102,6 +103,13 @@ def _enqueue_memory_projection_event(_mapper, connection, target: ConversationMe
     content.
     """
 
+    from fastapi import HTTPException
+    from sqlalchemy import select
+    from .config import settings
+
+    pending = connection.scalar(select(func.count()).select_from(OutboxEvent).where(OutboxEvent.published_at.is_(None)))
+    if int(pending or 0) >= settings.outbox_max_pending:
+        raise HTTPException(503, "Event backlog is full; retry after recovery", headers={"Retry-After": "5"})
     connection.execute(
         OutboxEvent.__table__.insert().values(
             id=uuid.uuid4(),

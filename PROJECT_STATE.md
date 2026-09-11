@@ -17,12 +17,12 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 
 | Champ | Valeur |
 |---|---|
-| Branche de développement active | **Aucune** |
-| PR active | **Aucune** |
+| Branche de développement active | `hardening/d02-complete-capacity-and-data` |
+| PR active | [#86](https://github.com/fredbuhr/kairo/pull/86) |
 | Dernière livraison | **D02 — admission et réservations des appels IA** |
 | Dernier lot entièrement terminé | **D01** |
-| Prochain travail | **Suite D02 — admission documents/mémoire, puis volume des données** |
-| Première action | Vérifier live main/PRs, relire D02 et inspecter admission des documents/projections : éviter qu'un propriétaire sature les activités ; choisir une tranche cohérente avant de coder |
+| Prochain travail | **Terminer D02 dans une livraison commune : capacité et volume des données** |
+| Première action | Compléter admission globale documents/mémoire avec attente Temporal, pagination SQL/UI, rebuild par lots et rétention ; valider ensemble avant merge |
 | Reste D02 | Admission hors model_gateway, SQL assets/pagination/Today, projections par lots, outbox/rétention, observation du backlog et mesure de saturation |
 | Scope | Pas de nouveau broker ni de fonction produit ; conserver les invariants budgétaires et SIGKILL |
 
@@ -81,3 +81,45 @@ Preuves des 8 workflows PR (les 8 miroirs push ont aussi réussi) :
   Les anciennes branches H1–H3b2e et `hardening/h4-task-dispatch-isolation` restent retirées.
 - Réservoirs non canoniques : `feat/kairo-test-interface-v1`, `consolidate/g49-research-durable-stages`.
   Inspection/récupération sélective uniquement, jamais reprise ou merge en bloc.
+
+## D02 — livraison groupée en cours
+
+- Base live vérifiée : `cc550150664b1c4c11924ad6b486f863831633d6`, aucune PR ouverte au départ.
+- Instruction utilisateur : conserver les lots, éviter leur fragmentation ; travail restant regroupé.
+- Inspection : documents/mémoire occupent les activités pendant leur attente ; Mem0 utilise un thread
+  non annulable ; assets/documents filtrés après chargement ; Today et rebuild lisent tout ; outbox
+  conserve ses verrous pendant NATS. Réservoir : convergence NATS bornée récupérable conceptuellement,
+  pagination Today du prototype insuffisante ; aucune admission équivalente retenue.
+- Validation prévue : même PostgreSQL réel pour concurrence/leases/pages/maintenance, vrais processus
+  contrôlés, UI et toutes intégrations existantes dont SIGKILL. Aucun nouveau service ni fonction produit.
+
+### Point de travail D02 (non encore validé)
+
+Implémentation groupée : migration 0014, admission documents/mémoire, attente Temporal,
+processus mémoire annulable, curseurs SQL et contrôles de pagination Projects/Research/Knowledge/Today,
+rebuild à reçus idempotents, outbox à claims courts et rétention bornée. Première compilation,
+reproductibilité et `git diff --check` réussis ; CI sur le nouveau head encore à lancer.
+Ne pas fusionner avant les preuves communes et tous les workflows du head final.
+Prochaine action : ouvrir/mettre à jour l'unique PR D02, terminer les preuves de processus et la
+procédure d'exploitation, résoudre la CI dans cette même branche, puis vérifier le merge.
+
+PR #86 ouverte au head `629720b0f8d9939f2ead411787584e7ed68b0c6c`, arbre
+`edb316db11ae8deb2f7b1b62735f54c6bfa646d9`. Première CI : build/typecheck Web,
+qualité, UI et Documents réussis. Contrat PostgreSQL : pagination/Today réussis ; une entrée
+expirée gardait son ancienne candidature à la file FIFO. Correction : effacer `requested_at`
+à l'expiration, puis ne recandidater qu'à la prochaine demande réelle. CI finale à refaire.
+
+Head suivant `884860a6091d7280b8ac14735b09228283bf695c`, arbre
+`01362800a711fa755df46629d796fc9ddb6b7f2f` : contrat PostgreSQL commun et six preuves Worker
+réussis (jobs `103301431517` / `103301431112`). Charge synthétique : 1/10/100/1000 demandes,
+concurrence client 20, deux créneaux actifs sans dépassement ; 1000 demandes en 17,232 s sur runner CI,
+ce qui n'est pas une capacité mesurée de vrais moteurs/utilisateurs.
+Dernière vérification avant clôture : réconcilier aussi le consumer NATS existant (un simple bind
+n'applique pas les nouvelles limites), conserver un seul client pendant reconnexion et les prouver
+sur JetStream réel. Puis refaire les gates du head final et clôturer D02 dans la même PR #86.
+
+Le head `9f32e6792cbb585d738a6468dab0c54d549fda4f` valide aussi les limites JetStream
+et la mise à jour d'un consumer durable existant (job `103303522635`). Dernier correctif de
+revue : refuser par HTTP 422 les curseurs JSON valides dont l'identifiant/type est incorrect,
+au lieu de laisser remonter une erreur Python 500. Contrat PostgreSQL étendu ; attendre tous
+les workflows du nouveau head avant clôture. Aucune nouvelle fonction ni sous-lot ajouté.

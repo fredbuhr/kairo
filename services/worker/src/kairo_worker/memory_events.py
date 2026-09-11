@@ -9,6 +9,8 @@ import httpx
 import nats
 from nats.aio.client import Client as NATS
 from nats.js import JetStreamContext
+from nats.js.api import ConsumerConfig
+from nats.js.errors import NotFoundError
 
 from .config import settings
 
@@ -73,7 +75,7 @@ class MemoryProjectionEventConsumer:
         except Exception:
             logger.exception("Failed to hand off conversation message to memory projection")
             try:
-                await message.nak()
+                await message.nak(delay=5)
             except Exception:
                 logger.exception("Failed to NAK memory projection event")
 
@@ -85,11 +87,22 @@ class MemoryProjectionEventConsumer:
             max_reconnect_attempts=-1,
         )
         self._js = self._nc.jetstream()
+        try:
+            existing = await self._js.consumer_info(settings.nats_domain_stream, MEMORY_CONSUMER_DURABLE)
+        except NotFoundError:
+            pass
+        else:
+            # Binding an existing durable alone does not apply new subscriber configuration.
+            existing.config.ack_wait = 60
+            existing.config.max_ack_pending = 32
+            await self._js.add_consumer(settings.nats_domain_stream, config=existing.config)
         await self._js.subscribe(
             MEMORY_EVENT_SUBJECT,
             durable=MEMORY_CONSUMER_DURABLE,
             stream=settings.nats_domain_stream,
             manual_ack=True,
+            config=ConsumerConfig(ack_wait=60, max_ack_pending=32),
+            pending_msgs_limit=64, pending_bytes_limit=4194304,
             cb=self._handle_message,
         )
 
