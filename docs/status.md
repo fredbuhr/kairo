@@ -36,18 +36,19 @@ Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJEC
 
 [#88](https://github.com/fredbuhr/nevolium/pull/88) réunit la campagne des vrais moteurs et de reprise.
 La même PR porte la transition atomique de l'identité publique et technique vers Nevolium
-([ADR-030](decisions/ADR-030-nevolium-canonical-identity.md)) avant le premier déploiement. Les
-anciens succès CI qualifient uniquement leurs commits ; le runtime renommé doit être entièrement
-revalidé avant installation sur la cible.
+([ADR-030](decisions/ADR-030-nevolium-canonical-identity.md)) avant le premier déploiement. Le head
+`d9478de…` et son arbre `898306b…` passent 10/10 workflows et 5/5 jobs D04 ; le dépôt GitHub doit
+encore recevoir son nouveau slug avant installation. [Preuves de transition](archive/nevolium-identity-transition-2026-09-11.md).
 Docling/PDF et Mem0/Graphiti en lecture seule sans Internet, inférence locale avec comptabilisation,
 arrêt/rejeu/redémarrage d’Ollama et recherche SearXNG ont passé des essais réels CPU sur la branche.
-Le head `10cb57c…` passe 9/9 workflows, dont les cinq jobs D04. La restauration sur une autre VM relit
-SQL, message JetStream, objet filer et secret OpenBao. [Rapport, mesures et inventaire des modèles](archive/qualification-d04-2026-09-11.md).
+Le premier head de campagne `10cb57c…` avait passé 9/9 workflows, dont les cinq jobs D04 ; ces preuves
+ont ensuite été rejouées avec succès sur le head Nevolium cité plus haut. La restauration sur une autre
+VM relit SQL, message JetStream, objet filer et secret OpenBao. [Rapport, mesures et inventaire des modèles](archive/qualification-d04-2026-09-11.md).
 Corrections trouvées : bibliothèques natives OCR absentes, écritures techniques Mem0 hors TMPDIR,
 configuration OpenBao persistante incompatible avec sa version épinglée. La cible privée reste à qualifier ;
 ne pas utiliser les résultats de branche comme une validation de production du main D03.
 
-La campagne réexécutée sur `a5a61db…` passe 9/9 workflows et 5/5 jobs D04.
+Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
 avec lectures bornées et diagnostics sans secrets. Six tests HTTP/TLS du runner réussis en CI ;
 [portée et reprise serveur](archive/d04-public-access-2026-09-11.md). Aucun serveur utilisateur qualifié par cette fixture.

@@ -110,6 +110,8 @@ PR #88 adds actual CPU Docling/Mem0/Graphiti execution on offline read-only asse
 accounting/restart and live SearXNG search; persistent OpenBao and two-host recovery are in the same
 campaign. These are branch proofs pending integration, not a blanket promotion of the canonical
 maturity table above. See [qualification](qualification-d04.md) and the exact-head checkpoint.
-All five campaign jobs passed at `10cb57c…`, including actual object/message/secret readback on a
-distinct CI host. [Dated measurements and preserved evidence](archive/qualification-d04-2026-09-11.md).
+All five campaign jobs passed again on the Nevolium head `d9478de…`, including actual
+object/message/secret readback on a distinct CI host. [Dated measurements and preserved evidence](archive/qualification-d04-2026-09-11.md)
+and [identity-transition evidence](archive/nevolium-identity-transition-2026-09-11.md) record the
+campaign chronology.
 The private target, mixed load, ingress and upgrade/recovery scenario remain H5 acceptance conditions.

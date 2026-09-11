@@ -17,10 +17,10 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head de code Nevolium | `18dff4d7507fad285fae871e35e56c0567e42c3a`, arbre `e39f8ebfe2a55a0869cafb6531a6fbabbf3a70f4` ; publié sur la PR, CI complète en attente |
-| Validation | Avant transition : **9/9 workflows**, **5/5 jobs D04** sur `a5a61db…`. Arbre renommé : contrats locaux rapides réussis ; CI/Docker complets à rejouer, aucun ancien succès ne qualifie ce nouveau head |
-| Prochaine action | Publier/contrôler le head Nevolium, exiger les 10 workflows verts, puis renommer le dépôt GitHub avant toute installation serveur |
-| Conditions manquantes | Nouveau head CI, renommage GitHub, inventaire OS réel, pare-feu, domaine/TLS, sauvegarde indépendante et modèle quotidien non validés |
+| Head Nevolium qualifié | `d9478deada2c2c1781958abd87779b9a5e7c11f2`, arbre `898306b233b7f16de6b28b19f78304498e0d7b2e` |
+| Validation | **10/10 workflows réussis**, **5/5 jobs D04** sur le head Nevolium ; verrou identité, builds Python/JS, topologies et scénarios réels CI réussis |
+| Prochaine action | Renommer le dépôt GitHub en `fredbuhr/nevolium`, vérifier `origin`/PR/liens, puis reprendre l'inventaire SSH et le durcissement netcup |
+| Conditions manquantes | Renommage GitHub, inventaire OS réel, pare-feu, domaine/TLS, sauvegarde indépendante et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité en cours dans D04
@@ -32,7 +32,8 @@ de compatibilité n'est prévu avant le premier déploiement : bases, volumes, s
 doivent être créés frais. L'arbre suivi passe le verrou zéro résidu, les imports/builds des deux
 paquets Python, les typechecks/builds JS, 12 contrats Core, 11 contrats Worker, les contrats identité,
 mémoire et reproductibilité, ainsi que les validations JSON et Bash. Docker est absent du workspace,
-le `uv` local est 0.12.11 au lieu du 0.12.13 imposé ; la CI fraîche reste donc l'autorité.
+le `uv` local est 0.12.11 au lieu du 0.12.13 imposé. La CI fraîche sur `d9478de…` est entièrement
+verte : 10 workflows, dont les cinq jobs D04. [Rapport de transition](docs/archive/nevolium-identity-transition-2026-09-11.md).
 
 ## Réalisé sur la branche, sans promotion de main
 
