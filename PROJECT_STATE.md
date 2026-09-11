@@ -30,22 +30,23 @@ Product feature work remains paused until H5 is complete.
 
 1. **H1 — Memory/Auth handoff: complete and canonical.**
 2. **H2 — Code hygiene: complete and canonical.**
-3. **H3 — Reproducibility: split into bounded sub-gates.**
+3. **H3 — Reproducibility: complete for the recorded container/dependency baseline.**
    - **H3a — Dependency locks/frozen direct CI: complete and canonical.**
    - **H3b1 — Locked KAIRO container builds: complete and canonical.**
-   - **H3b2 — External image pinning/debt reduction: in progress; final implementation gate H3b2e is technically validated.**
+   - **H3b2 — External image pinning/debt reduction: complete and canonical.**
      - **H3b2a — KAIRO Node build-base digest pins: complete and canonical.**
      - **H3b2b — Core Compose service digest pins: complete and canonical.**
      - **H3b2c — Temporal Compose digest pins: complete and canonical.**
      - **H3b2d — Backup/restore operations digest pins: complete and canonical.**
-     - **H3b2e — Final external image digest pins: technically validated; PR #82 pending final-head validation/merge.**
-     - **Remaining H3b2 image debt after H3b2e technical changes: 0 references.**
+     - **H3b2e — Final external image digest pins: complete and canonical.**
+     - **Remaining H3b2 image debt on canonical main: 0 references.**
 4. **H4 — Production/auth boundary: not started.**
 5. **H5 — Full revalidation + real-engine/production checks + post-audit tag: not started.**
 
-Active development branch: **`hardening/h3b2e-final-image-pins`**.
-Active work pull request: **#82 — `H3b2e: complete external image digest pinning`**.
-Next implementation gate: **H3b2e only — validate the final PR head, merge if green, canonicalize H3/H3b2 completion, retire the branch, then stop**.
+Active development branch: **none**.
+Active work pull request: **none**.
+Next implementation gate: **H4 first security slice — close public Task dispatch / execution binding P0**.
+H3b2e merged as `6286819f1cf924dd1338311e8e43a1941c496dba`. `hardening/h3b2e-final-image-pins` is retired and must not be reused. Product work remains paused.
 
 ### H1 — Memory/Auth handoff
 
@@ -289,12 +290,13 @@ The same exact final head also triggered eight push-event mirrors. The final che
 
 ### H3b2e — Final external image digest pins
 
-Pending merge checkpoint:
+Canonical merge checkpoint:
 
 - PR #82 — `H3b2e: complete external image digest pinning`;
 - base `main` at branch creation: `0a03a7457df38debd28ccd7c73a634b03c393ca9`;
 - validated technical head: `f0b19cfaaffd5a6563a229af2858cb02579a30cd`;
-- final PR head: this checkpoint commit, pending final-head CI validation before merge.
+- final validated PR head: `566d561303fe8367fd5edd7c4da951813e86be0b`;
+- merge commit: `6286819f1cf924dd1338311e8e43a1941c496dba`.
 
 H3b2e is the **final H3b2 implementation gate**. It consumes the complete remaining baseline debt set in one bounded final batch. No H3b2f is planned unless final validation exposes a genuine blocking defect.
 
@@ -340,9 +342,20 @@ Technical-head validation on exact technical tree/head `f0b19cfaaffd5a6563a229af
 - UI workspace validation — run `34594207102` — success;
 - Code quality validation — run `34594207064` — success.
 
-PR #82 must not merge until this checkpoint-created final PR head has its own green pull-request workflow proof. H3b2 and H3 become canonical complete only after that merge and the post-merge checkpoint update.
+Final corrected head `566d561303fe8367fd5edd7c4da951813e86be0b` passed **16/16 workflows** (8 push + 8 pull_request). All eight PR runs succeeded:
 
-H3b2 technical debt is now **0** on the PR branch. Do not begin H4 until H3b2e is merged and canonicalized.
+- UI workspace validation — `34597787366` — success;
+- Code quality validation — `34597787297` — success;
+- Document ingestion validation — `34597787361` — success;
+- Baseline reproducibility validation — `34597787375` — success;
+- MCP tool registry validation — `34597787288` — success;
+- Multi-user isolation validation — `34597787354` — success;
+- Foundation validation — `34597787301` — success;
+- Autonomous research validation — `34597787340` — success;
+
+Foundation passed all eight jobs, including the repaired memory integration. Autonomous research passed real Worker SIGKILL replay.
+The tested PR merge ref `615055a7414bfa71d505c9bece9c6742d7af9f6f` and head shared tree `e756c733504906ba80abbd134c22ea5c2ef33226`. Expected-head merge and live-main verification succeeded.
+Baseline v8 records **0** remaining unpinned references; this does not cover runtime-downloaded models or dynamically created containers.
 
 ## Independent audit and Foundation repair — 2026-09-11
 
@@ -350,8 +363,8 @@ H3b2 technical debt is now **0** on the PR branch. Do not begin H4 until H3b2e i
 - See [independent audit](docs/audit-2026-09-11.md) for evidence, service inventory and priorities. This checkpoint supersedes claims that no work branch is active.
 - Original final-head CI: 14/16 runs successful. Foundation PR run `34594823443` failed on the memory smoke's premature Task-completion assertion. Foundation push run `34594817407` failed earlier on a Docker Hub connection reset, not on that assertion.
 - The PR technical tree and previously green `f0b19cf…` differ only by checkpoint documentation. All 21 registry digests match Compose and baseline v8; configured tags are unchanged.
-- Repair in progress on the existing #82 branch: seed a canonical ORM message/outbox event without dispatching News, wait for each memory Task's actual completion with a monotonic deadline, reject failed Tasks immediately, and verify no unrelated Tasks were created.
-- Four synchronization regression cases pass locally; source compilation and the existing reproducibility contract pass. Docker integration and final-head CI remain required before merge.
+- Repair integrated through #82: seed a canonical ORM message/outbox event without dispatching News, wait for each memory Task's actual completion with a monotonic deadline, reject failed Tasks immediately, and verify no unrelated Tasks were created.
+- Four synchronization regression cases pass locally; source compilation and the existing reproducibility contract pass. The real Docker memory integration and all final-head CI subsequently passed, as recorded above.
 - **P0 discovered:** generic public Task creation can choose internal capabilities; the completed MCP-result path does not bind its context to the currently executing Task. The exact Worker function reproduced a foreign-result return using synthetic data. After #82, the first security gate must close public dispatch and add cross-owner execution/replay regressions. Do not call the multi-user boundary fully secure based only on existing green reads/ownership tests.
 - Other audited concerns: blocking Docling call in the async Worker; admission/resource/budget limits; shared deployment credentials/network; unbounded SQL/result materialization; retry/retention; unused components and incomplete real-engine proof.
 - No H4/H5 completion and no product feature work are claimed. Per the current user mandate, continue from #82 into the explicit P0 security gate once #82 is validated and canonicalized; do not silently resume feature development.
@@ -375,18 +388,10 @@ The exact R7 baseline `6cf3647a...` passed the canonical workflow suite, includi
 
 ## Next action
 
-Complete **H3b2e only — the final H3b2 external-image gate**:
+Start a fresh **H4 security slice** from live `main` to close the P0 public Task/internal capability dispatch boundary recorded in the independent audit. This explicit next gate is authorized by the current audit mandate; no product features are included.
 
-- validate this checkpoint-created final PR head on PR #82;
-- require all 8 canonical pull-request workflows to complete successfully, including Foundation and the real Worker SIGKILL Research replay;
-- verify the PR head has not moved and remains mergeable;
-- merge PR #82 using the expected-head guard;
-- fetch live `main` and canonicalize H3b2e with the merge SHA and final-head workflow evidence;
-- mark **H3b2 complete** and therefore **H3 complete**;
-- retire `hardening/h3b2e-final-image-pins` and stop.
-
-Do not create H3b2f unless final H3b2e validation exposes a genuine blocking defect.
-
-Do not begin H4 in the same gate execution. H4 becomes the next gate only after H3b2/H3 are canonical complete.
-
-Do not begin Gantt, Calendar, Brain, Finance/Crypto, voice or other product work until H5 is complete.
+- Reject public creation of tasks reserved for internal capability dispatch and system/agent identity.
+- Verify runtime Task/resource bindings before returning completed tool results or propagating failures; cover already-created foreign-task payloads.
+- Add authenticated two-user regression evidence and retain legitimate replay, ownership, Research and policy behavior.
+- Keep remaining H4 production/resource work and H5 real-engine/load validation open.
+- Do not reuse the retired H3b2e branch.
