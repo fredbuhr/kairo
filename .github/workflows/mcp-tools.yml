@@ -14,8 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+      - name: Prove uv workspace lockfile matches declarations
+        run: uv lock --check
       - name: Prove MCP SDK v2 client/tool contract
-        run: uv run --project services/worker python scripts/smoke/mcp_tool_contract.py
+        run: uv run --locked --project services/worker python scripts/smoke/mcp_tool_contract.py
 
   tool-registry-integration:
     runs-on: ubuntu-latest
