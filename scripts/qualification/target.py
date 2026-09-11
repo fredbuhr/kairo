@@ -52,6 +52,13 @@ async def load(args):
     evidence.save()
     semaphore=asyncio.Semaphore(args.concurrency)
     async with httpx.AsyncClient(base_url=args.core,timeout=10,trust_env=False,follow_redirects=False) as client:
+        # A development/noauth deployment cannot yield an authenticated capacity proof.
+        anonymous=await client.get('/v1/projects?limit=1')
+        if anonymous.status_code not in {401,403}:
+            evidence.data['cases'].append({'id':'anonymous-access-rejected','status':'failed'})
+            evidence.save()
+            raise SystemExit('Target accepts anonymous access; authenticated load refused')
+        evidence.data['anonymous_access_rejected']=True;evidence.save()
         for count in (1,10,100,1000):
             latencies=[];errors=0;started=time.monotonic()
             row={'id':f'read-load-{count}', 'virtual_clients':count, 'status':'running'}

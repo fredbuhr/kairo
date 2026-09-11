@@ -18,6 +18,9 @@ class Handler(BaseHTTPRequestHandler):
     lock=threading.Lock()
 
     def do_GET(self):
+        if not self.headers.get('Authorization'):
+            self.send_response(401);self.send_header('Content-Length','2');self.end_headers()
+            self.wfile.write(b'{}');return
         with self.lock:
             type(self).requests+=1
             self.paths.add(self.path)
@@ -51,6 +54,7 @@ class Contract(unittest.TestCase):
                 self.assertNotIn(fake,result.stdout+result.stderr+json.dumps(report))
                 self.assertEqual(report['authenticated_subject_count'],1)
                 self.assertEqual(report['d04_gate'],'incomplete')
+                self.assertTrue(report['anonymous_access_rejected'])
                 self.assertEqual(Handler.paths,{'/v1/projects?limit=20','/v1/today','/v1/work-capacity'})
                 return result,report
         finally:

@@ -74,6 +74,28 @@ async def jetstream(write):
         await client.close()
 
 
+def filer_readback(client):
+    # An HTTP-ready filer can precede restored volume registration with the master.
+    # Require the original bytes, before backup as well as after restoration.
+    deadline = time.monotonic() + 45
+    attempts = []
+    while time.monotonic() < deadline:
+        try:
+            response = client.get('http://127.0.0.1:8888/d04/proof.txt', timeout=4)
+            state = {'status': response.status_code, 'bytes': len(response.content),
+                     'sha256': hashlib.sha256(response.content).hexdigest()}
+            attempts.append(state)
+            if response.status_code == 200 and response.content == PROOF:
+                return {'attempts': len(attempts), 'observed_statuses': sorted({
+                    row['status'] for row in attempts if 'status' in row}), **state}
+        except httpx.HTTPError as exc:
+            attempts.append({'error_class': type(exc).__name__})
+        time.sleep(1)
+    print(json.dumps({'filer_readback_attempts': attempts}), flush=True)
+    cmd(BASE + ['logs', '--no-color', '--tail=100', 'seaweedfs'])
+    raise AssertionError('Original filer object unavailable within 45 seconds')
+
+
 def volume_json(action, data=None):
     # Test-only recovery material is itself inside the encrypted snapshot; never uploaded in clear.
     path='/restore/openbao/d04-fixture-recovery.json'
@@ -89,6 +111,8 @@ def seed_and_policy():
     asyncio.run(jetstream(True))
     with httpx.Client(timeout=10, trust_env=False) as client:
         client.post('http://127.0.0.1:8888/d04/proof.txt', files={'file':('proof.txt',PROOF)}).raise_for_status()
+        filer = filer_readback(client)
+        cmd(BASE + ['exec', '-T', 'seaweedfs', 'test', '-d', '/data/filerldb2'])
         keys=bao(client,'PUT','sys/init',data={'secret_shares':1,'secret_threshold':1})
         root=keys['root_token']; unseal=keys['keys_base64'][0]
         bao(client,'PUT','sys/unseal',data={'key':unseal})
@@ -103,7 +127,7 @@ def seed_and_policy():
                                   ('LIST','secret/metadata/kairo',None),('PUT','sys/policies/acl/forbidden',{'policy':'path "*" { capabilities=["sudo"] }'})]:
             bao(client,method,path,token=token,data=data,expected=(403,))
         volume_json('write',{'unseal':unseal,'workload_token':token})
-    return {'sql':True,'jetstream_message':True,'filer_object':True,'openbao_file_backend':True,
+    return {'sql':True,'jetstream_message':True,'filer_object':filer,'filer_metadata_in_durable_volume':True,'openbao_file_backend':True,
             'workload_read_only':True,'forbidden_openbao_operations':4}
 
 
@@ -112,10 +136,11 @@ def readback():
     asyncio.run(jetstream(False))
     keys=volume_json('read')
     with httpx.Client(timeout=10, trust_env=False) as client:
-        assert client.get('http://127.0.0.1:8888/d04/proof.txt').content==PROOF
+        filer = filer_readback(client)
         bao(client,'PUT','sys/unseal',data={'key':keys['unseal']})
         assert bao(client,'GET','secret/data/kairo/d04-proof',token=keys['workload_token'])['data']['data']['value']==PROOF.decode()
     return {'sql_row':True,'jetstream_seq_1':True,'filer_sha256':hashlib.sha256(PROOF).hexdigest(),
+            'filer_object':filer,
             'openbao_unsealed_and_workload_read':True}
 
 

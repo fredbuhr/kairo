@@ -71,7 +71,8 @@ uv run --locked --project services/worker python scripts/qualification/target.py
 Le fichier de tokens est un tableau JSON de jetons d'accès, jamais committé. Les jetons ne sont pas
 imprimés. L'inventaire doit être lancé sur le serveur ; le matériel enregistré par la commande `load`
 est celui du générateur de charge, qui peut être une autre machine. Le rapport distingue clients virtuels,
-comptes réellement utilisés, requêtes et concurrence :
+comptes réellement utilisés, requêtes et concurrence. Un contrôle préalable refuse de mesurer une
+cible qui accepte l'accès anonyme aux projets.
 1000 clients utilisant un compte ne deviennent pas 1000 utilisateurs authentifiés distincts. Cette
 charge ne fait que lire ; elle ne mesure pas 1000 générations IA simultanées. Les tests D02 restent
 la preuve des transactions d'admission et rafales synthétiques ; ne pas dupliquer ce simulateur ici.
