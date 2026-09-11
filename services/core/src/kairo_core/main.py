@@ -25,6 +25,7 @@ from .models import OutboxEvent, Project, RelationshipRecord, Task
 from .news import router as news_router
 from .openbao import openbao_client
 from .outbox import OutboxRelay
+from .planning import router as planning_router
 from .project_access import (
     get_owned_project,
     owned_project_clause,
@@ -81,6 +82,7 @@ app.include_router(research_context_router)
 app.include_router(research_results_router)
 app.include_router(news_router)
 app.include_router(assistant_router)
+app.include_router(planning_router)
 app.include_router(ui_layouts_router)
 app.include_router(resources_router)
 app.include_router(assets_router)

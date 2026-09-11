@@ -22,10 +22,14 @@ jobs:
         run: uv run --project services/core python scripts/smoke/project_bound_task_contract.py
       - name: Prove Task execution and Artifact ownership wrapper
         run: uv run --project services/core python scripts/smoke/task_execution_ownership_contract.py
-      - name: Compile Core UI ownership modules
+      - name: Prove Daily Spine planning and Today workspace contract
+        run: uv run --project services/core python scripts/smoke/daily_spine_contract.py
+      - name: Compile Core UI ownership and planning modules
         run: >-
           python -m compileall
           services/core/src/kairo_core/ui_layouts.py
           services/core/src/kairo_core/ui_models.py
           services/core/src/kairo_core/project_access.py
+          services/core/src/kairo_core/planning.py
+          services/core/src/kairo_core/planning_schemas.py
           services/core/src/kairo_core/workflows.py

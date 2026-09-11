@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, time as dt_time
 import json
 import os
 import time
@@ -19,6 +20,14 @@ INTERNAL_TOKEN = os.getenv("KAIRO_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
 
 USER_A = ("kairo-dev", "kairo-dev")
 USER_B = ("kairo-dev-2", "kairo-dev-2")
+TODAY_BUCKETS = (
+    "overdue",
+    "in_progress",
+    "due_today",
+    "planned",
+    "completed_today",
+    "backlog",
+)
 
 
 def request(
@@ -109,6 +118,16 @@ def access_token(username: str, password: str) -> str:
     return token
 
 
+def today_task_ids(view: dict[str, Any]) -> set[str]:
+    ids: set[str] = set()
+    for bucket in TODAY_BUCKETS:
+        for item in view.get(bucket, []):
+            task = item.get("task") or {}
+            if task.get("id"):
+                ids.add(str(task["id"]))
+    return ids
+
+
 def main() -> int:
     wait_for(f"{KEYCLOAK}/realms/{REALM}/.well-known/openid-configuration", "Keycloak realm")
     wait_for(f"{CORE}/health/ready", "KAIRO Core")
@@ -160,6 +179,45 @@ def main() -> int:
         },
         expected={201},
     )
+    assert task_a["priority"] == 2 and task_a["due_at"] is None, task_a
+    assert task_b["priority"] == 2 and task_b["planned_start_at"] is None, task_b
+
+    # Daily planning is canonical Task state and remains owner-scoped end-to-end.
+    utc_day = datetime.now(UTC).date()
+    day_text = utc_day.isoformat()
+    due_midday = datetime.combine(utc_day, dt_time(hour=12), tzinfo=UTC).isoformat()
+    _, planned_a = json_request(
+        "PATCH",
+        f"/v1/tasks/{task_a['id']}",
+        token=token_a,
+        payload={"priority": 4, "due_at": due_midday},
+        expected={200},
+    )
+    assert planned_a["priority"] == 4 and planned_a["due_at"], planned_a
+    json_request(
+        "PATCH",
+        f"/v1/tasks/{task_a['id']}",
+        token=token_b,
+        payload={"priority": 0},
+        expected={404},
+    )
+
+    _, today_a = json_request(
+        "GET",
+        f"/v1/today?day={day_text}&timezone=UTC",
+        token=token_a,
+        expected={200},
+    )
+    _, today_b = json_request(
+        "GET",
+        f"/v1/today?day={day_text}&timezone=UTC",
+        token=token_b,
+        expected={200},
+    )
+    assert task_a["id"] in {item["task"]["id"] for item in today_a["due_today"]}, today_a
+    assert task_b["id"] not in today_task_ids(today_a), today_a
+    assert task_a["id"] not in today_task_ids(today_b), today_b
+    assert task_b["id"] in {item["task"]["id"] for item in today_b["backlog"]}, today_b
 
     # Relationship endpoints fail closed for foreign or mixed-owner endpoints.
     _, relationship = json_request(
@@ -378,9 +436,44 @@ def main() -> int:
         expected={404},
     )
 
+    # Manual completion participates in Today, but status control becomes Worker-owned once a
+    # Temporal WorkflowExecution exists.
+    _, completed_a = json_request(
+        "PATCH",
+        f"/v1/tasks/{task_a['id']}",
+        token=token_a,
+        payload={"status": "completed"},
+        expected={200},
+    )
+    assert completed_a["status"] == "completed" and completed_a["completed_at"], completed_a
+    _, today_completed_a = json_request(
+        "GET",
+        f"/v1/today?day={day_text}&timezone=UTC",
+        token=token_a,
+        expected={200},
+    )
+    assert task_a["id"] in {
+        item["task"]["id"] for item in today_completed_a["completed_today"]
+    }, today_completed_a
+
+    json_request(
+        "POST",
+        f"/v1/tasks/{task_b['id']}/run",
+        token=token_b,
+        expected={200},
+    )
+    json_request(
+        "PATCH",
+        f"/v1/tasks/{task_b['id']}",
+        token=token_b,
+        payload={"status": "completed"},
+        expected={409},
+    )
+
     print(
-        "PASS: two authenticated users are isolated across Relationships, approvals, budgets, "
-        "ToolInvocations/idempotency, memory projection reads and detailed system diagnostics"
+        "PASS: two authenticated users are isolated across planning/Today, Relationships, "
+        "approvals, budgets, ToolInvocations/idempotency, memory projection reads and detailed "
+        "system diagnostics; Workflow-managed Task status remains Worker-owned"
     )
     return 0
 
