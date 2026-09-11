@@ -12,7 +12,7 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 - H2 Code hygiene: PR #75, merge `31e53b88135ac2db4600bb00a4112bc14d46ba5d`.
 - H3a Dependency locks/frozen direct CI: PR #76, merge `ecc3394a648070b16ab4505e07706006999ab945`.
 - H3b1 Locked KAIRO container builds: PR #77, merge `e43e192938ce412f534eb68e989e7408289be3be`.
-- Canonical main checkpoint before H3b2a: `e8351c3d33f21d2e6b6244af284b47c6a66285e6`.
+- H3b2a KAIRO Node build-base digest pins: PR #78, merge `f51ac9c0b00c46b046bb24b751540d204763bcbc`.
 - `AGENTS.md` and this file define repository recovery/resume discipline.
 - Rule: always fetch live `main` before acting. GitHub wins over chat memory or recorded checkpoint SHAs.
 
@@ -31,14 +31,14 @@ Product feature work remains paused until H5 is complete.
    - **H3a — Dependency locks/frozen direct CI: complete and canonical.**
    - **H3b1 — Locked KAIRO container builds: complete and canonical.**
    - **H3b2 — External image pinning/debt reduction: in progress through bounded sub-gates.**
-     - **H3b2a — KAIRO Node build-base digest pins: implementation validated; PR/merge next.**
-     - **Remaining H3b2 image debt: not started.**
+     - **H3b2a — KAIRO Node build-base digest pins: complete and canonical.**
+     - **Remaining H3b2 image debt: 29 references; next bounded pin batch not started.**
 4. **H4 — Production/auth boundary: not started.**
 5. **H5 — Full revalidation + real-engine/production checks + post-audit tag: not started.**
 
-Active development branch: `hardening/h3b2a-node-image-pins`.
-Active work pull request: **none yet**.
-H3b2a validated technical head: `538af6072bee2239187339a0bf66bda8c29fa916`.
+Active development branch: **none**.
+Active work pull request: **none**.
+Next implementation gate: **H3b2 only — next small, coherent image-pin batch from the remaining 29 references**.
 
 ### H1 — Memory/Auth handoff
 
@@ -92,37 +92,49 @@ H3b1 solves **KAIRO-owned container dependency/build reproducibility only**. Cor
 
 ### H3b2a — KAIRO Node build-base digest pins
 
-H3b2a is deliberately limited to the two KAIRO-owned Node build-base references. No Compose service image is changed in this sub-gate.
+Canonical merge:
 
-Implementation on validated technical head `538af6072bee2239187339a0bf66bda8c29fa916`:
+- PR #78 — `H3b2a: pin KAIRO Node build images by digest`;
+- merge commit: `f51ac9c0b00c46b046bb24b751540d204763bcbc`;
+- validated technical head: `538af6072bee2239187339a0bf66bda8c29fa916`;
+- final validated PR head: `93ad537c29d2862d210f977ab8344ef9b0c6fcd7`.
+
+H3b2a is deliberately limited to the two KAIRO-owned Node build-base references. No Compose service image changed in this sub-gate.
+
+Canonical H3b2a changes:
 
 1. `apps/web/Dockerfile` pins `node:22-alpine` to `sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32`.
 2. `services/realtime/Dockerfile` pins the same `node:22-alpine` image to the same digest.
-3. That exact Node digest was already observed and successfully used by the final H3b1 Reproducibility build, so H3b2a does not change the intended Node tag/version line.
+3. The digest was already observed and successfully used by the final H3b1 Reproducibility build, so the intended Node tag/version line did not change.
 4. `config/reproducibility-baseline.json` advances to version 4, records both Node Dockerfiles as validated digest pins, and reduces known unpinned-image debt from **31 to 29** references.
-5. `scripts/smoke/reproducibility_contract.py` keeps the same fail-closed behavior; only its success message is generalized from the H3b1-specific wording to the current reproducibility baseline.
+5. `scripts/smoke/reproducibility_contract.py` keeps the same fail-closed behavior; only its success message is generalized beyond H3b1.
 
-Technical diff versus canonical pre-H3b2a `main` is exactly four files before this checkpoint:
+Final PR diff contained exactly four H3b2a technical files plus this checkpoint file:
 
 - `apps/web/Dockerfile`;
 - `services/realtime/Dockerfile`;
 - `config/reproducibility-baseline.json`;
-- `scripts/smoke/reproducibility_contract.py`.
+- `scripts/smoke/reproducibility_contract.py`;
+- `PROJECT_STATE.md` — checkpoint evidence only.
 
-Validation on exact technical head `538af607...`: **8/8 push workflows success**:
+Technical-head validation on `538af607...`: **8/8 push workflows success**.
 
-- Baseline reproducibility validation — run `34587219896` — success, including real KAIRO container builds using the digest-pinned Node base;
-- Foundation validation — run `34587219893` — success;
-- Autonomous Research validation — run `34587219916` — success, including the real Worker SIGKILL replay proof;
-- MCP tool registry validation — run `34587219921` — success;
-- Multi-user isolation validation — run `34587219888` — success;
-- Document ingestion validation — run `34587219886` — success;
-- UI workspace validation — run `34587219917` — success;
-- Code quality validation — run `34587219906` — success.
+Final PR-head validation on exact head `93ad537c...`: **8/8 workflows success**:
 
-News ownership is path-filtered and was not triggered by this H3b2a file set.
+- Baseline reproducibility validation — run `34587827514` — success, including real KAIRO container builds using the digest-pinned Node base;
+- Foundation validation — run `34587827426` — success;
+- Autonomous Research validation — run `34587827470` — success, including the real Worker SIGKILL replay proof;
+- MCP tool registry validation — run `34587827453` — success;
+- Multi-user isolation validation — run `34587827466` — success;
+- Document ingestion validation — run `34587827429` — success;
+- UI workspace validation — run `34587827443` — success;
+- Code quality validation — run `34587827448` — success.
 
-H3b2a is not canonical until its PR is merged. Do not pin any additional image on this branch.
+News ownership was path-filtered and was not triggered by this H3b2a file set.
+
+`hardening/h3b2a-node-image-pins` is retired after merge and must not be reused. The inert remote ref may remain.
+
+H3b2 is **not complete**: 29 unpinned/moving image references remain recorded in the reproducibility baseline. Do not begin H4 yet.
 
 ## Canonical branch policy
 
@@ -143,16 +155,17 @@ The exact R7 baseline `6cf3647a...` passed the canonical workflow suite, includi
 
 ## Next action
 
-Finish **H3b2a only — KAIRO Node build-base digest pins**:
+Continue **H3b2 only — External image pinning/debt reduction** through another small branch created fresh from live `main`.
 
-1. confirm the final diff remains the four H3b2a technical files plus this checkpoint file only;
-2. open a PR from `hardening/h3b2a-node-image-pins` to live `main`;
-3. require all final PR-head checks to be green;
-4. merge H3b2a;
-5. update canonical `PROJECT_STATE.md` with the PR/merge result and mark H3b2a complete;
-6. retire the H3b2a branch;
-7. stop before the next H3b2 image-pin batch.
+The next H3b2 sub-gate should:
 
-After H3b2a is canonical, continue H3b2 only through another small branch fresh from live `main`, prioritizing a coherent, verifiable subset of the remaining **29** unpinned/moving image references. Do not begin H4 until H3b2 is explicitly complete.
+- select one coherent, verifiable subset from the remaining **29** unpinned/moving image references;
+- preserve service versions and runtime behavior while replacing moving references with immutable digests where verifiable;
+- update the reproducibility baseline only alongside concrete debt reduction;
+- remain narrow enough for targeted runtime/CI validation;
+- not mix H4 production/auth-boundary work or product features;
+- stop and checkpoint after that sub-gate before selecting another batch.
+
+Do not begin H4 until H3b2 is explicitly complete.
 
 Do not begin Gantt, Calendar, Brain, Finance/Crypto, voice or other product work until H5 is complete.
