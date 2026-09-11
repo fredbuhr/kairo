@@ -1,103 +1,39 @@
-# KAIRO roadmap
+# KAIRO — ordre des livraisons
 
-The roadmap is aligned with the implementation blocks in [`implementation-plan.md`](implementation-plan.md), but this file reflects the **current sequencing from canonical `main`**.
+Révision : 2026-09-11. Le [plan détaillé](implementation-plan.md) porte périmètres, dépendances
+et critères de sortie. [PROJECT_STATE](../PROJECT_STATE.md) seul indique le lot actif et les preuves.
+Les lots ci-dessous sont planifiés ; ils ne constituent pas des fonctionnalités déjà livrées.
 
-## Current sequencing — 2026-09-11
+| Phase | Lots, dans l'ordre nominal | Résultat |
+|---|---|---|
+| A — fiabilité | D01 Worker borné → D02 admission/budgets/données → D03 déploiement/topologie → D04 preuves réelles H5 | Socle utilisable et récupérable, limites connues |
+| B — produit visuel | D05 cockpit → D06 Gantt/calendrier → D07 connaissances → D08 mindmap 2D → D09 Mycelium 3D → D10 assistant contextuel | Un espace cohérent pour penser, planifier et agir |
+| C — vie quotidienne | D11 connecteurs → D12 attention/synchronisation → D13 pilote personnel à deux | Première version utilisable chaque jour |
+| D — présence/autonomie | D14 Desktop → D15 voix → D16 automatisations/browser → D17 agent dev | Assistant disponible sur les appareils, actions contrôlées |
+| E — extensions/exploitation | D18 finance/crypto lecture → D19 simulations → D20 maison/cartes → D21 capacité/coûts → D22 distribution | Modules utiles puis lancement maîtrisé |
 
-The platform/system-of-record foundation is complete, the core Block 2 intelligence/autonomy exit has been reached, and **G51 Daily Spine is integrated in `main`**.
+## Jalons
 
-Current work is **Repository Reset**, not new product development.
+1. **Socle post-audit :** D04 terminé, tag H5 et rapport de vrais moteurs/récupération.
+2. **Expérience graphique intégrée :** D10 terminé, données partagées entre Today, Gantt et mindmaps 2D/3D.
+3. **Pilote personnel :** D13 terminé, deux comptes et parcours quotidien sur installation privée.
+4. **Assistant étendu :** D17 terminé, appareils/voix/automatisations sous permissions.
+5. **Offre distribuable :** D22 terminé pour un périmètre et une capacité explicitement validés.
 
-- R0 — establish repository truth: complete;
-- R1 — install `AGENTS.md` + `PROJECT_STATE.md`: complete;
-- R2 — validate and promote G51 / PR #73: complete;
-- R3 — synchronize canonical status/roadmap/component maturity: complete;
-- R4 — inventory branches and PRs: complete;
-- R5a/R5b/R5c — close/remove superseded Git refs: complete;
-- R6 — inventory files/directories and archive true historical evidence: complete;
-- R7 — create a clean tagged baseline with green CI: next.
+Les dépendances précises du plan permettent de déplacer un module optionnel si l'utilisateur
+le priorise, sans sauter ses prérequis ni laisser deux branches de développement actives.
+La totalité des modules spécialisés n'est pas nécessaire au pilote D13. La 3D fait partie
+du produit visé, mais une voie 2D accessible reste disponible.
 
-R6 found no safely removable active implementation files; intentional scaffolds remain explicit and one dated implementation audit was moved to the historical archive. No Gantt, Calendar, Brain, Finance/Crypto, voice or other new product slice should start before R7.
+## Passage depuis l'ancien plan
 
-## Foundation
+- R0–R7 : reset terminé. Ne plus le reprendre comme prochaine étape.
+- H1–H3 : intégrés ; le P0 de dispatch H4 est corrigé par #83.
+- H4 restant : D01–D03 ; H5 : D04. Aucune nouvelle fonction produit avant cette sortie.
+- G51 : base de planification présente, reprise dans D06.
+- Anciens blocs 0–2 : fondations présentes, intégrations optionnelles encore à finir.
+- Ancien bloc 3 : D05–D13 ; bloc 4 : D11–D16 ; bloc 5 : D17–D20 ; bloc 6 : D01–D04/D21–D22.
 
-**Status: complete for current development scope.**
-
-PostgreSQL/pgvector, object storage, eventing, identity, secrets, Temporal, canonical migrations, recovery and core service topology are established as the permanent substrate.
-
-Production hardening continues later; “foundation complete” does not mean commercial production-ready.
-
-## System of record
-
-**Status: complete.**
-
-PostgreSQL remains authoritative for domain state. SeaweedFS owns binary objects behind KAIRO references. NATS events are derived from the transactional outbox. Temporal owns in-flight workflow execution rather than replacing canonical business state.
-
-## Intelligence and autonomy
-
-**Status: core exit reached and integrated.**
-
-The canonical line includes LiteLLM routing/accounting, PydanticAI routing/agents, rebuildable memory projections, Docling ingestion, MCP tools, bounded Research, policy/approval/budget boundaries and destructive replay tests.
-
-Later deepening of browser automation, automation engines and specialist agents must reuse the same Task/Artifact/policy/audit ownership contracts rather than inventing parallel control planes.
-
-## Cockpit and planning
-
-**Status: G51 Daily Spine integrated; major Block 3 work remains.**
-
-Already present:
-
-- Cockpit shell and subject-scoped workspace layouts;
-- Projects;
-- Today;
-- Research;
-- News;
-- Knowledge ingestion/search/inspection;
-- canonical Task priority/planning/due fields;
-- owner-scoped planning updates;
-- timezone-aware Today semantics.
-
-After Repository Reset, continue Block 3 in this order:
-
-1. **Gantt + Calendar** directly on the G51 Task planning model;
-2. **2D/3D Brain / graph** on canonical Relationships and derived knowledge context;
-3. **collaboration/realtime** with canonical persistence;
-4. **universal search** across Projects, Tasks, documents, knowledge and graph surfaces.
-
-Do not treat installed UI dependencies as completed capabilities: the current Gantt and graph packages are still scaffolds.
-
-## Presence and devices
-
-**Status: architecture/scaffolding only.**
-
-Build the Tauri Sidecar, bounded local permissions, notifications, microphone/screen/clipboard/filesystem access, voice orchestration, global summon and private cross-device presence only after Block 3 shares stable canonical state.
-
-## Specialist systems
-
-**Status: declared/configured engines; stable product integrations not complete.**
-
-Integrate OpenHands, Finance/Crypto engines and Home Assistant behind KAIRO-owned domain, policy, approval, secret and audit contracts.
-
-Optional Compose profiles are not considered product completion.
-
-## Production hardening
-
-**Status: continuous; commercial readiness not reached.**
-
-Remaining work includes:
-
-- complete dependency lock/reproducibility policy;
-- immutable image/SBOM controls;
-- stronger sandboxing;
-- controlled upgrades and rollback;
-- off-host encrypted backup drills;
-- load/performance testing;
-- production TLS/network exposure policy;
-- observability/alerting maturity;
-- complete data lifecycle and erasure behavior.
-
-## Architectural rule
-
-The component registry is intentionally broader than the current implementation. A component may be declared early so dependencies, licensing and ownership boundaries are explicit.
-
-Roadmap sequencing controls **implementation depth**, not whether an eventual dependency is acknowledged. Component maturity is tracked separately in [`component-matrix.md`](component-matrix.md).
+Le registre des composants reste plus large que le runtime nécessaire. Déclarer un moteur
+n'impose pas de le démarrer ni de lui fabriquer un consommateur. Les décisions KISS de l'audit
+priment sur une conservation historique sans usage.

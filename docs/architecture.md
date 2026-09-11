@@ -1,5 +1,11 @@
 # KAIRO platform architecture
 
+This document combines implemented boundaries and target responsibilities. Current maturity is
+in [component-matrix](component-matrix.md), current delivery in [status](status.md), and planned
+work in [implementation-plan](implementation-plan.md). In particular, realtime persistence,
+Desktop/voice, general browser automation and specialist adapters described below remain targets.
+The component registry is not a requirement to start every service; D03 simplifies actual topology.
+
 ## Architectural objective
 
 KAIRO is built as a modular personal AI operating system with a **KAIRO-owned shell, domain model, policy boundary and API**, backed by replaceable open-source engines.
@@ -67,7 +73,18 @@ Runs Temporal workers and AI activities:
 - integration calls that have already passed policy checks.
 
 ### `kairo-realtime`
-Hocuspocus/Yjs collaboration plane for documents, mindmaps, Gantt interaction and live multi-device presence. Realtime state is periodically/transactionally materialized into canonical KAIRO records; Yjs is not the domain system of record.
+Target Hocuspocus/Yjs collaboration plane for documents, mindmaps, Gantt interaction and live
+multi-device presence. Canonical authentication/persistence are not implemented yet. D12 must
+materialize durable state into KAIRO records; Yjs must not become the domain system of record.
+
+### Shared planning and visual state
+
+G51 supplies Task planning dates/priority. D06 adds scheduling semantics to those canonical Tasks;
+the Gantt, calendar, Today and lists are views over the same identities. D07–D09 add editable
+knowledge/relationships and 2D/3D projections. Per-user viewport positions, camera and grouping
+preferences are separate from domain relations and permissions. A visual rearrangement must not
+silently reschedule work or grant access. Derived Graphiti suggestions retain provenance and do
+not overwrite user-authored facts/decisions without an explicit accepted mutation.
 
 ### `kairo-web`
 The customizable Cockpit. Dockable workspaces and shared KAIRO view models prevent each feature from becoming a disconnected app.
