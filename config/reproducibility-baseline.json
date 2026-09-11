@@ -1,15 +1,16 @@
 {
-  "version": 3,
+  "version": 4,
   "baseline_date": "2026-09-11",
-  "validated_parent_sha": "31bc227b9a706842379f0ebfda29268f90c5b292",
+  "validated_parent_sha": "e8351c3d33f21d2e6b6244af284b47c6a66285e6",
   "expected_package_manager": "pnpm@10.15.1",
   "expected_uv_version": "==0.12.13",
   "validated_digest_pins": {
+    "apps/web/Dockerfile": "node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
     "services/core/Dockerfile": "ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58",
+    "services/realtime/Dockerfile": "node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
     "services/worker/Dockerfile": "ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58"
   },
   "known_unpinned_images": [
-    ["apps/web/Dockerfile", "node:22-alpine"],
     ["compose.ops.yaml", "alpine:3.22"],
     ["compose.ops.yaml", "restic/restic:0.19.1"],
     ["compose.yaml", "actualbudget/actual-server:latest"],
@@ -38,8 +39,7 @@
     ["compose.yaml", "temporalio/server:${TEMPORAL_VERSION}"],
     ["compose.yaml", "temporalio/ui:${TEMPORAL_UI_VERSION}"],
     ["compose.yaml", "valkey/valkey:8.1.10-alpine"],
-    ["compose.yaml", "vllm/vllm-openai:latest"],
-    ["services/realtime/Dockerfile", "node:22-alpine"]
+    ["compose.yaml", "vllm/vllm-openai:latest"]
   ],
   "known_unlocked_install_files": {
     "pnpm_no_frozen_lockfile": [],
