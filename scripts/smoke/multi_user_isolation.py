@@ -128,6 +128,35 @@ def today_task_ids(view: dict[str, Any]) -> set[str]:
     return ids
 
 
+def wait_for_memory_projection(
+    message_id: str, token: str, *, timeout: float = 120.0
+) -> dict[str, Any]:
+    """Prove the Worker can start system memory Tasks while public auth stays enabled."""
+
+    deadline = time.monotonic() + timeout
+    last: Any = None
+    while time.monotonic() < deadline:
+        status_code, body = json_request(
+            "GET",
+            f"/v1/memory/projections/conversation-messages/{message_id}",
+            token=token,
+            expected={200, 404},
+        )
+        last = body
+        if status_code == 200:
+            rows = body.get("projectors") or []
+            if (
+                len(rows) == 2
+                and {str(row.get("projector")) for row in rows} == {"mem0", "graphiti"}
+                and all(row.get("status") == "projected" for row in rows)
+            ):
+                return body
+        time.sleep(0.5)
+    raise AssertionError(
+        f"Authenticated memory projection did not complete for {message_id}: {last!r}"
+    )
+
+
 def main() -> int:
     wait_for(f"{KEYCLOAK}/realms/{REALM}/.well-known/openid-configuration", "Keycloak realm")
     wait_for(f"{CORE}/health/ready", "KAIRO Core")
@@ -423,12 +452,15 @@ def main() -> int:
     )
     assert messages, messages
     message_id = messages[0]["id"]
-    json_request(
-        "GET",
-        f"/v1/memory/projections/conversation-messages/{message_id}",
-        token=token_a,
-        expected={200},
-    )
+    projection = wait_for_memory_projection(message_id, token_a)
+    assert {row["projector"] for row in projection["projectors"]} == {
+        "mem0",
+        "graphiti",
+    }, projection
+    assert all(
+        row["metadata"].get("backend") == "deterministic-stub"
+        for row in projection["projectors"]
+    ), projection
     json_request(
         "GET",
         f"/v1/memory/projections/conversation-messages/{message_id}",
@@ -472,8 +504,9 @@ def main() -> int:
 
     print(
         "PASS: two authenticated users are isolated across planning/Today, Relationships, "
-        "approvals, budgets, ToolInvocations/idempotency, memory projection reads and detailed "
-        "system diagnostics; Workflow-managed Task status remains Worker-owned"
+        "approvals, budgets, ToolInvocations/idempotency, authenticated Worker-driven memory "
+        "projection, memory read isolation and detailed system diagnostics; Workflow-managed "
+        "Task status remains Worker-owned"
     )
     return 0
 
