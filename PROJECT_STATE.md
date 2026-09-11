@@ -14,6 +14,7 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 - H3b1 Locked KAIRO container builds: PR #77, merge `e43e192938ce412f534eb68e989e7408289be3be`.
 - H3b2a KAIRO Node build-base digest pins: PR #78, merge `f51ac9c0b00c46b046bb24b751540d204763bcbc`.
 - H3b2b Core Compose service digest pins: PR #79, merge `f510043eb69b63919c6d012208f9b64b2bb63749`.
+- H3b2c Temporal Compose digest pins: PR #80, merge `082a296650d77ebbe247bb3d5360b15e621c2596`.
 - `AGENTS.md` and this file define repository recovery/resume discipline.
 - Rule: always fetch live `main` before acting. GitHub wins over chat memory or recorded checkpoint SHAs.
 
@@ -34,14 +35,14 @@ Product feature work remains paused until H5 is complete.
    - **H3b2 — External image pinning/debt reduction: in progress through bounded sub-gates.**
      - **H3b2a — KAIRO Node build-base digest pins: complete and canonical.**
      - **H3b2b — Core Compose service digest pins: complete and canonical.**
-     - **H3b2c — Temporal Compose digest pins: technically validated; PR #80 pending final-head validation/merge.**
-     - **Remaining H3b2 image debt after H3b2c technical changes: 23 references.**
+     - **H3b2c — Temporal Compose digest pins: complete and canonical.**
+     - **Remaining H3b2 image debt: 23 references.**
 4. **H4 — Production/auth boundary: not started.**
 5. **H5 — Full revalidation + real-engine/production checks + post-audit tag: not started.**
 
-Active development branch: **`hardening/h3b2c-temporal-image-pins`**.
-Active work pull request: **#80 — `H3b2c: pin Temporal images by digest`**.
-Next implementation gate: **H3b2c only — validate the final PR head, merge if green, canonicalize the checkpoint, then stop**.
+Active development branch: **none**.
+Active work pull request: **none**.
+Next implementation gate: **H3b2 only — next small, coherent image-pin batch from the remaining 23 references**.
 
 ### H1 — Memory/Auth handoff
 
@@ -182,27 +183,29 @@ The same exact final head also triggered the eight push-event mirrors; all **16/
 
 ### H3b2c — Temporal Compose digest pins
 
-Pending merge checkpoint:
+Canonical merge:
 
 - PR #80 — `H3b2c: pin Temporal images by digest`;
+- merge commit: `082a296650d77ebbe247bb3d5360b15e621c2596`;
 - base `main` at branch creation: `8a85918ab8fed681093a32ba1b2e1d4242050433`;
 - validated technical head: `d5514db9fa4baf4e22a0f5f594843d5df956ce5e`;
-- final PR head: this checkpoint commit, pending final-head CI validation before merge.
+- final validated PR head: `f0edad27bf7a2ebbc7f905bec8c1cdf52943f33e`.
 
 H3b2c is deliberately limited to the Temporal Compose image family already configured by `.env.example`. No Temporal tag/version changed.
 
-H3b2c technical changes:
+Canonical H3b2c changes:
 
 1. `temporalio/server:${TEMPORAL_VERSION}` keeps `TEMPORAL_VERSION=1.31.2` and is pinned to `sha256:b5ecdb8282bededae2a10c36e8d862e27d0bc2d247fc73c5416025997ab4a1da`.
 2. `temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}` keeps `TEMPORAL_ADMINTOOLS_VERSION=1.31.2` and both Compose uses are pinned to `sha256:dbc5fcd6ee8f0f4d808bf765af9a87dea9d8a283abfdcfbd2fc148496ba66107`.
 3. `temporalio/ui:${TEMPORAL_UI_VERSION}` keeps `TEMPORAL_UI_VERSION=2.53.0` and is pinned to `sha256:810eba47f77a89b0e64e2e751478ca585d037bbd90c0951a2974a92a6c5adeb9`.
 4. `config/reproducibility-baseline.json` advances to version 6, records the three exact Temporal Compose digest tuples, and reduces known unpinned-image debt from **26 to 23** references.
-5. No reproducibility-contract code change is needed: H3b2b already made validated Compose digest pins fail closed on removal or immutable-digest substitution without an explicit baseline update.
+5. No reproducibility-contract code change was needed: H3b2b already made validated Compose digest pins fail closed on removal or immutable-digest substitution without an explicit baseline update.
 
-Technical diff before this checkpoint contained exactly two files:
+Final PR diff contained exactly two H3b2c technical files plus this checkpoint file:
 
 - `compose.yaml`;
-- `config/reproducibility-baseline.json`.
+- `config/reproducibility-baseline.json`;
+- `PROJECT_STATE.md` — checkpoint evidence only.
 
 Technical-head validation on exact head `d5514db9fa4baf4e22a0f5f594843d5df956ce5e`: **8/8 push workflows success**:
 
@@ -215,9 +218,22 @@ Technical-head validation on exact head `d5514db9fa4baf4e22a0f5f594843d5df956ce5
 - Autonomous Research validation — run `34590782588` — success;
 - Baseline reproducibility validation — run `34590782677` — success.
 
-PR #80 must not merge until this checkpoint-created final PR head has its own green final-head workflow proof. No next H3b2 batch, H4 work or product-feature work starts before H3b2c is merged and canonicalized.
+Final PR-head validation on exact head `f0edad27bf7a2ebbc7f905bec8c1cdf52943f33e`: **8/8 pull-request workflows success**:
 
-H3b2 is **not complete**: 23 unpinned/moving image references remain recorded in the reproducibility baseline after the H3b2c technical changes. Do not begin H4 yet.
+- Baseline reproducibility validation — run `34591124988` — success;
+- Foundation validation — run `34591124977` — success;
+- Autonomous Research validation — run `34591125071` — success, including the real Worker SIGKILL replay proof;
+- MCP tool registry validation — run `34591124990` — success;
+- Multi-user isolation validation — run `34591125001` — success;
+- Document ingestion validation — run `34591124975` — success;
+- UI workspace validation — run `34591125050` — success;
+- Code quality validation — run `34591125013` — success.
+
+The same exact final head also triggered eight push-event mirrors. The final check found exactly eight push runs, all completed, with no failure, cancellation, timeout, action-required, startup-failure, neutral, skipped, stale or pending conclusion; therefore all **16/16** final-head workflow executions were successful.
+
+`hardening/h3b2c-temporal-image-pins` is retired after merge and must not be reused. The inert remote ref may remain.
+
+H3b2 is **not complete**: 23 unpinned/moving image references remain recorded in the reproducibility baseline. Do not begin H4 yet.
 
 ## Canonical branch policy
 
@@ -238,15 +254,16 @@ The exact R7 baseline `6cf3647a...` passed the canonical workflow suite, includi
 
 ## Next action
 
-Complete **H3b2c only — Temporal Compose digest pins**:
+Continue **H3b2 only — External image pinning/debt reduction** through another small branch created fresh from live `main`.
 
-- validate the checkpoint-created final PR head on PR #80;
-- require all relevant pull-request workflows to complete successfully, including Foundation and the real Worker SIGKILL Research replay;
-- verify the PR head has not moved and is mergeable;
-- merge PR #80 using the expected-head guard;
-- fetch live `main`, canonicalize this checkpoint with the merge SHA and final-head workflow evidence, retire the branch, then stop.
+The next H3b2 sub-gate should:
 
-Do not start another H3b2 pin batch in the same gate execution.
+- select one coherent, verifiable subset from the remaining **23** unpinned/moving image references;
+- preserve service versions and runtime behavior while replacing moving references with immutable digests where verifiable;
+- update the reproducibility baseline only alongside concrete debt reduction;
+- remain narrow enough for targeted runtime/CI validation;
+- not mix H4 production/auth-boundary work or product features;
+- stop and checkpoint after that sub-gate before selecting another batch.
 
 Do not begin H4 until H3b2 is explicitly complete.
 
