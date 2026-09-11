@@ -12,6 +12,8 @@ RUN if [ -n "$KAIRO_WORKER_EXTRAS" ]; then \
       uv sync --locked --package kairo-worker --no-dev --no-editable; \
     fi
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58 AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libxcb1 \
+    && rm -rf /var/lib/apt/lists/*
 RUN useradd --create-home --uid 10001 kairo
 ENV PATH="/app/.venv/bin:$PATH" PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app

@@ -1,0 +1,10 @@
+# Disposable CI fixture: real file-backed OpenBao, actual filer API and distinct Compose project.
+services:
+  openbao:
+    command: [server, -config=/openbao/config/config.hcl]
+    volumes:
+      - ./infrastructure/openbao/config.hcl:/openbao/config/config.hcl:ro
+      - openbao_data:/openbao/file
+  seaweedfs:
+    ports:
+      - '127.0.0.1:8888:8888'

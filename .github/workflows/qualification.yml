@@ -55,7 +55,121 @@ jobs:
           name: d04-real-document-memory-${{ github.run_id }}
           path: .kairo-qualification/evidence/*.json
           if-no-files-found: warn
+          include-hidden-files: true
           retention-days: 14
       - name: Stop isolated stores
         if: always()
         run: docker compose -f compose.yaml -f compose.qualification.yaml down -v --remove-orphans
+
+  real-local-services:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      KAIRO_QUALIFICATION_SCOPE: github-actions-cpu
+      KAIRO_QUALIFICATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Prepare local-only model routing
+        run: |
+          cp .env.example .env
+          cat >> .env <<'EOF'
+          KAIRO_WORKER_EXTRAS=
+          OPENAI_API_KEY=
+          ANTHROPIC_API_KEY=
+          LITELLM_MASTER_KEY=d04-local-fixture-no-provider-key
+          OLLAMA_MODEL=ollama/qwen2.5:0.5b
+          EOF
+      - name: Start local inference, search and canonical accounting
+        run: |
+          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats kairo-core ollama litellm searxng valkey
+          docker compose exec -T ollama ollama pull qwen2.5:0.5b
+      - name: Prove real local inference, accounting, restart and search
+        run: uv run --locked --project services/worker python scripts/qualification/local_services.py
+      - name: Preserve sanitized local model measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d04-local-services-${{ github.run_id }}
+          path: .kairo-qualification/evidence/*.json
+          include-hidden-files: true
+          retention-days: 14
+      - name: Stop local fixtures
+        if: always()
+        run: docker compose down -v --remove-orphans
+
+  recovery-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: kairo-d04-recovery
+      KAIRO_QUALIFICATION_SCOPE: github-actions-two-hosts
+      KAIRO_QUALIFICATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Prepare disposable recovery source
+        run: |
+          cp .env.example .env
+          cat >> .env <<'EOF'
+          RESTIC_REPOSITORY=/repository
+          RESTIC_PASSWORD=d04-public-fixture-password-never-user-data
+          RESTIC_LOCAL_PATH=./backups/restic
+          EOF
+      - name: Back up real state and prove OpenBao workload policy
+        run: uv run --locked --project services/worker python scripts/qualification/recovery.py backup
+      - name: Package encrypted repository for a distinct host
+        run: sudo tar -cf d04-encrypted-repository.tar backups/restic .kairo-qualification/transfer.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d04-encrypted-repository-${{ github.run_id }}
+          path: d04-encrypted-repository.tar
+          retention-days: 1
+      - name: Preserve source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d04-recovery-source-${{ github.run_id }}
+          path: .kairo-qualification/evidence/*.json
+          include-hidden-files: true
+          retention-days: 14
+      - name: Stop source volumes
+        if: always()
+        run: docker compose -f compose.yaml -f compose.qualification-recovery.yaml -f compose.ops.yaml down -v --remove-orphans
+
+  recovery-target:
+    needs: recovery-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: kairo-d04-recovery
+      KAIRO_QUALIFICATION_SCOPE: github-actions-two-hosts
+      KAIRO_QUALIFICATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: d04-encrypted-repository-${{ github.run_id }}
+      - name: Prepare fresh destination with only the encrypted backup
+        run: |
+          cp .env.example .env
+          cat >> .env <<'EOF'
+          RESTIC_REPOSITORY=/repository
+          RESTIC_PASSWORD=d04-public-fixture-password-never-user-data
+          RESTIC_LOCAL_PATH=./backups/restic
+          EOF
+          sudo tar -xf d04-encrypted-repository.tar
+      - name: Restore and verify actual service data on a distinct host
+        run: uv run --locked --project services/worker python scripts/qualification/recovery.py restore
+      - name: Preserve off-host recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d04-recovery-target-${{ github.run_id }}
+          path: .kairo-qualification/evidence/*.json
+          include-hidden-files: true
+          retention-days: 14
+      - name: Stop restored fixtures
+        if: always()
+        run: docker compose -f compose.yaml -f compose.qualification-recovery.yaml -f compose.ops.yaml down -v --remove-orphans
