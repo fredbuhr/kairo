@@ -6,6 +6,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, time as dt_time
 import json
 import os
+import subprocess
 import time
 import urllib.error
 import urllib.parse
@@ -155,6 +156,116 @@ def wait_for_memory_projection(
     raise AssertionError(
         f"Authenticated memory projection did not complete for {message_id}: {last!r}"
     )
+
+
+def seed_legacy_dispatch(project_id: str, owner_ref: str, invocation_id: str) -> dict[str, str]:
+    """Model a forged Task already queued before this fix, using only integration fixtures."""
+
+    result = subprocess.run(
+        ["docker", "compose", "exec", "-T", "kairo-core", "python", "-",
+         json.dumps({"project_id": project_id, "owner_ref": owner_ref, "invocation_id": invocation_id})],
+        input='''
+import asyncio
+import json
+import sys
+import uuid
+from kairo_core.db import SessionFactory, engine
+from kairo_core.models import Task, WorkflowExecution
+
+async def seed():
+    values = json.loads(sys.argv[1])
+    try:
+        async with SessionFactory() as session:
+            task = Task(
+                id=uuid.uuid4(), project_id=uuid.UUID(values["project_id"]),
+                title="Legacy foreign dispatch regression", status="queued",
+                owner_type="user", owner_ref=values["owner_ref"],
+                input={"capability": "tool.invoke", "tool_invocation_id": values["invocation_id"]},
+            )
+            session.add(task)
+            await session.flush()
+            execution = WorkflowExecution(
+                task_id=task.id, workflow_id=f"kairo-task-{task.id}",
+                correlation_id=uuid.uuid4(), status="queued",
+            )
+            session.add(execution)
+            await session.commit()
+            print(json.dumps({"task_id": str(task.id), "workflow_id": execution.workflow_id}))
+    finally:
+        await engine.dispose()
+
+asyncio.run(seed())
+''',
+        text=True, capture_output=True, timeout=30,
+    )
+    if result.returncode:
+        raise AssertionError(f"Legacy dispatch fixture failed: {result.stderr[-4000:]}")
+    return json.loads(result.stdout)
+
+
+def prove_dispatch_isolation(
+    token_a: str, token_b: str, project_b: dict[str, Any], task_b: dict[str, Any],
+    invocation_a: dict[str, Any], invocation_b: dict[str, Any],
+) -> None:
+    foreign_id = invocation_a["invocation"]["id"]
+    for capability in (
+        "tool.invoke", "document.ingest", "memory.project", "assistant.route.semantic",
+        "news.brief", "research.autonomous", "unknown.future-capability",
+    ):
+        json_request(
+            "POST", "/v1/tasks", token=token_b, expected={422},
+            payload={"project_id": project_b["id"], "title": "Forged dispatch",
+                     "input": {"capability": capability, "tool_invocation_id": foreign_id}},
+        )
+    for owner in ("system", "agent"):
+        json_request(
+            "POST", "/v1/tasks", token=token_b, expected={422},
+            payload={"project_id": project_b["id"], "title": "Forged identity", "owner_type": owner},
+        )
+
+    legacy = seed_legacy_dispatch(project_b["id"], task_b["owner_ref"], foreign_id)
+    for invocation_status in ("pending", "completed"):
+        if invocation_status == "completed":
+            json_request(
+                "POST", f"/internal/v1/tool-invocations/{foreign_id}/complete", internal=True,
+                payload={"result": {"value": "owner-a-private-sentinel"}},
+            )
+        # Both new dispatch and an old queued workflow fail before reaching an activity.
+        json_request("POST", f"/v1/tasks/{legacy['task_id']}/run", token=token_b, expected={409})
+        json_request("POST", f"/internal/v1/executions/{legacy['workflow_id']}/start", internal=True, expected={409})
+        json_request(
+            "POST", f"/internal/v1/tool-invocations/{foreign_id}/fail", internal=True, expected={409},
+            payload={"task_id": legacy["task_id"], "error": "foreign failure must not mutate A"},
+        )
+        _, foreign = json_request("GET", f"/v1/tool-invocations/{foreign_id}", token=token_a)
+        assert foreign["status"] == invocation_status and foreign["last_error"] is None, foreign
+        json_request("GET", f"/v1/tool-invocations/{foreign_id}", token=token_b, expected={404})
+        _, artifacts = json_request("GET", f"/v1/tasks/{legacy['task_id']}/artifacts", token=token_b)
+        assert artifacts == [], artifacts
+        _, blocked = json_request("GET", f"/v1/tasks/{legacy['task_id']}", token=token_b)
+        assert blocked["status"] == "queued", blocked
+
+    # A real Worker must still replay B's own completed result into B's canonical Artifact.
+    own_id = invocation_b["invocation"]["id"]
+    json_request(
+        "POST", f"/internal/v1/tool-invocations/{own_id}/complete", internal=True,
+        payload={"result": {"value": "owner-b-replay-sentinel"}},
+    )
+    own_task = invocation_b["task_id"]
+    json_request("POST", f"/v1/tasks/{own_task}/run", token=token_b)
+    deadline = time.monotonic() + 90
+    while time.monotonic() < deadline:
+        _, task = json_request("GET", f"/v1/tasks/{own_task}", token=token_b)
+        if task["status"] == "completed":
+            break
+        assert task["status"] in {"queued", "running"}, task
+        time.sleep(0.5)
+    else:
+        raise AssertionError(f"Legitimate tool replay did not complete: {task}")
+    _, artifacts = json_request("GET", f"/v1/tasks/{own_task}/artifacts", token=token_b)
+    assert len(artifacts) == 1 and artifacts[0]["content"]["replayed"] is True, artifacts
+    assert artifacts[0]["content"]["result"] == {"value": "owner-b-replay-sentinel"}, artifacts
+    json_request("GET", f"/v1/tasks/{own_task}/artifacts", token=token_a, expected={404})
 
 
 def main() -> int:
@@ -436,6 +547,8 @@ def main() -> int:
         expected={200},
     )
 
+    prove_dispatch_isolation(token_a, token_b, project_b, task_b, invocation_a, invocation_b)
+
     # Memory projection reads are tied back to the owning Conversation subject.
     _, command = json_request(
         "POST",
@@ -506,7 +619,8 @@ def main() -> int:
         "PASS: two authenticated users are isolated across planning/Today, Relationships, "
         "approvals, budgets, ToolInvocations/idempotency, authenticated Worker-driven memory "
         "projection, memory read isolation and detailed system diagnostics; Workflow-managed "
-        "Task status remains Worker-owned"
+        "Task status remains Worker-owned; public capability forgery and legacy foreign "
+        "dispatch/failure are rejected while legitimate completed tool replay succeeds"
     )
     return 0
 

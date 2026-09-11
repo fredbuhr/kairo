@@ -101,34 +101,24 @@ def main() -> None:
     }.items():
         request("PATCH", f"/v1/tools/{urllib.parse.quote(key, safe='')}/policy", payload=policy)
 
-    parent = request(
+    created = request(
         "POST",
-        "/v1/tasks",
-        expected=201,
+        "/v1/research/runs",
+        expected=202,
         payload={
             "project_id": project["id"],
-            "title": "Research parent",
-            "owner_type": "agent",
-            "owner_ref": "kairo.research-agent",
-            "authority_ceiling": 1,
-            "budget_usd": "0.01",
-            "input": {
-                "capability": "research.autonomous",
-                "query": "Find evidence about KAIRO",
-                "requester_subject": "development-user",
-                "max_tool_calls": 2,
-                "allowed_tool_keys": [],
-                "model_alias": "local-fast",
-                "estimated_model_cost_usd": "0.01",
-                "authority_level": 1,
-                "estimated_cost_usd": "0.01",
-            },
+            "query": "Find evidence about KAIRO",
+            "max_tool_calls": 2,
+            "allowed_tool_keys": [],
+            "model_alias": "local-fast",
+            "estimated_model_cost_usd": "0.01",
         },
     )
+    parent = request("GET", f"/v1/tasks/{created['task_id']}")
 
     pending = request("GET", f"/v1/research/runs/{parent['id']}")
     assert pending["task_id"] == parent["id"], pending
-    assert pending["status"] == "todo", pending
+    assert pending["status"] == "queued", pending
     assert pending["query"] == "Find evidence about KAIRO", pending
     assert pending["artifact_id"] is None and pending["answer"] is None, pending
     assert pending["tool_invocations"] == [], pending

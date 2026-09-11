@@ -24,6 +24,8 @@ jobs:
         run: uv run --locked --project services/core python scripts/smoke/project_bound_task_contract.py
       - name: Prove Task execution and Artifact ownership wrapper
         run: uv run --locked --project services/core python scripts/smoke/task_execution_ownership_contract.py
+      - name: Prove public Task dispatch and internal resource bindings
+        run: uv run --locked --project services/core python scripts/smoke/task_dispatch_contract.py
       - name: Prove Daily Spine planning and Today workspace contract
         run: uv run --locked --project services/core python scripts/smoke/daily_spine_contract.py
       - name: Compile Core UI ownership and planning modules
