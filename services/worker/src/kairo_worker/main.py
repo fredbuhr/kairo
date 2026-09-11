@@ -1,4 +1,5 @@
 import asyncio
+import signal
 from datetime import timedelta
 
 from temporalio.client import Client
@@ -19,6 +20,9 @@ from .workflows import FoundationWorkflow, TaskExecutionWorkflow
 
 
 async def serve() -> None:
+    if settings.kairo_env == "production":
+        from .model_assets import verify_production_assets
+        await asyncio.to_thread(verify_production_assets)
     client = await Client.connect(
         settings.temporal_address,
         namespace=settings.temporal_namespace,
@@ -44,6 +48,7 @@ async def serve() -> None:
             complete_execution,
             fail_execution,
         ],
+        graceful_shutdown_timeout=timedelta(seconds=20),
         # Research model-call checkpoints are replay-critical. Keep heartbeat coalescing bounded so
         # an abrupt Worker death cannot leave an already-accounted model result only in process
         # memory for the SDK's much longer default throttle interval.
@@ -54,12 +59,19 @@ async def serve() -> None:
     memory_consumer_task = asyncio.create_task(
         memory_events.run(), name="kairo-memory-projection-events"
     )
-    try:
-        await worker.run()
-    finally:
-        await memory_events.stop()
-        memory_consumer_task.cancel()
-        await asyncio.gather(memory_consumer_task, return_exceptions=True)
+    stopped = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for signum in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(signum, stopped.set)
+    async with worker:
+        try:
+            await stopped.wait()
+        finally:
+            await memory_events.stop()
+            memory_consumer_task.cancel()
+            await asyncio.gather(memory_consumer_task, return_exceptions=True)
+    for signum in (signal.SIGTERM, signal.SIGINT):
+        loop.remove_signal_handler(signum)
 
 
 if __name__ == "__main__":

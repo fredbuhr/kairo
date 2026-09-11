@@ -22,8 +22,6 @@ intelligence = [
   "fastembed>=0.3.1,<1",
   "graphiti-core==0.29.3",
   "docling",
-  "browser-use",
-  "playwright>=1.55,<2",
 ]
 
 [tool.hatch.build.targets.wheel]

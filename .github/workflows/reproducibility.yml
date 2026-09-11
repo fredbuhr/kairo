@@ -2,6 +2,7 @@ name: Baseline reproducibility validation
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 concurrency:
@@ -43,3 +44,18 @@ jobs:
         env:
           KAIRO_WORKER_EXTRAS: ""
         run: docker compose build kairo-core kairo-worker kairo-realtime kairo-web
+
+      - name: Prove built Web serves static routes as a non-root user
+        run: |
+          docker compose up -d --no-deps kairo-web
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:5173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5173/projects/fixture)" = 200
+          test "$(curl -s -X POST -o /dev/null -w '%{http_code}' http://127.0.0.1:5173/)" = 405
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5173/server.mjs)" = 404
+          test "$(docker compose exec -T kairo-web id -u)" != 0
+      - name: Stop static Web proof
+        if: always()
+        run: docker compose down --remove-orphans

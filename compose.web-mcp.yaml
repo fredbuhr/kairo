@@ -1,9 +1,15 @@
 services:
   kairo-web-mcp:
     build:
-      context: ./services/worker
+      context: .
+      dockerfile: services/worker/Dockerfile
       args:
         KAIRO_WORKER_EXTRAS: ""
+    init: true
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    stop_grace_period: 20s
     restart: unless-stopped
     command: ["python", "-m", "kairo_worker.web_mcp"]
     environment:

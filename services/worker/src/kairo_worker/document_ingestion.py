@@ -36,7 +36,7 @@ async def _keep_alive(version_id: str) -> None:
 async def _run_parser(source_path: Path, media_type: str) -> dict[str, Any]:
     result_path = source_path.parent / "parsed.json"
     # The parser needs model/cache paths, not Core tokens, database passwords or API keys.
-    allowed = {"PATH", "PYTHONPATH", "HOME", "LANG", "LC_ALL", "HF_HOME",
+    allowed = {"HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "PATH", "PYTHONPATH", "HOME", "LANG", "LC_ALL", "HF_HOME",
                "HF_HUB_CACHE", "TRANSFORMERS_CACHE", "DOCLING_ARTIFACTS_PATH", "CUDA_VISIBLE_DEVICES"}
     environment = {key: value for key, value in os.environ.items() if key in allowed}
     environment.update({"OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import tomllib
 from pathlib import Path
 
@@ -40,9 +41,49 @@ def _dockerfile_from(path: Path) -> str | None:
 def _dockerfile_images() -> set[tuple[str, str]]:
     refs: set[tuple[str, str]] = set()
     for path in sorted(ROOT.rglob("Dockerfile")):
-        image = _dockerfile_from(path)
-        if image:
-            refs.add((_relative(path), image))
+        stages = set()
+        for raw in path.read_text().splitlines():
+            parts = raw.split()
+            if not parts:
+                continue
+            if parts[0].upper() == "FROM":
+                index = 2 if parts[1].startswith("--platform=") else 1
+                ref = parts[index]
+                if ref not in stages:
+                    refs.add((_relative(path), ref))
+                if len(parts) > index + 2 and parts[index + 1].upper() == "AS":
+                    stages.add(parts[index + 2])
+            if parts[0].upper() == "COPY":
+                for part in parts:
+                    if part.startswith("--from="):
+                        ref = part.split("=", 1)[1]
+                        if ref not in stages and not ref.isdecimal():
+                            refs.add((_relative(path), ref))
+    return refs
+
+
+def _workflow_images() -> set[tuple[str, str]]:
+    refs = set()
+    options_with_value = {"--name", "--network", "--network-alias", "-v", "--volume", "-p", "--publish", "-e", "--env", "--entrypoint", "--user", "-u"}
+    for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        content = path.read_text()
+        for line in content.splitlines():
+            match = IMAGE_RE.match(line)
+            if match:
+                refs.add((_relative(path), match.group(1)))
+        # YAML block scalars and shell continuations both have indented following lines.
+        for match in re.finditer(r"docker run (.*(?:\n[ ]{10,}.*)*)", content):
+            words = shlex.split(match.group(0).replace("\\\n", " "))[2:]
+            index = 0
+            while index < len(words):
+                token = words[index]
+                if token in options_with_value:
+                    index += 2
+                elif token.startswith("-"):
+                    index += 1
+                else:
+                    refs.add((_relative(path), token))
+                    break
     return refs
 
 
@@ -80,7 +121,7 @@ def main() -> None:
     if missing_lockfiles:
         problems.append(f"required dependency lockfiles are missing: {missing_lockfiles}")
 
-    all_images = _compose_images() | _dockerfile_images()
+    all_images = _compose_images() | _dockerfile_images() | _workflow_images()
     actual_unpinned = {ref for ref in all_images if "@sha256:" not in ref[1]}
     expected_unpinned = {tuple(item) for item in baseline["known_unpinned_images"]}
     new_unpinned = sorted(actual_unpinned - expected_unpinned)

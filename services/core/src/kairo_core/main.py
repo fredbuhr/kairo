@@ -57,6 +57,9 @@ from .workflows import router as workflow_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if settings.kairo_env == "production":
+        from .production import verify_database_role
+        await verify_database_role()
     relay = OutboxRelay()
     relay_task = asyncio.create_task(relay.run(), name="kairo-outbox-relay")
     app.state.outbox_relay = relay

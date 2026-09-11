@@ -2376,17 +2376,14 @@ dependencies = [
 
 [package.optional-dependencies]
 intelligence = [
-    { name = "browser-use" },
     { name = "docling" },
     { name = "fastembed" },
     { name = "graphiti-core" },
     { name = "mem0ai", extra = ["vector-stores"] },
-    { name = "playwright" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "browser-use", marker = "extra == 'intelligence'" },
     { name = "docling", marker = "extra == 'intelligence'" },
     { name = "fastembed", marker = "extra == 'intelligence'", specifier = ">=0.3.1,<1" },
     { name = "graphiti-core", marker = "extra == 'intelligence'", specifier = "==0.29.3" },
@@ -2394,7 +2391,6 @@ requires-dist = [
     { name = "mcp", specifier = "==2.1.1" },
     { name = "mem0ai", extras = ["vector-stores"], marker = "extra == 'intelligence'", specifier = "==2.0.20" },
     { name = "nats-py", specifier = ">=2.11,<3" },
-    { name = "playwright", marker = "extra == 'intelligence'", specifier = ">=1.55,<2" },
     { name = "pydantic-ai-slim", specifier = "==2.41.0" },
     { name = "pydantic-settings", specifier = ">=2.10,<3" },
     { name = "temporalio", specifier = ">=1.16,<2" },

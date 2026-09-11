@@ -19,7 +19,7 @@ from .events import append_audit, enqueue_domain_event
 from .memory_models import MemoryProjectionRecord
 from .models import AuditRecord, Project, Task
 from .pagination import decode_cursor, encode_cursor
-from .security import require_internal_token
+from .security import require_internal_token, require_operations_token
 
 router = APIRouter()
 
@@ -491,7 +491,7 @@ def _rebuild_boundary(cursor: str) -> tuple[datetime, uuid.UUID]:
         raise HTTPException(422, "Invalid rebuild cursor") from exc
 
 
-@router.post("/internal/v1/memory/rebuild", dependencies=[Depends(require_internal_token)])
+@router.post("/internal/v1/memory/rebuild", dependencies=[Depends(require_operations_token)])
 async def rebuild_memory_projections(
     body: MemoryRebuildRequest, session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:

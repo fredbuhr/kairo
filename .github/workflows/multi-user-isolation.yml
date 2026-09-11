@@ -2,6 +2,7 @@ name: Multi-user isolation validation
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 concurrency:

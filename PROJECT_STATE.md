@@ -18,10 +18,10 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 
 | Champ | Valeur |
 |---|---|
-| Branche / PR de développement active | **Aucune** |
+| Branche / PR de développement active | `hardening/d03-safe-deployment` ; PR à ouvrir |
 | Dernier lot entièrement terminé | **D02 — admission, budgets et volume des données** |
-| Prochain lot | **D03 — déploiement sûr et topologie utile** |
-| Première action | Vérifier main/PR live, lire D03 du plan, auditer les gardes production/secrets/JWT/egress et les consommateurs de services ; construire une livraison D03 cohérente depuis main |
+| Lot actif | **D03 — déploiement sûr et topologie utile** |
+| Reprise D03 | Base live `ec38ce3b8c479be9ff56df36a24e7ee895754ada`, aucun autre PR au démarrage ; implémentation et validation communes des gardes production, SQL/réseau, lecteur Web et topologie |
 | Critère de sortie D03 | Configurations/destinations interdites refusées, topologie minimale justifiée et gates préservées |
 | Méthode | Une livraison cohérente par lot ; commits/checklists internes pour reprise, sans nouveaux sous-lots sauf obstacle démontré |
 | Limite | Ne pas commencer les fonctions produit D05–D10 avant D04/H5 |

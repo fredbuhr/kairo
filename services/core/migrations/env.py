@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -10,8 +11,9 @@ from kairo_core.db import Base
 from kairo_core import autonomy_models, command_models, document_models, memory_models, models, tool_models, ui_models  # noqa: F401
 from kairo_core import work_capacity  # noqa: F401
 
+migration_url = os.environ.get("KAIRO_MIGRATION_DATABASE_URL") or settings.database_url
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
+config.set_main_option("sqlalchemy.url", migration_url.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -21,7 +23,7 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=settings.database_url,
+        url=migration_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},

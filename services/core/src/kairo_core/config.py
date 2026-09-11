@@ -1,15 +1,18 @@
 from decimal import Decimal
+from typing import Literal
+from urllib.parse import urlsplit, unquote
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
 
-    kairo_env: str = "development"
+    kairo_env: Literal["development", "test", "production"] = "development"
     kairo_component_registry: str = "/app/config/components.yaml"
     kairo_internal_token: str = "development-only-change-me"
+    kairo_operations_token: str = "development-operations-change-me"
     kairo_policy_signing_key: str = "development-policy-signing-change-me"
     kairo_cors_origins: str = "http://localhost:5173"
     kairo_auth_enabled: bool = True
@@ -48,12 +51,37 @@ class Settings(BaseSettings):
     openbao_addr: str = "http://openbao:8200"
     openbao_token: str = "development-only-change-me"
 
+    keycloak_audience: str = "kairo-core"
     keycloak_client_id: str = "kairo-web"
     keycloak_issuer: str = "http://localhost:8081/realms/kairo"
     keycloak_jwks_url: str = "http://keycloak:8080/realms/kairo/protocol/openid-connect/certs"
 
     kokoro_tts_url: str = "http://kokoro-tts:8880"
     kokoro_default_voice: str = "ff_siwis"
+
+    @model_validator(mode="after")
+    def production_boundary(self) -> "Settings":
+        if self.kairo_env != "production":
+            return self
+        if not self.kairo_auth_enabled:
+            raise ValueError("Production requires authentication")
+        db = urlsplit(self.database_url)
+        secrets = (self.kairo_internal_token, self.kairo_policy_signing_key, self.openbao_token, self.kairo_operations_token, unquote(db.password or ""))
+        for value in secrets:
+            if len(value) < 32 or any(marker in value.lower() for marker in ("change_me", "change-me", "development", "kairo-dev")):
+                raise ValueError("Production requires distinct provisioned secrets of at least 32 characters")
+        if len(set(secrets)) != len(secrets):
+            raise ValueError("Production secrets must be distinct")
+        db = urlsplit(self.database_url)
+        if db.username != "kairo_app" or len(unquote(db.password or "")) < 32:
+            raise ValueError("Production Core requires the restricted kairo_app SQL identity")
+        for value in [self.keycloak_issuer, *self.kairo_cors_origins.split(",")]:
+            url = urlsplit(value.strip())
+            if url.scheme != "https" or not url.hostname or "*" in value or url.username or url.password:
+                raise ValueError("Production issuer and CORS origins must be explicit HTTPS URLs")
+        if not self.keycloak_audience or not self.keycloak_client_id:
+            raise ValueError("Production requires JWT audience and authorized party")
+        return self
 
 
 settings = Settings()

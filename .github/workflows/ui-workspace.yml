@@ -2,6 +2,7 @@ name: UI workspace validation
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 concurrency:
