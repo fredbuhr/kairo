@@ -7,7 +7,7 @@ import asyncio
 import json
 from typing import Any
 
-from kairo_worker.semantic_router import SemanticRouteTask, semantic_route_with_pydantic_ai
+from nevolium_worker.semantic_router import SemanticRouteTask, semantic_route_with_pydantic_ai
 
 
 CATALOG = [
@@ -111,7 +111,7 @@ async def main() -> None:
 
     print(
         "SEMANTIC ROUTER CONTRACT PASS: PydanticAI validates structured proposals, receives only the "
-        "KAIRO catalog, rejects invented capability keys and uses one model turn per route attempt."
+        "Nevolium catalog, rejects invented capability keys and uses one model turn per route attempt."
     )
 
 

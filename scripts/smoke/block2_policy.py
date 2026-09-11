@@ -8,13 +8,13 @@ import urllib.parse
 import urllib.request
 import uuid
 
-CORE = os.getenv("KAIRO_CORE_HTTP", "http://127.0.0.1:8000").rstrip("/")
+CORE = os.getenv("NEVOLIUM_CORE_HTTP", "http://127.0.0.1:8000").rstrip("/")
 KEYCLOAK = os.getenv("KEYCLOAK_HTTP", "http://127.0.0.1:8081").rstrip("/")
-REALM = os.getenv("KEYCLOAK_REALM", "kairo")
-CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "kairo-web")
-USERNAME = os.getenv("KEYCLOAK_DEV_USERNAME", "kairo-dev")
-PASSWORD = os.getenv("KEYCLOAK_DEV_PASSWORD", "kairo-dev")
-INTERNAL_TOKEN = os.getenv("KAIRO_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
+REALM = os.getenv("KEYCLOAK_REALM", "nevolium")
+CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "nevolium-web")
+USERNAME = os.getenv("KEYCLOAK_DEV_USERNAME", "nevolium-dev")
+PASSWORD = os.getenv("KEYCLOAK_DEV_PASSWORD", "nevolium-dev")
+INTERNAL_TOKEN = os.getenv("NEVOLIUM_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
 
 
 def request(
@@ -58,7 +58,7 @@ def json_request(
     if token:
         headers["Authorization"] = f"Bearer {token}"
     if internal:
-        headers["X-Kairo-Internal-Token"] = INTERNAL_TOKEN
+        headers["X-Nevolium-Internal-Token"] = INTERNAL_TOKEN
     code, raw = request(method, f"{CORE}{path}", body=body, headers=headers, expected=expected)
     return code, json.loads(raw.decode()) if raw else {}
 
@@ -156,7 +156,7 @@ def main() -> int:
             "authority_level": 2,
             "estimated_cost_usd": "0.10",
             "policy_scope": {"capability": "foundation", "proof": "block2"},
-            "approval_reason": "CI proves Temporal waits for KAIRO approval",
+            "approval_reason": "CI proves Temporal waits for Nevolium approval",
         },
     )
     _, run = json_request(

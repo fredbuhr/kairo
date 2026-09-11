@@ -6,7 +6,7 @@ Le lot actif reste D04 / PR #88. Aucun nouveau lot, aucune fusion de code ni act
 
 ## Objectif et état observé
 
-KAIRO doit être accessible depuis PC, téléphone et tablette, avec hébergement serveur prioritaire.
+Nevolium doit être accessible depuis PC, téléphone et tablette, avec hébergement serveur prioritaire.
 Une installation complète sur portable/bureau doit aussi permettre l'usage personnel sans location
 de serveur. Une coupure Internet ne doit pas empêcher tout travail.
 
@@ -19,11 +19,11 @@ une cible de collaboration, pas une preuve d'édition hors ligne ni une autorit�
 
 | Mode | Autorité des données | Clients | Limite structurante |
 |---|---|---|---|
-| Serveur, priorité produit | Une instance KAIRO sur serveur Linux | Web/PWA sur PC, smartphone et tablette ; Desktop ultérieur | Les tâches serveur continuent si le client se déconnecte ; les services externes exigent leur propre connectivité |
+| Serveur, priorité produit | Une instance Nevolium sur serveur Linux | Web/PWA sur PC, smartphone et tablette ; Desktop ultérieur | Les tâches serveur continuent si le client se déconnecte ; les services externes exigent leur propre connectivité |
 | Personnel autonome | Le même Core et ses stockages, sur le PC allumé | Interface locale ; clients LAN si configurés | Veille/arrêt du PC suspend le service ; accès distant et sauvegarde indépendante restent à configurer |
 
 Chaque espace de travail possède une seule instance faisant autorité. Les caches des clients sont
-des copies partielles ; pas de réplication bidirectionnelle de deux serveurs KAIRO autonomes dans le
+des copies partielles ; pas de réplication bidirectionnelle de deux serveurs Nevolium autonomes dans le
 premier périmètre. Déplacer une installation personnelle vers un serveur passe par une migration
 contrôlée avec arrêt des écritures, transfert/restauration et changement explicite de destination.
 
@@ -56,8 +56,8 @@ le layout du bureau à un téléphone. Ne pas exiger WebGPU pour les fonctions d
 
 ## Contrat hors ligne borné
 
-« Sans Internet » et « sans accès à l'instance KAIRO » sont deux situations différentes. Un PC
-hébergeant KAIRO peut conserver Core, recherche locale et IA locale préchargée sans Internet ; un
+« Sans Internet » et « sans accès à l'instance Nevolium » sont deux situations différentes. Un PC
+hébergeant Nevolium peut conserver Core, recherche locale et IA locale préchargée sans Internet ; un
 téléphone sur son LAN peut aussi joindre ce PC. Un client isolé de son serveur ne dispose que des
 données et fonctions préparées sur cet appareil. Aucun cache ne rend un service externe disponible.
 
@@ -98,7 +98,7 @@ après effacement manuel des données du navigateur.
 ## Matériel et exploitation
 
 Distinguer le coût du rendu 3D, celui du backend et celui des modèles IA. Un PC client n'a pas à
-faire tourner l'IA du serveur. Pour le PC hébergeant tout KAIRO, CPU/RAM/SSD et éventuellement GPU
+faire tourner l'IA du serveur. Pour le PC hébergeant tout Nevolium, CPU/RAM/SSD et éventuellement GPU
 dépendent des profils, documents, modèles, contexte et concurrence. Le nombre d'utilisateurs inscrits
 ne mesure pas la charge simultanée des moteurs.
 
@@ -146,4 +146,4 @@ qu'une écriture locale est déjà synchronisée.
 - [MDN — WebGL best practices](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices)
 - [Ollama — FAQ, concurrence et mémoire](https://docs.ollama.com/faq)
 
-Ces sources décrivent les capacités/contraintes des briques ; elles ne prouvent pas leur intégration KAIRO.
+Ces sources décrivent les capacités/contraintes des briques ; elles ne prouvent pas leur intégration Nevolium.

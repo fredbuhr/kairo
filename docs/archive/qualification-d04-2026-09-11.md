@@ -1,6 +1,6 @@
 # D04 — rapport de qualification, 11 septembre 2026
 
-**D04/H5 reste ouvert.** Une seule livraison : [PR #88](https://github.com/fredbuhr/kairo/pull/88),
+**D04/H5 reste ouvert.** Une seule livraison : [PR #88](https://github.com/fredbuhr/nevolium/pull/88),
 branche `hardening/d04-real-engine-qualification`, draft non fusionnée. Le code canonique reste D03.
 Ce rapport conserve les preuves de la campagne CI et les conditions du scénario privé encore absent.
 
@@ -9,7 +9,7 @@ Ce rapport conserve les preuves de la campagne CI et les conditions du scénario
 - Base main vérifiée : `0e2d22d8b49d1ddda6f2c0432de8dfe991b3ee0a` ; D03 intégré par #87.
 - Head de code : `10cb57c27e8018ea55b738dbf02495a3eff44aff`, arbre `bfd2bdd857da639d2792428d7659e246d11abaf6`.
 - Les commits suivants du rapport/checkpoint sont documentaires ; contrôler leur diff depuis ce head.
-- [Campagne commune](https://github.com/fredbuhr/kairo/actions/runs/34623761553) : cinq jobs,
+- [Campagne commune](https://github.com/fredbuhr/nevolium/actions/runs/34623761553) : cinq jobs,
   dont quatre emploient de vrais moteurs ; le cinquième vérifie seulement le générateur de charge avec un serveur HTTP de test.
 - Les seuils sont fixés dans le [protocole](../qualification-d04.md) avant la mesure.
 - Données originales jetables ; aucun document privé ni fournisseur payant configuré. Aucun déploiement utilisateur exécuté.
@@ -71,7 +71,7 @@ un cache absent échoue ; l'inventaire des fichiers est identique après exécut
 vraie recherche vectorielle ; Graphiti conserve un épisode et son scope. Aucune extraction générative
 ou mindmap produit n'est déduite de ces preuves d'adaptateurs.
 
-Le modèle Qwen2.5 0.5B passe par Ollama, LiteLLM et les transactions d'admission/comptabilisation KAIRO.
+Le modèle Qwen2.5 0.5B passe par Ollama, LiteLLM et les transactions d'admission/comptabilisation Nevolium.
 Un résultat connu reste relisible moteur arrêté, un dispatch incertain ne repart pas aveuglément,
 puis une nouvelle inférence réussit après redémarrage. `cost_reported=false` conserve l'incertitude :
 le montant numérique nul retourné n'est pas une preuve de coût fournisseur connu.
@@ -79,7 +79,7 @@ le montant numérique nul retourné n'est pas une preuve de coût fournisseur co
 La récupération transfère le seul dépôt Restic chiffré vers une autre VM, vérifie tous les packs et
 restaure des volumes neufs. La relecture vise un enregistrement SQL, le premier message JetStream,
 les octets originaux de l'objet filer et un secret OpenBao après déscellement. La policy autorise la
-lecture KAIRO et refuse écriture, autre namespace, liste et administration. Les clés/phrase de passe
+lecture Nevolium et refuse écriture, autre namespace, liste et administration. Les clés/phrase de passe
 publiques du test restent des fixtures ; en exploitation, les clés de récupération sont séparées du backup.
 Deux boots distincts ne prouvent pas une séparation géographique ou une procédure de clés utilisateur.
 
@@ -89,24 +89,24 @@ Deux boots distincts ne prouvent pas une séparation géographique ou une procé
 
 | Workflow | Exécution | Résultat |
 |---|---|---|
-| Code quality validation | [34623761514](https://github.com/fredbuhr/kairo/actions/runs/34623761514) | Réussi |
-| Baseline reproducibility validation | [34623761436](https://github.com/fredbuhr/kairo/actions/runs/34623761436) | Réussi |
-| Document ingestion validation | [34623761506](https://github.com/fredbuhr/kairo/actions/runs/34623761506) | Réussi |
-| MCP tool registry validation | [34623761476](https://github.com/fredbuhr/kairo/actions/runs/34623761476) | Réussi |
-| UI workspace validation | [34623761441](https://github.com/fredbuhr/kairo/actions/runs/34623761441) | Réussi |
-| Multi-user isolation validation | [34623761365](https://github.com/fredbuhr/kairo/actions/runs/34623761365) | Réussi |
-| Foundation validation | [34623761351](https://github.com/fredbuhr/kairo/actions/runs/34623761351) | Réussi |
-| D04 real engine qualification | [34623761553](https://github.com/fredbuhr/kairo/actions/runs/34623761553) | Réussi |
-| Autonomous research validation | [34623761364](https://github.com/fredbuhr/kairo/actions/runs/34623761364) | Réussi |
+| Code quality validation | [34623761514](https://github.com/fredbuhr/nevolium/actions/runs/34623761514) | Réussi |
+| Baseline reproducibility validation | [34623761436](https://github.com/fredbuhr/nevolium/actions/runs/34623761436) | Réussi |
+| Document ingestion validation | [34623761506](https://github.com/fredbuhr/nevolium/actions/runs/34623761506) | Réussi |
+| MCP tool registry validation | [34623761476](https://github.com/fredbuhr/nevolium/actions/runs/34623761476) | Réussi |
+| UI workspace validation | [34623761441](https://github.com/fredbuhr/nevolium/actions/runs/34623761441) | Réussi |
+| Multi-user isolation validation | [34623761365](https://github.com/fredbuhr/nevolium/actions/runs/34623761365) | Réussi |
+| Foundation validation | [34623761351](https://github.com/fredbuhr/nevolium/actions/runs/34623761351) | Réussi |
+| D04 real engine qualification | [34623761553](https://github.com/fredbuhr/nevolium/actions/runs/34623761553) | Réussi |
+| Autonomous research validation | [34623761364](https://github.com/fredbuhr/nevolium/actions/runs/34623761364) | Réussi |
 
-Jobs D04 : [real-local-services / 103343843282](https://github.com/fredbuhr/kairo/actions/runs/34623761553/job/103343843282), [qualification-runner-contract / 103343843568](https://github.com/fredbuhr/kairo/actions/runs/34623761553/job/103343843568), [real-document-memory / 103343843598](https://github.com/fredbuhr/kairo/actions/runs/34623761553/job/103343843598), [recovery-source / 103343843613](https://github.com/fredbuhr/kairo/actions/runs/34623761553/job/103343843613), [recovery-target / 103344292044](https://github.com/fredbuhr/kairo/actions/runs/34623761553/job/103344292044).
+Jobs D04 : [real-local-services / 103343843282](https://github.com/fredbuhr/nevolium/actions/runs/34623761553/job/103343843282), [qualification-runner-contract / 103343843568](https://github.com/fredbuhr/nevolium/actions/runs/34623761553/job/103343843568), [real-document-memory / 103343843598](https://github.com/fredbuhr/nevolium/actions/runs/34623761553/job/103343843598), [recovery-source / 103343843613](https://github.com/fredbuhr/nevolium/actions/runs/34623761553/job/103343843613), [recovery-target / 103344292044](https://github.com/fredbuhr/nevolium/actions/runs/34623761553/job/103344292044).
 Les gates existantes restent présentes. Le workflow News possède son filtre de chemins propre ; il ne constitue pas un dixième passage séparé sur ce head.
 
 La compilation locale des nouveaux scripts et `git diff --check` passent. Le workspace ne possède ni
 Docker, ni GPU ni bundle de modèles : aucune exécution réelle locale n'est prétendue. Les moteurs
 ont été exécutés par les jobs CI identifiés ci-dessus. Le contrat HTTP exerce 3333 lectures réparties
 sur 1/10/100/1000 clients virtuels, avec un seul sujet de test ; un retour 429 arrête avant le palier
-suivant. Ce résultat qualifie l'outil de mesure, pas la capacité de KAIRO ni 1000 comptes distincts.
+suivant. Ce résultat qualifie l'outil de mesure, pas la capacité de Nevolium ni 1000 comptes distincts.
 
 ## Ce qui reste dans D04
 
@@ -131,7 +131,7 @@ Le point de reprise fait autorité dans [PROJECT_STATE](../../PROJECT_STATE.md),
 des refs live. Le [plan D01–D22](../implementation-plan.md) reste la séquence de livraison, et
 status/component-matrix distinguent explicitement les preuves de branche des acquis de main.
 
-Réservoirs inspectés : `feat/kairo-test-interface-v1` à `ed12d503aa500a6e7700e9ac82d823e0e815f33d`
+Réservoir d'interface historique inspecté à `ed12d503aa500a6e7700e9ac82d823e0e815f33d`
 et `consolidate/g49-research-durable-stages` à `57a1a217f466c56446d84d863f4b9b09855e4c4e`.
 Le principe de namespace de la policy prototype est repris après revue ; ses droits futurs
 d'écriture/effacement ne sont pas nécessaires au Core actuel. Aucun équivalent de cette campagne

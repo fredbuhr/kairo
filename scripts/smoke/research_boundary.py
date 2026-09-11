@@ -12,8 +12,8 @@ import urllib.request
 from typing import Any
 
 CORE = "http://localhost:8000"
-INTERNAL_TOKEN = os.getenv("KAIRO_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
-INTERNAL = {"X-Kairo-Internal-Token": INTERNAL_TOKEN}
+INTERNAL_TOKEN = os.getenv("NEVOLIUM_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
+INTERNAL = {"X-Nevolium-Internal-Token": INTERNAL_TOKEN}
 
 
 def request(method: str, path: str, *, payload: dict[str, Any] | None = None, expected: int = 200, headers: dict[str, str] | None = None) -> Any:
@@ -107,7 +107,7 @@ def main() -> None:
         expected=202,
         payload={
             "project_id": project["id"],
-            "query": "Find evidence about KAIRO",
+            "query": "Find evidence about Nevolium",
             "max_tool_calls": 2,
             "allowed_tool_keys": [],
             "model_alias": "local-fast",
@@ -119,7 +119,7 @@ def main() -> None:
     pending = request("GET", f"/v1/research/runs/{parent['id']}")
     assert pending["task_id"] == parent["id"], pending
     assert pending["status"] == "queued", pending
-    assert pending["query"] == "Find evidence about KAIRO", pending
+    assert pending["query"] == "Find evidence about Nevolium", pending
     assert pending["artifact_id"] is None and pending["answer"] is None, pending
     assert pending["tool_invocations"] == [], pending
 
@@ -139,13 +139,13 @@ def main() -> None:
         "POST",
         f"/internal/v1/research/tasks/{parent['id']}/tool-invocations",
         headers=INTERNAL,
-        payload={"tool_key": "researchsmoke.search", "input": {"query": "KAIRO"}, "slot": 0, "rationale": "read evidence"},
+        payload={"tool_key": "researchsmoke.search", "input": {"query": "Nevolium"}, "slot": 0, "rationale": "read evidence"},
     )
     replay = request(
         "POST",
         f"/internal/v1/research/tasks/{parent['id']}/tool-invocations",
         headers=INTERNAL,
-        payload={"tool_key": "researchsmoke.search", "input": {"query": "KAIRO"}, "slot": 0, "rationale": "same logical call"},
+        payload={"tool_key": "researchsmoke.search", "input": {"query": "Nevolium"}, "slot": 0, "rationale": "same logical call"},
     )
     assert replay["invocation_id"] == first["invocation_id"], (first, replay)
     assert replay["task_id"] == first["task_id"], (first, replay)
@@ -160,10 +160,10 @@ def main() -> None:
 
     parent_run = request("POST", f"/v1/tasks/{parent['id']}/run")
     synthetic_content = {
-        "query": "Find evidence about KAIRO",
-        "answer": "KAIRO preserves canonical provenance for research results.",
+        "query": "Find evidence about Nevolium",
+        "answer": "Nevolium preserves canonical provenance for research results.",
         "synthesis": {
-            "answer": "KAIRO preserves canonical provenance for research results.",
+            "answer": "Nevolium preserves canonical provenance for research results.",
             "claims": [
                 {
                     "text": "The research result keeps a canonical tool invocation reference.",
@@ -192,7 +192,7 @@ def main() -> None:
             {
                 "slot": 0,
                 "tool_key": "researchsmoke.search",
-                "input": {"query": "KAIRO"},
+                "input": {"query": "Nevolium"},
                 "rationale": "read evidence",
                 "invocation_id": first["invocation_id"],
                 "result": {"items": [{"title": "Fixture", "snippet": "Canonical provenance"}]},
@@ -206,7 +206,7 @@ def main() -> None:
         headers=INTERNAL,
         payload={
             "kind": "autonomous-research",
-            "title": "Research — Find evidence about KAIRO",
+            "title": "Research — Find evidence about Nevolium",
             "content": synthetic_content,
         },
     )
@@ -224,7 +224,7 @@ def main() -> None:
     invocation = completed["tool_invocations"][0]
     assert invocation["invocation_id"] == first["invocation_id"], invocation
     assert invocation["tool_key"] == "researchsmoke.search", invocation
-    assert invocation["input"] == {"query": "KAIRO"}, invocation
+    assert invocation["input"] == {"query": "Nevolium"}, invocation
     assert invocation["rationale"] == "read evidence", invocation
     assert invocation["result"]["items"][0]["snippet"] == "Canonical provenance", invocation
     assert completed["planner_model_alias"] == "local-fast", completed

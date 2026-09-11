@@ -7,7 +7,7 @@ export async function readKnowledgeJson<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => null)
   if (!response.ok) {
     const message = knowledgeErrorMessage(body)
-    throw new Error(message || `KAIRO Core répond ${response.status}`)
+    throw new Error(message || `Nevolium Core répond ${response.status}`)
   }
   return body as T
 }

@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useState } from 'react'
 
 import { readKnowledgeJson } from './knowledgeApi'
 import type { KnowledgeInspectionTarget, KnowledgeSearchResult } from './knowledgeTypes'
-import { kairoFetch } from './lib/apiClient'
+import { nevoliumFetch } from './lib/apiClient'
 import { useProjectSelection } from './lib/projectSelection'
 
 type Props = {
@@ -45,7 +45,7 @@ export default function KnowledgeSearchPanel({ apiUrl, onInspectResult }: Props)
         offset: String(normalizedOffset),
         limit: String(KNOWLEDGE_SEARCH_PAGE_SIZE + 1),
       })
-      const response = await kairoFetch(`${apiUrl}/v1/knowledge/search?${params.toString()}`)
+      const response = await nevoliumFetch(`${apiUrl}/v1/knowledge/search?${params.toString()}`)
       const loaded = await readKnowledgeJson<KnowledgeSearchResult[]>(response)
       setActiveQuery(searchQuery)
       setResults(loaded.slice(0, KNOWLEDGE_SEARCH_PAGE_SIZE))

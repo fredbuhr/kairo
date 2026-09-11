@@ -1,13 +1,13 @@
 > Archive du checkpoint canonique après D01, conservée depuis `ceec99309c389aa2f24e30350d0a11d232a99edf`.
 > État historique : reprendre depuis [PROJECT_STATE](../../PROJECT_STATE.md), pas depuis ses anciennes prochaines actions.
 
-# KAIRO — checkpoint de reprise
+# Nevolium — checkpoint de reprise
 
 Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 
 ## État canonique établi
 
-- D01 intégré à `main` par [PR #84](https://github.com/fredbuhr/kairo/pull/84), merge `3d37afa77e6aecee87b6001bb81884b7545d9425`.
+- D01 intégré à `main` par [PR #84](https://github.com/fredbuhr/nevolium/pull/84), merge `3d37afa77e6aecee87b6001bb81884b7545d9425`.
 - Head final validé : `45869904808d6216a967978767c19bc4a8f881f3` ; **16/16 workflows réussis**.
 - Base D01 vérifiée : `4790e1eab979a1f8c4c25459fb1c57dc59e8f977`. Ce fichier est un suivi documentaire du merge, pas un SHA à reprendre sans fetch.
 - Reset R0–R7 terminé ; baseline `r7-baseline-2026-09-11` à `6cf3647a609bbd8463cb734e87eb4088572bc037`.
@@ -74,5 +74,6 @@ Preuves des 8 workflows PR (les 8 miroirs push ont également réussi) :
 - [Audit initial](../audit-2026-09-11.md) ; [historique jusqu'à #83](../archive/checkpoint-through-pr83-2026-09-11.md).
 - `hardening/d01-bounded-worker-execution` est **retirée** ; ne pas la réutiliser.
 - Toutes les anciennes branches H1–H3b2e et `hardening/h4-task-dispatch-isolation` sont retirées.
-- Réservoirs non canoniques : `feat/kairo-test-interface-v1`, `consolidate/g49-research-durable-stages`.
+- Réservoirs non canoniques : prototype d'interface historique à `ed12d503…`,
+  `consolidate/g49-research-durable-stages`.
   Inspection/récupération sélective uniquement, jamais reprise ou merge en bloc.

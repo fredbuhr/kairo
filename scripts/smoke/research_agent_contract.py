@@ -4,8 +4,8 @@ from decimal import Decimal
 
 from pydantic_ai import UnexpectedModelBehavior
 
-from kairo_worker.model_gateway import MODEL_CHECKPOINT_KIND, MODEL_CHECKPOINT_VERSION, ModelCheckpointLedger
-from kairo_worker.research_agent import (
+from nevolium_worker.model_gateway import MODEL_CHECKPOINT_KIND, MODEL_CHECKPOINT_VERSION, ModelCheckpointLedger
+from nevolium_worker.research_agent import (
     build_research_evidence,
     plan_research,
     research_progress_snapshot,
@@ -32,14 +32,14 @@ TOOL_RESULTS = [
     {
         "slot": 0,
         "tool_key": "web.search",
-        "input": {"query": "KAIRO architecture"},
+        "input": {"query": "Nevolium architecture"},
         "rationale": "Find public evidence.",
         "invocation_id": "00000000-0000-0000-0000-000000000010",
         "result": {
             "items": [
                 {
-                    "title": "KAIRO architecture",
-                    "snippet": "KAIRO keeps canonical state in its own platform boundary.",
+                    "title": "Nevolium architecture",
+                    "snippet": "Nevolium keeps canonical state in its own platform boundary.",
                 }
             ]
         },
@@ -54,7 +54,7 @@ async def main() -> None:
                 "calls": [
                     {
                         "tool_key": "web.search",
-                        "input": {"query": "KAIRO architecture"},
+                        "input": {"query": "Nevolium architecture"},
                         "rationale": "Find public evidence.",
                     }
                 ],
@@ -63,7 +63,7 @@ async def main() -> None:
         )
 
     plan = await plan_research(
-        query="Research KAIRO architecture",
+        query="Research Nevolium architecture",
         tools=TOOLS,
         max_tool_calls=1,
         completion=valid_completion,
@@ -109,10 +109,10 @@ async def main() -> None:
         synthesis_prompts.append(messages)
         return json.dumps(
             {
-                "answer": "The supplied evidence says KAIRO keeps canonical state inside its own platform boundary.",
+                "answer": "The supplied evidence says Nevolium keeps canonical state inside its own platform boundary.",
                 "claims": [
                     {
-                        "text": "KAIRO keeps canonical state inside its own platform boundary.",
+                        "text": "Nevolium keeps canonical state inside its own platform boundary.",
                         "evidence_ids": ["E1"],
                         "confidence": "high",
                     }
@@ -122,7 +122,7 @@ async def main() -> None:
         )
 
     synthesis = await synthesize_research(
-        query="What does the evidence say about KAIRO architecture?",
+        query="What does the evidence say about Nevolium architecture?",
         evidence=evidence,
         completion=grounded_completion,
     )

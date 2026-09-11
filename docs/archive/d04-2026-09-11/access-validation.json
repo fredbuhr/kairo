@@ -1,11 +1,16 @@
 {
   "schema": 1,
+  "identity_normalization": {
+    "canonicalized_at": "2026-09-11",
+    "pre_transition_commit": "8cc34c964d34c360fe9b42e50e2ac9daca678a75",
+    "scope": "repository URLs and product labels only; run IDs, commits, results and measurements are unchanged"
+  },
   "lot": "D04",
   "private_target_qualified": false,
   "code_head": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
   "code_tree": "c3ea2b7928bd11b45a607a22a9a6f9f0371a1179",
   "pull_request": 88,
-  "scope": "runner fixtures use real loopback HTTP/TLS; not a deployed private KAIRO server",
+  "scope": "runner fixtures use real loopback HTTP/TLS; not a deployed private Nevolium server",
   "runner": {
     "job_id": 103356071745,
     "unittest_count": 6,
@@ -19,63 +24,63 @@
       "name": "Code quality validation",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509288"
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509288"
     },
     {
       "id": 34627509327,
       "name": "UI workspace validation",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509327"
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509327"
     },
     {
       "id": 34627509291,
       "name": "MCP tool registry validation",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509291"
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509291"
     },
     {
       "id": 34627509305,
       "name": "Document ingestion validation",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509305"
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509305"
     },
     {
       "id": 34627509309,
       "name": "Baseline reproducibility validation",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509309"
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509309"
     },
     {
       "id": 34627509273,
       "name": "Multi-user isolation validation",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509273"
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509273"
     },
     {
       "id": 34627509284,
       "name": "Autonomous research validation",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509284"
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509284"
     },
     {
       "id": 34627509233,
       "name": "Foundation validation",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509233"
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509233"
     },
     {
       "id": 34627509237,
       "name": "D04 real engine qualification",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509237"
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509237"
     }
   ],
   "qualification_jobs": [
@@ -84,7 +89,7 @@
       "name": "qualification-runner-contract",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509237/job/103356071745",
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509237/job/103356071745",
       "started_at": "2026-09-11T17:24:37Z",
       "completed_at": "2026-09-11T17:25:11Z"
     },
@@ -93,7 +98,7 @@
       "name": "recovery-source",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509237/job/103356071976",
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509237/job/103356071976",
       "started_at": "2026-09-11T17:24:38Z",
       "completed_at": "2026-09-11T17:25:56Z"
     },
@@ -102,7 +107,7 @@
       "name": "real-local-services",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509237/job/103356072021",
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509237/job/103356072021",
       "started_at": "2026-09-11T17:24:37Z",
       "completed_at": "2026-09-11T17:27:03Z"
     },
@@ -111,7 +116,7 @@
       "name": "real-document-memory",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509237/job/103356072049",
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509237/job/103356072049",
       "started_at": "2026-09-11T17:24:38Z",
       "completed_at": "2026-09-11T17:28:28Z"
     },
@@ -120,7 +125,7 @@
       "name": "recovery-target",
       "head_sha": "a5a61db38191a9f8f37551fba7fe44df06c8a3be",
       "conclusion": "success",
-      "url": "https://github.com/fredbuhr/kairo/actions/runs/34627509237/job/103356493163",
+      "url": "https://github.com/fredbuhr/nevolium/actions/runs/34627509237/job/103356493163",
       "started_at": "2026-09-11T17:25:59Z",
       "completed_at": "2026-09-11T17:27:07Z"
     }

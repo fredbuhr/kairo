@@ -4,32 +4,32 @@ services:
       context: .
       dockerfile: services/worker/Dockerfile
       args:
-        KAIRO_WORKER_EXTRAS: ""
+        NEVOLIUM_WORKER_EXTRAS: ""
     command: ["python", "/smoke/fake_research_litellm.py"]
     volumes:
       - ./scripts/smoke:/smoke:ro
     ports:
       - "127.0.0.1:14000:4000"
-    networks: [kairo]
+    networks: [nevolium]
 
   fake-research-mcp:
     build:
       context: .
       dockerfile: services/worker/Dockerfile
       args:
-        KAIRO_WORKER_EXTRAS: ""
+        NEVOLIUM_WORKER_EXTRAS: ""
     command: ["python", "/smoke/fake_research_mcp.py"]
     volumes:
       - ./scripts/smoke:/smoke:ro
     ports:
       - "127.0.0.1:18766:8766"
-    networks: [kairo]
+    networks: [nevolium]
 
-  kairo-core:
+  nevolium-core:
     environment:
-      KAIRO_AUTH_ENABLED: "false"
+      NEVOLIUM_AUTH_ENABLED: "false"
 
-  kairo-worker:
+  nevolium-worker:
     environment:
       LITELLM_URL: http://fake-research-litellm:4000
       LITELLM_MASTER_KEY: ""

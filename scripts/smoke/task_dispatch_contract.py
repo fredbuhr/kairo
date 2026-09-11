@@ -8,13 +8,13 @@ import uuid
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from kairo_core.command_models import CommandRecord
-from kairo_core.document_models import DocumentVersion
-from kairo_core.memory import MEMORY_PROJECT_ID, _task_id
-from kairo_core.models import Project, Task
-from kairo_core.schemas import TaskCreate
-from kairo_core.tool_models import ToolInvocation
-from kairo_core.workflows import _require_execution_binding
+from nevolium_core.command_models import CommandRecord
+from nevolium_core.document_models import DocumentVersion
+from nevolium_core.memory import MEMORY_PROJECT_ID, _task_id
+from nevolium_core.models import Project, Task
+from nevolium_core.schemas import TaskCreate
+from nevolium_core.tool_models import ToolInvocation
+from nevolium_core.workflows import _require_execution_binding
 
 RESERVED = (
     "tool.invoke", "document.ingest", "assistant.route.semantic", "memory.project",

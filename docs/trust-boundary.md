@@ -1,10 +1,10 @@
-# KAIRO trust boundary
+# Nevolium trust boundary
 
 This document is normative for code that handles identity, devices, secret references and binary assets.
 
 ## Identity
 
-Keycloak is the authentication provider. KAIRO Core owns authorization semantics.
+Keycloak is the authentication provider. Nevolium Core owns authorization semantics.
 
 For trusted resource APIs, Core validates a Bearer access token using the configured Keycloak JWKS endpoint and verifies:
 
@@ -13,16 +13,16 @@ For trusted resource APIs, Core validates a Bearer access token using the config
 - configured issuer;
 - subject (`sub`);
 - authorized party (`azp`) when present;
-- KAIRO realm roles.
+- Nevolium realm roles.
 
 The client never supplies the canonical user subject for a device. `DeviceRegistration.keycloak_subject` is derived from the validated JWT `sub` claim.
 
-Development uses the reproducible `kairo` realm imported from `infrastructure/keycloak/kairo-realm.json`. Those credentials are local-development fixtures only and must not exist in production.
+Development uses the reproducible `nevolium` realm imported from `infrastructure/keycloak/nevolium-realm.json`. Those credentials are local-development fixtures only and must not exist in production.
 
 ## Roles
 
-- `kairo-user`: personal resources such as the caller's registered devices and assets.
-- `kairo-admin`: global trust configuration such as secret-reference metadata.
+- `nevolium-user`: personal resources such as the caller's registered devices and assets.
+- `nevolium-admin`: global trust configuration such as secret-reference metadata.
 
 A later Policy Engine may impose stricter decisions, but it may not weaken authentication established here.
 
@@ -34,7 +34,7 @@ PostgreSQL stores only `SecretReference` metadata:
 - OpenBao provider path;
 - purpose.
 
-Secret values live in OpenBao. Public KAIRO endpoints MUST NOT accept, return, log, audit, publish, trace, embed or otherwise persist secret values.
+Secret values live in OpenBao. Public Nevolium endpoints MUST NOT accept, return, log, audit, publish, trace, embed or otherwise persist secret values.
 
 `GET /v1/secret-references/{id}/status` may report only whether a secret exists, the names of fields present, and version metadata. It must never return field values.
 
@@ -48,7 +48,7 @@ Binary content is authoritative in SeaweedFS; PostgreSQL stores canonical asset 
 
 The first asset API:
 
-- requires a validated `kairo-user` identity;
+- requires a validated `nevolium-user` identity;
 - limits upload size;
 - computes SHA-256 before metadata commit;
 - writes the object to the SeaweedFS Filer;
@@ -59,7 +59,7 @@ The first asset API:
 
 ## Readiness
 
-`/health/ready` proves the durable execution substrate needed by normal KAIRO work.
+`/health/ready` proves the durable execution substrate needed by normal Nevolium work.
 
 `/health/trust` separately proves that the sensitive resource boundary is usable:
 
@@ -76,5 +76,5 @@ This separation permits non-sensitive durable workflows to remain available duri
 1. a sensitive endpoint rejects an unauthenticated request;
 2. a real Keycloak access token is accepted;
 3. a device subject is derived from the signed token and duplicate registration is rejected;
-4. an OpenBao KV value can be referenced while its value never appears in KAIRO API responses;
-5. an authenticated file can be uploaded, hashed, read back byte-for-byte and deleted through KAIRO Core.
+4. an OpenBao KV value can be referenced while its value never appears in Nevolium API responses;
+5. an authenticated file can be uploaded, hashed, read back byte-for-byte and deleted through Nevolium Core.

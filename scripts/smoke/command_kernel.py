@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end proof of KAIRO's canonical conversational command kernel."""
+"""End-to-end proof of Nevolium's canonical conversational command kernel."""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def wait_ready() -> None:
         except Exception as exc:  # noqa: BLE001 - smoke test reports the final readiness failure
             last_error = exc
         time.sleep(1)
-    raise RuntimeError(f"KAIRO Core did not become ready: {last_error}")
+    raise RuntimeError(f"Nevolium Core did not become ready: {last_error}")
 
 
 def main() -> None:
@@ -145,7 +145,7 @@ def main() -> None:
         "POST",
         f"/internal/v1/executions/{pending['routing_workflow_id']}/fail",
         payload={"error": "forced semantic routing failure for smoke proof"},
-        headers={"X-Kairo-Internal-Token": "CHANGE_ME_INTERNAL_TOKEN"},
+        headers={"X-Nevolium-Internal-Token": "CHANGE_ME_INTERNAL_TOKEN"},
     )
     _, failed_command = json_request("GET", f"/v1/commands/{pending['command_id']}")
     assert failed_command["status"] == "failed", failed_command

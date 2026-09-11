@@ -21,14 +21,14 @@ from common import Evidence, sha256, versions
 def prepare(root):
     from docling.utils.model_downloader import download_models
     from fastembed import TextEmbedding
-    from kairo_worker.memory_projection import MEM0_EMBEDDING_MODEL
-    from kairo_worker.model_assets import inventory
+    from nevolium_worker.memory_projection import MEM0_EMBEDDING_MODEL
+    from nevolium_worker.model_assets import inventory
     if (root / 'manifest.json').exists():
         raise ValueError('Use a new bundle for each explicit preparation')
     download_models(output_dir=root / 'docling', with_code_formula=False,
                     with_picture_classifier=False)
     model = TextEmbedding(model_name=MEM0_EMBEDDING_MODEL, cache_dir=str(root / 'fastembed'), threads=1)
-    vector = next(iter(model.embed(['KAIRO qualification locale'])))
+    vector = next(iter(model.embed(['Nevolium qualification locale'])))
     assert len(vector) == 384
     revisions = set()
     for path in root.rglob('*.metadata'):
@@ -53,7 +53,7 @@ def prepare(root):
 
 def make_pdf(path):
     # Original fixture with a real PDF text layer, no external document or renderer dependency.
-    text = b'BT /F1 16 Tf 50 750 Td (KAIRO REAL PDF QUALIFICATION) Tj 0 -30 Td (The project deadline is 17 October 2026.) Tj ET'
+    text = b'BT /F1 16 Tf 50 750 Td (Nevolium REAL PDF QUALIFICATION) Tj 0 -30 Td (The project deadline is 17 October 2026.) Tj ET'
     objects = [b'<< /Type /Catalog /Pages 2 0 R >>', b'<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
                b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
                b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
@@ -70,8 +70,8 @@ def make_pdf(path):
 
 
 def run(root, output):
-    from kairo_worker.model_assets import verify_manifest
-    from kairo_worker import memory_projection as memory
+    from nevolium_worker.model_assets import verify_manifest
+    from nevolium_worker import memory_projection as memory
     evidence = Evidence('real-document-memory', output)
     evidence.data['versions'] = versions(['docling', 'docling-core', 'mem0ai', 'graphiti-core', 'fastembed', 'onnxruntime'])
     evidence.data['model_manifest_sha256'] = sha256(root / 'manifest.json')
@@ -100,22 +100,22 @@ def run(root, output):
     evidence.case('offline-readonly-boundary', 15, boundaries)
 
     def pdf():
-        from kairo_worker.document_ingestion import _run_parser
-        from kairo_worker.config import settings
+        from nevolium_worker.document_ingestion import _run_parser
+        from nevolium_worker.config import settings
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'proof.pdf'; make_pdf(path)
             # Same bounded child path as the Worker, not a simplified direct converter.
             result = asyncio.run(_run_parser(path, 'application/pdf'))
             assert result['parser'] == 'docling' and result['parser_version']
             text = ' '.join(c['text'] for c in result['chunks'])
-            assert 'KAIRO REAL PDF QUALIFICATION' in text and '17 October 2026' in text
+            assert 'Nevolium REAL PDF QUALIFICATION' in text and '17 October 2026' in text
             return {'parser': result['parser'], 'chunks': len(result['chunks']),
-                    'fixture_sha256': sha256(path), 'parse_timeout_seconds': settings.kairo_document_parse_timeout_seconds}
+                    'fixture_sha256': sha256(path), 'parse_timeout_seconds': settings.nevolium_document_parse_timeout_seconds}
     evidence.case('pdf-docling-owned-child', 210, pdf)
 
     source = {'message_id': str(uuid.uuid4()), 'conversation_id': str(uuid.uuid4()),
               'subject_ref': 'd04:' + str(uuid.uuid4()), 'role': 'user',
-              'content': 'Le projet Kairo doit conserver une memoire locale verifiable.',
+              'content': 'Le projet Nevolium doit conserver une memoire locale verifiable.',
               'source_version': 1, 'created_at': datetime.now(timezone.utc).isoformat()}
 
     def projection():
@@ -136,7 +136,7 @@ def run(root, output):
         other = instance.search(source['content'], filters={'user_id': 'subject:d04:other'}, top_k=5)
         assert own['results'] and not other['results']
         from neo4j import GraphDatabase
-        from kairo_worker.config import settings
+        from nevolium_worker.config import settings
         with GraphDatabase.driver(settings.neo4j_uri, auth=(settings.neo4j_user, settings.neo4j_password)) as driver:
             rows, _, _ = driver.execute_query('MATCH (e:Episodic {uuid: $id}) RETURN e.content AS content, e.group_id AS scope', id=source['message_id'])
             assert len(rows) == 1 and source['content'] in rows[0]['content']
@@ -149,7 +149,7 @@ def run(root, output):
         import subprocess
         with tempfile.TemporaryDirectory() as empty:
             env = dict(os.environ, FASTEMBED_CACHE_PATH=empty)
-            code = 'from kairo_worker.memory_projection import _get_mem0_instance; _get_mem0_instance()'
+            code = 'from nevolium_worker.memory_projection import _get_mem0_instance; _get_mem0_instance()'
             process = subprocess.run([sys.executable, '-c', code], env=env, capture_output=True, timeout=40)
             assert process.returncode != 0
         return {'missing_cache_rejected': True}

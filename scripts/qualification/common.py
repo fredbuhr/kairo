@@ -37,8 +37,8 @@ class Evidence:
     def __init__(self, group, output):
         self.output = Path(output)
         self.data = {'schema': 1, 'lot': 'D04', 'group': group,
-                     'scope': os.environ.get('KAIRO_QUALIFICATION_SCOPE', 'development-host'),
-                     'commit': os.environ.get('KAIRO_QUALIFICATION_COMMIT', 'unrecorded'),
+                     'scope': os.environ.get('NEVOLIUM_QUALIFICATION_SCOPE', 'development-host'),
+                     'commit': os.environ.get('NEVOLIUM_QUALIFICATION_COMMIT', 'unrecorded'),
                      'started_at': datetime.now(timezone.utc).isoformat(), 'hardware': hardware(),
                      'provider_calls_paid': False, 'cases': [], 'd04_gate': 'incomplete'}
         self.save()

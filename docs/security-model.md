@@ -1,6 +1,6 @@
-# KAIRO security and authority model
+# Nevolium security and authority model
 
-KAIRO is designed to observe, reason and eventually act across sensitive personal systems. Capability therefore remains separate from authority at every layer.
+Nevolium is designed to observe, reason and eventually act across sensitive personal systems. Capability therefore remains separate from authority at every layer.
 
 ## Authority levels
 
@@ -9,8 +9,8 @@ Approved integrations may be read without per-action confirmation.
 
 Examples: read project data, inspect system health, search public information, read market data, inspect analytics.
 
-### A1 — Internal KAIRO write
-May change KAIRO-owned reversible state.
+### A1 — Internal Nevolium write
+May change Nevolium-owned reversible state.
 
 Examples: create notes, update task status, add graph relationships, write research reports.
 
@@ -22,7 +22,7 @@ Examples: draft an email, prepare a deployment plan, build an unsigned transacti
 ### A3 — Narrow standing external authority
 May execute only a precisely pre-authorized, reversible/low-consequence standing order with scope, destination, limits and audit.
 
-Examples: send KAIRO notifications, perform known-safe refreshes, publish content that was separately approved and scheduled.
+Examples: send Nevolium notifications, perform known-safe refreshes, publish content that was separately approved and scheduled.
 
 ### A4 — Sensitive external action
 Requires explicit approval at execution time unless a future dedicated policy narrows the case safely.
@@ -53,7 +53,7 @@ Default is deny.
 
 ## Policy decision before execution
 
-Every side-effecting Temporal activity must receive a KAIRO policy decision or a verifiable approval token/capability scoped to that exact activity. A NATS event, model output or tool availability is never sufficient authorization.
+Every side-effecting Temporal activity must receive a Nevolium policy decision or a verifiable approval token/capability scoped to that exact activity. A NATS event, model output or tool availability is never sufficient authorization.
 
 ## Task dispatch and resource identity
 
@@ -95,7 +95,7 @@ Rules:
 
 ## Crypto signing boundary
 
-KAIRO can read portfolio data, analyze risk, prepare and simulate transactions, and request approval.
+Nevolium can read portfolio data, analyze risk, prepare and simulate transactions, and request approval.
 
 Private keys/seed phrases must never be accessible to PydanticAI, LiteLLM, Mem0, Graphiti, Langfuse, chat history or ordinary application logs.
 
@@ -105,7 +105,7 @@ Preferred execution flow:
 Agent analysis
  -> TransactionProposal
  -> deterministic validation/simulation
- -> KAIRO policy decision
+ -> Nevolium policy decision
  -> explicit user approval
  -> isolated signer / hardware wallet / user wallet
  -> broadcast adapter
@@ -128,7 +128,7 @@ Browser sessions use dedicated profiles/credentials and least privilege. Playwri
 
 ## Identity
 
-Keycloak provides authentication/SSO. KAIRO remains single-user initially but uses proper subject/device identities from the beginning so later multi-user/team scenarios do not require replacing the authorization model.
+Keycloak provides authentication/SSO. Nevolium remains single-user initially but uses proper subject/device identities from the beginning so later multi-user/team scenarios do not require replacing the authorization model.
 
 ## Audit
 
@@ -146,7 +146,7 @@ Security/autonomy events record:
 - result/error/retry;
 - artefacts produced.
 
-Langfuse traces AI behavior, but the KAIRO audit log remains the security source of truth.
+Langfuse traces AI behavior, but the Nevolium audit log remains the security source of truth.
 
 ## Backup and recovery
 
@@ -154,7 +154,7 @@ restic performs encrypted off-host backups of canonical databases/config/object 
 
 ## Self-modification
 
-KAIRO may diagnose itself and prepare code/config changes. It may not silently alter core policy, authentication, secrets, production infrastructure or deploy unreviewed code. Self-change flows require a diff, tests, backup/rollback plan and approval.
+Nevolium may diagnose itself and prepare code/config changes. It may not silently alter core policy, authentication, secrets, production infrastructure or deploy unreviewed code. Self-change flows require a diff, tests, backup/rollback plan and approval.
 
 
 ## D03 production boundary

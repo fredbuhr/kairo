@@ -3,8 +3,8 @@ from __future__ import annotations
 from fastapi import HTTPException
 from sqlalchemy import UniqueConstraint
 
-from kairo_core.ui_layouts import MAX_WORKSPACE_LAYOUT_BYTES, _validate_layout_size, router
-from kairo_core.ui_models import WorkspaceLayout
+from nevolium_core.ui_layouts import MAX_WORKSPACE_LAYOUT_BYTES, _validate_layout_size, router
+from nevolium_core.ui_models import WorkspaceLayout
 
 
 def main() -> None:

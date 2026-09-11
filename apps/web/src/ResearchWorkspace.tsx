@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { usePagedCollection } from './lib/usePagedCollection'
-import { kairoFetch } from './lib/apiClient'
+import { nevoliumFetch } from './lib/apiClient'
 import { useProjectSelection } from './lib/projectSelection'
 
 type Project = {
@@ -63,13 +63,13 @@ async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const detail = body?.detail
     const message = typeof detail === 'string' ? detail : detail?.message
-    throw new Error(message || `KAIRO Core répond ${response.status}`)
+    throw new Error(message || `Nevolium Core répond ${response.status}`)
   }
   return body as T
 }
 
 function sourceLabel(evidence: ResearchEvidence) {
-  if (evidence.source_type === 'document') return 'Document KAIRO'
+  if (evidence.source_type === 'document') return 'Document Nevolium'
   if (evidence.source_type === 'memory') return 'Mémoire dérivée'
   if (evidence.source_type === 'tool') return evidence.tool_key || evidence.source || 'Outil MCP'
   return evidence.source || 'Contexte'
@@ -98,7 +98,7 @@ export default function ResearchWorkspace({ apiUrl }: Props) {
 
     const poll = async () => {
       try {
-        const response = await kairoFetch(`${apiUrl}/v1/research/runs/${taskId}`)
+        const response = await nevoliumFetch(`${apiUrl}/v1/research/runs/${taskId}`)
         const data = await readJson<ResearchRun>(response)
         if (cancelled) return
         setRun(data)
@@ -127,7 +127,7 @@ export default function ResearchWorkspace({ apiUrl }: Props) {
     setRun(null)
     setTaskId(null)
     try {
-      const response = await kairoFetch(`${apiUrl}/v1/research/runs`, {
+      const response = await nevoliumFetch(`${apiUrl}/v1/research/runs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -215,7 +215,7 @@ export default function ResearchWorkspace({ apiUrl }: Props) {
 
       {taskId && run && !['completed', 'failed'].includes(run.status) && !error && (
         <div className="progress-panel">
-          <strong>KAIRO construit une réponse durable et vérifiable.</strong>
+          <strong>Nevolium construit une réponse durable et vérifiable.</strong>
           <span>
             {run.execution_status || run.status} · {run.tool_call_count} appel(s) outil enregistré(s)
           </span>
@@ -223,7 +223,7 @@ export default function ResearchWorkspace({ apiUrl }: Props) {
       )}
 
       {run?.status === 'failed' && (
-        <div className="error-panel">{run.error || 'La recherche KAIRO a échoué.'}</div>
+        <div className="error-panel">{run.error || 'La recherche Nevolium a échoué.'}</div>
       )}
 
       {run?.status === 'completed' && run.answer && (

@@ -5,10 +5,10 @@ from unittest.mock import AsyncMock, patch
 
 from nats.js.api import ConsumerConfig
 
-from kairo_core.config import settings as core_settings
-from kairo_core.outbox import OutboxRelay
-from kairo_worker.config import settings as worker_settings
-from kairo_worker.memory_events import MEMORY_CONSUMER_DURABLE, MEMORY_EVENT_SUBJECT, MemoryProjectionEventConsumer
+from nevolium_core.config import settings as core_settings
+from nevolium_core.outbox import OutboxRelay
+from nevolium_worker.config import settings as worker_settings
+from nevolium_worker.memory_events import MEMORY_CONSUMER_DURABLE, MEMORY_EVENT_SUBJECT, MemoryProjectionEventConsumer
 
 
 async def main():
@@ -38,7 +38,7 @@ async def main():
         assert info.config.max_ack_pending == 32 and info.config.ack_wait == 60
         assert info.config.deliver_subject == "_INBOX.d02capacity"
         # A reconnecting client must not be multiplied on every relay iteration.
-        from kairo_core import outbox
+        from nevolium_core import outbox
         reconnecting = OutboxRelay()
         reconnecting._nc = SimpleNamespace(is_closed=False, is_connected=False)
         with patch.object(outbox.nats, "connect", AsyncMock()) as connect:

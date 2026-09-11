@@ -40,24 +40,24 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck protocol package
-        run: pnpm --filter @kairo/protocol typecheck
+        run: pnpm --filter @nevolium/protocol typecheck
 
       - name: Typecheck graph package
-        run: pnpm --filter @kairo/graph typecheck
+        run: pnpm --filter @nevolium/graph typecheck
 
       - name: Typecheck Gantt package
-        run: pnpm --filter @kairo/gantt typecheck
+        run: pnpm --filter @nevolium/gantt typecheck
 
       - name: Typecheck UI package
-        run: pnpm --filter @kairo/ui typecheck
+        run: pnpm --filter @nevolium/ui typecheck
 
       - name: Typecheck realtime service
-        run: pnpm --filter @kairo/realtime typecheck
+        run: pnpm --filter @nevolium/realtime typecheck
 
-      - name: Typecheck KAIRO Web
-        run: pnpm --filter @kairo/web typecheck
+      - name: Typecheck Nevolium Web
+        run: pnpm --filter @nevolium/web typecheck
 
-      - name: Build KAIRO Web
+      - name: Build Nevolium Web
         run: pnpm build:web
 
       - name: Build realtime service
@@ -70,8 +70,8 @@ jobs:
 
       - name: Validate Python packages
         run: |
-          uv build --package kairo-core
-          uv build --package kairo-worker
+          uv build --package nevolium-core
+          uv build --package nevolium-worker
 
       - name: Compile Python sources
         run: python -m compileall services/core/src services/worker/src scripts/smoke
@@ -116,15 +116,15 @@ jobs:
       postgres:
         image: pgvector/pgvector:0.8.6-pg17@sha256:cf134a767f474095eeba57e0117be8e568e011a63f33fbf252f14c9b760f8e6f
         env:
-          POSTGRES_USER: kairo
-          POSTGRES_PASSWORD: kairo-test-only
-          POSTGRES_DB: kairo_admission_test
+          POSTGRES_USER: nevolium
+          POSTGRES_PASSWORD: nevolium-test-only
+          POSTGRES_DB: nevolium_admission_test
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U kairo -d kairo_admission_test"
+          --health-cmd "pg_isready -U nevolium -d nevolium_admission_test"
           --health-interval 5s --health-timeout 5s --health-retries 20
     env:
-      DATABASE_URL: postgresql+asyncpg://kairo:kairo-test-only@localhost:5432/kairo_admission_test
+      DATABASE_URL: postgresql+asyncpg://nevolium:nevolium-test-only@localhost:5432/nevolium_admission_test
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -137,7 +137,7 @@ jobs:
         run: uv run --locked --project services/core python scripts/smoke/capacity_and_data_contract.py
       - name: Start isolated JetStream for capacity and reconnection validation
         run: >-
-          docker run -d --name kairo-d02-nats -p 127.0.0.1:4222:4222
+          docker run -d --name nevolium-d02-nats -p 127.0.0.1:4222:4222
           nats:2.14.5-alpine@sha256:d4ac35882ac65aff236cd65b9d3fa4d24332c681e1a85f94eedccd3cdd65b1da -js
       - name: Prove real transport limits and existing durable upgrade
         env:
@@ -145,7 +145,7 @@ jobs:
         run: uv run --locked --all-packages python scripts/smoke/transport_capacity_contract.py
       - name: Clean up isolated JetStream
         if: always()
-        run: docker rm -f kairo-d02-nats || true
+        run: docker rm -f nevolium-d02-nats || true
       - name: Prove separate production SQL roles and restricted migrations on disposable databases
         run: uv run --locked --project services/core python scripts/smoke/database_privileges_contract.py
       - name: Prove D02 migration rollback and reapply on the disposable database
@@ -164,11 +164,11 @@ jobs:
       - name: Prepare command-kernel environment
         run: |
           cp .env.example .env
-          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+          echo 'NEVOLIUM_WORKER_EXTRAS=' >> .env
 
       - name: Start canonical command and Temporal substrate
         run: |
-          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace nevolium-core
 
       - name: Prove canonical conversation and command handoff
         run: python scripts/smoke/command_kernel.py
@@ -177,7 +177,7 @@ jobs:
         if: failure()
         run: |
           docker compose ps -a
-          docker compose logs --no-color --tail=350 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+          docker compose logs --no-color --tail=350 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace nevolium-core
 
       - name: Tear down command-kernel stack
         if: always()
@@ -193,16 +193,16 @@ jobs:
       - name: Prepare semantic-routing environment
         run: |
           cp .env.example .env
-          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+          echo 'NEVOLIUM_WORKER_EXTRAS=' >> .env
 
       - name: Start canonical command, policy and Worker substrate
         run: |
-          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace nevolium-core nevolium-worker
 
       - name: Start deterministic LiteLLM stand-in
         run: |
-          docker run -d --name kairo-fake-litellm \
-            --network kairo_kairo \
+          docker run -d --name nevolium-fake-litellm \
+            --network nevolium_nevolium \
             --network-alias litellm \
             -v "$PWD/scripts/smoke/fake_litellm.py:/app/server.py:ro" \
             ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58 python /app/server.py
@@ -214,13 +214,13 @@ jobs:
         if: failure()
         run: |
           docker compose ps -a
-          docker logs kairo-fake-litellm || true
-          docker compose logs --no-color --tail=500 postgres nats temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+          docker logs nevolium-fake-litellm || true
+          docker compose logs --no-color --tail=500 postgres nats temporal-admin-tools temporal temporal-create-namespace nevolium-core nevolium-worker
 
       - name: Tear down semantic-routing stack
         if: always()
         run: |
-          docker rm -f kairo-fake-litellm || true
+          docker rm -f nevolium-fake-litellm || true
           docker compose down -v --remove-orphans
 
   memory-projection-integration:
@@ -233,20 +233,20 @@ jobs:
       - name: Prepare memory-projection environment
         run: |
           cp .env.example .env
-          echo 'KAIRO_WORKER_EXTRAS=' >> .env
-          echo 'KAIRO_MEMORY_PROJECTOR_MODE=stub' >> .env
+          echo 'NEVOLIUM_WORKER_EXTRAS=' >> .env
+          echo 'NEVOLIUM_MEMORY_PROJECTOR_MODE=stub' >> .env
 
       - name: Start canonical message, event and Worker substrate
         run: |
-          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace nevolium-core nevolium-worker
 
       - name: Prove rebuildable memory projection generations
         run: python scripts/smoke/memory_projection.py
 
       - name: Prove clean Worker SIGTERM after completed projections
         run: |
-          worker_id=$(docker compose ps -q kairo-worker)
-          docker compose stop kairo-worker
+          worker_id=$(docker compose ps -q nevolium-worker)
+          docker compose stop nevolium-worker
           test "$(docker inspect -f '{{.State.ExitCode}}' "$worker_id")" = 0
           test "$(docker inspect -f '{{.State.OOMKilled}}' "$worker_id")" = false
 
@@ -254,7 +254,7 @@ jobs:
         if: failure()
         run: |
           docker compose ps -a
-          docker compose logs --no-color --tail=650 postgres nats temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+          docker compose logs --no-color --tail=650 postgres nats temporal-admin-tools temporal temporal-create-namespace nevolium-core nevolium-worker
 
       - name: Tear down memory-projection stack
         if: always()
@@ -270,11 +270,11 @@ jobs:
       - name: Prepare integration environment
         run: |
           cp .env.example .env
-          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+          echo 'NEVOLIUM_WORKER_EXTRAS=' >> .env
 
       - name: Start Block 1 substrate
         run: |
-          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace nevolium-core nevolium-worker
 
       - name: Prove crash recovery and outbox delivery
         run: python scripts/smoke/block1.py
@@ -283,7 +283,7 @@ jobs:
         if: failure()
         run: |
           docker compose ps -a
-          docker compose logs --no-color --tail=300 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core kairo-worker
+          docker compose logs --no-color --tail=300 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace nevolium-core nevolium-worker
 
       - name: Tear down integration stack
         if: always()
@@ -299,11 +299,11 @@ jobs:
       - name: Prepare trust-boundary environment
         run: |
           cp .env.example .env
-          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+          echo 'NEVOLIUM_WORKER_EXTRAS=' >> .env
 
       - name: Start identity, secrets, assets and Core substrate
         run: |
-          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace openbao keycloak kairo-core
+          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace openbao keycloak nevolium-core
 
       - name: Prove authenticated resource boundaries
         run: python scripts/smoke/resources.py
@@ -312,7 +312,7 @@ jobs:
         if: failure()
         run: |
           docker compose ps -a
-          docker compose logs --no-color --tail=400 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace openbao keycloak kairo-core
+          docker compose logs --no-color --tail=400 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace openbao keycloak nevolium-core
 
       - name: Tear down integration stack
         if: always()
@@ -330,7 +330,7 @@ jobs:
           cp .env.example .env
           cat >> .env <<'EOF'
           RESTIC_REPOSITORY=/repository
-          RESTIC_PASSWORD=kairo-ci-restic-proof
+          RESTIC_PASSWORD=nevolium-ci-restic-proof
           RESTIC_LOCAL_PATH=./backups/restic
           EOF
 
@@ -348,7 +348,7 @@ jobs:
         run: |
           docker compose --env-file .env -f compose.yaml -f compose.override.yaml -f compose.ops.yaml --profile ops run --rm ops-cleanup || true
           docker compose --env-file .env -f compose.yaml -f compose.override.yaml -f compose.ops.yaml --profile ops down -v --remove-orphans
-          rm -rf backups/restic .kairo-backup-staging
+          rm -rf backups/restic .nevolium-backup-staging
 
   block2-policy-integration:
     needs: validate
@@ -360,11 +360,11 @@ jobs:
       - name: Prepare autonomy-boundary environment
         run: |
           cp .env.example .env
-          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+          echo 'NEVOLIUM_WORKER_EXTRAS=' >> .env
 
       - name: Start durable execution, identity and Core policy substrate
         run: |
-          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace keycloak kairo-core kairo-worker
+          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace keycloak nevolium-core nevolium-worker
 
       - name: Prove approval suspension, hard budgets and policy tokens
         run: python scripts/smoke/block2_policy.py
@@ -373,7 +373,7 @@ jobs:
         if: failure()
         run: |
           docker compose ps -a
-          docker compose logs --no-color --tail=450 postgres nats temporal-admin-tools temporal temporal-create-namespace keycloak kairo-core kairo-worker
+          docker compose logs --no-color --tail=450 postgres nats temporal-admin-tools temporal temporal-create-namespace keycloak nevolium-core nevolium-worker
 
       - name: Tear down autonomy stack
         if: always()

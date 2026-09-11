@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "kairo-worker"
+name = "nevolium-worker"
 version = "0.2.0"
 requires-python = ">=3.12"
 dependencies = [
@@ -25,4 +25,4 @@ intelligence = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/kairo_worker"]
+packages = ["src/nevolium_worker"]

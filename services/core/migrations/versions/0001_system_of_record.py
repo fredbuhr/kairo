@@ -1,4 +1,4 @@
-"""Create the KAIRO canonical system-of-record tables.
+"""Create the Nevolium canonical system-of-record tables.
 
 Revision ID: 0001_system_of_record
 Revises:

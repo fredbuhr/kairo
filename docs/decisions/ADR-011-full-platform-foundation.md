@@ -4,13 +4,13 @@
 
 ## Decision
 
-KAIRO will declare the complete selected platform dependency graph at the architecture/foundation stage rather than adding foundational infrastructure only when individual feature experiments fail.
+Nevolium will declare the complete selected platform dependency graph at the architecture/foundation stage rather than adding foundational infrastructure only when individual feature experiments fail.
 
 Components may use deployment profiles, but their data ownership, security and adapter boundaries are designed now.
 
 ## Rationale
 
-KAIRO's target scope crosses AI, realtime collaboration, projects, planning, finance, devices and external actions. Retrofitting identity, durable workflows, eventing, secrets or canonical data ownership after these modules are built would create more complexity than selecting the boundaries early.
+Nevolium's target scope crosses AI, realtime collaboration, projects, planning, finance, devices and external actions. Retrofitting identity, durable workflows, eventing, secrets or canonical data ownership after these modules are built would create more complexity than selecting the boundaries early.
 
 ## Consequence
 

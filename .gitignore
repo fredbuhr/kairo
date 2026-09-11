@@ -7,8 +7,8 @@ secrets/
 runtime/
 data/
 backups/
-.kairo-backup-staging/
-.kairo-qualification/
+.nevolium-backup-staging/
+.nevolium-qualification/
 d04-encrypted-repository.tar
 
 # Node

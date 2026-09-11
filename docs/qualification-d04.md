@@ -1,6 +1,6 @@
 # D04 — campagne commune des moteurs réels et de l'exploitation
 
-Lot actif, une branche/PR : `hardening/d04-real-engine-qualification`, [#88](https://github.com/fredbuhr/kairo/pull/88).
+Lot actif, une branche/PR : `hardening/d04-real-engine-qualification`, [#88](https://github.com/fredbuhr/nevolium/pull/88).
 Les preuves exactes sont dans PROJECT_STATE et le rapport daté. Cette procédure ne déclare pas H5 terminé.
 Les fixtures n'emploient ni documents privés ni fournisseur payant. Les tests qui arrêtent/restaurent
 des services sont limités au projet CI jetable ; ne pas les lancer sur une installation existante.
@@ -16,12 +16,12 @@ des services sont limités au projet CI jetable ; ne pas les lancer sur une inst
 | Modèle local | Petit Qwen2.5 0.5B de qualification → Ollama → LiteLLM → gateway Core | Texte/tokens réels ≤115 s, admission/comptabilité canoniques ; aucune clé externe configurée |
 | Perte/reprise moteur | Arrêt d'Ollama, rejeu connu, nouvel appel interrompu, redémarrage | Résultat connu relu sans moteur ; issue inconnue non rejouée aveuglément ; nouvelle inférence réussie |
 | Recherche | Adaptateur Worker → SearXNG → moteurs Web publics | ≥1 source publique ≤65 s ; panne/restriction amont signalée, pas de résultat fabriqué |
-| OpenBao | Serveur persistant, token workload et policy de lecture | Lecture KAIRO autorisée ; écriture, autre namespace, liste et administration refusées |
+| OpenBao | Serveur persistant, token workload et policy de lecture | Lecture Nevolium autorisée ; écriture, autre namespace, liste et administration refusées |
 | Sauvegarde hors hôte | Restic chiffré, second job sur autre boot de VM, volumes neufs | Vérification de tous les packs ; SQL, vrai message JetStream, objet filer et secret OpenBao relus |
 | Charge légère cible | 1/10/100/1000 clients virtuels, 3 lectures chacun, concurrence ≤20 par défaut | Zéro erreur ; p95 ≤2 s ; arrêt dès échec, 180 s maximum par palier |
 
 Les seuils sont des critères de qualification initiaux, pas une promesse commerciale. Le modèle 0.5B
-sert à prouver le câblage et les pannes ; sa qualité ne sélectionne pas le modèle quotidien de KAIRO.
+sert à prouver le câblage et les pannes ; sa qualité ne sélectionne pas le modèle quotidien de Nevolium.
 La couche texte PDF ne prouve pas à elle seule les scans/OCR, tableaux complexes et grands documents.
 Les scopes Mem0/épisodes Graphiti sont des projections : aucune extraction générative ni mindmap produit
 n'est déclarée livrée. La recherche dépend d'amonts publics et peut être limitée sur une IP de CI.
@@ -32,12 +32,12 @@ Sur un environnement de développement isolé avec Docker et le dépôt courant 
 
 ```bash
 cp .env.example .env
-mkdir -p .kairo-qualification/models .kairo-qualification/evidence
+mkdir -p .nevolium-qualification/models .nevolium-qualification/evidence
 # Donner à l'UID 10001 l'accès en écriture à ces deux répertoires de préparation/mesure.
-docker compose -f compose.yaml -f compose.qualification.yaml build kairo-model-prepare kairo-qualification
-docker compose -f compose.yaml -f compose.qualification.yaml run --rm --no-deps kairo-model-prepare
+docker compose -f compose.yaml -f compose.qualification.yaml build nevolium-model-prepare nevolium-qualification
+docker compose -f compose.yaml -f compose.qualification.yaml run --rm --no-deps nevolium-model-prepare
 docker compose -f compose.yaml -f compose.qualification.yaml up -d postgres neo4j
-docker compose -f compose.yaml -f compose.qualification.yaml run --rm --no-deps kairo-qualification
+docker compose -f compose.yaml -f compose.qualification.yaml run --rm --no-deps nevolium-qualification
 ```
 
 Ne pas superposer les overlays `qualification` et `production`. La CI conserve les JSON de mesure,
@@ -74,7 +74,7 @@ Ne transmettre ni numéro de série, ni identifiant de produit, ni identifiants 
 Si Linux est déjà installé, utiliser directement l'inventaire ci-dessous.
 Windows peut héberger les conteneurs Linux avec WSL2 et Docker Desktop ; utiliser un checkout dans
 le système de fichiers Linux de WSL, pas dans /mnt/c. Vérifier la mémoire réellement allouée à WSL/Docker.
-Le minimum de Docker ne constitue pas le minimum de toute la pile KAIRO.
+Le minimum de Docker ne constitue pas le minimum de toute la pile Nevolium.
 
 Repères de préparation, non mesures : 16 Go physiques conduisent à tester les moteurs successivement ;
 32 Go offrent davantage de marge, sans garantir toute la pile simultanée. Garder de la mémoire pour l'OS
@@ -86,7 +86,7 @@ Dans un checkout distinct de la branche D04 et un environnement Linux/WSL dispos
 et Docker opérationnel, commencer par ces lectures sans installation ni démarrage de services :
 
 ```bash
-python3 scripts/qualification/target.py inventory --output .kairo-qualification/evidence/laptop-inventory.json
+python3 scripts/qualification/target.py inventory --output .nevolium-qualification/evidence/laptop-inventory.json
 docker version
 docker compose version
 docker context show
@@ -96,7 +96,7 @@ Vérifier que le contexte Docker cible le portable, et relever les limites mémo
 L'inventaire voit l'environnement Linux disponible ; ce n'est pas nécessairement toute la RAM physique.
 Pour la répétition des moteurs, réutiliser la section « Préparer les modèles » de ce document :
 aucune deuxième implémentation ni overlay spécifique ASUS. Employer un projet Compose distinct
-(`COMPOSE_PROJECT_NAME=kairo-d04-laptop`) pour chaque commande de cette répétition. Les ports loopback
+(`COMPOSE_PROJECT_NAME=nevolium-d04-laptop`) pour chaque commande de cette répétition. Les ports loopback
 restent fixes malgré le nom de projet : vérifier leur disponibilité avant démarrage. Utiliser uniquement
 des fixtures et un .env neuf dans ce checkout ; ne jamais écraser la configuration d'une installation existante.
 Sous Linux/WSL, donner l'accès UID 10001 uniquement aux dossiers de modèles et de preuves de cette répétition.
@@ -113,7 +113,7 @@ Les preuves CI existantes évitent de relancer toute la campagne uniquement pour
 Qwen3 4B et 8B sont candidats à comparer, 14B un essai conditionnel à la marge mémoire ; aucun modèle
 quotidien n'est encore validé. Mesurer un seul modèle chargé et une génération à la fois, avec contexte
 borné identique, puis ingestion documentaire concurrente. Consigner qualité sur demandes françaises,
-temps avant premier token, durée complète, mémoire totale et latence des lectures KAIRO. Le modèle
+temps avant premier token, durée complète, mémoire totale et latence des lectures Nevolium. Le modèle
 0.5B des fixtures conserve son rôle de preuve de câblage ; ne pas le remplacer silencieusement.
 
 Sur netcup : reprendre l'inventaire serveur, production/TLS/authentification, preflight,
@@ -128,14 +128,14 @@ Le serveur netcup est livré mais aucun accès opérateur n'est fourni à cette 
 sauvegarde indépendant reste à choisir. Les commandes suivantes sont prêtes pour la cible retenue :
 
 ```bash
-python scripts/qualification/target.py inventory --output .kairo-qualification/evidence/server-inventory.json
+python scripts/qualification/target.py inventory --output .nevolium-qualification/evidence/server-inventory.json
 # Après configuration production validée et authentification réelle :
 uv run --locked --project services/worker python scripts/qualification/target.py preflight \
   --core https://api.example.org --tokens-file /chemin/prive/access-tokens.json \
-  --output .kairo-qualification/evidence/server-access.json
+  --output .nevolium-qualification/evidence/server-access.json
 uv run --locked --project services/worker python scripts/qualification/target.py load \
   --core https://api.example.org --tokens-file /chemin/prive/access-tokens.json \
-  --output .kairo-qualification/evidence/target-load.json
+  --output .nevolium-qualification/evidence/target-load.json
 ```
 
 Avant de cloner le dépôt ou d'installer des paquets, ouvrir une première session SSH depuis le PC de
@@ -173,7 +173,7 @@ charge ne fait que lire ; elle ne mesure pas 1000 générations IA simultanées.
 la preuve des transactions d'admission et rafales synthétiques ; ne pas dupliquer ce simulateur ici.
 
 Le contrôle `preflight` fait dix lectures au maximum : accès anonyme et faux jeton refusés, puis
-réponses JSON KAIRO attendues sur projets/Today/capacité avec le premier jeton fourni ; enfin refus
+réponses JSON Nevolium attendues sur projets/Today/capacité avec le premier jeton fourni ; enfin refus
 403/404 sur cinq chemins privés (`/internal/v1/work-capacity/acquire`, `/docs`, `/redoc`, `/openapi.json`,
 `/health/trust`). Un 405 indique que l'ingress laisse atteindre la route ; une redirection ou une
 page HTML avec statut 200 ne vaut pas une API valide. Les trois lectures authentifiées ne prouvent
@@ -215,7 +215,7 @@ Ne pas déplacer ces conditions vers un nouveau sous-lot pour déclarer D04 term
 
 ## Sources et récupération sélective
 
-- Le réservoir `feat/kairo-test-interface-v1` (`ed12d503…`) contient une policy OpenBao et son test textuel.
+- Le prototype d'interface historique (`ed12d503…`) contient une policy OpenBao et son test textuel.
   Le principe de namespace est repris ; ses écritures/effacements liés au futur cycle de compte ne sont
   pas accordés au Core actuel, qui lit seulement les valeurs/statuts. La preuve D04 utilise le serveur réel.
 - Le réservoir `consolidate/g49-research-durable-stages` (`57a1a217…`) possède le même adaptateur Mem0/Graphiti

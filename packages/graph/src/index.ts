@@ -1,11 +1,11 @@
-export interface KairoGraphNode {
+export interface NevoliumGraphNode {
   id: string
   entityType: string
   label: string
   projectId?: string
 }
 
-export interface KairoGraphEdge {
+export interface NevoliumGraphEdge {
   id: string
   source: string
   target: string
@@ -13,7 +13,7 @@ export interface KairoGraphEdge {
   directed: boolean
 }
 
-export interface KairoGraphSnapshot {
-  nodes: KairoGraphNode[]
-  edges: KairoGraphEdge[]
+export interface NevoliumGraphSnapshot {
+  nodes: NevoliumGraphNode[]
+  edges: NevoliumGraphEdge[]
 }

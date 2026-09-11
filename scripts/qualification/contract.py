@@ -1,4 +1,4 @@
-"""Real loopback HTTP/TLS checks of the runner; not a KAIRO deployment/capacity proof."""
+"""Real loopback HTTP/TLS checks of the runner; not a Nevolium deployment/capacity proof."""
 import base64
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json

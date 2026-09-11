@@ -19,7 +19,7 @@ def inventory(output):
               'tools':{name: bool(shutil.which(name)) for name in ('docker','nvidia-smi','restic','uv')},
               'free_disk_bytes':shutil.disk_usage(Path.cwd()).free,
               'target_config_present':Path('.env.production').is_file(),
-              'model_manifest_present':Path(os.environ.get('KAIRO_MODEL_ASSETS_PATH','model-assets'),'manifest.json').is_file(),
+              'model_manifest_present':Path(os.environ.get('NEVOLIUM_MODEL_ASSETS_PATH','model-assets'),'manifest.json').is_file(),
               'target_and_off_host_restore_validated':False}
     Path(output).parent.mkdir(parents=True,exist_ok=True)
     Path(output).write_text(json.dumps(result,indent=2)+'\n')
@@ -97,7 +97,7 @@ async def load(args):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action',choices=['inventory','preflight','load'])
-    parser.add_argument('--output',default='.kairo-qualification/evidence/target.json')
+    parser.add_argument('--output',default='.nevolium-qualification/evidence/target.json')
     parser.add_argument('--core')
     parser.add_argument('--tokens-file',type=Path)
     parser.add_argument('--ca-file',type=Path,help='Optional private CA bundle; TLS verification stays enabled')

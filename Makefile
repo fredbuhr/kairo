@@ -1,8 +1,11 @@
-.PHONY: bootstrap config web-tools-config web-tools prod-config ops-config up down all logs ps build check backup restore
+.PHONY: bootstrap identity config web-tools-config web-tools prod-config ops-config up down all logs ps build check backup restore
 
 bootstrap:
 	@test -f .env || cp .env.example .env
 	@echo "Created .env if it did not exist. Replace CHANGE_ME values before non-local use."
+
+identity:
+	python scripts/smoke/identity_contract.py
 
 config: bootstrap
 	docker compose config >/dev/null
@@ -13,12 +16,12 @@ web-tools-config: bootstrap
 	@echo "Web MCP Compose overlay is valid."
 
 web-tools: bootstrap
-	docker compose -f compose.yaml -f compose.web-mcp.yaml up -d kairo-web-mcp kairo-core
-	docker compose -f compose.yaml -f compose.web-mcp.yaml run --rm kairo-worker python -m kairo_worker.web_mcp_bootstrap
-	@echo "KAIRO Web MCP tools are running and explicitly registered."
+	docker compose -f compose.yaml -f compose.web-mcp.yaml up -d nevolium-web-mcp nevolium-core
+	docker compose -f compose.yaml -f compose.web-mcp.yaml run --rm nevolium-worker python -m nevolium_worker.web_mcp_bootstrap
+	@echo "Nevolium Web MCP tools are running and explicitly registered."
 
 prod-config:
-	python scripts/ops/production.py check --env-file $${KAIRO_PRODUCTION_ENV:-.env.production}
+	python scripts/ops/production.py check --env-file $${NEVOLIUM_PRODUCTION_ENV:-.env.production}
 
 prod-template:
 	docker compose --env-file .env.production.example -f compose.yaml -f compose.production.yaml config >/dev/null
@@ -52,5 +55,5 @@ backup: bootstrap
 restore:
 	bash scripts/ops/restore.sh $${SNAPSHOT:-latest}
 
-check: config web-tools-config prod-template ops-config
+check: identity config web-tools-config prod-template ops-config
 	pnpm typecheck

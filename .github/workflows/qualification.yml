@@ -45,20 +45,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      KAIRO_QUALIFICATION_SCOPE: github-actions-cpu
-      KAIRO_QUALIFICATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      NEVOLIUM_QUALIFICATION_SCOPE: github-actions-cpu
+      NEVOLIUM_QUALIFICATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
       - name: Prepare isolated original fixtures
         run: |
           cp .env.example .env
-          mkdir -p .kairo-qualification/models .kairo-qualification/evidence
-          chmod 777 .kairo-qualification/models .kairo-qualification/evidence
+          mkdir -p .nevolium-qualification/models .nevolium-qualification/evidence
+          chmod 777 .nevolium-qualification/models .nevolium-qualification/evidence
       - name: Build full locked Worker with real intelligence packages
-        run: docker compose -f compose.yaml -f compose.qualification.yaml build kairo-model-prepare kairo-qualification
+        run: docker compose -f compose.yaml -f compose.qualification.yaml build nevolium-model-prepare nevolium-qualification
       - name: Explicitly provision models before offline execution
         timeout-minutes: 15
-        run: docker compose -f compose.yaml -f compose.qualification.yaml run --rm --no-deps kairo-model-prepare
+        run: docker compose -f compose.yaml -f compose.qualification.yaml run --rm --no-deps nevolium-model-prepare
       - name: Start real derived stores
         run: |
           docker compose -f compose.yaml -f compose.qualification.yaml up -d postgres neo4j
@@ -69,13 +69,13 @@ jobs:
           curl -fsS http://127.0.0.1:7474/ >/dev/null
       - name: Prove actual adapters offline with immutable model files
         timeout-minutes: 12
-        run: docker compose -f compose.yaml -f compose.qualification.yaml run --rm --no-deps kairo-qualification
+        run: docker compose -f compose.yaml -f compose.qualification.yaml run --rm --no-deps nevolium-qualification
       - name: Preserve sanitized measurements even on failure
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: d04-real-document-memory-${{ github.run_id }}
-          path: .kairo-qualification/evidence/*.json
+          path: .nevolium-qualification/evidence/*.json
           if-no-files-found: warn
           include-hidden-files: true
           retention-days: 14
@@ -87,8 +87,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      KAIRO_QUALIFICATION_SCOPE: github-actions-cpu
-      KAIRO_QUALIFICATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      NEVOLIUM_QUALIFICATION_SCOPE: github-actions-cpu
+      NEVOLIUM_QUALIFICATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -96,8 +96,8 @@ jobs:
         run: |
           cp .env.example .env
           cat >> .env <<'EOF'
-          KAIRO_WORKER_EXTRAS=
-          KAIRO_INTERNAL_TOKEN=d04-internal-fixture-token
+          NEVOLIUM_WORKER_EXTRAS=
+          NEVOLIUM_INTERNAL_TOKEN=d04-internal-fixture-token
           OPENAI_API_KEY=
           ANTHROPIC_API_KEY=
           LITELLM_MASTER_KEY=d04-local-fixture-no-provider-key
@@ -105,7 +105,7 @@ jobs:
           EOF
       - name: Start local inference, search and canonical accounting
         run: |
-          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats kairo-core ollama litellm searxng valkey
+          docker compose -f compose.yaml -f compose.test-noauth.yaml up -d --build postgres nats nevolium-core ollama litellm searxng valkey
           docker compose exec -T ollama ollama pull qwen2.5:0.5b
       - name: Prove real local inference, accounting, restart and search
         run: uv run --locked --project services/worker python scripts/qualification/local_services.py
@@ -114,7 +114,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: d04-local-services-${{ github.run_id }}
-          path: .kairo-qualification/evidence/*.json
+          path: .nevolium-qualification/evidence/*.json
           include-hidden-files: true
           retention-days: 14
       - name: Stop local fixtures
@@ -125,9 +125,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      COMPOSE_PROJECT_NAME: kairo-d04-recovery
-      KAIRO_QUALIFICATION_SCOPE: github-actions-two-hosts
-      KAIRO_QUALIFICATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      COMPOSE_PROJECT_NAME: nevolium-d04-recovery
+      NEVOLIUM_QUALIFICATION_SCOPE: github-actions-two-hosts
+      NEVOLIUM_QUALIFICATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -142,7 +142,7 @@ jobs:
       - name: Back up real state and prove OpenBao workload policy
         run: uv run --locked --project services/worker python scripts/qualification/recovery.py backup
       - name: Package encrypted repository for a distinct host
-        run: sudo tar -cf d04-encrypted-repository.tar backups/restic .kairo-qualification/transfer.json
+        run: sudo tar -cf d04-encrypted-repository.tar backups/restic .nevolium-qualification/transfer.json
       - uses: actions/upload-artifact@v4
         with:
           name: d04-encrypted-repository-${{ github.run_id }}
@@ -153,7 +153,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: d04-recovery-source-${{ github.run_id }}
-          path: .kairo-qualification/evidence/*.json
+          path: .nevolium-qualification/evidence/*.json
           include-hidden-files: true
           retention-days: 14
       - name: Stop source volumes
@@ -165,9 +165,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      COMPOSE_PROJECT_NAME: kairo-d04-recovery
-      KAIRO_QUALIFICATION_SCOPE: github-actions-two-hosts
-      KAIRO_QUALIFICATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+      COMPOSE_PROJECT_NAME: nevolium-d04-recovery
+      NEVOLIUM_QUALIFICATION_SCOPE: github-actions-two-hosts
+      NEVOLIUM_QUALIFICATION_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -190,7 +190,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: d04-recovery-target-${{ github.run_id }}
-          path: .kairo-qualification/evidence/*.json
+          path: .nevolium-qualification/evidence/*.json
           include-hidden-files: true
           retention-days: 14
       - name: Stop restored fixtures

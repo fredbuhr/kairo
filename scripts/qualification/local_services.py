@@ -9,8 +9,8 @@ import uuid
 import httpx
 
 from common import Evidence
-from kairo_worker.config import settings
-from kairo_worker.model_gateway import chat_completion, ModelCheckpointLedger, ModelCallOutcomeUnknown
+from nevolium_worker.config import settings
+from nevolium_worker.model_gateway import chat_completion, ModelCheckpointLedger, ModelCallOutcomeUnknown
 
 CORE = 'http://127.0.0.1:8000'
 OLLAMA = 'http://127.0.0.1:11434'
@@ -25,12 +25,12 @@ def compose(*args):
 def run():
     if os.environ.get('GITHUB_ACTIONS') != 'true':
         raise SystemExit('This destructive stop/restart fixture runs only in isolated CI; use the D04 target protocol elsewhere')
-    evidence = Evidence('real-local-services', '.kairo-qualification/evidence/local-services.json')
-    settings.kairo_core_url = CORE
-    settings.kairo_internal_token = 'd04-internal-fixture-token'
+    evidence = Evidence('real-local-services', '.nevolium-qualification/evidence/local-services.json')
+    settings.nevolium_core_url = CORE
+    settings.nevolium_internal_token = 'd04-internal-fixture-token'
     settings.litellm_url = 'http://127.0.0.1:4000'
     settings.litellm_master_key = 'd04-local-fixture-no-provider-key'
-    settings.kairo_model_max_output_tokens = 48
+    settings.nevolium_model_max_output_tokens = 48
     settings.searxng_url = 'http://127.0.0.1:8082'
     with httpx.Client(timeout=10, trust_env=False) as client:
         for _ in range(90):
@@ -93,12 +93,12 @@ def run():
     evidence.case('local-engine-restart', 115, lambda: inference_after_restart(params))
 
     def search():
-        from kairo_worker.activities import _search_searxng, _public_sources
+        from nevolium_worker.activities import _search_searxng, _public_sources
         sources = asyncio.run(_search_searxng(query='PostgreSQL documentation', language='en',
             time_range='year', max_sources=3, mode='general'))
         public = _public_sources(sources)
         assert public and all(item.get('url','').startswith(('https://','http://')) for item in public)
-        return {'source_count':len(public), 'adapter':'KAIRO SearXNG', 'live_external_search':True}
+        return {'source_count':len(public), 'adapter':'Nevolium SearXNG', 'live_external_search':True}
     evidence.case('searxng-live-worker-search', 65, search)
     evidence.finish()
 

@@ -16,10 +16,10 @@ from fastapi import HTTPException
 from cryptography.hazmat.primitives.asymmetric import rsa
 from pydantic import ValidationError
 
-from kairo_core import auth, security
-from kairo_core.config import Settings as CoreSettings
-from kairo_worker.config import Settings as WorkerSettings
-from kairo_worker.model_assets import inventory, verify_manifest
+from nevolium_core import auth, security
+from nevolium_core.config import Settings as CoreSettings
+from nevolium_worker.config import Settings as WorkerSettings
+from nevolium_worker.model_assets import inventory, verify_manifest
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('production_check', ROOT / 'scripts/ops/production.py')
@@ -28,29 +28,29 @@ spec.loader.exec_module(production)
 
 
 def core_values():
-    return dict(kairo_env='production', kairo_auth_enabled=True,
-                kairo_internal_token='a'*64, kairo_policy_signing_key='b'*64,
-                openbao_token='c'*64, kairo_operations_token='d'*64,
-                database_url='postgresql+asyncpg://kairo_app:'+('e'*64)+'@postgres/kairo',
-                keycloak_issuer='https://auth.example.org/realms/kairo',
-                kairo_cors_origins='https://kairo.example.org')
+    return dict(nevolium_env='production', nevolium_auth_enabled=True,
+                nevolium_internal_token='a'*64, nevolium_policy_signing_key='b'*64,
+                openbao_token='c'*64, nevolium_operations_token='d'*64,
+                database_url='postgresql+asyncpg://nevolium_app:'+('e'*64)+'@postgres/nevolium',
+                keycloak_issuer='https://auth.example.org/realms/nevolium',
+                nevolium_cors_origins='https://nevolium.example.org')
 
 
 class Deployment(unittest.TestCase):
     def test_settings_fail_closed(self):
         CoreSettings(_env_file=None, **core_values())
-        for change in [dict(kairo_env='prod'), dict(kairo_auth_enabled=False),
-                       dict(kairo_internal_token='CHANGE_ME_LONG_RANDOM_INTERNAL_TOKEN'),
-                       dict(kairo_policy_signing_key='a'*64), dict(kairo_cors_origins='*'),
-                       dict(keycloak_issuer='http://auth.example.org/realms/kairo'),
-                       dict(database_url='postgresql+asyncpg://postgres:secret@db/kairo')]:
+        for change in [dict(nevolium_env='prod'), dict(nevolium_auth_enabled=False),
+                       dict(nevolium_internal_token='CHANGE_ME_LONG_RANDOM_INTERNAL_TOKEN'),
+                       dict(nevolium_policy_signing_key='a'*64), dict(nevolium_cors_origins='*'),
+                       dict(keycloak_issuer='http://auth.example.org/realms/nevolium'),
+                       dict(database_url='postgresql+asyncpg://postgres:secret@db/nevolium')]:
             with self.subTest(change=list(change)), self.assertRaises(ValidationError):
                 CoreSettings(_env_file=None, **{**core_values(), **change})
-        values = dict(kairo_env='production', kairo_internal_token='a'*64,
+        values = dict(nevolium_env='production', nevolium_internal_token='a'*64,
                       litellm_master_key='b'*64, mem0_database_url='postgresql://mem0_app:'+('c'*64)+'@postgres/mem0',
-                      kairo_memory_projector_mode='real')
+                      nevolium_memory_projector_mode='real')
         WorkerSettings(**values)
-        for change in [dict(kairo_env='prod'),dict(kairo_memory_projector_mode='auto'),dict(kairo_memory_projector_mode='stub'),dict(mem0_database_url=''),dict(kairo_internal_token='development-only-change-me')]:
+        for change in [dict(nevolium_env='prod'),dict(nevolium_memory_projector_mode='auto'),dict(nevolium_memory_projector_mode='stub'),dict(mem0_database_url=''),dict(nevolium_internal_token='development-only-change-me')]:
             with self.subTest(change=list(change)), self.assertRaises(ValidationError):
                 WorkerSettings(**{**values,**change})
 
@@ -58,14 +58,14 @@ class Deployment(unittest.TestCase):
         key = rsa.generate_private_key(public_exponent=65537,key_size=2048)
         base = dict(sub='owner-1',iss=auth.settings.keycloak_issuer,aud=auth.settings.keycloak_audience,
                     azp=auth.settings.keycloak_client_id,typ='Bearer',iat=int(time.time()),exp=int(time.time())+300,
-                    realm_access={'roles':['kairo-user']})
+                    realm_access={'roles':['nevolium-user']})
         with patch.object(auth._jwks_client,'get_signing_key_from_jwt',return_value=type('Key',(),{'key':key.public_key()})()):
             def decode(values): return auth._decode_token(jwt.encode(values,key,algorithm='RS256'))
             self.assertEqual(decode(base).subject,'owner-1')
             for claim in ('aud','azp','typ','sub','iss','exp','iat'):
                 values={k:v for k,v in base.items() if k!=claim}
                 with self.subTest(missing=claim), self.assertRaises(jwt.PyJWTError): decode(values)
-            for change in [dict(aud='elsewhere'),dict(azp='elsewhere'),dict(typ='ID'),dict(sub=''),dict(exp=1),dict(realm_access=[]),dict(realm_access={'roles':'kairo-admin'})]:
+            for change in [dict(aud='elsewhere'),dict(azp='elsewhere'),dict(typ='ID'),dict(sub=''),dict(exp=1),dict(realm_access=[]),dict(realm_access={'roles':'nevolium-admin'})]:
                 with self.subTest(change=change), self.assertRaises(jwt.PyJWTError): decode({**base,**change})
 
     def test_worker_cannot_use_operations_token(self):
@@ -103,19 +103,19 @@ class Deployment(unittest.TestCase):
                 return json.loads(result.stdout)
             valid=config([])
             self.assertEqual(production.validate(valid),[])
-            self.assertNotIn('kairo-realtime',valid['services'])
+            self.assertNotIn('nevolium-realtime',valid['services'])
             self.assertNotIn('activepieces',valid['services'])
             for name in ['postgres','nats','temporal','seaweedfs','openbao']:
                 self.assertFalse(valid['services'][name].get('ports'))
             with_tools=config(['-f','compose.web-mcp.yaml','-f','compose.web-mcp.production.yaml','--profile','search','--profile','ai'])
             self.assertEqual(production.validate(with_tools),[])
-            self.assertEqual(set(with_tools['services']['kairo-web-mcp']['networks']),{'search','egress'})
-            self.assertNotIn('KAIRO_INTERNAL_TOKEN',with_tools['services']['kairo-web-mcp']['environment'])
+            self.assertEqual(set(with_tools['services']['nevolium-web-mcp']['networks']),{'search','egress'})
+            self.assertNotIn('NEVOLIUM_INTERNAL_TOKEN',with_tools['services']['nevolium-web-mcp']['environment'])
             bad=config(['-f','compose.test-noauth.yaml'])
             self.assertTrue(production.validate(bad))
             for extra in [['-f','compose.override.yaml'],['--profile','collaboration-experimental'],['--profile','home']]:
                 self.assertTrue(production.validate(config(extra)),extra)
-            bad=copy.deepcopy(valid);bad['services']['kairo-core']['environment']['DATABASE_URL']='postgresql://postgres:secret@db/kairo'
+            bad=copy.deepcopy(valid);bad['services']['nevolium-core']['environment']['DATABASE_URL']='postgresql://postgres:secret@db/nevolium'
             self.assertTrue(production.validate(bad))
 
 

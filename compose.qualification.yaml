@@ -1,15 +1,15 @@
 # D04 isolated fixtures only. Never combine this overlay with production.
 services:
   postgres:
-    networks: [kairo, qualification]
+    networks: [nevolium, qualification]
   neo4j:
-    networks: [kairo, qualification]
+    networks: [nevolium, qualification]
     environment:
       NEO4J_server_memory_heap_initial__size: 256m
       NEO4J_server_memory_heap_max__size: 512m
       NEO4J_server_memory_pagecache_size: 256m
 
-  kairo-model-prepare:
+  nevolium-model-prepare:
     profiles: [qualification]
     build:
       context: .
@@ -26,11 +26,11 @@ services:
       MEM0_TELEMETRY: 'false'
     volumes:
       - ./scripts/qualification:/qualification:ro
-      - ${KAIRO_QUALIFICATION_MODELS:-./.kairo-qualification/models}:/models
+      - ${NEVOLIUM_QUALIFICATION_MODELS:-./.nevolium-qualification/models}:/models
     command: [python, /qualification/engines.py, prepare, --models, /models]
-    networks: [kairo]
+    networks: [nevolium]
 
-  kairo-qualification:
+  nevolium-qualification:
     profiles: [qualification]
     build:
       context: .
@@ -44,8 +44,8 @@ services:
     security_opt: [no-new-privileges:true]
     tmpfs: ['/tmp:size=536870912,mode=1777']
     environment:
-      KAIRO_QUALIFICATION_SCOPE: ${KAIRO_QUALIFICATION_SCOPE:-development-host}
-      KAIRO_QUALIFICATION_COMMIT: ${KAIRO_QUALIFICATION_COMMIT:-unrecorded}
+      NEVOLIUM_QUALIFICATION_SCOPE: ${NEVOLIUM_QUALIFICATION_SCOPE:-development-host}
+      NEVOLIUM_QUALIFICATION_COMMIT: ${NEVOLIUM_QUALIFICATION_COMMIT:-unrecorded}
       HF_HOME: /models/huggingface
       HF_HUB_OFFLINE: '1'
       TRANSFORMERS_OFFLINE: '1'
@@ -60,8 +60,8 @@ services:
       OPENBLAS_NUM_THREADS: '1'
     volumes:
       - ./scripts/qualification:/qualification:ro
-      - ${KAIRO_QUALIFICATION_MODELS:-./.kairo-qualification/models}:/models:ro
-      - ./.kairo-qualification/evidence:/evidence
+      - ${NEVOLIUM_QUALIFICATION_MODELS:-./.nevolium-qualification/models}:/models:ro
+      - ./.nevolium-qualification/evidence:/evidence
     command: [python, /qualification/engines.py, run, --models, /models]
     networks: [qualification]
 

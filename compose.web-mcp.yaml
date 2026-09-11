@@ -3,30 +3,30 @@ services:
     profiles: !reset []
   valkey:
     profiles: !reset []
-  kairo-web-mcp:
+  nevolium-web-mcp:
     build:
       context: .
       dockerfile: services/worker/Dockerfile
       args:
-        KAIRO_WORKER_EXTRAS: ""
+        NEVOLIUM_WORKER_EXTRAS: ""
     init: true
     cpus: 1.0
     mem_limit: 512m
     pids_limit: 128
     stop_grace_period: 20s
     restart: unless-stopped
-    command: ["python", "-m", "kairo_worker.web_mcp"]
+    command: ["python", "-m", "nevolium_worker.web_mcp"]
     environment:
       SEARXNG_URL: http://searxng:8080
     depends_on:
       searxng:
         condition: service_started
-    networks: [kairo]
+    networks: [nevolium]
 
-  kairo-worker:
+  nevolium-worker:
     environment:
-      KAIRO_WEB_MCP_URL: http://kairo-web-mcp:8090/mcp
-      KAIRO_ADMIN_TOKEN: ${KAIRO_ADMIN_TOKEN:-}
+      NEVOLIUM_WEB_MCP_URL: http://nevolium-web-mcp:8090/mcp
+      NEVOLIUM_ADMIN_TOKEN: ${NEVOLIUM_ADMIN_TOKEN:-}
     depends_on:
-      kairo-web-mcp:
+      nevolium-web-mcp:
         condition: service_started

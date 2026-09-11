@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end proof that KAIRO memory projections are derived and rebuildable."""
+"""End-to-end proof that Nevolium memory projections are derived and rebuildable."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import uuid
 from typing import Any
 
 CORE = "http://localhost:8000"
-INTERNAL_HEADERS = {"X-Kairo-Internal-Token": "CHANGE_ME_INTERNAL_TOKEN"}
+INTERNAL_HEADERS = {"X-Nevolium-Internal-Token": "CHANGE_ME_INTERNAL_TOKEN"}
 
 
 def json_request(
@@ -55,14 +55,14 @@ def wait_ready() -> None:
         except Exception as exc:  # noqa: BLE001 - smoke test reports the final readiness failure
             last_error = exc
         time.sleep(1)
-    raise RuntimeError(f"KAIRO Core did not become ready: {last_error}")
+    raise RuntimeError(f"Nevolium Core did not become ready: {last_error}")
 
 
 def expected_task_id(message_id: str, generation: int) -> str:
     return str(
         uuid.uuid5(
             uuid.NAMESPACE_URL,
-            f"kairo:memory:conversation-message:{message_id}:v1:g{generation}",
+            f"nevolium:memory:conversation-message:{message_id}:v1:g{generation}",
         )
     )
 
@@ -73,13 +73,13 @@ def seed_message() -> str:
     result = subprocess.run(
         [
             "docker", "compose", "-f", "compose.yaml", "-f", "compose.test-noauth.yaml",
-            "exec", "-T", "kairo-core", "python", "-",
+            "exec", "-T", "nevolium-core", "python", "-",
         ],
         input='''
 import asyncio
 import json
-from kairo_core.command_models import Conversation, ConversationMessage
-from kairo_core.db import SessionFactory, engine
+from nevolium_core.command_models import Conversation, ConversationMessage
+from nevolium_core.db import SessionFactory, engine
 
 async def seed():
     try:

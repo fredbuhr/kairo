@@ -2,7 +2,7 @@ services:
   restic:
     image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
     profiles: [ops]
-    hostname: kairo-backup
+    hostname: nevolium-backup
     environment:
       RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-/repository}
       RESTIC_PASSWORD: ${RESTIC_PASSWORD:-}
@@ -13,7 +13,7 @@ services:
       B2_ACCOUNT_KEY: ${RESTIC_B2_ACCOUNT_KEY:-}
     volumes:
       - ${RESTIC_LOCAL_PATH:-./backups/restic}:/repository
-      - ./.kairo-backup-staging:/staging
+      - ./.nevolium-backup-staging:/staging
       - postgres_data:/data/postgres:ro
       - nats_data:/data/nats:ro
       - seaweed_data:/data/seaweed:ro
@@ -34,7 +34,7 @@ services:
           cp -a "$${source}/." "$${target}/"
         done
     volumes:
-      - ./.kairo-backup-staging:/staging
+      - ./.nevolium-backup-staging:/staging
       - postgres_data:/restore/postgres
       - nats_data:/restore/nats
       - seaweed_data:/restore/seaweed
@@ -50,7 +50,7 @@ services:
         rm -rf /staging/* /staging/.[!.]* /staging/..?* 2>/dev/null || true
         rm -rf /repository/* /repository/.[!.]* /repository/..?* 2>/dev/null || true
     volumes:
-      - ./.kairo-backup-staging:/staging
+      - ./.nevolium-backup-staging:/staging
       - ${RESTIC_LOCAL_PATH:-./backups/restic}:/repository
 
 volumes:

@@ -1,4 +1,4 @@
-# KAIRO — plan de développement exécutable
+# Nevolium — plan de développement exécutable
 
 Révision : 2026-09-11. Ce document remplace les anciens blocs trop larges comme guide
 d'implémentation ; leur [historique](archive/implementation-blocks-through-g51.md) est conservé.
@@ -7,9 +7,9 @@ La [roadmap](roadmap.md) résume l'ordre ; [status](status.md) décrit les capac
 
 ## Résultat recherché et règles communes
 
-Un KAIRO accessible par le Web, utilisable quotidiennement, avec espace Mycelium personnalisable,
+Un Nevolium accessible par le Web, utilisable quotidiennement, avec espace Mycelium personnalisable,
 Gantt, calendrier, mindmap 2D/3D et assistant travaillant sur les mêmes données. Les comptes,
-projets, tâches, documents, liens, permissions, coûts et décisions restent sous contrôle de KAIRO.
+projets, tâches, documents, liens, permissions, coûts et décisions restent sous contrôle de Nevolium.
 Les moteurs ne deviennent ni des produits juxtaposés ni des sources de vérité parallèles.
 
 - Construire des tranches verticales : modèle/API nécessaire, interface, comportement réel et reprise.
@@ -114,6 +114,10 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
   [Protocole et seuils](qualification-d04.md), vrais adaptateurs CPU, IA locale/recherche et restauration
   chiffrée entre deux hôtes CI ; correctifs de runtime dans la même PR. D04/H5 reste ouvert jusqu’au
   scénario privé et aux mesures de la cible, sans transformer cette condition en un nouveau sous-lot.
+- **Identité canonique :** la bascule complète vers Nevolium reste dans cette même livraison D04,
+  conformément à l'[ADR-030](decisions/ADR-030-nevolium-canonical-identity.md). Aucun alias de
+  compatibilité n'est conservé avant le premier déploiement ; la CI refuse tout résidu dans l'arbre
+  suivi et toutes les preuves D04 affectées doivent être rejouées sur le head renommé.
 
 ## Phase B — interface quotidienne et pensée visuelle
 
@@ -162,7 +166,8 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
   undo/redo et liens profonds. Conversion idée→tâche conservant la référence, sans copie du métier.
 - **Sortie :** construire une carte, convertir une branche en tâches visibles au Gantt ;
   rechargement/export préservent identités/liens ; isolation et chargement par périmètre testés.
-- **Réemploi :** inspecter le prototype `feat/kairo-test-interface-v1` sélectivement, jamais fusionner en bloc.
+- **Réemploi :** inspecter sélectivement le prototype d'interface historique à `ed12d503…`,
+  sans jamais le fusionner en bloc.
 
 ### D09 — Mycelium 3D interactif et vue spatiale
 
@@ -225,7 +230,7 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
   deux comptes ; bilan d'usage, bugs triés, dépenses mesurées et restauration vérifiée.
   Parcours PC, téléphone et tablette avec coupure/reprise ; instance personnelle administrée sur PC
   testée avec profils utiles, veille/redémarrage et distinction Internet/LAN. Installer grand public en D22.
-- **Jalon :** premier KAIRO complet pour l'usage quotidien central, sans attendre tous les modules spécialisés.
+- **Jalon :** premier Nevolium complet pour l'usage quotidien central, sans attendre tous les modules spécialisés.
 
 ## Phase D — présence et autonomie étendue
 

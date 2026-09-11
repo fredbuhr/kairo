@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Deterministic proof for KAIRO's conversational capability router and registry."""
+"""Deterministic proof for Nevolium's conversational capability router and registry."""
 
-from kairo_core.assistant import route_command
-from kairo_core.capabilities import get_capability
-from kairo_core.schemas import AssistantCommandCreate
+from nevolium_core.assistant import route_command
+from nevolium_core.capabilities import get_capability
+from nevolium_core.schemas import AssistantCommandCreate
 
 
 def route(text: str, output: str = "auto"):

@@ -4,18 +4,18 @@ on:
   push:
     branches: [main]
     paths:
-      - 'services/core/src/kairo_core/news.py'
-      - 'services/core/src/kairo_core/auth.py'
-      - 'services/core/src/kairo_core/models.py'
-      - 'services/core/src/kairo_core/schemas.py'
+      - 'services/core/src/nevolium_core/news.py'
+      - 'services/core/src/nevolium_core/auth.py'
+      - 'services/core/src/nevolium_core/models.py'
+      - 'services/core/src/nevolium_core/schemas.py'
       - 'scripts/smoke/news_ownership_contract.py'
       - '.github/workflows/news-ownership.yml'
   pull_request:
     paths:
-      - 'services/core/src/kairo_core/news.py'
-      - 'services/core/src/kairo_core/auth.py'
-      - 'services/core/src/kairo_core/models.py'
-      - 'services/core/src/kairo_core/schemas.py'
+      - 'services/core/src/nevolium_core/news.py'
+      - 'services/core/src/nevolium_core/auth.py'
+      - 'services/core/src/nevolium_core/models.py'
+      - 'services/core/src/nevolium_core/schemas.py'
       - 'scripts/smoke/news_ownership_contract.py'
       - '.github/workflows/news-ownership.yml'
 
@@ -38,7 +38,7 @@ jobs:
         run: cp .env.example .env
 
       - name: Compile News ownership contract
-        run: python -m compileall scripts/smoke/news_ownership_contract.py services/core/src/kairo_core/news.py
+        run: python -m compileall scripts/smoke/news_ownership_contract.py services/core/src/nevolium_core/news.py
 
       - name: Prove News ownership boundaries
         run: uv run --locked --project services/core python scripts/smoke/news_ownership_contract.py

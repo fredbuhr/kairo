@@ -7,7 +7,7 @@ import re
 import subprocess
 from urllib.parse import urlsplit
 
-FORBIDDEN = {'home-assistant', 'openhands', 'livekit', 'kairo-realtime', 'rotki', 'actual-budget', 'hummingbot', 'headscale', 'activepieces', 'ntfy'}
+FORBIDDEN = {'home-assistant', 'openhands', 'livekit', 'nevolium-realtime', 'rotki', 'actual-budget', 'hummingbot', 'headscale', 'activepieces', 'ntfy'}
 PASSWORD = re.compile(r'(PASSWORD|SECRET|SIGNING_KEY|INTERNAL_TOKEN|OPERATIONS_TOKEN|MASTER_KEY|OPENBAO_TOKEN|ENCRYPTION_KEY|SALT)$')
 
 
@@ -21,7 +21,7 @@ def validate(config: dict) -> list[str]:
         for key, value in env.items():
             if PASSWORD.search(key) and key not in {'BAO_DEV_ROOT_TOKEN_ID'}:
                 value = str(value or '')
-                if len(value) < 32 or any(x in value.lower() for x in ('change_me','change-me','development','kairo-dev')):
+                if len(value) < 32 or any(x in value.lower() for x in ('change_me','change-me','development','nevolium-dev')):
                     errors.append(f'{name}: provision {key}')
         command = svc.get('command') or []
         if isinstance(command, str): command = command.split()
@@ -36,31 +36,31 @@ def validate(config: dict) -> list[str]:
                 errors.append(f'{name}: public host port requires an explicit TLS ingress design')
         if not all(svc.get(key) for key in ('cpus','mem_limit','pids_limit','init')):
             errors.append(f'{name}: CPU/RAM/PID/init bounds required')
-        if 'kairo' in svc.get('networks', {}): errors.append(f'{name}: development shared network forbidden')
-        if name in {'kairo-core','kairo-worker','kairo-realtime'} and env.get('KAIRO_ENV') != 'production':
+        if 'nevolium' in svc.get('networks', {}): errors.append(f'{name}: development shared network forbidden')
+        if name in {'nevolium-core','nevolium-worker','nevolium-realtime'} and env.get('NEVOLIUM_ENV') != 'production':
             errors.append(f'{name}: production mode required')
     if 'vllm' in services:
         command = services['vllm'].get('command', [])
         if '--revision' not in command or not re.fullmatch(r'[0-9a-f]{40}', command[command.index('--revision')+1]):
             errors.append('vLLM requires an explicit upstream model revision')
-    core = services.get('kairo-core', {}).get('environment', {})
+    core = services.get('nevolium-core', {}).get('environment', {})
     if core:
-        if str(core.get('KAIRO_AUTH_ENABLED')).lower() != 'true': errors.append('Core authentication required')
+        if str(core.get('NEVOLIUM_AUTH_ENABLED')).lower() != 'true': errors.append('Core authentication required')
         db = urlsplit(core.get('DATABASE_URL',''))
-        if db.username != 'kairo_app': errors.append('Core SQL runtime identity must be kairo_app')
-        values = [core.get(k) for k in ('KAIRO_INTERNAL_TOKEN','KAIRO_POLICY_SIGNING_KEY','OPENBAO_TOKEN','KAIRO_OPERATIONS_TOKEN')]
+        if db.username != 'nevolium_app': errors.append('Core SQL runtime identity must be nevolium_app')
+        values = [core.get(k) for k in ('NEVOLIUM_INTERNAL_TOKEN','NEVOLIUM_POLICY_SIGNING_KEY','OPENBAO_TOKEN','NEVOLIUM_OPERATIONS_TOKEN')]
         if len(set(values)) != 4: errors.append('Core workload secrets must be distinct')
-    for name, key in [('kairo-core','KEYCLOAK_ISSUER'), ('keycloak','KC_HOSTNAME')]:
+    for name, key in [('nevolium-core','KEYCLOAK_ISSUER'), ('keycloak','KC_HOSTNAME')]:
         value = services.get(name,{}).get('environment',{}).get(key)
         if value and (urlsplit(value).scheme != 'https' or '*' in value): errors.append(f'{name}: explicit HTTPS origin required')
-    webargs = services.get('kairo-web',{}).get('build',{}).get('args',{})
-    for key in ('VITE_KAIRO_API_URL','VITE_KEYCLOAK_URL'):
+    webargs = services.get('nevolium-web',{}).get('build',{}).get('args',{})
+    for key in ('VITE_NEVOLIUM_API_URL','VITE_KEYCLOAK_URL'):
         if webargs and urlsplit(webargs.get(key,'')).scheme != 'https': errors.append(f'Web: HTTPS {key} required')
-    worker = services.get('kairo-worker',{}).get('environment',{})
+    worker = services.get('nevolium-worker',{}).get('environment',{})
     if worker:
-        if worker.get('KAIRO_MEMORY_PROJECTOR_MODE') != 'real': errors.append('Worker production memory must be real')
+        if worker.get('NEVOLIUM_MEMORY_PROJECTOR_MODE') != 'real': errors.append('Worker production memory must be real')
         if urlsplit(worker.get('MEM0_DATABASE_URL','')).username != 'mem0_app': errors.append('Worker must use mem0_app')
-        if not worker.get('KAIRO_MODEL_ASSETS_MANIFEST'): errors.append('Worker model bundle required')
+        if not worker.get('NEVOLIUM_MODEL_ASSETS_MANIFEST'): errors.append('Worker model bundle required')
     return errors
 
 

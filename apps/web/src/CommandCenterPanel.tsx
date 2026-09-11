@@ -55,8 +55,8 @@ export default function CommandCenterPanel({
   return (
     <section className="command-center" aria-labelledby="command-heading">
       <div>
-        <span className="eyebrow">KAIRO COMMAND</span>
-        <h2 id="command-heading">Demande directement. KAIRO choisit la capacité.</h2>
+        <span className="eyebrow">Nevolium COMMAND</span>
+        <h2 id="command-heading">Demande directement. Nevolium choisit la capacité.</h2>
       </div>
 
       <form className="command-form" onSubmit={onSubmit}>
@@ -65,10 +65,10 @@ export default function CommandCenterPanel({
           onChange={(event) => onCommandChange(event.target.value)}
           minLength={2}
           placeholder="Ex. Que s’est-il passé à Paris ce matin ?"
-          aria-label="Commande KAIRO"
+          aria-label="Commande Nevolium"
         />
         <button type="submit" disabled={routing || pendingCommandId !== null || !command.trim()}>
-          {routing ? 'Routage…' : pendingCommandId ? 'Analyse sémantique…' : 'Demander à KAIRO'}
+          {routing ? 'Routage…' : pendingCommandId ? 'Analyse sémantique…' : 'Demander à Nevolium'}
         </button>
       </form>
 
@@ -98,7 +98,7 @@ export default function CommandCenterPanel({
 
       {pendingCommandId && !error && (
         <div className="progress-panel">
-          <strong>KAIRO interprète la demande via une capacité de routage durable.</strong>
+          <strong>Nevolium interprète la demande via une capacité de routage durable.</strong>
           <span>Le modèle ne peut proposer qu’une capacité enregistrée ; Core valide avant toute exécution.</span>
         </div>
       )}
@@ -111,7 +111,7 @@ export default function CommandCenterPanel({
               ? `${task.capability} · ${task.status}`
               : task.artifact
                 ? `${task.artifact.title} · ${task.artifact.kind}`
-                : `Tâche durable KAIRO · ${task.status}`}
+                : `Tâche durable Nevolium · ${task.status}`}
           </span>
         </div>
       )}

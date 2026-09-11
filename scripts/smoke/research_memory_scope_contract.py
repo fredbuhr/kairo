@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.dialects import postgresql
 
-from kairo_core.research_context import (
+from nevolium_core.research_context import (
     MAX_GRAPHITI_CONVERSATION_GROUPS,
     build_graphiti_scope_statement,
     router as research_context_router,

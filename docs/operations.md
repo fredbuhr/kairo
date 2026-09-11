@@ -1,4 +1,4 @@
-# KAIRO operations boundary
+# Nevolium operations boundary
 
 ## D02 — shared capacity, bounded reads and recovery
 
@@ -8,9 +8,9 @@ must share the same PostgreSQL database, Core settings and compatible Worker rev
 
 | Control | Default | Behavior |
 |---|---|---|
-| `KAIRO_WORK_GLOBAL_CONCURRENCY` | 4 | Shared document + memory activities across replicas |
-| `KAIRO_WORK_OWNER_CONCURRENCY` | 1 | Shared across all projects of the canonical owner |
-| `KAIRO_WORK_MAX_PENDING` / `KAIRO_WORK_OWNER_MAX_PENDING` | 1000 / 100 | Atomic admission backlog; HTTP 429 before creating excess work |
+| `NEVOLIUM_WORK_GLOBAL_CONCURRENCY` | 4 | Shared document + memory activities across replicas |
+| `NEVOLIUM_WORK_OWNER_CONCURRENCY` | 1 | Shared across all projects of the canonical owner |
+| `NEVOLIUM_WORK_MAX_PENDING` / `NEVOLIUM_WORK_OWNER_MAX_PENDING` | 1000 / 100 | Atomic admission backlog; HTTP 429 before creating excess work |
 | Work lease | 660 s; renew every 15 s | Expired tokens cannot report canonical results |
 | Worker activity slots | 16 | Must exceed global heavy-work concurrency; preserves slots for other activities |
 | `OUTBOX_MAX_PENDING` | 10000 | Rejection threshold; producers return 503 when unpublished backlog reaches it |
@@ -59,7 +59,7 @@ policy and storage-sizing concern; these records are not disposable transport hi
 
 ### Collection protocol
 
-List bodies remain JSON arrays; `limit` defaults to 100, maximum 200. Read `X-Kairo-Next-Cursor`
+List bodies remain JSON arrays; `limit` defaults to 100, maximum 200. Read `X-Nevolium-Next-Cursor`
 and send it unchanged as `cursor` to the same collection/filter. The header is exposed through
 CORS. An empty header means the end. Ownership and project filters run before SQL LIMIT.
 Projects/Tasks/Documents are newest first; document versions use descending generation; messages,
@@ -93,7 +93,7 @@ retain their existing bounded queries.
    consumer limits are reconciled explicitly on startup; binding alone does not upgrade them.
    Core reuses its reconnecting NATS client and reconciles stream limits after reconnection.
 4. After an outage beyond the 14-day replay window, rebuild derived memory from canonical messages.
-   Set `KAIRO_OPERATIONS_TOKEN` in the environment (development: use the development internal token); do not put it in shell history or the checkpoint.
+   Set `NEVOLIUM_OPERATIONS_TOKEN` in the environment (development: use the development internal token); do not put it in shell history or the checkpoint.
    Run `python scripts/ops/rebuild_memory.py --core http://127.0.0.1:8000 --checkpoint /safe/path/memory-rebuild.json`.
    Use `--message-id UUID` for a selected recovery (at most 200 IDs) or `--limit 40` on a new run.
    On interruption rerun the same Core/checkpoint command without selection/limit overrides.
@@ -125,12 +125,12 @@ with `Retry-After: 1`. No lock or DB connection is retained during a provider re
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `KAIRO_MODEL_GLOBAL_CONCURRENCY` | 8 | Reserved/started model calls across replicas |
-| `KAIRO_MODEL_OWNER_CONCURRENCY` | 2 | Model calls across all projects of one canonical owner |
-| `KAIRO_MODEL_GLOBAL_DAILY_BUDGET_USD` | 50 | UTC-day known spend plus all outstanding estimates |
-| `KAIRO_MODEL_OWNER_DAILY_BUDGET_USD` | 10 | Same exposure per project owner |
-| `KAIRO_MODEL_MAX_OUTPUT_TOKENS` | 4096 | Non-streaming completion output bound passed to LiteLLM |
-| `KAIRO_NEWS_MODEL_ESTIMATED_COST_USD` | 0.01 | Explicit News estimate when its task has no override |
+| `NEVOLIUM_MODEL_GLOBAL_CONCURRENCY` | 8 | Reserved/started model calls across replicas |
+| `NEVOLIUM_MODEL_OWNER_CONCURRENCY` | 2 | Model calls across all projects of one canonical owner |
+| `NEVOLIUM_MODEL_GLOBAL_DAILY_BUDGET_USD` | 50 | UTC-day known spend plus all outstanding estimates |
+| `NEVOLIUM_MODEL_OWNER_DAILY_BUDGET_USD` | 10 | Same exposure per project owner |
+| `NEVOLIUM_MODEL_MAX_OUTPUT_TOKENS` | 4096 | Non-streaming completion output bound passed to LiteLLM |
+| `NEVOLIUM_NEWS_MODEL_ESTIMATED_COST_USD` | 0.01 | Explicit News estimate when its task has no override |
 | `DATABASE_POOL_SIZE` / `DATABASE_MAX_OVERFLOW` | 5 / 5 | Maximum ten connections per Core process by default |
 | `DATABASE_POOL_TIMEOUT` | 10 seconds | Pool checkout timeout |
 
@@ -187,15 +187,15 @@ Core/DB/API credentials. No new service or broker is introduced.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `KAIRO_WORKER_MAX_CONCURRENT_ACTIVITIES` | 16 | All concurrent activities per Worker |
-| `KAIRO_WORKER_MAX_CONCURRENT_WORKFLOW_TASKS` | 8 | Workflow-task concurrency; minimum 2 with the current cache |
-| `KAIRO_DOCUMENT_MAX_CONCURRENT` | 1 | Download/parse/report concurrency; below activity limit |
-| `KAIRO_DOCUMENT_MAX_SOURCE_BYTES` | 26214400 | 25 MiB cap, enforced during streaming without requiring Content-Length |
-| `KAIRO_DOCUMENT_MAX_TEXT_CHARS` | 1000000 | Parsed text limit before chunking |
-| `KAIRO_DOCUMENT_PARSE_TIMEOUT_SECONDS` | 180 | Child wall-time; configurable up to 420 seconds |
-| `KAIRO_WORKER_CPUS` | 2.0 | CPU ceiling per Worker container |
-| `KAIRO_WORKER_MEMORY_LIMIT` | 4g | Memory ceiling per Worker container |
-| `KAIRO_WORKER_PIDS_LIMIT` | 256 | PID/thread ceiling per Worker container |
+| `NEVOLIUM_WORKER_MAX_CONCURRENT_ACTIVITIES` | 16 | All concurrent activities per Worker |
+| `NEVOLIUM_WORKER_MAX_CONCURRENT_WORKFLOW_TASKS` | 8 | Workflow-task concurrency; minimum 2 with the current cache |
+| `NEVOLIUM_DOCUMENT_MAX_CONCURRENT` | 1 | Download/parse/report concurrency; below activity limit |
+| `NEVOLIUM_DOCUMENT_MAX_SOURCE_BYTES` | 26214400 | 25 MiB cap, enforced during streaming without requiring Content-Length |
+| `NEVOLIUM_DOCUMENT_MAX_TEXT_CHARS` | 1000000 | Parsed text limit before chunking |
+| `NEVOLIUM_DOCUMENT_PARSE_TIMEOUT_SECONDS` | 180 | Child wall-time; configurable up to 420 seconds |
+| `NEVOLIUM_WORKER_CPUS` | 2.0 | CPU ceiling per Worker container |
+| `NEVOLIUM_WORKER_MEMORY_LIMIT` | 4g | Memory ceiling per Worker container |
+| `NEVOLIUM_WORKER_PIDS_LIMIT` | 256 | PID/thread ceiling per Worker container |
 
 These initial safety settings are not measured capacity guarantees. D04 must measure real
 Docling/model memory and cold starts on the chosen hardware. Total usage multiplies with replicas.
@@ -232,7 +232,7 @@ make config
 make up
 ```
 
-`compose.override.yaml` deliberately enables development-only behavior such as Keycloak realm import and OpenBao dev mode. The imported `kairo-dev` account and the OpenBao dev root token must never be reused outside a local or disposable integration environment.
+`compose.override.yaml` deliberately enables development-only behavior such as Keycloak realm import and OpenBao dev mode. The imported `nevolium-dev` account and the OpenBao dev root token must never be reused outside a local or disposable integration environment.
 
 ## Production configuration boundary
 
@@ -248,7 +248,7 @@ installation, real-engine, capacity and encrypted off-host restore proof.
 
 The durable Block 1 recovery set is:
 
-- `postgres_data` — canonical KAIRO state plus Temporal/Keycloak and other PostgreSQL-backed service databases;
+- `postgres_data` — canonical Nevolium state plus Temporal/Keycloak and other PostgreSQL-backed service databases;
 - `nats_data` — JetStream state so already-published outbox events are not lost during a full disaster restore;
 - `seaweed_data` — canonical asset/object bytes;
 - `openbao_data` — persistent OpenBao state in production.
@@ -271,15 +271,15 @@ For production/off-host backups, point `RESTIC_REPOSITORY` and the corresponding
 Restore is intentionally destructive and requires an explicit guard:
 
 ```bash
-KAIRO_CONFIRM_RESTORE=YES make restore SNAPSHOT=latest
+NEVOLIUM_CONFIRM_RESTORE=YES make restore SNAPSHOT=latest
 ```
 
 For production:
 
 ```bash
-KAIRO_COMPOSE_ENV_FILE=.env.production \
-KAIRO_COMPOSE_OVERLAY=compose.production.yaml \
-KAIRO_CONFIRM_RESTORE=YES \
+NEVOLIUM_COMPOSE_ENV_FILE=.env.production \
+NEVOLIUM_COMPOSE_OVERLAY=compose.production.yaml \
+NEVOLIUM_CONFIRM_RESTORE=YES \
 bash scripts/ops/restore.sh latest
 ```
 

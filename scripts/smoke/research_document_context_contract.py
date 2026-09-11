@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.dialects import postgresql
 
-from kairo_core.research_context import (
+from nevolium_core.research_context import (
     MAX_DOCUMENT_CONTEXT_EXCERPT_CHARS,
     _excerpt,
     build_document_context_statement,

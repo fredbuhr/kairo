@@ -1,10 +1,10 @@
-# ADR-012 — PostgreSQL is KAIRO's canonical operational store
+# ADR-012 — PostgreSQL is Nevolium's canonical operational store
 
 **Status:** Accepted
 
 ## Decision
 
-PostgreSQL is the canonical store for KAIRO domain and operational state. pgvector is used for colocated rebuildable embeddings. SeaweedFS stores canonical binary objects.
+PostgreSQL is the canonical store for Nevolium domain and operational state. pgvector is used for colocated rebuildable embeddings. SeaweedFS stores canonical binary objects.
 
 Graphiti/Neo4j, Mem0, Yjs and search/vector indexes are projections or specialized runtime state, not independent product sources of truth.
 

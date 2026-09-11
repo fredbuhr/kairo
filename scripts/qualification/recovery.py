@@ -18,7 +18,7 @@ import nats
 from common import Evidence
 
 ROOT = Path(__file__).resolve().parents[2]
-PROOF = b'KAIRO original D04 recovery fixture, no private user data'
+PROOF = b'Nevolium original D04 recovery fixture, no private user data'
 BASE = ['docker','compose','--env-file','.env','-f','compose.yaml','-f','compose.qualification-recovery.yaml']
 OPS = BASE + ['-f','compose.ops.yaml','--profile','ops']
 
@@ -28,7 +28,7 @@ def cmd(args, **kwargs):
 
 
 def sql(statement):
-    return cmd(BASE + ['exec','-T','postgres','psql','-U','kairo','-d','kairo','-At','-v','ON_ERROR_STOP=1','-c',statement],
+    return cmd(BASE + ['exec','-T','postgres','psql','-U','nevolium','-d','nevolium','-At','-v','ON_ERROR_STOP=1','-c',statement],
                capture_output=True, text=True).stdout.strip()
 
 
@@ -107,7 +107,7 @@ def volume_json(action, data=None):
 
 
 def seed_and_policy():
-    sql('CREATE TABLE kairo_d04_probe (value text NOT NULL); INSERT INTO kairo_d04_probe VALUES (\'d04-canonical-sql\')')
+    sql('CREATE TABLE nevolium_d04_probe (value text NOT NULL); INSERT INTO nevolium_d04_probe VALUES (\'d04-canonical-sql\')')
     asyncio.run(jetstream(True))
     with httpx.Client(timeout=10, trust_env=False) as client:
         client.post('http://127.0.0.1:8888/d04/proof.txt', files={'file':('proof.txt',PROOF)}).raise_for_status()
@@ -117,14 +117,14 @@ def seed_and_policy():
         root=keys['root_token']; unseal=keys['keys_base64'][0]
         bao(client,'PUT','sys/unseal',data={'key':unseal})
         bao(client,'POST','sys/mounts/secret',token=root,data={'type':'kv','options':{'version':'2'}})
-        bao(client,'POST','secret/data/kairo/d04-proof',token=root,data={'data':{'value':PROOF.decode()}})
-        bao(client,'POST','secret/data/outside-kairo',token=root,data={'data':{'value':'outside-fixture'}})
-        policy=(ROOT/'infrastructure/openbao/policies/kairo-core-read.hcl').read_text()
-        bao(client,'PUT','sys/policies/acl/kairo-core',token=root,data={'policy':policy})
-        token=bao(client,'POST','auth/token/create',token=root,data={'policies':['kairo-core'],'no_default_policy':True,'ttl':'1h'})['auth']['client_token']
-        assert bao(client,'GET','secret/data/kairo/d04-proof',token=token)['data']['data']['value']==PROOF.decode()
-        for method,path,data in [('GET','secret/data/outside-kairo',None),('POST','secret/data/kairo/d04-proof',{'data':{'value':'deny'}}),
-                                  ('LIST','secret/metadata/kairo',None),('PUT','sys/policies/acl/forbidden',{'policy':'path "*" { capabilities=["sudo"] }'})]:
+        bao(client,'POST','secret/data/nevolium/d04-proof',token=root,data={'data':{'value':PROOF.decode()}})
+        bao(client,'POST','secret/data/outside-nevolium',token=root,data={'data':{'value':'outside-fixture'}})
+        policy=(ROOT/'infrastructure/openbao/policies/nevolium-core-read.hcl').read_text()
+        bao(client,'PUT','sys/policies/acl/nevolium-core',token=root,data={'policy':policy})
+        token=bao(client,'POST','auth/token/create',token=root,data={'policies':['nevolium-core'],'no_default_policy':True,'ttl':'1h'})['auth']['client_token']
+        assert bao(client,'GET','secret/data/nevolium/d04-proof',token=token)['data']['data']['value']==PROOF.decode()
+        for method,path,data in [('GET','secret/data/outside-nevolium',None),('POST','secret/data/nevolium/d04-proof',{'data':{'value':'deny'}}),
+                                  ('LIST','secret/metadata/nevolium',None),('PUT','sys/policies/acl/forbidden',{'policy':'path "*" { capabilities=["sudo"] }'})]:
             bao(client,method,path,token=token,data=data,expected=(403,))
         volume_json('write',{'unseal':unseal,'workload_token':token})
     return {'sql':True,'jetstream_message':True,'filer_object':filer,'filer_metadata_in_durable_volume':True,'openbao_file_backend':True,
@@ -132,40 +132,40 @@ def seed_and_policy():
 
 
 def readback():
-    assert sql('SELECT value FROM kairo_d04_probe')=='d04-canonical-sql'
+    assert sql('SELECT value FROM nevolium_d04_probe')=='d04-canonical-sql'
     asyncio.run(jetstream(False))
     keys=volume_json('read')
     with httpx.Client(timeout=10, trust_env=False) as client:
         filer = filer_readback(client)
         bao(client,'PUT','sys/unseal',data={'key':keys['unseal']})
-        assert bao(client,'GET','secret/data/kairo/d04-proof',token=keys['workload_token'])['data']['data']['value']==PROOF.decode()
+        assert bao(client,'GET','secret/data/nevolium/d04-proof',token=keys['workload_token'])['data']['data']['value']==PROOF.decode()
     return {'sql_row':True,'jetstream_seq_1':True,'filer_sha256':hashlib.sha256(PROOF).hexdigest(),
             'filer_object':filer,
             'openbao_unsealed_and_workload_read':True}
 
 
 def main():
-    if os.environ.get('GITHUB_ACTIONS')!='true' or os.environ.get('COMPOSE_PROJECT_NAME')!='kairo-d04-recovery':
+    if os.environ.get('GITHUB_ACTIONS')!='true' or os.environ.get('COMPOSE_PROJECT_NAME')!='nevolium-d04-recovery':
         raise SystemExit('Requires the isolated D04 CI recovery project')
     action=sys.argv[1]
     assert action in {'backup','restore'}
     host=hashlib.sha256(Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
-    evidence=Evidence('off-host-'+action, '.kairo-qualification/evidence/recovery-'+action+'.json')
+    evidence=Evidence('off-host-'+action, '.nevolium-qualification/evidence/recovery-'+action+'.json')
     evidence.data['host_boot_fingerprint']=host;evidence.save()
-    os.environ['KAIRO_COMPOSE_ENV_FILE']='.env'
-    os.environ['KAIRO_COMPOSE_OVERLAY']='compose.qualification-recovery.yaml'
-    os.environ['KAIRO_CONFIRM_RESTORE']='YES'
+    os.environ['NEVOLIUM_COMPOSE_ENV_FILE']='.env'
+    os.environ['NEVOLIUM_COMPOSE_OVERLAY']='compose.qualification-recovery.yaml'
+    os.environ['NEVOLIUM_CONFIRM_RESTORE']='YES'
     # Create bind-mount roots as the operator before Docker can create root-owned paths.
-    Path('.kairo-backup-staging').mkdir(exist_ok=True)
+    Path('.nevolium-backup-staging').mkdir(exist_ok=True)
     if action=='backup':
         cmd(BASE+['up','-d','postgres','nats','seaweedfs','openbao']);wait_stores()
         evidence.case('seed-real-durable-state-and-openbao-policy',90,seed_and_policy)
         evidence.case('quiesced-encrypted-restic-backup',300,lambda: (cmd(['bash','scripts/ops/backup.sh']) and {}))
         snapshots=json.loads(cmd(OPS+['run','--rm','-T','restic','snapshots','--json'],capture_output=True,text=True).stdout)
-        Path('.kairo-qualification/transfer.json').write_text(json.dumps({'source_host':host,'snapshot':snapshots[-1]['id'],
+        Path('.nevolium-qualification/transfer.json').write_text(json.dumps({'source_host':host,'snapshot':snapshots[-1]['id'],
            'commit':evidence.data['commit']}))
     else:
-        transfer=json.loads(Path('.kairo-qualification/transfer.json').read_text())
+        transfer=json.loads(Path('.nevolium-qualification/transfer.json').read_text())
         assert transfer['source_host']!=host and transfer['commit']==evidence.data['commit']
         # No source volumes are present on this fresh host; check all encrypted packs before restore.
         evidence.case('off-host-restic-full-check',300,lambda: (cmd(OPS+['run','--rm','restic','check','--read-data']) and {}))

@@ -1,12 +1,12 @@
 import { getAccessToken } from './authSession'
 
 /**
- * KAIRO-owned fetch boundary for public Core APIs.
+ * Nevolium-owned fetch boundary for public Core APIs.
  *
  * S2 deliberately only centralizes bearer injection. Error decoding, retries,
  * typed endpoint helpers and per-workspace adapters remain separate concerns.
  */
-export async function kairoFetch(
+export async function nevoliumFetch(
   input: RequestInfo | URL,
   init: RequestInit = {},
 ): Promise<Response> {

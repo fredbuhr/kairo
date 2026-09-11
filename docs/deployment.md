@@ -1,4 +1,4 @@
-# KAIRO — déploiement contrôlé et profils
+# Nevolium — déploiement contrôlé et profils
 
 Procédure D03, PR #87. Le checkpoint indique si son head final est validé/intégré.
 Les commandes ci-dessous sont des actions opérateur ; cette livraison ne les exécute pas chez l'utilisateur.
@@ -13,14 +13,14 @@ indisponible ; ne pas confondre interface accessible et intelligence complète.
 | Profil / overlay | Services et consommation actuelle |
 |---|---|
 | `memory` | Neo4j ; le Worker réel utilise aussi la base Mem0. Indispensable au scénario mémoire réel D04 |
-| `ai` | LiteLLM ; appels IA bornés et comptabilisés par KAIRO |
+| `ai` | LiteLLM ; appels IA bornés et comptabilisés par Nevolium |
 | `local-ai` | Ollama ; backend de l'alias local-fast, modèle à provisionner explicitement |
 | `search` | SearXNG et Valkey ; News et recherches |
 | `compose.web-mcp.yaml` | Outils publics search/fetch ; inclut SearXNG/Valkey et raccorde le Worker. En production ajouter aussi `compose.web-mcp.production.yaml` |
 | `observability` + `compose.observability.yaml` | Langfuse, ClickHouse, Valkey et activation des callbacks LiteLLM ; hors autorité canonique |
 | `voice` | Kokoro TTS ; adaptateur audio News, preuve de ressources réelles à faire |
 | `admin` | Temporal UI ; administration interne uniquement |
-| `automation`, `notifications` | Activepieces et ntfy : configurés, aucun consommateur KAIRO livré ; activation de production refusée |
+| `automation`, `notifications` | Activepieces et ntfy : configurés, aucun consommateur Nevolium livré ; activation de production refusée |
 | `collaboration-experimental`, `voice-experimental` | Hocuspocus et LiveKit : prototypes ; activation de production refusée |
 | `finance`, `home`, `dev-agent`, `remote` | Moteurs non intégrés ; activation de production refusée |
 | `gpu` | vLLM optionnel ; révision amont de modèle de 40 caractères hexadécimaux obligatoire, intégration non validée |
@@ -60,9 +60,9 @@ pendant le changement. La procédure ne supprime pas de données et ne relance a
 ```bash
 docker compose --env-file .env.production -f compose.yaml -f compose.production.yaml up -d postgres
 docker compose --env-file .env.production -f compose.yaml -f compose.production.yaml \
-  --profile ops run --rm --build kairo-db-provision
+  --profile ops run --rm --build nevolium-db-provision
 docker compose --env-file .env.production -f compose.yaml -f compose.production.yaml \
-  --profile ops run --rm --build kairo-migrate
+  --profile ops run --rm --build nevolium-migrate
 ```
 
 Sur un volume existant, `POSTGRES_USER/PASSWORD` doivent identifier le **compte administrateur existant** :
@@ -73,12 +73,12 @@ Le compte administrateur ne se trouve ni dans Core, ni dans Worker, ni dans les 
 
 | Identité | Droits |
 |---|---|
-| `kairo_app` | Connexion KAIRO, usage du schéma, SELECT/INSERT/UPDATE/DELETE, séquences ; pas CREATE/DROP/TRUNCATE |
-| `kairo_migrator` | Propriétaire du schéma canonique et DDL ; seulement dans le conteneur de migration ponctuel |
+| `nevolium_app` | Connexion Nevolium, usage du schéma, SELECT/INSERT/UPDATE/DELETE, séquences ; pas CREATE/DROP/TRUNCATE |
+| `nevolium_migrator` | Propriétaire du schéma canonique et DDL ; seulement dans le conteneur de migration ponctuel |
 | `mem0_app` | Base dérivée Mem0, aucun accès canonique |
 | `keycloak_app`, `temporal_app`, `litellm_app`, `langfuse_app`, `activepieces_app` | Bases propres ; Temporal possède exécution et visibilité |
 
-Le cluster est dédié à KAIRO : la révocation de CONNECT public sur les bases gérées/postgres/template1
+Le cluster est dédié à Nevolium : la révocation de CONNECT public sur les bases gérées/postgres/template1
 n'est pas une recette à appliquer à un cluster partagé avec des applications inconnues.
 Après migration, démarrer les moteurs choisis et les services compatibles ; vérifier santé, jetons,
 droits, une Task et son résultat. Revenir à l'image précédente n'annule pas les droits SQL : conserver
@@ -88,20 +88,20 @@ le superuser au Core pour faire disparaître une erreur de migration.
 ## Identité, secrets et accès réseau
 
 Configurer le realm Keycloak sans comptes de développement, le client public Web avec code flow + PKCE,
-URLs de redirection/origines HTTPS exactes. Ajouter le mapper audience `kairo-core` sur **l'access token**,
+URLs de redirection/origines HTTPS exactes. Ajouter le mapper audience `nevolium-core` sur **l'access token**,
 comme dans la fixture de développement. Le Core vérifie RS256, issuer, audience, `azp` égal au client Web,
 `typ=Bearer`, sujet/rôles et dates. Un ID token ou un access token d'un autre client est refusé.
 Limiter `KEYCLOAK_PROXY_TRUSTED_ADDRESSES` à l'adresse/CIDR du proxy TLS réellement utilisé.
 
-Initialiser et désceller OpenBao, créer le chemin KV et une policy limitée aux chemins KAIRO utilisés ;
+Initialiser et désceller OpenBao, créer le chemin KV et une policy limitée aux chemins Nevolium utilisés ;
 fournir un token de workload non root. Le contrôle de configuration détecte les valeurs dev/faibles,
 pas la portée réelle d'un token OpenBao : vérifier ses droits dans le scénario D04 et les renouveler.
-`KAIRO_OPERATIONS_TOKEN`, distinct, reste avec Core/opérateur ; le Worker n'autorise plus le rebuild global
-via son token interne en production. Le CLI de rebuild lit désormais `KAIRO_OPERATIONS_TOKEN` ; en dev,
+`NEVOLIUM_OPERATIONS_TOKEN`, distinct, reste avec Core/opérateur ; le Worker n'autorise plus le rebuild global
+via son token interne en production. Le CLI de rebuild lit désormais `NEVOLIUM_OPERATIONS_TOKEN` ; en dev,
 y mettre la valeur du token interne de développement.
 
-D04 ajoute la policy `infrastructure/openbao/policies/kairo-core-read.hcl` pour le Core actuel : lecture
-du namespace `secret/data/kairo/*`, sans écriture/liste/administration. Les anciens chemins hors de ce
+D04 ajoute la policy `infrastructure/openbao/policies/nevolium-core-read.hcl` pour le Core actuel : lecture
+du namespace `secret/data/nevolium/*`, sans écriture/liste/administration. Les anciens chemins hors de ce
 namespace doivent être migrés explicitement. L'entrypoint de l'image OpenBao charge déjà `/openbao/config` :
 utiliser `command: [server]` ; ajouter une seconde fois le fichier charge deux listeners et empêche le démarrage.
 OpenBao 2.6.2 refuse aussi l'ancienne option `disable_mlock` : elle et la capacité IPC_LOCK inutilisée
@@ -126,8 +126,8 @@ Préparer les fichiers hors runtime, noter moteur, identifiant, révision et lic
 un nouveau bundle contenant les caches `docling/`, `fastembed/`, `huggingface/` :
 
 ```bash
-python -m kairo_worker.model_assets record ./model-assets --source 'moteur / modèle / révision / licence vérifiés'
-python -m kairo_worker.model_assets verify ./model-assets
+python -m nevolium_worker.model_assets record ./model-assets --source 'moteur / modèle / révision / licence vérifiés'
+python -m nevolium_worker.model_assets verify ./model-assets
 ```
 
 Les commandes n'effectuent aucun téléchargement. Un inventaire vide, des fichiers modifiés ou un lien

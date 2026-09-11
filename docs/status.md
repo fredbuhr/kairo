@@ -1,4 +1,4 @@
-# KAIRO — état fonctionnel vérifié
+# Nevolium — état fonctionnel vérifié
 
 Révision : 2026-09-11, D03 terminé par #87 ; merge `d8b8025bb9143e49093eaaac3295affefc6fc07f`.
 Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJECT_STATE.md).
@@ -34,7 +34,11 @@ Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJEC
 
 ## Travail de branche D04 — pas encore canonique
 
-[#88](https://github.com/fredbuhr/kairo/pull/88) réunit la campagne des vrais moteurs et de reprise.
+[#88](https://github.com/fredbuhr/nevolium/pull/88) réunit la campagne des vrais moteurs et de reprise.
+La même PR porte la transition atomique de l'identité publique et technique vers Nevolium
+([ADR-030](decisions/ADR-030-nevolium-canonical-identity.md)) avant le premier déploiement. Les
+anciens succès CI qualifient uniquement leurs commits ; le runtime renommé doit être entièrement
+revalidé avant installation sur la cible.
 Docling/PDF et Mem0/Graphiti en lecture seule sans Internet, inférence locale avec comptabilisation,
 arrêt/rejeu/redémarrage d’Ollama et recherche SearXNG ont passé des essais réels CPU sur la branche.
 Le head `10cb57c…` passe 9/9 workflows, dont les cinq jobs D04. La restauration sur une autre VM relit
@@ -68,12 +72,12 @@ la qualification graphique mobile restent à livrer. Présence de Three/Tauri/Yj
 | Planification | Priorité, dates prévues/échéance, PATCH owner-scoped, Today/fuseaux | Gantt, calendrier complet, dépendances/jalons/Kanban et récurrences |
 | Graphes | Relations canoniques, interfaces dans `packages/graph` | Mindmap 2D éditable et rendu Mycelium 3D absents du `main` inspecté |
 | Realtime/Desktop/voix | Scaffolds ou moteurs configurés | Auth/persistence collaboration, Sidecar, permissions appareil et parcours vocal |
-| Finance/Crypto/Home/Dev | Moteurs déclarés/configurés et profils | Adaptateurs KAIRO, policy, workspaces et parcours réels |
+| Finance/Crypto/Home/Dev | Moteurs déclarés/configurés et profils | Adaptateurs Nevolium, policy, workspaces et parcours réels |
 | Exploitation | Sauvegarde/restauration destructrice testée en CI, overlays de production | Restauration hors hôte, vrais moteurs, charge, sandbox et lancement commercial |
 
 ## Périmètre de confiance
 
-KAIRO a un socle et un cockpit initial utilisables en développement, pas encore l'ensemble du
+Nevolium a un socle et un cockpit initial utilisables en développement, pas encore l'ensemble du
 produit Mycelium/Gantt/Brain. Des tests contrôlés prouvent des invariants précis ; ils ne certifient
 ni tous les moteurs réels, ni toutes les frontières de production, ni 1 000 utilisateurs.
 Les budgets réservent des estimations : ils ne garantissent pas un plafond fournisseur en dollars.

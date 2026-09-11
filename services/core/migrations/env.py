@@ -6,12 +6,12 @@ from alembic import context
 from sqlalchemy import pool, text
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from kairo_core.config import settings
-from kairo_core.db import Base
-from kairo_core import autonomy_models, command_models, document_models, memory_models, models, tool_models, ui_models  # noqa: F401
-from kairo_core import work_capacity  # noqa: F401
+from nevolium_core.config import settings
+from nevolium_core.db import Base
+from nevolium_core import autonomy_models, command_models, document_models, memory_models, models, tool_models, ui_models  # noqa: F401
+from nevolium_core import work_capacity  # noqa: F401
 
-migration_url = os.environ.get("KAIRO_MIGRATION_DATABASE_URL") or settings.database_url
+migration_url = os.environ.get("NEVOLIUM_MIGRATION_DATABASE_URL") or settings.database_url
 config = context.config
 config.set_main_option("sqlalchemy.url", migration_url.replace("%", "%%"))
 
@@ -36,8 +36,8 @@ def do_run_migrations(connection) -> None:
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
-        if connection.scalar(text("SELECT current_user")) == "kairo_migrator":
-            connection.execute(text("REVOKE ALL ON TABLE public.alembic_version FROM kairo_app"))
+        if connection.scalar(text("SELECT current_user")) == "nevolium_migrator":
+            connection.execute(text("REVOKE ALL ON TABLE public.alembic_version FROM nevolium_app"))
 
 
 async def run_async_migrations() -> None:

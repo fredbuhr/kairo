@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
-from kairo_core.auth import Principal
-from kairo_core.research_results import _require_research_owner
+from nevolium_core.auth import Principal
+from nevolium_core.research_results import _require_research_owner
 
 
 def principal(subject: str) -> Principal:
@@ -11,7 +11,7 @@ def principal(subject: str) -> Principal:
         subject=subject,
         username=subject,
         email=None,
-        roles=frozenset({"kairo-user"}),
+        roles=frozenset({"nevolium-user"}),
         claims={},
     )
 

@@ -15,9 +15,9 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "kairo-core",
-    "kairo-worker",
-    "kairo-workspace",
+    "nevolium-core",
+    "nevolium-worker",
+    "nevolium-workspace",
 ]
 
 [[package]]
@@ -2315,7 +2315,7 @@ wheels = [
 ]
 
 [[package]]
-name = "kairo-core"
+name = "nevolium-core"
 version = "0.2.0"
 source = { editable = "services/core" }
 dependencies = [
@@ -2361,7 +2361,7 @@ requires-dist = [
 provides-extras = ["test"]
 
 [[package]]
-name = "kairo-worker"
+name = "nevolium-worker"
 version = "0.2.0"
 source = { editable = "services/worker" }
 dependencies = [
@@ -2399,7 +2399,7 @@ requires-dist = [
 provides-extras = ["intelligence"]
 
 [[package]]
-name = "kairo-workspace"
+name = "nevolium-workspace"
 version = "0.1.0"
 source = { virtual = "." }
 

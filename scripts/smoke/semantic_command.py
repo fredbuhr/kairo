@@ -52,7 +52,7 @@ def wait_ready() -> None:
         except Exception as exc:  # noqa: BLE001
             last_error = exc
         time.sleep(1)
-    raise RuntimeError(f"KAIRO Core did not become ready: {last_error}")
+    raise RuntimeError(f"Nevolium Core did not become ready: {last_error}")
 
 
 def wait_command(command_id: str, timeout: float = 90) -> dict[str, Any]:
@@ -94,7 +94,7 @@ def main() -> None:
     routing_task_id = initial["routing_task_id"]
 
     expected_routing_task = str(
-        uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:semantic-route:{command_id}:v1")
+        uuid.uuid5(uuid.NAMESPACE_URL, f"nevolium:semantic-route:{command_id}:v1")
     )
     assert routing_task_id == expected_routing_task, initial
 
@@ -113,7 +113,7 @@ def main() -> None:
     assert command["parameters_json"]["location"] == "Paris", command
 
     expected_final_task = str(
-        uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:command:{command_id}:news.brief:v1")
+        uuid.uuid5(uuid.NAMESPACE_URL, f"nevolium:command:{command_id}:news.brief:v1")
     )
     assert command["task_id"] == expected_final_task, command
     assert command["workflow_execution_id"], command
@@ -142,7 +142,7 @@ def main() -> None:
         method="POST",
         headers={
             "Content-Type": "application/json",
-            "X-Kairo-Internal-Token": "CHANGE_ME_INTERNAL_TOKEN",
+            "X-Nevolium-Internal-Token": "CHANGE_ME_INTERNAL_TOKEN",
         },
     )
     with urllib.request.urlopen(replay_request, timeout=10) as response:

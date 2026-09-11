@@ -6,7 +6,7 @@ import type {
   CanonicalDocument,
   DocumentImportRun,
 } from './knowledgeTypes'
-import { kairoFetch } from './lib/apiClient'
+import { nevoliumFetch } from './lib/apiClient'
 
 type Options = {
   apiUrl: string
@@ -56,13 +56,13 @@ export function useKnowledgeDocumentActions({
       formData.append('file', selectedFile)
       formData.append('project_id', selectedProjectId)
 
-      const assetResponse = await kairoFetch(`${apiUrl}/v1/assets`, {
+      const assetResponse = await nevoliumFetch(`${apiUrl}/v1/assets`, {
         method: 'POST',
         body: formData,
       })
       const asset = await readKnowledgeJson<AssetUpload>(assetResponse)
 
-      const documentResponse = await kairoFetch(`${apiUrl}/v1/documents`, {
+      const documentResponse = await nevoliumFetch(`${apiUrl}/v1/documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -95,7 +95,7 @@ export function useKnowledgeDocumentActions({
     onReingestBegin()
 
     try {
-      const response = await kairoFetch(
+      const response = await nevoliumFetch(
         `${apiUrl}/v1/documents/${selectedDocument.id}/reingest`,
         { method: 'POST' },
       )
@@ -125,7 +125,7 @@ export function useKnowledgeDocumentActions({
     setOpeningSource(true)
     setSourceError(null)
     try {
-      const response = await kairoFetch(
+      const response = await nevoliumFetch(
         `${apiUrl}/v1/assets/${selectedDocument.asset_id}/content`,
       )
       if (!response.ok) {

@@ -1,4 +1,4 @@
-# KAIRO — ordre des livraisons
+# Nevolium — ordre des livraisons
 
 Révision : 2026-09-11. Le [plan détaillé](implementation-plan.md) porte périmètres, dépendances
 et critères de sortie. [PROJECT_STATE](../PROJECT_STATE.md) seul indique le lot actif et les preuves.

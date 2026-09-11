@@ -1,10 +1,10 @@
-# KAIRO infrastructure
+# Nevolium infrastructure
 
 `compose.yaml` is the integrated development topology. It intentionally declares the broad platform early so dependencies are visible before feature implementation.
 
 ## Core services
 
-PostgreSQL/pgvector, Neo4j, Valkey, NATS, SeaweedFS, Temporal, OpenBao, Keycloak, LiteLLM, Activepieces, SearXNG, Ollama, ntfy, ClickHouse/Langfuse and LiveKit are part of the default topology together with KAIRO Core/Worker/Realtime/Web.
+PostgreSQL/pgvector, Neo4j, Valkey, NATS, SeaweedFS, Temporal, OpenBao, Keycloak, LiteLLM, Activepieces, SearXNG, Ollama, ntfy, ClickHouse/Langfuse and LiveKit are part of the default topology together with Nevolium Core/Worker/Realtime/Web.
 
 ## Profiles
 

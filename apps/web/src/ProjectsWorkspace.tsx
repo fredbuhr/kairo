@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { usePagedCollection } from './lib/usePagedCollection'
-import { kairoFetch } from './lib/apiClient'
+import { nevoliumFetch } from './lib/apiClient'
 import { useProjectSelection } from './lib/projectSelection'
 
 type Project = {
@@ -42,7 +42,7 @@ async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const detail = body?.detail
     const message = typeof detail === 'string' ? detail : detail?.message
-    throw new Error(message || `KAIRO Core répond ${response.status}`)
+    throw new Error(message || `Nevolium Core répond ${response.status}`)
   }
   return body as T
 }
@@ -120,7 +120,7 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
     setCreatingProject(true)
     setError(null)
     try {
-      const response = await kairoFetch(`${apiUrl}/v1/projects`, {
+      const response = await nevoliumFetch(`${apiUrl}/v1/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, status: 'active' }),
@@ -144,7 +144,7 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
     setCreatingTask(true)
     setError(null)
     try {
-      const response = await kairoFetch(`${apiUrl}/v1/tasks`, {
+      const response = await nevoliumFetch(`${apiUrl}/v1/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -170,7 +170,7 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
       <div className="news-heading">
         <div>
           <span className="eyebrow">PROJECTS</span>
-          <h2 id="projects-heading">Projets et tâches canoniques KAIRO.</h2>
+          <h2 id="projects-heading">Projets et tâches canoniques Nevolium.</h2>
         </div>
         <span className="run-state">{projects.length} projet(s) affiché(s)</span>
       </div>
@@ -182,7 +182,7 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
             value={newProjectName}
             onChange={(event) => setNewProjectName(event.target.value)}
             maxLength={240}
-            placeholder="Ex. Lancement KAIRO"
+            placeholder="Ex. Lancement Nevolium"
           />
         </label>
         <div className="news-controls">
@@ -196,7 +196,7 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
       {projectPage.hasMore && <button type="button" disabled={loading} onClick={() => void projectPage.loadMore()}>Charger les projets suivants</button>}
       {loading && !error && (
         <div className="progress-panel">
-          <strong>Chargement de vos projets KAIRO.</strong>
+          <strong>Chargement de vos projets Nevolium.</strong>
           <span>La liste est filtrée côté Core selon le propriétaire authentifié.</span>
         </div>
       )}
@@ -204,7 +204,7 @@ export default function ProjectsWorkspace({ apiUrl }: Props) {
       {!loading && projects.length === 0 && !error && (
         <div className="progress-panel">
           <strong>Aucun projet personnel.</strong>
-          <span>Créez le premier projet pour commencer à organiser les tâches KAIRO.</span>
+          <span>Créez le premier projet pour commencer à organiser les tâches Nevolium.</span>
         </div>
       )}
 

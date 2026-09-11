@@ -1,4 +1,4 @@
-# KAIRO Worker
+# Nevolium Worker
 
 Temporal worker and AI execution process.
 

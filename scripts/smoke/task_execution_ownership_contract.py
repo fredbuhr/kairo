@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import inspect
 
-from kairo_core import assistant, documents, research
-from kairo_core.auth import require_kairo_user
-from kairo_core.workflows import router, run_task
+from nevolium_core import assistant, documents, research
+from nevolium_core.auth import require_nevolium_user
+from nevolium_core.workflows import router, run_task
 
 
 def main() -> None:
@@ -26,7 +26,7 @@ def main() -> None:
 
     for route in (run_route, artifact_route):
         dependency_calls = {dependency.call for dependency in route.dependant.dependencies}
-        assert require_kairo_user in dependency_calls, (route.path, dependency_calls)
+        assert require_nevolium_user in dependency_calls, (route.path, dependency_calls)
 
     assert run_route.endpoint is not run_task
 

@@ -63,7 +63,7 @@ def upgrade() -> None:
 
     op.execute(
         """
-        CREATE OR REPLACE FUNCTION kairo_enforce_tool_invocation_task_owner()
+        CREATE OR REPLACE FUNCTION nevolium_enforce_tool_invocation_task_owner()
         RETURNS trigger
         LANGUAGE plpgsql
         AS $$
@@ -89,7 +89,7 @@ def upgrade() -> None:
         BEFORE INSERT OR UPDATE OF task_id, owner_subject
         ON tool_invocations
         FOR EACH ROW
-        EXECUTE FUNCTION kairo_enforce_tool_invocation_task_owner();
+        EXECUTE FUNCTION nevolium_enforce_tool_invocation_task_owner();
         """
     )
 
@@ -98,7 +98,7 @@ def downgrade() -> None:
     op.execute(
         "DROP TRIGGER IF EXISTS trg_tool_invocation_task_owner ON tool_invocations"
     )
-    op.execute("DROP FUNCTION IF EXISTS kairo_enforce_tool_invocation_task_owner()")
+    op.execute("DROP FUNCTION IF EXISTS nevolium_enforce_tool_invocation_task_owner()")
     op.drop_index("ix_tool_invocations_owner_status", table_name="tool_invocations")
     op.drop_constraint(
         "uq_tool_invocation_owner_idempotency",

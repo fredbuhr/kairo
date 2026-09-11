@@ -15,9 +15,9 @@ import httpx
 from pydantic import ValidationError
 from temporalio.exceptions import ApplicationError
 
-from kairo_worker import document_ingestion as runtime
-from kairo_worker.config import Settings
-from kairo_worker.document_parser import parse_document
+from nevolium_worker import document_ingestion as runtime
+from nevolium_worker.config import Settings
+from nevolium_worker.document_parser import parse_document
 
 
 class DocumentExecutionContract(unittest.IsolatedAsyncioTestCase):
@@ -26,7 +26,7 @@ class DocumentExecutionContract(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.directory.cleanup)
         self.path = Path(self.directory.name) / "source.txt"
         self.path.write_text("Document proof.\n\nCanonical second paragraph.")
-        self.settings = Settings(kairo_document_parse_timeout_seconds=5)
+        self.settings = Settings(nevolium_document_parse_timeout_seconds=5)
         self.enterContext(patch.object(runtime, "settings", self.settings))
         self.enterContext(patch.object(runtime, "_document_slots", asyncio.Semaphore(1)))
         self.children: list[asyncio.subprocess.Process] = []
@@ -83,7 +83,7 @@ Path(sys.argv[2]).write_text(json.dumps({'parser': 'controlled-slow-fixture', 'p
             self.assertIsNotNone(self.children[0].returncode)
 
     async def test_timeout_terminates_and_reaps_real_child(self) -> None:
-        self.settings.kairo_document_parse_timeout_seconds = 0.25
+        self.settings.nevolium_document_parse_timeout_seconds = 0.25
         with patch.object(runtime.asyncio, "create_subprocess_exec", self.slow_spawn):
             with self.assertRaises(ApplicationError) as caught:
                 await runtime._run_parser(self.path, "text/plain")
@@ -180,7 +180,7 @@ Path(sys.argv[2]).write_text(json.dumps({'parser': 'controlled-slow-fixture', 'p
                     yield b"x" * 65536
 
         for mode in ("declared-large", "stream-large", "bad-digest", "valid"):
-            self.settings.kairo_document_max_source_bytes = 100000
+            self.settings.nevolium_document_max_source_bytes = 100000
 
             def respond(_request):
                 if mode == "declared-large":
@@ -213,20 +213,20 @@ Path(sys.argv[2]).write_text(json.dumps({'parser': 'controlled-slow-fixture', 'p
         real = self.real_spawn
 
         async def inspect_spawn(*args, **kwargs):
-            self.assertNotIn("KAIRO_INTERNAL_TOKEN", kwargs["env"])
+            self.assertNotIn("NEVOLIUM_INTERNAL_TOKEN", kwargs["env"])
             self.assertNotIn("DATABASE_URL", kwargs["env"])
             return await real(*args, **kwargs)
 
         with (
-            patch.dict(os.environ, {"KAIRO_INTERNAL_TOKEN": "fixture-secret", "DATABASE_URL": "fixture-db"}),
+            patch.dict(os.environ, {"NEVOLIUM_INTERNAL_TOKEN": "fixture-secret", "DATABASE_URL": "fixture-db"}),
             patch.object(runtime.asyncio, "create_subprocess_exec", inspect_spawn),
         ):
             await runtime._run_parser(self.path, "text/plain")
 
     async def test_invalid_worker_limits_rejected_at_startup(self) -> None:
-        for values in ({"kairo_document_max_concurrent": 0}, {"kairo_document_max_concurrent": 16},
-                       {"kairo_worker_max_concurrent_workflow_tasks": 1},
-                       {"kairo_document_parse_timeout_seconds": 600}, {"kairo_document_max_source_bytes": 0}):
+        for values in ({"nevolium_document_max_concurrent": 0}, {"nevolium_document_max_concurrent": 16},
+                       {"nevolium_worker_max_concurrent_workflow_tasks": 1},
+                       {"nevolium_document_parse_timeout_seconds": 600}, {"nevolium_document_max_source_bytes": 0}):
             with self.subTest(values=values), self.assertRaises(ValidationError):
                 Settings(**values)
 

@@ -36,9 +36,9 @@ def main() -> None:
     parser.add_argument("--limit", type=int, choices=range(1, 101), default=100, metavar="1..100")
     parser.add_argument("--message-id", action="append", default=None)
     args = parser.parse_args()
-    token = os.environ.get("KAIRO_OPERATIONS_TOKEN")
+    token = os.environ.get("NEVOLIUM_OPERATIONS_TOKEN")
     if not token:
-        parser.error("KAIRO_OPERATIONS_TOKEN must be set (development: use the development internal token)")
+        parser.error("NEVOLIUM_OPERATIONS_TOKEN must be set (development: use the development internal token)")
     core = args.core.rstrip("/")
     if args.checkpoint.exists():
         state = json.loads(args.checkpoint.read_text(encoding="utf-8"))
@@ -56,7 +56,7 @@ def main() -> None:
     retries = 0
     while not state["complete"]:
         request = urllib.request.Request(core + "/internal/v1/memory/rebuild", method="POST",
-            headers={"Content-Type": "application/json", "X-Kairo-Internal-Token": token},
+            headers={"Content-Type": "application/json", "X-Nevolium-Internal-Token": token},
             data=json.dumps(state["request"]).encode())
         try:
             with urllib.request.urlopen(request, timeout=30) as response:

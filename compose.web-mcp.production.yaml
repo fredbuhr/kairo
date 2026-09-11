@@ -1,5 +1,5 @@
 services:
-  kairo-web-mcp:
+  nevolium-web-mcp:
     networks: !override [search, egress]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]

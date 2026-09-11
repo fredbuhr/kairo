@@ -1,4 +1,4 @@
-# KAIRO Core
+# Nevolium Core
 
 Canonical HTTP/API and policy boundary.
 

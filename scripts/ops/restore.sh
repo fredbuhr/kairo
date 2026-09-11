@@ -4,8 +4,8 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
-ENV_FILE="${KAIRO_COMPOSE_ENV_FILE:-.env}"
-OVERLAY="${KAIRO_COMPOSE_OVERLAY:-compose.override.yaml}"
+ENV_FILE="${NEVOLIUM_COMPOSE_ENV_FILE:-.env}"
+OVERLAY="${NEVOLIUM_COMPOSE_OVERLAY:-compose.override.yaml}"
 SNAPSHOT="${1:-latest}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -13,8 +13,8 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 2
 fi
 
-if [[ "${KAIRO_CONFIRM_RESTORE:-}" != "YES" ]]; then
-  echo "Restore is destructive. Re-run with KAIRO_CONFIRM_RESTORE=YES after verifying the target environment." >&2
+if [[ "${NEVOLIUM_CONFIRM_RESTORE:-}" != "YES" ]]; then
+  echo "Restore is destructive. Re-run with NEVOLIUM_CONFIRM_RESTORE=YES after verifying the target environment." >&2
   exit 2
 fi
 
@@ -36,9 +36,9 @@ clean_restore_staging() {
   ops run --rm --entrypoint /bin/sh volume-restore -ec 'rm -rf /staging/restore'
 }
 
-mkdir -p .kairo-backup-staging "${RESTIC_LOCAL_PATH:-./backups/restic}"
+mkdir -p .nevolium-backup-staging "${RESTIC_LOCAL_PATH:-./backups/restic}"
 clean_restore_staging
-mkdir -p .kairo-backup-staging/restore
+mkdir -p .nevolium-backup-staging/restore
 
 echo "Materializing Restic snapshot '$SNAPSHOT' into restore staging..."
 ops run --rm restic restore "$SNAPSHOT" \
@@ -49,17 +49,17 @@ ops run --rm restic restore "$SNAPSHOT" \
   --include /data/openbao
 
 for volume in postgres nats seaweed openbao; do
-  if [[ ! -d ".kairo-backup-staging/restore/data/$volume" ]]; then
+  if [[ ! -d ".nevolium-backup-staging/restore/data/$volume" ]]; then
     echo "Snapshot is missing required volume payload: /data/$volume" >&2
     exit 3
   fi
 done
 
 QUIESCE_SERVICES=(
-  kairo-web
-  kairo-realtime
-  kairo-worker
-  kairo-core
+  nevolium-web
+  nevolium-realtime
+  nevolium-worker
+  nevolium-core
   temporal-ui
   keycloak
   temporal
@@ -107,5 +107,5 @@ fi
 trap - EXIT INT TERM
 clean_restore_staging
 
-echo "KAIRO restore completed from snapshot '$SNAPSHOT'."
+echo "Nevolium restore completed from snapshot '$SNAPSHOT'."
 echo "Production OpenBao may require operator unseal before /health/trust becomes ready."

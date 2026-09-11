@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end proof that public KAIRO resources cannot cross authenticated user worlds."""
+"""End-to-end proof that public Nevolium resources cannot cross authenticated user worlds."""
 
 from __future__ import annotations
 
@@ -14,14 +14,14 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-CORE = os.getenv("KAIRO_CORE_HTTP", "http://127.0.0.1:8000").rstrip("/")
+CORE = os.getenv("NEVOLIUM_CORE_HTTP", "http://127.0.0.1:8000").rstrip("/")
 KEYCLOAK = os.getenv("KEYCLOAK_HTTP", "http://127.0.0.1:8081").rstrip("/")
-REALM = os.getenv("KEYCLOAK_REALM", "kairo")
-CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "kairo-web")
-INTERNAL_TOKEN = os.getenv("KAIRO_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
+REALM = os.getenv("KEYCLOAK_REALM", "nevolium")
+CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "nevolium-web")
+INTERNAL_TOKEN = os.getenv("NEVOLIUM_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
 
-USER_A = ("kairo-dev", "kairo-dev")
-USER_B = ("kairo-dev-2", "kairo-dev-2")
+USER_A = ("nevolium-dev", "nevolium-dev")
+USER_B = ("nevolium-dev-2", "nevolium-dev-2")
 TODAY_BUCKETS = (
     "overdue",
     "in_progress",
@@ -73,7 +73,7 @@ def json_request(
     if token:
         headers["Authorization"] = f"Bearer {token}"
     if internal:
-        headers["X-Kairo-Internal-Token"] = INTERNAL_TOKEN
+        headers["X-Nevolium-Internal-Token"] = INTERNAL_TOKEN
     status_code, raw = request(
         method,
         f"{CORE}{path}",
@@ -163,15 +163,15 @@ def seed_legacy_dispatch(project_id: str, owner_ref: str, invocation_id: str) ->
     """Model a forged Task already queued before this fix, using only integration fixtures."""
 
     result = subprocess.run(
-        ["docker", "compose", "exec", "-T", "kairo-core", "python", "-",
+        ["docker", "compose", "exec", "-T", "nevolium-core", "python", "-",
          json.dumps({"project_id": project_id, "owner_ref": owner_ref, "invocation_id": invocation_id})],
         input='''
 import asyncio
 import json
 import sys
 import uuid
-from kairo_core.db import SessionFactory, engine
-from kairo_core.models import Task, WorkflowExecution
+from nevolium_core.db import SessionFactory, engine
+from nevolium_core.models import Task, WorkflowExecution
 
 async def seed():
     values = json.loads(sys.argv[1])
@@ -186,7 +186,7 @@ async def seed():
             session.add(task)
             await session.flush()
             execution = WorkflowExecution(
-                task_id=task.id, workflow_id=f"kairo-task-{task.id}",
+                task_id=task.id, workflow_id=f"nevolium-task-{task.id}",
                 correlation_id=uuid.uuid4(), status="queued",
             )
             session.add(execution)
@@ -271,7 +271,7 @@ def prove_dispatch_isolation(
 
 def main() -> int:
     wait_for(f"{KEYCLOAK}/realms/{REALM}/.well-known/openid-configuration", "Keycloak realm")
-    wait_for(f"{CORE}/health/ready", "KAIRO Core")
+    wait_for(f"{CORE}/health/ready", "Nevolium Core")
 
     token_a = access_token(*USER_A)
     token_b = access_token(*USER_B)

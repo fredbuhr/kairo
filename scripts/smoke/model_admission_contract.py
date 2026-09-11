@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Real PostgreSQL transactions through Core ASGI; identity fixtures, no provider calls.
 
-Run only in the isolated kairo_admission_test database after alembic upgrade head.
+Run only in the isolated nevolium_admission_test database after alembic upgrade head.
 The existing authenticated and SIGKILL suites remain separate mandatory gates.
 """
 import asyncio
@@ -12,16 +12,16 @@ import uuid
 import httpx
 from sqlalchemy import delete, func, select, text, update
 
-from kairo_core.auth import Principal, require_kairo_user
-from kairo_core.autonomy_models import ModelReservation, ModelUsageRecord
-from kairo_core.config import settings
-from kairo_core.db import SessionFactory, engine
-from kairo_core.main import app
-from kairo_core.models import Project, Task
+from nevolium_core.auth import Principal, require_nevolium_user
+from nevolium_core.autonomy_models import ModelReservation, ModelUsageRecord
+from nevolium_core.config import settings
+from nevolium_core.db import SessionFactory, engine
+from nevolium_core.main import app
+from nevolium_core.models import Project, Task
 
 OWNER_A = "admission-owner-a"
 OWNER_B = "admission-owner-b"
-INTERNAL = {"X-Kairo-Internal-Token": settings.kairo_internal_token}
+INTERNAL = {"X-Nevolium-Internal-Token": settings.nevolium_internal_token}
 
 
 async def seed(owner: str = OWNER_A, budget: str = "1") -> str:
@@ -84,12 +84,12 @@ async def expire(key):
 
 
 async def main():
-    assert settings.database_url.endswith("/kairo_admission_test"), "Requires disposable test DB"
-    settings.kairo_model_global_concurrency = 3
-    settings.kairo_model_owner_concurrency = 2
-    settings.kairo_model_global_daily_budget_usd = Decimal("50")
-    settings.kairo_model_owner_daily_budget_usd = Decimal("10")
-    app.dependency_overrides[require_kairo_user] = lambda: Principal(
+    assert settings.database_url.endswith("/nevolium_admission_test"), "Requires disposable test DB"
+    settings.nevolium_model_global_concurrency = 3
+    settings.nevolium_model_owner_concurrency = 2
+    settings.nevolium_model_global_daily_budget_usd = Decimal("50")
+    settings.nevolium_model_owner_daily_budget_usd = Decimal("10")
+    app.dependency_overrides[require_nevolium_user] = lambda: Principal(
         subject=OWNER_A, username=None, email=None, roles=frozenset(), claims={}
     )
     try:
@@ -143,19 +143,19 @@ async def main():
 
             # Daily monetary admission is atomic across different tasks, not just a task lock.
             await reset()
-            settings.kairo_model_owner_daily_budget_usd = Decimal("1")
+            settings.nevolium_model_owner_daily_budget_usd = Decimal("1")
             a1, a2 = await seed(budget="10"), await seed(budget="10")
             decisions = await asyncio.gather(reserve(client, a1, "money-a1"), reserve(client, a2, "money-a2"))
             assert sorted(d["allowed"] for d in decisions) == [False, True]
             assert any(d["reason"] == "model_owner_daily_budget_exceeded" for d in decisions)
-            settings.kairo_model_owner_daily_budget_usd = Decimal("10")
+            settings.nevolium_model_owner_daily_budget_usd = Decimal("10")
             await reset()
-            settings.kairo_model_global_daily_budget_usd = Decimal("1")
+            settings.nevolium_model_global_daily_budget_usd = Decimal("1")
             a1, b1 = await seed(budget="10"), await seed(OWNER_B, "10")
             decisions = await asyncio.gather(reserve(client, a1, "money-global-a"), reserve(client, b1, "money-global-b"))
             assert sorted(d["allowed"] for d in decisions) == [False, True]
             assert any(d["reason"] == "model_global_daily_budget_exceeded" for d in decisions)
-            settings.kairo_model_global_daily_budget_usd = Decimal("50")
+            settings.nevolium_model_global_daily_budget_usd = Decimal("50")
             print("PASS owner/global money admission under concurrent transactions")
 
             await reset()

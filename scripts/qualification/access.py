@@ -1,4 +1,4 @@
-"""Bounded, read-only checks of the public KAIRO API and ingress; no deployment."""
+"""Bounded, read-only checks of the public Nevolium API and ingress; no deployment."""
 import asyncio
 import json
 import ssl
@@ -85,7 +85,7 @@ async def checked_get(client, path, token=None, *, denied=None):
                 raise ProbeFailure('api-json-invalid') from None
             if not valid_payload(path, payload):
                 raise ProbeFailure('api-shape-mismatch')
-            return {'http_status': status, 'response_bytes': len(body), 'kairo_shape_valid': True}
+            return {'http_status': status, 'response_bytes': len(body), 'nevolium_shape_valid': True}
 
 
 async def preflight(client, evidence, token):

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { kairoFetch } from './apiClient'
+import { nevoliumFetch } from './apiClient'
 
 export function mergeById<T extends { id: string }>(current: T[], incoming: T[]): T[] {
   const rows = new Map(current.map((item) => [item.id, item]))
@@ -29,13 +29,13 @@ export function usePagedCollection<T extends { id: string }>(url: string | null,
     const controller = new AbortController()
     request.current = controller
     try {
-      const response = await kairoFetch(url + (next ? `${url.includes('?') ? '&' : '?'}cursor=${encodeURIComponent(next)}` : ''), { signal: controller.signal })
+      const response = await nevoliumFetch(url + (next ? `${url.includes('?') ? '&' : '?'}cursor=${encodeURIComponent(next)}` : ''), { signal: controller.signal })
       const rows = await response.json()
-      if (!response.ok) throw new Error(typeof rows?.detail === 'string' ? rows.detail : `KAIRO Core répond ${response.status}`)
+      if (!response.ok) throw new Error(typeof rows?.detail === 'string' ? rows.detail : `Nevolium Core répond ${response.status}`)
       if (!Array.isArray(rows)) throw new Error('Réponse de pagination invalide.')
       if (generation !== scope.current || controller.signal.aborted) return
       setItems((current) => append ? mergeById(current, rows as T[]) : mergeById(rows as T[], pinned.current ? [pinned.current] : []))
-      setCursor(response.headers.get('X-Kairo-Next-Cursor') || null)
+      setCursor(response.headers.get('X-Nevolium-Next-Cursor') || null)
     } catch (cause) {
       if (generation === scope.current && !controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Chargement impossible.')
     } finally {
@@ -70,9 +70,9 @@ export function usePagedCollection<T extends { id: string }>(url: string | null,
     setPinError(null)
     void (async () => {
       try {
-        const response = await kairoFetch(pinnedUrl, { signal: controller.signal })
+        const response = await nevoliumFetch(pinnedUrl, { signal: controller.signal })
         if (response.status === 404) return
-        if (!response.ok) throw new Error(`KAIRO Core répond ${response.status}`)
+        if (!response.ok) throw new Error(`Nevolium Core répond ${response.status}`)
         const row = await response.json() as T
         if (!controller.signal.aborted) { pinned.current = row; setItems((current) => mergeById(current, [row])) }
       } catch (cause) {

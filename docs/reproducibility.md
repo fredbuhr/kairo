@@ -1,4 +1,4 @@
-# KAIRO — reproductibilité
+# Nevolium — reproductibilité
 
 État D03 : baseline v9, fondée sur les pins H3/D02, sans nouveau digest inventé.
 Le checkpoint contient le SHA effectivement validé ; la [politique G50](archive/reproducibility-g50-before-d03.md)

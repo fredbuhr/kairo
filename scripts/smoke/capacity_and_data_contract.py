@@ -2,7 +2,7 @@
 """D02 shared PostgreSQL proof: admission, bounded pages, rebuild and relay recovery.
 
 Synthetic identity/transport fixtures; no paid providers. Run after canonical migrations
-only in the disposable kairo_admission_test database.
+only in the disposable nevolium_admission_test database.
 """
 import asyncio
 from datetime import UTC, datetime, timedelta
@@ -12,21 +12,21 @@ from time import perf_counter
 import httpx
 from sqlalchemy import delete, func, select, update
 
-from kairo_core.auth import Principal, require_kairo_user
-from kairo_core.command_models import Conversation, ConversationMessage
-from kairo_core.config import settings
-from kairo_core.db import SessionFactory, engine
-from kairo_core.document_models import Document, DocumentVersion
-from kairo_core.main import app
-from kairo_core.memory_models import MemoryProjectionRecord
-from kairo_core.models import Asset, OutboxEvent, Project, Task, WorkflowExecution
-from kairo_core.outbox import OutboxRelay, prune_technical_history
-from kairo_core.pagination import encode_cursor
-from kairo_core.work_capacity import WorkAdmission
+from nevolium_core.auth import Principal, require_nevolium_user
+from nevolium_core.command_models import Conversation, ConversationMessage
+from nevolium_core.config import settings
+from nevolium_core.db import SessionFactory, engine
+from nevolium_core.document_models import Document, DocumentVersion
+from nevolium_core.main import app
+from nevolium_core.memory_models import MemoryProjectionRecord
+from nevolium_core.models import Asset, OutboxEvent, Project, Task, WorkflowExecution
+from nevolium_core.outbox import OutboxRelay, prune_technical_history
+from nevolium_core.pagination import encode_cursor
+from nevolium_core.work_capacity import WorkAdmission
 
 OWNER = "d02-data-owner"
 FOREIGN = "d02-data-foreign"
-INTERNAL = {"X-Kairo-Internal-Token": settings.kairo_internal_token}
+INTERNAL = {"X-Nevolium-Internal-Token": settings.nevolium_internal_token}
 
 
 async def post(client, path, payload, expected=200):
@@ -89,18 +89,18 @@ async def all_pages(client, path, size, expected):
         identities = {row["id"] for row in page}
         assert not (seen & identities), "A page repeated IDs at an equal timestamp"
         seen |= identities
-        cursor = response.headers.get("X-Kairo-Next-Cursor")
+        cursor = response.headers.get("X-Nevolium-Next-Cursor")
         if not cursor:
             break
     assert len(seen) == expected, (path, len(seen), expected)
 
 
 async def main():
-    assert settings.database_url.endswith("/kairo_admission_test"), "Requires disposable test DB"
-    settings.kairo_auth_enabled = True
-    settings.kairo_work_global_concurrency = 2
-    settings.kairo_work_owner_concurrency = 1
-    app.dependency_overrides[require_kairo_user] = lambda: Principal(
+    assert settings.database_url.endswith("/nevolium_admission_test"), "Requires disposable test DB"
+    settings.nevolium_auth_enabled = True
+    settings.nevolium_work_global_concurrency = 2
+    settings.nevolium_work_owner_concurrency = 1
+    app.dependency_overrides[require_nevolium_user] = lambda: Principal(
         subject=OWNER, username=None, email=None, roles=frozenset(), claims={})
     project_id, messages, document_id, foreign_project, foreign_version = await seed()
     try:
@@ -171,9 +171,9 @@ async def main():
             await post(client, "/internal/v1/work-capacity/release", complete)
             await post(client, "/internal/v1/work-capacity/release", complete)
             assert (await acquire(waiting, "lost-response-retry"))["completed_result"] == result
-            settings.kairo_work_owner_max_pending = 1
+            settings.nevolium_work_owner_max_pending = 1
             await post(client, f"/internal/v1/memory/projections/conversation-messages/{messages[2]}/ensure", {}, expected=429)
-            settings.kairo_work_owner_max_pending = 100
+            settings.nevolium_work_owner_max_pending = 100
             print("PASS global/owner concurrency, transactional backlog, expiry fencing and completed replay")
             workflow_id = f"d02-failure-{active}"
             async with SessionFactory() as session:
@@ -210,7 +210,7 @@ async def main():
             # Restrict relay fixture to three events and prove its SQL claims outlive the connection.
             async with SessionFactory() as session:
                 await session.execute(delete(OutboxEvent))
-                events = [OutboxEvent(subject="kairo.domain.fixture", event_type="fixture", aggregate_type="fixture",
+                events = [OutboxEvent(subject="nevolium.domain.fixture", event_type="fixture", aggregate_type="fixture",
                           aggregate_id=uuid.uuid4(), correlation_id=uuid.uuid4(), payload={"fixture": i}) for i in range(3)]
                 session.add_all(events)
                 await session.commit()

@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 
-from kairo_worker.research_agent import (
+from nevolium_worker.research_agent import (
     build_evidence_index,
     plan_research,
     synthesize_research,
 )
-from kairo_worker.research_context_pack import (
+from nevolium_worker.research_context_pack import (
     MAX_CONTEXT_PACK_CHARS,
     build_research_context_pack,
     context_pack_model_records,
@@ -24,10 +24,10 @@ DOCUMENT_CONTEXT = {
             "document_project_id": "00000000-0000-0000-0000-000000000102",
             "document_version_id": "00000000-0000-0000-0000-000000000103",
             "chunk_id": "00000000-0000-0000-0000-000000000104",
-            "title": "KAIRO canonical architecture",
+            "title": "Nevolium canonical architecture",
             "generation": 3,
             "ordinal": 2,
-            "excerpt": "KAIRO keeps canonical state in PostgreSQL and durable execution in Temporal.",
+            "excerpt": "Nevolium keeps canonical state in PostgreSQL and durable execution in Temporal.",
             "content_sha256": "a" * 64,
             "rank": 0.88,
         }
@@ -40,7 +40,7 @@ DERIVED_CONTEXT = {
         {
             "context_id": "M1",
             "source": "mem0",
-            "excerpt": "The user wants KAIRO to remain self-hostable and coherent.",
+            "excerpt": "The user wants Nevolium to remain self-hostable and coherent.",
             "rank": 0.93,
             "projection_key": "mem-1",
             "canonical_message_id": "00000000-0000-0000-0000-000000000201",
@@ -49,7 +49,7 @@ DERIVED_CONTEXT = {
         {
             "context_id": "G1",
             "source": "graphiti",
-            "excerpt": "user: The user wants KAIRO to remain self-hostable and coherent.",
+            "excerpt": "user: The user wants Nevolium to remain self-hostable and coherent.",
             "rank": 0.72,
             "projection_key": "00000000-0000-0000-0000-000000000201",
             "canonical_message_id": "00000000-0000-0000-0000-000000000201",
@@ -111,7 +111,7 @@ async def main() -> None:
         )
 
     plan = await plan_research(
-        query="Where does KAIRO keep canonical state?",
+        query="Where does Nevolium keep canonical state?",
         tools=[
             {
                 "key": "web.search",
@@ -139,10 +139,10 @@ async def main() -> None:
     async def synthesis_completion(_messages):
         return json.dumps(
             {
-                "answer": "The supplied canonical KAIRO document says canonical state is kept in PostgreSQL.",
+                "answer": "The supplied canonical Nevolium document says canonical state is kept in PostgreSQL.",
                 "claims": [
                     {
-                        "text": "KAIRO keeps canonical state in PostgreSQL.",
+                        "text": "Nevolium keeps canonical state in PostgreSQL.",
                         "evidence_ids": ["D1"],
                         "confidence": "high",
                     }
@@ -152,7 +152,7 @@ async def main() -> None:
         )
 
     synthesis = await synthesize_research(
-        query="Where does KAIRO keep canonical state?",
+        query="Where does Nevolium keep canonical state?",
         evidence=context_only_evidence,
         completion=synthesis_completion,
     )
@@ -186,7 +186,7 @@ async def main() -> None:
 
     index = build_evidence_index(records)
     doc_index = next(item for item in index if item["evidence_id"] == "D1")
-    assert doc_index["excerpt"].startswith("KAIRO keeps canonical state"), doc_index
+    assert doc_index["excerpt"].startswith("Nevolium keeps canonical state"), doc_index
     assert doc_index["provenance"]["content_sha256"] == "a" * 64, doc_index
 
     oversized = {
