@@ -20,8 +20,8 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Head de code à contrôler | `a5a61db38191a9f8f37551fba7fe44df06c8a3be` |
 | Arbre de ce head | `c3ea2b7928bd11b45a607a22a9a6f9f0371a1179` |
 | Validation | **9/9 workflows réussis**, **5/5 jobs D04** ; contrôleur accès : **6 tests HTTP/TLS** ; rapports versionnés ci-dessous |
-| Prochaine action | Identifier le serveur privé, lancer inventaire/configuration puis `target.py preflight` avant la charge et le scénario commun |
-| Condition manquante | Matériel/cible privée et destination indépendante de sauvegarde non fournis ; aucun accès ni modèle quotidien inventé |
+| Prochaine action | Netcup demandé, accès en attente : relever la configuration ASUS et préparer la répétition CPU locale du protocole D04 |
+| Condition manquante | Accès netcup et destination indépendante de sauvegarde en attente ; ASUS candidat, configuration inconnue ; modèle quotidien non validé |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Réalisé sur la branche, sans promotion de main
@@ -58,7 +58,10 @@ inconnues ou données pour débloquer une gate. Aucun déploiement utilisateur e
 Serveur prioritaire ; installation complète sur PC personnel également visée. Clients PC, smartphone
 et tablette, avec mode hors ligne borné et 3D adaptative. [ADR-029 et critères](https://github.com/fredbuhr/kairo/blob/hardening/d04-real-engine-qualification/docs/decisions/ADR-029-server-personal-and-offline-clients.md)
 et plan D05–D22 ajustés dans la même PR ; choix de conception, pas fonctionnalités livrées.
-D04 reste centré sur le premier serveur Linux ; modèle/matériel exacts non choisis. Ne pas confondre
+Netcup RS 4000 G12 demandé par l’utilisateur ; livraison en attente. ASUS TUF Gaming A16 proposé
+pour répétition locale, OS/RAM/CPU/GPU à relever. Budget préféré 50 €/mois, maximum 90 €, pilote 3–4 personnes.
+Protocole local ajouté dans qualification-d04 ; revue documentaire uniquement, aucun test ASUS/netcup exécuté.
+D04 reste centré sur le premier serveur Linux ; modèle quotidien non choisi. Ne pas confondre
 ces cibles produit avec trois serveurs à synchroniser ou exiger tous les OS/mobiles avant de fermer H5.
 
 ## Références

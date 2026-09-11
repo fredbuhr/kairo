@@ -55,9 +55,70 @@ Les modèles demeurent en lecture seule et les données canoniques restent dans 
 Le matériel, les quotas de conteneur et les pics RSS sont enregistrés ;
 un maximum RSS du processus/des enfants est cumulatif, pas une mesure de toute la machine par scénario.
 
+## Préparation avant réception du serveur et répétition sur portable
+
+Le serveur netcup RS 4000 G12 a été demandé par l'utilisateur ; livraison et accès en attente.
+Budget préféré 50 €/mois, plafond 90 €, pilote de 3–4 personnes principalement utilisé par une personne.
+L'ASUS TUF Gaming A16 est une cible locale candidate : OS, RAM, CPU, GPU et disque libre restent inconnus.
+Aucun résultat du portable ne vaut mesure de netcup, et aucune compatibilité GPU n'est présumée.
+
+Sur Windows, relever dans le Gestionnaire des tâches (Performance) le CPU, la RAM et les GPU,
+et dans Paramètres > Système > Informations système la version de Windows. Relever le disque libre.
+Ne transmettre ni numéro de série, ni identifiant de produit, ni identifiants de connexion.
+Si Linux est déjà installé, utiliser directement l'inventaire ci-dessous.
+Windows peut héberger les conteneurs Linux avec WSL2 et Docker Desktop ; utiliser un checkout dans
+le système de fichiers Linux de WSL, pas dans /mnt/c. Vérifier la mémoire réellement allouée à WSL/Docker.
+Le minimum de Docker ne constitue pas le minimum de toute la pile KAIRO.
+
+Repères de préparation, non mesures : 16 Go physiques conduisent à tester les moteurs successivement ;
+32 Go offrent davantage de marge, sans garantir toute la pile simultanée. Garder de la mémoire pour l'OS
+et vérifier l'espace nécessaire aux images, caches de build et modèles avant téléchargement.
+Ne pas acheter de RAM ou de GPU avant cet inventaire. Première répétition CPU pour rester comparable
+au serveur ; accélération GPU éventuelle après identification précise de la carte et de ses pilotes.
+
+Dans un checkout distinct de la branche D04 et un environnement Linux/WSL disposant de Python 3.11+
+et Docker opérationnel, commencer par ces lectures sans installation ni démarrage de services :
+
+```bash
+python3 scripts/qualification/target.py inventory --output .kairo-qualification/evidence/laptop-inventory.json
+docker version
+docker compose version
+docker context show
+```
+
+Vérifier que le contexte Docker cible le portable, et relever les limites mémoire de Docker/WSL.
+L'inventaire voit l'environnement Linux disponible ; ce n'est pas nécessairement toute la RAM physique.
+Pour la répétition des moteurs, réutiliser la section « Préparer les modèles » de ce document :
+aucune deuxième implémentation ni overlay spécifique ASUS. Employer un projet Compose distinct
+(`COMPOSE_PROJECT_NAME=kairo-d04-laptop`) pour chaque commande de cette répétition. Les ports loopback
+restent fixes malgré le nom de projet : vérifier leur disponibilité avant démarrage. Utiliser uniquement
+des fixtures et un .env neuf dans ce checkout ; ne jamais écraser la configuration d'une installation existante.
+Sous Linux/WSL, donner l'accès UID 10001 uniquement aux dossiers de modèles et de preuves de cette répétition.
+La préparation télécharge les modèles ; seul le passage suivant des adaptateurs teste l'absence d'Internet.
+Conserver le SHA Git, les JSON et le manifeste. Arrêter en cas d'échec ou de manque de mémoire ;
+ne pas élargir les délais pour transformer une mauvaise mesure en succès.
+
+Travail réalisable avant netcup : répétition build/PDF/mémoire CPU, revue de configuration production,
+préparation des noms DNS et des secrets sans les versionner, choix du stockage de sauvegarde indépendant,
+et préparation du scénario de mise à jour/restauration déjà décrit dans deployment/operations.
+Les tests lourds de panne/restauration des workflows restent sur des environnements jetables dédiés.
+Les preuves CI existantes évitent de relancer toute la campagne uniquement pour attendre un serveur.
+
+Qwen3 4B et 8B sont candidats à comparer, 14B un essai conditionnel à la marge mémoire ; aucun modèle
+quotidien n'est encore validé. Mesurer un seul modèle chargé et une génération à la fois, avec contexte
+borné identique, puis ingestion documentaire concurrente. Consigner qualité sur demandes françaises,
+temps avant premier token, durée complète, mémoire totale et latence des lectures KAIRO. Le modèle
+0.5B des fixtures conserve son rôle de preuve de câblage ; ne pas le remplacer silencieusement.
+
+À réception de netcup : reprendre l'inventaire serveur, production/TLS/authentification, preflight,
+parcours canonique, charge mixte et restauration hors hôte. Le portable peut alors servir de client de
+mesure indépendant. D04 reste ouvert ; les vues Mycelium/Gantt/mindmap restent dans les lots prévus.
+
+Référence installation : [Docker Desktop Windows / WSL2](https://docs.docker.com/desktop/setup/install/windows-install/).
+
 ## Inventaire et charge sur la cible privée
 
-La cible privée et son stockage de sauvegarde ne sont pas fournis dans cette session. Sans les inventer,
+Le serveur netcup est demandé mais ses accès et le stockage de sauvegarde ne sont pas encore fournis. Sans les inventer,
 les commandes suivantes sont prêtes pour l'environnement qui sera réellement retenu :
 
 ```bash
