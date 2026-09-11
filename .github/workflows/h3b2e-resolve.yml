@@ -1,4 +1,4 @@
-name: H3b2e digest resolver
+name: H3b2e final image pin applicator
 
 on:
   push:
@@ -6,46 +6,89 @@ on:
       - hardening/h3b2e-final-image-pins
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  resolve:
+  apply:
     runs-on: ubuntu-latest
     steps:
-      - name: Install crane
-        uses: imjasonh/setup-crane@v0.4
-      - name: Resolve current immutable image digests
+      - name: Check out H3b2e branch
+        uses: actions/checkout@v4
+        with:
+          ref: hardening/h3b2e-final-image-pins
+      - name: Apply verified immutable digests and retire helper
         shell: bash
         run: |
           set -euo pipefail
-          images=(
-            'actualbudget/actual-server:latest'
-            'binwiederhier/ntfy:latest'
-            'chrislusf/seaweedfs:4.46'
-            'clickhouse/clickhouse-server:25.12'
-            'docker.openhands.dev/openhands/openhands:1.6'
-            'ghcr.io/activepieces/activepieces:0.86.3'
-            'ghcr.io/berriai/litellm:main-latest'
-            'ghcr.io/home-assistant/home-assistant:stable'
-            'ghcr.io/remsky/kokoro-fastapi-cpu:v0.8.0'
-            'ghcr.io/searxng/searxng:2026.9.7-3e454637f'
-            'headscale/headscale:latest'
-            'hummingbot/hummingbot:latest'
-            'langfuse/langfuse-worker:3'
-            'langfuse/langfuse:3'
-            'livekit/livekit-server:v1.13.1'
-            'neo4j:5.26-community'
-            'ollama/ollama:0.33.3'
-            'openbao/openbao:2.6.2'
-            'quay.io/keycloak/keycloak:26.7.3'
-            'rotki/rotki:latest'
-            'vllm/vllm-openai:latest'
-          )
-          for image in "${images[@]}"; do
-            digest="$(crane digest "$image")"
-            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-              echo "FAILED $image digest=$digest" >&2
-              exit 1
-            fi
-            printf 'RESOLVED %s@%s\n' "$image" "$digest"
-          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          base_sha = "0a03a7457df38debd28ccd7c73a634b03c393ca9"
+          pins = {
+              "actualbudget/actual-server:latest": "sha256:552beab3dec8c93d46b8b9245612d63c3f123b8a45063a474f53e229b17621d3",
+              "binwiederhier/ntfy:latest": "sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da",
+              "chrislusf/seaweedfs:4.46": "sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62",
+              "clickhouse/clickhouse-server:25.12": "sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6",
+              "docker.openhands.dev/openhands/openhands:1.6": "sha256:5c0dc26f467bf8e47a6e76308edb7a30af4084b17e23a3460b5467008b12111b",
+              "ghcr.io/activepieces/activepieces:0.86.3": "sha256:208517c4f0d798a477a0c594bf432dd0f4918433f4b6f5b5f188a6e10e638c6c",
+              "ghcr.io/berriai/litellm:main-latest": "sha256:29a0daf2593d5eaee14e76f851c4e6802cc1bf22770691a76d48e9810075ffd0",
+              "ghcr.io/home-assistant/home-assistant:stable": "sha256:612d76760b544cb40b7ba01387fdac964c59a6a550a50a4d30b4773c822d2918",
+              "ghcr.io/remsky/kokoro-fastapi-cpu:v0.8.0": "sha256:d32322c61254a871e0bc9c38d4e60cd18539cf9b1a2fc8f3ae04409061d0793b",
+              "ghcr.io/searxng/searxng:2026.9.7-3e454637f": "sha256:1dab138ea70a8ceb4d1c182f5c8f256088406c1742b99e279976157dbe1e9759",
+              "headscale/headscale:latest": "sha256:0e7f1c6e4ce6c2a2a001103ecd3fa645a045adf30ac8a5234fe037b43000cd72",
+              "hummingbot/hummingbot:latest": "sha256:632d2b07aa156b761310f2f7258a78c9660a1c28b6df4b33874e09a0c7d06c85",
+              "langfuse/langfuse-worker:3": "sha256:93207bd67d2e789ea55fa3d47eeba065dd6b1869187127ab24201784c52b96bc",
+              "langfuse/langfuse:3": "sha256:a27fe525f52984fa6d36fd34e8b8c6e5ae4af43f34134cafc833b467fa9580ae",
+              "livekit/livekit-server:v1.13.1": "sha256:2c6869d2d5ff6c9c0166f47be1c92dad6928bfecfa5e4060a6ece48db8accfa3",
+              "neo4j:5.26-community": "sha256:22ec5cd05a8cbb372fc4bed5e384c30bc75fd92504c72be4462039761b105f61",
+              "ollama/ollama:0.33.3": "sha256:32931b46719f673c05fdbaa81ccb26da18ea4a1c57590a754874ab28ba269eb2",
+              "openbao/openbao:2.6.2": "sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641",
+              "quay.io/keycloak/keycloak:26.7.3": "sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54",
+              "rotki/rotki:latest": "sha256:918e35cfbcce68633eafc9cdcc206bb2b45a1110f86e544d48d1fded04c280ff",
+              "vllm/vllm-openai:latest": "sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1",
+          }
+
+          compose_path = Path("compose.yaml")
+          compose = compose_path.read_text()
+          for image, digest in pins.items():
+              old = f"    image: {image}\n"
+              new = f"    image: {image}@{digest}\n"
+              count = compose.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected exactly one Compose occurrence for {image}, found {count}")
+              compose = compose.replace(old, new)
+          remaining = [line.strip() for line in compose.splitlines() if line.strip().startswith("image:") and "@sha256:" not in line]
+          if remaining:
+              raise SystemExit(f"unpinned Compose image references remain: {remaining}")
+          compose_path.write_text(compose)
+
+          baseline_path = Path("config/reproducibility-baseline.json")
+          baseline = json.loads(baseline_path.read_text())
+          if baseline.get("version") != 7:
+              raise SystemExit(f"expected baseline version 7, got {baseline.get('version')}")
+          expected_debt = [["compose.yaml", image] for image in pins]
+          if baseline.get("known_unpinned_images") != expected_debt:
+              raise SystemExit("remaining image debt no longer matches the verified H3b2e input set")
+
+          validated = baseline.get("validated_compose_digest_pins", [])
+          additions = [["compose.yaml", f"{image}@{digest}"] for image, digest in pins.items()]
+          merged = validated + additions
+          if len({tuple(item) for item in merged}) != len(merged):
+              raise SystemExit("duplicate validated Compose digest tuple")
+          baseline["version"] = 8
+          baseline["validated_parent_sha"] = base_sha
+          baseline["validated_compose_digest_pins"] = sorted(merged, key=lambda item: (item[0], item[1]))
+          baseline["known_unpinned_images"] = []
+          baseline_path.write_text(json.dumps(baseline, indent=2) + "\n")
+
+          Path(".github/workflows/h3b2e-resolve.yml").unlink()
+          PY
+          git diff --check
+          git status --short
+          git diff -- compose.yaml config/reproducibility-baseline.json
+          git config user.name "fredbuhr"
+          git config user.email "49747120+fredbuhr@users.noreply.github.com"
+          git add compose.yaml config/reproducibility-baseline.json .github/workflows/h3b2e-resolve.yml
+          git commit -m "H3b2e: pin remaining external images by digest"
+          git push origin HEAD:hardening/h3b2e-final-image-pins
