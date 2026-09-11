@@ -26,17 +26,16 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
-      - name: Generate deterministic lockfiles
+      - name: Generate deterministic workspace lockfiles
         run: |
           pnpm install --lockfile-only
-          uv lock --project services/core
-          uv lock --project services/worker
+          uv lock
 
       - name: Commit generated lockfiles
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pnpm-lock.yaml services/core/uv.lock services/worker/uv.lock
+          git add pnpm-lock.yaml uv.lock
           if git diff --cached --quiet; then
             echo "Lockfiles already current."
             exit 0
