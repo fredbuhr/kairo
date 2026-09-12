@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 FORBIDDEN = {'home-assistant', 'openhands', 'livekit', 'nevolium-realtime', 'rotki', 'actual-budget', 'hummingbot', 'headscale', 'activepieces', 'ntfy'}
 PASSWORD = re.compile(r'(PASSWORD|SECRET|SIGNING_KEY|INTERNAL_TOKEN|OPERATIONS_TOKEN|MASTER_KEY|OPENBAO_TOKEN|ENCRYPTION_KEY|SALT)$')
+OPENBAO_SERVICE_TOKEN = re.compile(r's\.[A-Za-z0-9]{24,}')
 
 
 def validate(config: dict) -> list[str]:
@@ -21,7 +22,11 @@ def validate(config: dict) -> list[str]:
         for key, value in env.items():
             if PASSWORD.search(key) and key not in {'BAO_DEV_ROOT_TOKEN_ID'}:
                 value = str(value or '')
-                if len(value) < 32 or any(x in value.lower() for x in ('change_me','change-me','development','nevolium-dev')):
+                invalid_openbao = key == 'OPENBAO_TOKEN' and not OPENBAO_SERVICE_TOKEN.fullmatch(value)
+                invalid_other = key != 'OPENBAO_TOKEN' and (len(value) < 32 or any(
+                    x in value.lower() for x in ('change_me','change-me','development','nevolium-dev')
+                ))
+                if invalid_openbao or invalid_other:
                     errors.append(f'{name}: provision {key}')
         command = svc.get('command') or []
         if isinstance(command, str): command = command.split()

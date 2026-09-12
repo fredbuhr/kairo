@@ -18,9 +18,9 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
 | Head Nevolium qualifié | `f2e22e09867fdf8dfd6d842cf393b905764d4a2a`, arbre `7b37615fd7c00c8340a12bde45b5f26d7a585895` |
-| Validation | **10/10 workflows réussis**, **5/5 jobs D04** sur `f2e22e0…` ; le bootstrap opérateur ajouté au checkpoint live doit repasser les gates |
-| Prochaine action | Valider puis actualiser le checkpoint live, exécuter le bootstrap OpenBao versionné, exporter séparément le matériel de récupération, puis configurer le renouvellement surveillé |
-| Conditions manquantes | OpenBao démarré mais non initialisé ; Nevolium non déployé ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
+| Validation | **10/10 workflows réussis** sur `13f2fa7…` ; l'exécution cible a révélé une longueur de jeton OpenBao valide rejetée par les gardes, correction/reprise à revalider |
+| Prochaine action | Valider puis actualiser le correctif live, exécuter le mode `--resume`, vérifier le garde, puis exporter séparément le matériel de récupération |
+| Conditions manquantes | OpenBao initialisé/déscellé mais bootstrap interrompu avant enregistrement du jeton de workload ; Nevolium non déployé ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -78,9 +78,11 @@ APT, HTTPS et ICMP fonctionnent en IPv4/IPv6. Un snapshot hors ligne a précéd�
 hôte vers iptables-nft compatible Docker. Docker Engine/Compose officiels, rotation des logs,
 `live-restore` et `DOCKER-USER` ont été vérifiés ; le checkout D04 public est propre. Aucun identifiant
 réseau, compte ou secret n'est versionné ; [preuve expurgée](docs/archive/server-foundation-2026-09-11.md).
-Nevolium n'est pas encore déployé. OpenBao seul a été démarré avec son backend fichier persistant :
-il reste non initialisé, son port 8200 n'est pas publié sur l'hôte et aucun autre service Nevolium ne
-fonctionne. La policy de workload autorise désormais la lecture du namespace Nevolium et le renouvellement
+Nevolium n'est pas encore déployé. OpenBao seul utilise son backend fichier persistant et son
+port 8200 n'est pas publié sur l'hôte. Le bootstrap cible l'a initialisé et déscellé, puis s'est arrêté
+avant d'écrire le jeton de workload : OpenBao 2.6 a émis un jeton de service opaque valide plus court
+que le minimum générique erroné de 32 caractères. Le fichier de récupération root 0600 est conservé ;
+aucun autre service Nevolium ne fonctionne. La policy de workload autorise désormais la lecture du namespace Nevolium et le renouvellement
 du jeton lui-même ; la campagne de récupération vérifie un jeton périodique orphelin sans policy par défaut.
 L'initialisation cible attend la validation CI de ce checkpoint et l'export séparé des clés de déscellement.
 ASUS TUF Gaming A16

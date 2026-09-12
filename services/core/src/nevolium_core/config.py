@@ -1,4 +1,5 @@
 from decimal import Decimal
+import re
 from typing import Literal
 from urllib.parse import urlsplit, unquote
 
@@ -66,11 +67,15 @@ class Settings(BaseSettings):
         if not self.nevolium_auth_enabled:
             raise ValueError("Production requires authentication")
         db = urlsplit(self.database_url)
-        secrets = (self.nevolium_internal_token, self.nevolium_policy_signing_key, self.openbao_token, self.nevolium_operations_token, unquote(db.password or ""))
+        secrets = (self.nevolium_internal_token, self.nevolium_policy_signing_key,
+                   self.nevolium_operations_token, unquote(db.password or ""))
         for value in secrets:
             if len(value) < 32 or any(marker in value.lower() for marker in ("change_me", "change-me", "development", "nevolium-dev")):
                 raise ValueError("Production requires distinct provisioned secrets of at least 32 characters")
-        if len(set(secrets)) != len(secrets):
+        if not re.fullmatch(r"s\.[A-Za-z0-9]{24,}", self.openbao_token):
+            raise ValueError("Production requires a provisioned OpenBao service token")
+        all_secrets = (*secrets, self.openbao_token)
+        if len(set(all_secrets)) != len(all_secrets):
             raise ValueError("Production secrets must be distinct")
         db = urlsplit(self.database_url)
         if db.username != "nevolium_app" or len(unquote(db.password or "")) < 32:

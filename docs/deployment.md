@@ -126,7 +126,23 @@ sudo python3 scripts/ops/bootstrap_openbao.py \
 Exporter ensuite le fichier de récupération hors serveur par un canal chiffré, séparer les parts et
 vérifier la récupération avant d'effacer la copie serveur et de révoquer le jeton racine initial.
 Le jeton de workload reste dans le fichier d'environnement privé et son accessor non secret dans
-`openbao-workload.json`.
+`openbao-workload.json`. Les jetons de service OpenBao 2.6 suivent le format opaque `s.` avec au
+moins 24 caractères alphanumériques ; ils sont validés par leur format et leurs capacités effectives,
+tandis que les autres secrets Nevolium conservent le minimum de 32 caractères.
+
+Si une première exécution a été interrompue après l'initialisation et avant l'écriture du jeton dans
+l'environnement, ne jamais réinitialiser le coffre. Après diagnostic, reprendre explicitement :
+
+```bash
+sudo python3 scripts/ops/bootstrap_openbao.py \
+  --env-file /etc/nevolium/production.env \
+  --recovery-file /etc/nevolium/openbao-recovery.json \
+  --resume
+```
+
+La reprise exige le fichier de récupération root 0600 et le placeholder encore présent dans
+`production.env`. Elle déscelle si nécessaire, révoque les jetons périodiques interrompus correspondant
+à la policy Nevolium, puis recrée et vérifie un unique jeton de workload.
 
 Seuls Web/Core/Keycloak conservent des ports sur loopback. Le proxy TLS de l'opérateur doit publier
 uniquement le Web, l'auth et `/v1/` de Core ; refuser `/internal/`, `/docs` et `/openapi.json` à l'ingress.

@@ -30,7 +30,7 @@ spec.loader.exec_module(production)
 def core_values():
     return dict(nevolium_env='production', nevolium_auth_enabled=True,
                 nevolium_internal_token='a'*64, nevolium_policy_signing_key='b'*64,
-                openbao_token='c'*64, nevolium_operations_token='d'*64,
+                openbao_token='s.'+('c'*24), nevolium_operations_token='d'*64,
                 database_url='postgresql+asyncpg://nevolium_app:'+('e'*64)+'@postgres/nevolium',
                 keycloak_issuer='https://auth.example.org/realms/nevolium',
                 nevolium_cors_origins='https://nevolium.example.org')
@@ -42,6 +42,7 @@ class Deployment(unittest.TestCase):
         for change in [dict(nevolium_env='prod'), dict(nevolium_auth_enabled=False),
                        dict(nevolium_internal_token='CHANGE_ME_LONG_RANDOM_INTERNAL_TOKEN'),
                        dict(nevolium_policy_signing_key='a'*64), dict(nevolium_cors_origins='*'),
+                       dict(openbao_token='c'*64),
                        dict(keycloak_issuer='http://auth.example.org/realms/nevolium'),
                        dict(database_url='postgresql+asyncpg://postgres:secret@db/nevolium')]:
             with self.subTest(change=list(change)), self.assertRaises(ValidationError):
@@ -91,6 +92,7 @@ class Deployment(unittest.TestCase):
             if line and not line.startswith('#') and '=' in line:
                 key,value=line.split('=',1)
                 if 'CHANGE_ME' in value: value=secrets.token_hex(32)
+                if key=='OPENBAO_TOKEN': value='s.'+('c'*24)
                 if key=='KEYCLOAK_PROXY_TRUSTED_ADDRESSES': value='127.0.0.1/32'
                 line=key+'='+value
             lines.append(line)
