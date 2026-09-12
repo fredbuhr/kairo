@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -145,7 +146,16 @@ class BootstrapRetirementContract(unittest.TestCase):
                 encoding="utf-8",
             )
             path.chmod(0o600)
-            values, prepared = MODULE.prepare_scrubbed_environment(path)
+            with patch.object(
+                MODULE,
+                "protected_env",
+                return_value={
+                    "KEYCLOAK_ADMIN": "bootstrap",
+                    "KEYCLOAK_ADMIN_PASSWORD": "abcdefghijklmnopqrstuvwxyz123456",
+                    "KEYCLOAK_REALM": "nevolium",
+                },
+            ):
+                values, prepared = MODULE.prepare_scrubbed_environment(path)
             self.assertEqual(values["KEYCLOAK_ADMIN"], "bootstrap")
             self.assertEqual(
                 prepared.read_text(encoding="utf-8"),
