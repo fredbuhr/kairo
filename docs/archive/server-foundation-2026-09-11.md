@@ -168,7 +168,11 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
   bootstrap `master`. Ses anciens identifiants ont ensuite été explicitement refusés et leurs deux
   affectations retirées atomiquement du fichier privé root 0600. Keycloak, Caddy et la topologie normale
   sont restés sains ; une authentification MFA neuve a encore rouvert la console administrative.
+- L'image Worker complète a préparé le bundle Docling/FastEmbed dans un répertoire temporaire. Ses quatre
+  révisions amont et les empreintes de huit poids correspondent exactement au manifeste D04 archivé. Le
+  bundle root-owned est désormais référencé par la configuration privée et destiné au montage en lecture
+  seule ; aucun magasin mémoire, moteur, routeur de modèle ou Worker n'a encore été démarré.
 
-Prochain point sûr : préparer puis qualifier le palier Worker et ses moteurs réels sur la cible sans élargir
-l'exposition publique. Le paquet de clés ne remplace pas le futur backup Restic chiffré, indépendant du
-serveur et restauré sur volumes neufs.
+Prochain point sûr : activer puis vérifier séparément Neo4j, Valkey/SearXNG et Ollama, avec comparaison du
+digest du petit modèle de qualification avant LiteLLM et Worker. Le paquet de clés ne remplace pas le futur
+backup Restic chiffré, indépendant du serveur et restauré sur volumes neufs.

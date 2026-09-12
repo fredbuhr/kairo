@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head déployé et qualifié | `c26cdadb9fb799fdd658f99746ba6ee3c4f643b7`, arbre `88325795759f507d08a6417e4cd6514edbf30be1` |
-| Validation | **10/10 workflows réussis** sur `c26cdad…` ; socle/Core/Web/TLS et OIDC utilisateur vérifiés ; administrateur nominatif actif avec TOTP ; Keycloak recréé sans environnement bootstrap ; compte bootstrap `master` supprimé, anciens identifiants refusés et secrets privés retirés ; nouvelle connexion MFA administrative réussie |
-| Prochaine action | Préparer puis qualifier le palier Worker et ses moteurs réels sur la cible, sans élargir l'exposition publique |
-| Conditions manquantes | Worker non déployé ; backup Restic indépendant, parcours canonique moteurs, campagne cible, charge et modèle quotidien non validés |
+| Head déployé et qualifié | `818b8ca7208729a87c5c85a18240b509123f5864`, arbre `68869c0b25d934a6b004d8bb530da9634ad13348` |
+| Validation | **10/10 workflows réussis** sur `818b8ca…` ; identité bootstrap retirée et comptes MFA qualifiés ; bundle Worker hors ligne reproduit sur la cible avec les quatre références D04 et les empreintes exactes de huit poids, puis monté dans la topologie sans démarrer de moteur |
+| Prochaine action | Activer et vérifier séparément Neo4j, Valkey/SearXNG et Ollama ; accepter le modèle de qualification seulement si son digest correspond à D04, avant LiteLLM et Worker |
+| Conditions manquantes | Moteurs et Worker non déployés ; backup Restic indépendant, parcours canonique moteurs, campagne cible, charge et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -100,6 +100,11 @@ a été basculé puis vérifié sur la nouvelle URL.
   bootstrap `master` supprimé, ses anciens identifiants explicitement refusés et ses deux affectations
   retirées atomiquement du fichier root 0600. La topologie, Keycloak et Caddy sont restés sains ; une
   authentification MFA neuve de l'administrateur nominatif a rouvert la console après le retrait.
+- Bundle Worker préparé hors runtime dans un répertoire temporaire avec l'image complète verrouillée.
+  Les versions, les quatre révisions amont Docling/FastEmbed et les empreintes des huit fichiers de poids
+  correspondent exactement au manifeste D04 archivé. Le bundle vérifié a été promu sous `/opt/nevolium`,
+  appartient à root et sera monté en lecture seule ; la configuration privée root 0600 pointe vers lui.
+  Aucun service Neo4j, Valkey, SearXNG, Ollama, LiteLLM ou Worker n'a été démarré à cette étape.
 - Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
   vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
   révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien
