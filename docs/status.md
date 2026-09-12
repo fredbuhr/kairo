@@ -76,7 +76,16 @@ realm de production `nevolium` a été importé sans utilisateur et son issuer v
 `https://auth.nevolium.com/realms/nevolium`. Un premier démarrage a refusé le placeholder de proxy, puis
 un second a révélé que la variable du realm n'était pas transmise au conteneur ; chaque tentative a été
 arrêtée sans realm partiel, corrigée dans la même branche et couverte par les dix workflows réussis sur
-`b2648de…`. Caddy, NATS, SeaweedFS, Temporal, Core et Web ne sont pas encore démarrés.
+`b2648de…`.
+
+Le palier interne suivant est lui aussi vérifié sur la cible. NATS 2.14.5 est sain, JetStream utilise
+`/data/jetstream` dans son volume persistant et aucun port 4222/8222 n'est publié. SeaweedFS 4.46 sert
+Master et S3 depuis le réseau canonique, conserve son volume et ne publie aucun port. Le premier essai
+multiréseau a montré qu'il choisissait et annonçait seulement l'interface `telemetry` ; l'identité stable
+`-ip=seaweedfs` et l'écoute `-ip.bind=0.0.0.0` corrigent le routage sur les deux réseaux sans ouvrir l'hôte.
+Temporal 1.31.2 est sain, ses schémas d'exécution/visibilité sont présents dans PostgreSQL, le namespace
+`default` répond et le port 7233 reste interne. Les tâches ponctuelles SQL et namespace sont sorties avec
+le code 0. Le correctif SeaweedFS `b5acf0e…` passe 10/10 workflows. Core, Worker, Web et Caddy restent arrêtés.
 
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
@@ -94,7 +103,7 @@ la qualification graphique mobile restent à livrer. Présence de Three/Tauri/Yj
 
 | Domaine | Présent dans le code | Ce qui reste à prouver/livrer |
 |---|---|---|
-| État durable | PostgreSQL, objets SeaweedFS, outbox/NATS, exécution Temporal, migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Dimensionnement réel, archivage canonique et charge sur matériel identifié |
+| État durable | PostgreSQL migré, NATS/JetStream, SeaweedFS et Temporal/namespace `default` actifs sur réseaux internes ; migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Parcours applicatif Core/Worker, dimensionnement réel, archivage canonique et charge sur matériel identifié |
 | Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables | Mesure réelle des moteurs et du matériel en D04 |
 | Identité et actions | Keycloak de production sur loopback, realm neuf sans utilisateur et issuer public vérifié ; ownership, policy/approbations, registre MCP et invocations idempotentes | Premier compte nominatif/MFA, TLS public et parcours OIDC complet ; UX de rapprochement des coûts incertains |
 | Intelligence | Routing/recherche, Context Packs et gateway avec admission, estimations réservées, sortie bornée et replay comptable | Choix utilisateur des modèles/clés, UX Agents/Skills, preuve coûts et vrais moteurs |

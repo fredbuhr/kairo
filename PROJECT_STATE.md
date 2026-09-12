@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head Nevolium qualifié | `b2648de802a558ca86f01575c57e9c21189c9d60`, arbre `2ed589ab655c2c6248abd7de8a03539a2d937035` |
-| Validation | **10/10 workflows réussis** sur `b2648de…` ; récupération et renouvellement OpenBao prouvés ; PostgreSQL provisionné/migré ; realm Keycloak neuf, sans utilisateur, issuer public exact et port loopback vérifiés sur la cible |
-| Prochaine action | Déployer et vérifier par paliers NATS, SeaweedFS et Temporal, puis Core/Web ; installer Caddy seulement lorsque tous ses upstreams loopback sont prêts, avant le preflight public |
-| Conditions manquantes | NATS, SeaweedFS, Temporal, Core et Web non déployés ; Caddy/TLS et routes publiques refusées non prouvés ; premier compte nominatif avec MFA absent ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
+| Head Nevolium qualifié | `b5acf0ef6e10d291a8e264eec40fa76dbf98bb83`, arbre `caea5b20421594c695d1476a7efddfad60869327` |
+| Validation | **10/10 workflows réussis** sur `b5acf0e…` ; OpenBao, PostgreSQL, Keycloak, NATS/JetStream, SeaweedFS et Temporal vérifiés sur la cible, persistants et sans port moteur publié |
+| Prochaine action | Démarrer et vérifier Core seul sur son port loopback, puis Web ; installer Caddy seulement lorsque ses trois upstreams sont prêts, avant le preflight public |
+| Conditions manquantes | Core et Web non déployés ; Caddy/TLS et routes publiques refusées non prouvés ; premier compte nominatif avec MFA absent ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -60,6 +60,15 @@ a été basculé puis vérifié sur la nouvelle URL.
   privée. Le realm de production neuf ne contient aucun utilisateur et son document de découverte expose
   exactement `https://auth.nevolium.com/realms/nevolium`. Deux premiers démarrages ont été arrêtés sans
   realm partiel : placeholder de proxy, puis variable de realm non transmise ; les deux gardes sont couvertes en CI.
+- NATS 2.14.5 est sain sur ses deux réseaux internes, sans port hôte ; JetStream écrit dans le volume
+  persistant attendu. Un premier contrôle opérateur a confondu le répertoire demandé `/data` avec le
+  répertoire effectif `/data/jetstream` puis a arrêté proprement le service sans perte.
+- SeaweedFS 4.46 conserve son volume et ne publie aucun port hôte ; Master et S3 répondent depuis le réseau
+  canonique. La cible a révélé le choix initial d'une seule interface ; `-ip=seaweedfs` et
+  `-ip.bind=0.0.0.0` corrigent respectivement l'identité annoncée et l'écoute multicarte, avec contrat CI.
+- Temporal 1.31.2 est sain sur les réseaux canonique/exécution, sans port hôte. Les schémas `temporal` et
+  `temporal_visibility` sont installés dans PostgreSQL et le namespace `default` est vérifié ; les deux
+  conteneurs ponctuels de préparation et de namespace se sont terminés avec le code 0.
 - Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
   vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
   révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien
@@ -92,9 +101,9 @@ APT, HTTPS et ICMP fonctionnent en IPv4/IPv6. Un snapshot hors ligne a précéd�
 hôte vers iptables-nft compatible Docker. Docker Engine/Compose officiels, rotation des logs,
 `live-restore` et `DOCKER-USER` ont été vérifiés ; le checkout D04 public est propre. Aucun identifiant
 réseau, compte ou secret n'est versionné ; [preuve expurgée](docs/archive/server-foundation-2026-09-11.md).
-Le socle Nevolium est déployé par paliers : OpenBao 2.6.2, PostgreSQL et Keycloak fonctionnent ; les
-autres services restent arrêtés. OpenBao utilise son backend fichier persistant et son port 8200 n'est
-pas publié sur l'hôte. Après deux arrêts sûrs ayant révélé le format de jeton puis
+Le socle Nevolium est déployé par paliers : OpenBao 2.6.2, PostgreSQL, Keycloak, NATS/JetStream,
+SeaweedFS et Temporal fonctionnent ; Core, Worker et Web restent arrêtés. OpenBao utilise son backend
+fichier persistant et son port 8200 n'est pas publié sur l'hôte. Après deux arrêts sûrs ayant révélé le format de jeton puis
 la réponse CLI des accessors, la reprise contrôlée a révoqué l'unique jeton interrompu et enregistré
 un nouveau jeton périodique orphelin de sept jours. Sa policy sans policy `default` autorise seulement
 la lecture du namespace Nevolium, l'introspection de ses propres capacités et son renouvellement ;
@@ -108,7 +117,10 @@ traversée du checkout, survenu sans renouvellement ni activation du timer. Post
 neuf, reste sain et non publié ; les rôles SQL et la migration `0014_capacity_and_data` sont vérifiés.
 Keycloak utilise sa base dédiée et un realm de production neuf sans utilisateur ; son issuer public est
 exact derrière les en-têtes du proxy de confiance privé et son port 8081 est limité au loopback. Caddy
-n'est pas encore installé et aucun certificat public n'est donc revendiqué.
+n'est pas encore installé et aucun certificat public n'est donc revendiqué. NATS/JetStream et SeaweedFS
+conservent leurs volumes dédiés derrière les réseaux internes. SeaweedFS annonce le nom `seaweedfs` et
+écoute ses deux interfaces après correction du défaut multiréseau découvert sur la cible. Temporal utilise
+ses deux schémas PostgreSQL, son namespace `default` est présent et son port 7233 n'est pas publié.
 ASUS TUF Gaming A16
 FA608PM relevé pour une répétition ultérieure : Ryzen 9 8940HX, 32 Go RAM, RTX 5060 Laptop 8 Go,
 environ 586 Go libres sous Windows x64. Budget préféré 50 €/mois, maximum 90 €, pilote 3–4 personnes.

@@ -112,7 +112,23 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
   Aucun realm partiel n'est resté en base. Les deux causes ont été corrigées et les contrats associés passent
   dans les dix workflows GitHub du commit `b2648de…`.
 
-Prochain point sûr : démarrer et vérifier par paliers NATS, SeaweedFS et Temporal, puis Core et Web ;
-installer Caddy seulement lorsque ses upstreams loopback sont prêts, puis prouver TLS et les refus des
+## Extension vérifiée le 12 septembre — socle interne
+
+- NATS 2.14.5 est sain sur les réseaux internes canonique/exécution. JetStream stocke sous
+  `/data/jetstream` dans le volume `nevolium_nats_data` ; aucun port 4222/8222 n'est publié. Le premier
+  contrôle a attendu à tort `/data`, puis a arrêté NATS proprement avant une vérification corrigée.
+- SeaweedFS 4.46 utilise le volume `nevolium_seaweed_data`, et Master comme S3 répondent depuis le réseau
+  canonique sans publication hôte. Un premier sondage depuis l'hôte a été bloqué par l'isolation prévue ;
+  le sondage interne suivant a révélé que le processus attaché à deux réseaux choisissait seulement son
+  interface `telemetry`. Le correctif `-ip=seaweedfs -ip.bind=0.0.0.0` rend son identité et ses services
+  accessibles sur les deux ponts internes, sans port hôte ; le volume existant a été conservé.
+- Temporal 1.31.2 est sain sur les réseaux canonique/exécution sans publier 7233. Les schémas
+  `temporal` et `temporal_visibility` sont présents dans PostgreSQL, le namespace `default` est joignable,
+  et les deux conteneurs ponctuels d'installation SQL et de création de namespace sont sortis avec le code 0.
+- Le commit de correction SeaweedFS `b5acf0e…` passe les dix workflows GitHub avant son installation sur
+  la cible. NATS, SeaweedFS et Temporal restent opérationnels après leurs contrôles croisés.
+
+Prochain point sûr : démarrer et vérifier Core seul, puis Web ; installer Caddy seulement lorsque ses
+upstreams loopback sont prêts, puis prouver TLS et les refus des
 routes internes avec le preflight cible. Le paquet de clés ne remplace pas le futur backup Restic
 chiffré, indépendant du serveur et restauré sur volumes neufs.
