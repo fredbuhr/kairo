@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Dernier code déployé confirmé | `bc0c607c1af7e91de0035a098284a7cb46a403ba` ; le test sémantique à froid échoue encore, ce n'est pas une qualification complète |
-| Validation | Parent `bc0c607…` : 10/10 workflows réussis. Mémoire propriétaire et rejeu génération 2 prouvés sur cible. Correctif présent : contrats virtuels 70/111 secondes et dates de fin des nouveaux échecs ; vérifier sa CI exacte avant déploiement |
-| Prochaine action | Déployer le correctif de budget D04 sur Core/Worker après CI, puis qualifier une nouvelle commande à froid et à chaud sans rejouer les anciennes issues inconnues |
-| Conditions manquantes | Routage fiable sur cible, Research avec outils réels, backup Restic indépendant, campagne cible/charge/rollback et choix du modèle quotidien |
+| Dernier code déployé confirmé | `dd20b00216940ec02589a9c544fcacdc89bc4744` ; Core/Worker actifs, budget sémantique 110/120/180 s et sortie 256 jetons vérifiés |
+| Validation | `dd20b002…` : 10/10 workflows réussis. Sur cible, essai à froid terminé en 61,34 s, 1176 jetons, coût local nul et réservation réglée ; essai chaud terminé en 50,43 s, 1118 jetons et réservation réglée, mais le modèle a proposé `news.brief` malgré un veto d'exécution et une Task News a été créée |
+| Prochaine action | Faire valider puis déployer le veto Core `semantic.execution-veto`, prouver qu'une nouvelle proposition fautive ne crée aucune Task métier, sans modifier la commande News historique |
+| Conditions manquantes | Pertinence et veto du routage sur cible, Research avec outils réels, backup Restic indépendant, campagne cible/charge/rollback et choix du modèle quotidien |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04

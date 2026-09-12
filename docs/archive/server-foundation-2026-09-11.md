@@ -228,8 +228,16 @@ indépendant du serveur et restauré sur volumes neufs.
 - Le correctif de branche aligne le budget modèle sémantique sur les 110 s déjà utilisées par D04,
   heartbeat 120 s, activité 180 s ; conserve 256 jetons de sortie dans la configuration cible et
   laisse CPU/RAM/proxy inchangés. Les nouveaux échecs reçoivent leur date terminale, conservée au rejeu.
-  Les tests virtuels et unitaires ne déclarent pas ce correctif déployé ni le scénario réel réussi.
+  Déployé à `dd20b002…`, il termine un essai après déchargement explicite en 61,34 s : 950 jetons de
+  prompt, 226 de complétion, coût local nul déclaré et réservation `settled`. L'essai modèle préchargé
+  termine en 50,43 s : 950 + 168 jetons et réservation également réglée.
+- L'essai préchargé met aussi en évidence une décision incorrecte : `local-fast` propose `news.brief`
+  à 90 % pour une consigne demandant uniquement un classement et interdisant toute action. Core accepte
+  alors la proposition et la Task News termine. Cette Task et son audit sont conservés. Le correctif en
+  cours ajoute un veto Core fondé sur le message canonique : une telle proposition reste visible dans
+  l'artefact sémantique, mais l'application devient `semantic.execution-veto` et aucune Task métier
+  déterministe n'est créée. Les tests locaux passent ; CI et preuve cible restent requises.
 
-Prochain point sûr : vérifier la CI du correctif, déployer Core/Worker, qualifier un nouvel essai
-à froid puis à chaud, sans supprimer ni rejouer les réservations inconnues. Research réel, restauration
-indépendante, mesures mixtes et rollback demeurent des conditions D04, avant D05.
+Prochain point sûr : valider et déployer le veto d'exécution, puis répéter une seule commande sans action
+et prouver l'absence de Task métier. Research réel, restauration indépendante, mesures mixtes et rollback
+demeurent des conditions D04, avant D05.

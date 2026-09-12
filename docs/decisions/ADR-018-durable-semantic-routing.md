@@ -47,12 +47,15 @@ Core sends only capabilities explicitly marked `routable=true` to the semantic r
 
 Core then independently verifies:
 
+- the canonical user message does not explicitly forbid execution;
 - the key still exists and is routable;
 - confidence meets the configured floor;
 - parameters validate against the registered capability input schema;
 - a concrete Nevolium adapter exists.
 
 Only after those checks does Core launch the final capability. A provider response cannot invent an MCP tool, HTTP endpoint, specialist engine or hidden action.
+An explicit classification-only or no-execution instruction remains auditable but makes the command
+terminal as `semantic.execution-veto`, even if the model proposes a valid capability with high confidence.
 
 ### One logical model turn for V1
 

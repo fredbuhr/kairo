@@ -6,15 +6,15 @@ Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJEC
 ## Complément courant : mémoire et incident sémantique
 
 Les contrôles opérateur ont prouvé Mem0 sur le bon propriétaire, un scope étranger vide, un épisode
-Graphiti et le rejeu mémoire génération 2 sans doublon. Le routage sémantique est indépendant et reste
-non qualifié à froid : sous `bc0c607…`, l'historique Temporal montre un `TimeoutError`, puis une seconde
-tentative arrêtée comme `ModelCallOutcomeUnknown` non rejouable. Les heures concordent avec une réponse
-Ollama HTTP 200 en environ 70 s, après le délai Worker de 60 s ; elles ne mesurent pas le chargement du modèle.
-Ollama conserve sa limite de 2 CPU/4 Gio. Le correctif aligne l'appel sur le budget local D04 existant
-de 110 s, le heartbeat sur 120 s et l'activité sur 180 s. Des tests à horloge virtuelle passent par le
-vrai gateway et le vrai adaptateur PydanticAI ; ils ne prouvent pas la performance du serveur.
-Les nouveaux échecs Core reçoivent une date de fin idempotente, sans réécriture des anciens échecs.
-Déploiement et nouvel essai cible encore requis. Réservations inconnues et anciennes Tasks inchangées.
+Graphiti et le rejeu mémoire génération 2 sans doublon. Le correctif sémantique `dd20b002…` est actif :
+appel modèle 110 s, heartbeat 120 s, activité 180 s, sortie limitée à 256 jetons. Après déchargement
+explicite du modèle, une commande termine en 61,34 s avec 1176 jetons ; modèle préchargé, une seconde
+termine en 50,43 s avec 1118 jetons. Coût local nul déclaré et réservation réglée dans les deux cas.
+Le second essai révèle cependant une erreur de pertinence : le modèle propose `news.brief` à 90 % malgré
+« classe uniquement » et « ne lance aucune action », et Core crée une Task News terminée. Le correctif
+suivant ajoute un veto déterministe dans Core : la proposition reste auditable, mais aucune Task métier
+ne peut être créée lorsque le message canonique interdit l'exécution. Sa CI et sa cible restent à prouver.
+La commande News historique et les anciennes réservations inconnues restent inchangées.
 
 Les sections ci-dessous conservent l'historique des paliers. Six espaces UI sont raccordés, pas quinze
 modules futurs ; le cockpit Mycelium reste D05. L'erreur partagée Command/News, les débordements de panneaux

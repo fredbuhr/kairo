@@ -45,6 +45,12 @@ de la performance Ollama. Qualifier ensuite une nouvelle commande cible,
 modèle déchargé puis chaud, vérifier tokens/coût/réservation et conserver les anciens échecs.
 Un dépassement persistant doit être mesuré et diagnostiqué, pas caché par une nouvelle hausse de seuil.
 
+Une commande de qualification contenant une interdiction explicite d'exécution ne doit jamais créer la
+Task métier proposée par le modèle. Core relit le message canonique, applique
+`semantic.execution-veto`, conserve la proposition pour audit et rend la commande terminale sans handoff.
+La preuve exige une proposition volontairement valide et confiante, puis l'absence du Task ID métier
+déterministe ; une simple réponse `unsupported` du modèle ne suffit pas à tester cette frontière.
+
 ## Préparer les modèles une fois, exécuter sans téléchargement
 
 Sur un environnement de développement isolé avec Docker et le dépôt courant :

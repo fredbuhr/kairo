@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic proof for Nevolium's conversational capability router and registry."""
 
-from nevolium_core.assistant import route_command
+from nevolium_core.assistant import _requests_no_execution, route_command
 from nevolium_core.capabilities import get_capability
 from nevolium_core.schemas import AssistantCommandCreate
 
@@ -58,9 +58,20 @@ def main() -> None:
     unsupported = route("Ouvre mon agenda demain matin.")
     assert unsupported is None
 
+    for veto in (
+        "Classe uniquement cette demande. Ne lance aucune action.",
+        "Classification seulement, sans exécution.",
+        "Classify only. Do not execute any action.",
+    ):
+        assert _requests_no_execution(veto), veto
+        assert route(veto) is None, veto
+
+    assert not _requests_no_execution("Que s'est-il passé à Paris ce matin ?")
+
     print(
         "ASSISTANT ROUTER PASS: registered capability metadata, Paris locality, market impact, "
-        "spoken output, time ranges and conservative unsupported routing are deterministic"
+        "spoken output, time ranges, explicit execution vetoes and conservative unsupported routing "
+        "are deterministic"
     )
 
 

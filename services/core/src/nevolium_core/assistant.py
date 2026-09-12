@@ -127,6 +127,19 @@ _CITY_PATTERN = re.compile(
     r"\bville\s+d(?:e|['’])\s+([^?!,.;:]{2,80})",
     flags=re.IGNORECASE,
 )
+_EXECUTION_VETO_PATTERNS = (
+    re.compile(
+        r"\b(?:ne\s+|n['’]\s*)(?:lance|execute|effectue|declenche|demarre|cree)"
+        r"\s+(?:pas|aucun|aucune)\b"
+    ),
+    re.compile(r"\b(?:sans|aucun|aucune)\s+(?:action|execution)\b"),
+    re.compile(r"\b(?:classe|classifie|classification)\s+(?:uniquement|seulement)\b"),
+    re.compile(
+        r"\b(?:do\s+not|don['’]?t|never)\s+"
+        r"(?:execute|run|start|launch|trigger|create)\b"
+    ),
+    re.compile(r"\b(?:classify|classification)\s+only\b"),
+)
 
 
 @dataclass(frozen=True)
@@ -150,8 +163,18 @@ def _extract_location(value: str) -> str | None:
     return location[:160] or None
 
 
+def _requests_no_execution(value: str) -> bool:
+    """Recognize an explicit user veto that no capability may turn into a business Task."""
+
+    text = _normalize(value)
+    return any(pattern.search(text) is not None for pattern in _EXECUTION_VETO_PATTERNS)
+
+
 def route_command(body: AssistantCommandCreate) -> CommandRoute | None:
     """Route known high-confidence intents without spending a model call."""
+
+    if _requests_no_execution(body.text):
+        return None
 
     text = _normalize(body.text)
     has_news = any(term in text for term in _NEWS_TERMS)
@@ -429,6 +452,7 @@ async def _mark_semantic_unsupported(
         **(command.result_json or {}),
         "semantic_rationale": proposal.rationale,
         "semantic_outcome": proposal.outcome,
+        "semantic_proposed_capability": proposal.capability,
     }
     await enqueue_domain_event(
         session,
@@ -651,6 +675,14 @@ async def apply_semantic_route(
         return SemanticRouteApplyResponse(command_id=command.id, status="unsupported")
     if command.status != "routing":
         raise HTTPException(status_code=409, detail="Command is not awaiting semantic routing")
+
+    message = await session.get(ConversationMessage, command.message_id)
+    if message is None:
+        raise HTTPException(status_code=404, detail="Command message not found")
+    if _requests_no_execution(message.content):
+        return await _mark_semantic_unsupported(
+            command, proposal, "semantic.execution-veto", session
+        )
 
     if proposal.outcome != "route":
         return await _mark_semantic_unsupported(command, proposal, "semantic.unsupported", session)

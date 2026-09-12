@@ -150,6 +150,29 @@ def main() -> None:
     assert replay["status"] == "accepted", replay
     assert replay["task_id"] == expected_final_task, replay
 
+    # A model may confidently misclassify an explicit classification-only request. Core must retain
+    # the proposal for audit but veto the business handoff from the canonical user message.
+    veto_text = "Classify only this request. Do not execute any action."
+    _, veto = json_request(
+        "POST", "/v1/assistant/commands", expected=202,
+        payload={"text": veto_text, "locale": "en-US"},
+    )
+    assert veto["routing"] == "semantic", veto
+    veto_command = wait_command(veto["command_id"])
+    assert veto_command["status"] == "unsupported", veto_command
+    assert veto_command["route_reason"] == "semantic.execution-veto", veto_command
+    assert veto_command["task_id"] is None, veto_command
+    assert veto_command["result_json"]["semantic_proposed_capability"] == "news.brief"
+    veto_task = wait_task(veto["routing_task_id"], {"completed"})
+    _, veto_artifacts = json_request("GET", f"/v1/tasks/{veto_task['id']}/artifacts")
+    veto_artifact = next(item for item in veto_artifacts if item["kind"] == "semantic-route")
+    assert veto_artifact["content"]["proposal"]["capability"] == "news.brief"
+    assert veto_artifact["content"]["applied"]["status"] == "unsupported"
+    expected_veto_task = str(
+        uuid.uuid5(uuid.NAMESPACE_URL, f"nevolium:command:{veto['command_id']}:news.brief:v1")
+    )
+    json_request("GET", f"/v1/tasks/{expected_veto_task}", expected=404)
+
     # Real Worker/Temporal/Core with delayed fixture HTTP, not a real model performance test.
     slow_started = time.monotonic()
     _, slow = json_request(
@@ -169,8 +192,9 @@ def main() -> None:
     print(
         "SEMANTIC COMMAND INTEGRATION PASS: ambiguous input is durably routed through PydanticAI and "
         "the accounted model gateway, Core validates the registered capability, and replay reuses the "
-        "same deterministic final Task. A separate 70-second HTTP fixture completes routing "
-        "without launching a business capability; real target model performance remains unqualified."
+        "same deterministic final Task. Core vetoes a model-proposed business route when the original "
+        "message forbids execution. A separate 70-second HTTP fixture completes routing without "
+        "launching a business capability; real target model performance remains unqualified."
     )
 
 
