@@ -51,6 +51,12 @@ Task métier proposée par le modèle. Core relit le message canonique, applique
 La preuve exige une proposition volontairement valide et confiante, puis l'absence du Task ID métier
 déterministe ; une simple réponse `unsupported` du modèle ne suffit pas à tester cette frontière.
 
+Le checkpoint `e3adbe6…` satisfait cette preuve en CI avec une proposition forcée `news.brief`. Sur la
+cible, le même Core rend une commande réelle terminale en 59,57 s avec `semantic.execution-veto`, zéro
+Task métier, un usage modèle et une réservation réglée. Le modèle cible n'ayant proposé aucune capacité,
+la preuve cible confirme le déploiement et l'absence d'effet ; elle ne remplace pas le scénario CI qui
+exerce le veto face à une proposition valide et confiante.
+
 ## Préparer les modèles une fois, exécuter sans téléchargement
 
 Sur un environnement de développement isolé avec Docker et le dépôt courant :

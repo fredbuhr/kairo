@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Dernier code déployé confirmé | `dd20b00216940ec02589a9c544fcacdc89bc4744` ; Core/Worker actifs, budget sémantique 110/120/180 s et sortie 256 jetons vérifiés |
-| Validation | `dd20b002…` : 10/10 workflows réussis. Sur cible, essai à froid terminé en 61,34 s, 1176 jetons, coût local nul et réservation réglée ; essai chaud terminé en 50,43 s, 1118 jetons et réservation réglée, mais le modèle a proposé `news.brief` malgré un veto d'exécution et une Task News a été créée |
-| Prochaine action | Faire valider puis déployer le veto Core `semantic.execution-veto`, prouver qu'une nouvelle proposition fautive ne crée aucune Task métier, sans modifier la commande News historique |
-| Conditions manquantes | Pertinence et veto du routage sur cible, Research avec outils réels, backup Restic indépendant, campagne cible/charge/rollback et choix du modèle quotidien |
+| Dernier code déployé confirmé | `e3adbe648b245e2567970769e6a4bf4333b3e4a4` ; Core porte le veto d'exécution, Worker reste opérationnel avec le budget 110/120/180 s et la sortie 256 jetons |
+| Validation | `e3adbe6…` : 10/10 workflows réussis. Sur cible, la commande de veto termine en 59,57 s avec `semantic.execution-veto`, un usage modèle, une réservation réglée et zéro Task métier. Le modèle cible n'a proposé aucune capacité ; la CI prouve séparément le blocage d'une proposition `news.brief` valide et confiante |
+| Prochaine action | Qualifier le parcours Research sur la cible avec ses outils réels, en conservant les commandes sémantiques et la Task News historiques |
+| Conditions manquantes | Pertinence générale du routage et choix du modèle quotidien, Research avec outils réels, backup Restic indépendant, campagne cible/charge/rollback |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04

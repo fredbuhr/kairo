@@ -12,9 +12,12 @@ explicite du modèle, une commande termine en 61,34 s avec 1176 jetons ; modèle
 termine en 50,43 s avec 1118 jetons. Coût local nul déclaré et réservation réglée dans les deux cas.
 Le second essai révèle cependant une erreur de pertinence : le modèle propose `news.brief` à 90 % malgré
 « classe uniquement » et « ne lance aucune action », et Core crée une Task News terminée. Le correctif
-suivant ajoute un veto déterministe dans Core : la proposition reste auditable, mais aucune Task métier
-ne peut être créée lorsque le message canonique interdit l'exécution. Sa CI et sa cible restent à prouver.
-La commande News historique et les anciennes réservations inconnues restent inchangées.
+`e3adbe6…` ajoute le veto déterministe dans Core et passe 10/10 workflows. La CI force une proposition
+`news.brief` valide et confiante, puis prouve son refus et l'absence de Task métier. Sur la cible, une
+nouvelle commande termine en 59,57 s avec `semantic.execution-veto`, zéro Task métier, un usage modèle
+et une réservation réglée. Le modèle cible a lui-même répondu `unsupported` sans capacité proposée :
+cette exécution confirme le déploiement et le refus, tandis que la CI qualifie la frontière avec une
+proposition valide. La commande News historique et les anciennes réservations inconnues restent inchangées.
 
 Les sections ci-dessous conservent l'historique des paliers. Six espaces UI sont raccordés, pas quinze
 modules futurs ; le cockpit Mycelium reste D05. L'erreur partagée Command/News, les débordements de panneaux

@@ -233,11 +233,17 @@ indépendant du serveur et restauré sur volumes neufs.
   termine en 50,43 s : 950 + 168 jetons et réservation également réglée.
 - L'essai préchargé met aussi en évidence une décision incorrecte : `local-fast` propose `news.brief`
   à 90 % pour une consigne demandant uniquement un classement et interdisant toute action. Core accepte
-  alors la proposition et la Task News termine. Cette Task et son audit sont conservés. Le correctif en
-  cours ajoute un veto Core fondé sur le message canonique : une telle proposition reste visible dans
-  l'artefact sémantique, mais l'application devient `semantic.execution-veto` et aucune Task métier
-  déterministe n'est créée. Les tests locaux passent ; CI et preuve cible restent requises.
+  alors la proposition et la Task News termine. Cette Task et son audit sont conservés. Le correctif
+  `e3adbe6…` ajoute un veto Core fondé sur le message canonique et passe 10/10 workflows. La campagne
+  Foundation force une proposition `news.brief` valide et confiante, conserve cette proposition dans
+  l'artefact, applique `semantic.execution-veto` et vérifie l'absence du Task ID métier déterministe.
+- Après déploiement du nouveau Core, une commande cible unique termine son workflow en 59,57 s avec
+  `semantic.execution-veto`, aucune capacité exécutée, aucune Task métier liée, un usage modèle et une
+  réservation `settled`. Le modèle cible a renvoyé `unsupported`, sans capacité proposée et avec une
+  confiance nulle. Cette exécution prouve le veto déployé et l'absence d'effet métier dans ce cas réel ;
+  la proposition valide bloquée reste une preuve CI. Les commandes précédentes ne sont ni rejouées ni
+  modifiées, et Worker ainsi que les services publics restent opérationnels.
 
-Prochain point sûr : valider et déployer le veto d'exécution, puis répéter une seule commande sans action
-et prouver l'absence de Task métier. Research réel, restauration indépendante, mesures mixtes et rollback
-demeurent des conditions D04, avant D05.
+Prochain point sûr : qualifier Research avec ses outils réels. La pertinence générale du routage, le choix
+du modèle quotidien, la restauration indépendante, les mesures mixtes et le rollback demeurent des
+conditions D04, avant D05.
