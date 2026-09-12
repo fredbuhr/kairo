@@ -198,7 +198,15 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
   réservation ; l'ancienne écriture identique a été rapprochée via le rejeu idempotent de l'API canonique.
   Le nombre d'usages est resté inchangé, aucune donnée métier n'a été modifiée et la réservation News sans
   usage a été préservée. Worker et services publics sont restés sains.
+- Le parcours PDF réel owner-scoped est qualifié avec le fichier public de test au SHA-256
+  `563e892bcf77f603ae2073c46b6f335727d23285c9a7b3bdd8d0f35ad1b98cb5`. Le premier workflow a
+  conservé une `v1` échouée avant parsing : Worker n'avait aucun réseau commun avec SeaweedFS. Un réseau
+  Docker interne `assets` dédié relie désormais les deux services, sans donner `canonical` à Worker ni
+  `egress` à SeaweedFS. La réingestion du même objet a produit une `v2` Docling 2.126.0 terminée, un
+  chunk canonique contenant `NEVOLIUM-D04-PDF-OWNER-SCOPED-2026-09-12` et aucune erreur. Les contrôles
+  PostgreSQL confirment deux générations, le SHA-256 source inchangé et le même propriétaire pour projet,
+  asset et document. Worker, stockage et réseau restent sans port hôte ; les services publics sont sains.
 
-Prochain point sûr : prouver le parcours PDF réel owner-scoped, puis les projections mémoire et recherche
+Prochain point sûr : prouver les projections mémoire et le parcours recherche
 avant d'élargir progressivement aux mesures et à la charge. Le paquet de clés ne remplace pas le futur backup Restic chiffré,
 indépendant du serveur et restauré sur volumes neufs.

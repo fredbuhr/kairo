@@ -127,7 +127,7 @@ OpenAI ou Anthropic chargée. Une vraie réponse locale et son comptage ont trav
 a été refusé avec 401. Ollama reste hors egress et les services publics sont restés sains.
 Le Worker complet est désormais actif avec son bundle exact en lecture seule et ses bibliothèques de modèles
 forcées hors ligne. Il s'exécute sous UID 10001, sur un rootfs en lecture seule, sans capacité Linux, nouveau
-privilège ou port hôte, avec limites CPU/RAM/PID et cinq réseaux bornés. Il a réellement terminé un workflow
+privilège ou port hôte, avec limites CPU/RAM/PID et six réseaux bornés. Il a réellement terminé un workflow
 Temporal minimal et enregistré son consumer mémoire durable JetStream.
 
 Le premier parcours métier `news.brief` a ensuite terminé en production avec dix sources owner-scoped.
@@ -141,6 +141,14 @@ LiteLLM déclare désormais explicitement le coût nul de l'alias local, et le W
 d'en-tête de coût comme zéro confirmé uniquement pour cet alias qualifié. La nouvelle réservation a été
 réglée directement ; l'ancien usage local identique a été réconcilié par rejeu idempotent de l'API
 canonique, sans doublon ni mutation métier. Le timeout News sans usage est resté inchangé.
+
+Le parcours PDF réel owner-scoped est également qualifié. Le premier essai a échoué avant parsing parce que
+Worker ne pouvait ni résoudre ni joindre SeaweedFS ; la version `v1` et son erreur ont été conservées.
+Un réseau Docker interne dédié `assets` relie désormais Worker et SeaweedFS sans élargir `canonical`
+vers Worker ni `egress` vers le stockage. La réingestion du même objet SHA-256 a produit une `v2`
+Docling 2.126.0 terminée avec un chunk canonique contenant le marqueur de qualification. PostgreSQL confirme
+deux générations, la cohérence du propriétaire entre projet, asset et document, et l'absence d'erreur sur
+`v2`. Aucun port hôte n'a été ajouté et les services publics sont restés sains.
 
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
@@ -159,10 +167,10 @@ la qualification graphique mobile restent à livrer. Présence de Three/Tauri/Yj
 | Domaine | Présent dans le code | Ce qui reste à prouver/livrer |
 |---|---|---|
 | État durable | PostgreSQL migré, NATS/JetStream, SeaweedFS et Temporal/namespace `default` actifs sur réseaux internes ; Core relit ses dépendances ; migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Parcours Worker, dimensionnement réel, archivage canonique et charge sur matériel identifié |
-| Exécution Worker | Parsing borné/annulable, admission partagée, bundle exact hors ligne ; Worker confiné, Temporal et JetStream actifs ; Neo4j, Valkey/SearXNG, Ollama et LiteLLM sans port hôte ; parcours News et routage sémantique réellement exécutés | Parcours PDF/mémoire/recherche, puis mesure progressive et campagne de charge sur le matériel cible |
+| Exécution Worker | Parsing borné/annulable, admission partagée, bundle exact hors ligne ; Worker confiné, Temporal et JetStream actifs ; Neo4j, Valkey/SearXNG, Ollama et LiteLLM sans port hôte ; parcours News, routage sémantique et PDF Docling réellement exécutés | Parcours mémoire/recherche, puis mesure progressive et campagne de charge sur le matériel cible |
 | Identité et actions | Keycloak et Core derrière Caddy/TLS public ; utilisateur et administrateur nominatifs actifs avec TOTP et rôles bornés ; bootstrap `master` et secrets privés retirés après redémarrage sans environnement bootstrap ; connexions MFA, Authorization Code + PKCE/lecture owner-scoped et refus anonyme/faux jeton vérifiés | UX de rapprochement des coûts incertains |
-| Intelligence | Routing/recherche, Context Packs et gateway avec admission, sortie 256 bornée et replay comptable ; `local-fast` exécuté à coût nul explicite, 924/101/1025 jetons comptés, réservation réglée et ancien usage réconcilié ; timeout sans réponse conservé incertain | Choix utilisateur du modèle quotidien/des clés, UX Agents/Skills et parcours PDF/mémoire/recherche |
-| Documents et mémoire | Ingestion/version/chunks, recherche/inspection Web, projections mémoire reconstruisibles | CI Documents emploie le fallback texte, mémoire emploie des stubs ; vraie intégration Docling/Mem0/Graphiti à mesurer en D04 |
+| Intelligence | Routing/recherche, Context Packs et gateway avec admission, sortie 256 bornée et replay comptable ; `local-fast` exécuté à coût nul explicite, 924/101/1025 jetons comptés, réservation réglée et ancien usage réconcilié ; timeout sans réponse conservé incertain | Choix utilisateur du modèle quotidien/des clés, UX Agents/Skills et parcours mémoire/recherche |
+| Documents et mémoire | Ingestion/version/chunks et inspection Web ; PDF réel owner-scoped réingéré par Docling 2.126.0 en un chunk canonique, source SHA-256 et échec antérieur conservés ; projections mémoire reconstruisibles | CI Documents emploie le fallback texte et mémoire des stubs ; vraie intégration Mem0/Graphiti à mesurer en D04 |
 | Cockpit | Web de production publié par Caddy/TLS ; OIDC nominatif/PKCE, panneaux persistés, Command Center, Projects, Today, Research, News et Knowledge ; états terminaux sémantiques affichés dans leur panneau | Design Mycelium complet, réglages, attention et parcours cohérents |
 | Planification | Priorité, dates prévues/échéance, PATCH owner-scoped, Today/fuseaux | Gantt, calendrier complet, dépendances/jalons/Kanban et récurrences |
 | Graphes | Relations canoniques, interfaces dans `packages/graph` | Mindmap 2D éditable et rendu Mycelium 3D absents du `main` inspecté |

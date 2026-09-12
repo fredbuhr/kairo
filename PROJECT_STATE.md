@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head de code déployé et qualifié | `08d5bd8afe759df7d07555e39c87f5d1c824ffef` |
-| Validation | **10/10 workflows réussis** sur `08d5bd8…` ; identité et moteurs internes qualifiés ; LiteLLM route `local-fast` à coût nul vers le modèle D04 sans clé externe ; Worker confiné actif ; premiers parcours News et routage sémantique exécutés en production avec comptabilité canonique vérifiée |
-| Prochaine action | Prouver le parcours PDF réel owner-scoped, puis les projections mémoire/recherche avant toute campagne de charge |
-| Conditions manquantes | Backup Restic indépendant, parcours canoniques PDF/mémoire/recherche, campagne cible, charge et choix du modèle quotidien non validés |
+| Head de code déployé et qualifié | `8c175902e56da95470899db3129ba769f57bc815` |
+| Validation | **10/10 workflows réussis** sur `8c17590…` ; identité et moteurs internes qualifiés ; LiteLLM route `local-fast` à coût nul vers le modèle D04 sans clé externe ; Worker confiné actif ; parcours News, routage sémantique et PDF Docling owner-scoped exécutés en production |
+| Prochaine action | Prouver les projections mémoire et le parcours recherche avant toute campagne de charge |
+| Conditions manquantes | Backup Restic indépendant, parcours canoniques mémoire/recherche, campagne cible, charge et choix du modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -131,6 +131,12 @@ a été basculé puis vérifié sur la nouvelle URL.
   l'en-tête de coût comme zéro confirmé que pour cet alias qualifié. La nouvelle écriture a réglé sa
   réservation ; l'écriture antérieure identique a été rapprochée par rejeu idempotent de l'API canonique,
   sans créer de doublon ni modifier de donnée métier. La réservation News sans usage demeure inchangée.
+- Le parcours PDF réel owner-scoped est maintenant qualifié. Le premier essai a conservé une `v1` échouée
+  avant parsing, car Worker ne partageait aucun réseau avec SeaweedFS. Un réseau interne dédié `assets`
+  relie désormais seulement les services nécessaires, sans placer Worker sur `canonical` ni SeaweedFS sur
+  `egress`. La réingestion du même objet SHA-256 a produit une `v2` Docling 2.126.0 terminée, un chunk
+  canonique et le marqueur attendu ; projet, asset et document portent le même propriétaire. Le confinement,
+  l'absence de ports hôte et la santé des services publics ont été revalidés.
 - Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
   vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
   révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien
@@ -139,7 +145,7 @@ a été basculé puis vérifié sur la nouvelle URL.
 ## Conditions de sortie et reprise après interruption
 
 Les preuves CPU de CI ne clôturent pas H5. La séparation des clés OpenBao et le renouvellement du workload
-sont désormais prouvés sur la cible. Restent : parcours canoniques PDF/mémoire/recherche, charge et files en usage mixte, upgrade/rollback
+sont désormais prouvés sur la cible. Restent : parcours canoniques mémoire/recherche, charge et files en usage mixte, upgrade/rollback
 compatible et restauration applicative Restic indépendante sur volumes neufs. TLS/ingress, identités
 nominatives, premiers parcours News/sémantique et comptabilité locale sont maintenant prouvés sur la cible.
 Le modèle de test 0.5B ne sélectionne pas le modèle quotidien ; le PDF à couche texte ne qualifie pas
