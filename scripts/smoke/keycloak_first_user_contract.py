@@ -36,6 +36,9 @@ class FakeAdmin:
     def exact_users(self, username):
         return [user for user in self.users.values() if user["username"] == username]
 
+    def exact_email_users(self, email):
+        return [user for user in self.users.values() if user.get("email") == email]
+
     def realm_role(self, name):
         return {"id": "role-id", "name": name}
 
@@ -99,6 +102,37 @@ class FirstUserContract(unittest.TestCase):
             MODULE.verify_user(api, PROFILE["username"])
         api.users["user-id"].update(totp=True, requiredActions=[])
         MODULE.verify_user(api, PROFILE["username"])
+
+    def test_pre_login_email_correction_preserves_role_and_actions(self):
+        api = FakeAdmin()
+        MODULE.provision_user(api, PROFILE, "temporary-password")
+        api.count = 1
+        MODULE.correct_email(api, PROFILE["username"], "corrected@example.com")
+        user = api.users["user-id"]
+        self.assertEqual(user["email"], "corrected@example.com")
+        self.assertFalse(user["emailVerified"])
+        self.assertTrue(user["enabled"])
+        self.assertFalse(user["totp"])
+        self.assertEqual(set(user["requiredActions"]), MODULE.REQUIRED_ACTIONS)
+        self.assertIn(MODULE.ROLE, {role["name"] for role in api.roles["user-id"]})
+
+    def test_email_correction_is_refused_after_totp_setup(self):
+        api = FakeAdmin()
+        MODULE.provision_user(api, PROFILE, "temporary-password")
+        api.count = 1
+        api.users["user-id"].update(totp=True, requiredActions=[])
+        with self.assertRaisesRegex(RuntimeError, "initial onboarding state"):
+            MODULE.correct_email(api, PROFILE["username"], "corrected@example.com")
+        self.assertEqual(api.users["user-id"]["email"], PROFILE["email"])
+
+    def test_email_correction_is_refused_when_initial_actions_differ(self):
+        api = FakeAdmin()
+        MODULE.provision_user(api, PROFILE, "temporary-password")
+        api.count = 1
+        api.users["user-id"]["requiredActions"].append("VERIFY_EMAIL")
+        with self.assertRaisesRegex(RuntimeError, "initial onboarding state"):
+            MODULE.correct_email(api, PROFILE["username"], "corrected@example.com")
+        self.assertEqual(api.users["user-id"]["email"], PROFILE["email"])
 
     def test_identity_validation_refuses_bootstrap_or_ambiguous_values(self):
         with self.assertRaisesRegex(RuntimeError, "distinct"):

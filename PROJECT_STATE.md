@@ -78,7 +78,10 @@ a été basculé puis vérifié sur la nouvelle URL.
 - Provisionnement du premier utilisateur applicatif préparé par une commande root sans sortie de secret :
   realm vide obligatoire, compte désactivé jusqu'au mot de passe temporaire, rôle `nevolium-user` et
   actions `UPDATE_PASSWORD`/`CONFIGURE_TOTP`, avec suppression du compte neuf sur échec. Cette commande
-  n'a pas encore été exécutée sur la cible et ne remplace pas le futur administrateur Keycloak nominatif.
+  a créé le premier compte sur la cible ; une correction d'e-mail avant connexion, à double confirmation
+  et retour arrière, est préparée sans transmettre de champ de mot de passe. Mot de passe définitif et
+  TOTP ne sont pas encore configurés. Ce compte
+  ne remplace pas le futur administrateur Keycloak nominatif.
 - Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
   vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
   révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien

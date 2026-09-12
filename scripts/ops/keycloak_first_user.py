@@ -65,13 +65,21 @@ def clean_identity(value: str, label: str, maximum: int = 100) -> str:
     return cleaned
 
 
-def validate_profile(profile: dict[str, str], bootstrap_username: str) -> None:
-    if not USERNAME.fullmatch(profile["username"]):
+def validate_username(username: str, bootstrap_username: str) -> None:
+    if not USERNAME.fullmatch(username):
         raise RuntimeError("username must use 3-64 lowercase letters, digits, dot, dash or underscore")
-    if profile["username"] == bootstrap_username:
+    if username == bootstrap_username:
         raise RuntimeError("application and bootstrap usernames must be distinct")
-    if len(profile["email"]) > 254 or not EMAIL.fullmatch(profile["email"]):
+
+
+def validate_email(email: str) -> None:
+    if len(email) > 254 or not EMAIL.fullmatch(email):
         raise RuntimeError("invalid email address")
+
+
+def validate_profile(profile: dict[str, str], bootstrap_username: str) -> None:
+    validate_username(profile["username"], bootstrap_username)
+    validate_email(profile["email"])
     clean_identity(profile["firstName"], "first name")
     clean_identity(profile["lastName"], "last name")
 
@@ -161,6 +169,13 @@ class KeycloakAdmin:
         users = self._json("GET", f"/users?{query}")
         if not isinstance(users, list):
             raise RuntimeError("invalid Keycloak user lookup")
+        return users
+
+    def exact_email_users(self, email: str) -> list[dict[str, Any]]:
+        query = urlencode({"email": email, "exact": "true", "max": "2"})
+        users = self._json("GET", f"/users?{query}")
+        if not isinstance(users, list):
+            raise RuntimeError("invalid Keycloak email lookup")
         return users
 
     def realm_role(self, name: str) -> dict[str, Any]:
@@ -268,9 +283,75 @@ def verify_user(api: Any, username: str) -> None:
         raise RuntimeError("Nevolium user role is absent")
 
 
+def correct_email(api: Any, username: str, email: str) -> None:
+    if api.user_count() != 1:
+        raise RuntimeError("expected exactly one production realm user")
+    users = api.exact_users(username)
+    if len(users) != 1:
+        raise RuntimeError("expected exactly one matching Keycloak user")
+    user_id = users[0].get("id")
+    if not isinstance(user_id, str) or not user_id:
+        raise RuntimeError("Keycloak user identifier is absent")
+    current = api.user(user_id)
+    roles = {item.get("name") for item in api.realm_roles(user_id)}
+    pending = set(current.get("requiredActions") or [])
+    if (
+        current.get("enabled") is not True
+        or current.get("totp") is True
+        or pending != REQUIRED_ACTIONS
+        or ROLE not in roles
+    ):
+        raise RuntimeError("email correction is limited to the initial onboarding state")
+    if current.get("email") == email:
+        raise RuntimeError("new email already matches the current address")
+    if api.exact_email_users(email):
+        raise RuntimeError("new email is already assigned")
+
+    editable = {
+        key: current[key]
+        for key in (
+            "username",
+            "firstName",
+            "lastName",
+            "enabled",
+            "requiredActions",
+        )
+        if key in current
+    }
+    original = {
+        **editable,
+        "email": current.get("email"),
+        "emailVerified": bool(current.get("emailVerified")),
+    }
+    replacement = {**editable, "email": email, "emailVerified": False}
+    try:
+        api.update_user(user_id, replacement)
+        corrected = api.user(user_id)
+        corrected_pending = set(corrected.get("requiredActions") or [])
+        corrected_roles = {item.get("name") for item in api.realm_roles(user_id)}
+        if (
+            corrected.get("email") != email
+            or corrected.get("emailVerified") is True
+            or corrected.get("enabled") is not True
+            or corrected.get("totp") is True
+            or corrected_pending != REQUIRED_ACTIONS
+            or ROLE not in corrected_roles
+        ):
+            raise RuntimeError("corrected email verification failed")
+    except Exception as exc:
+        try:
+            api.update_user(user_id, original)
+            restored = api.user(user_id)
+            if restored.get("email") != original["email"]:
+                raise RuntimeError("email rollback verification failed")
+        except Exception:
+            raise RuntimeError("email correction failed and rollback could not be confirmed") from exc
+        raise RuntimeError("email correction failed; original address was restored") from exc
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("create", "verify"))
+    parser.add_argument("action", choices=("create", "correct-email", "verify"))
     parser.add_argument("--env-file", required=True)
     args = parser.parse_args()
 
@@ -280,6 +361,7 @@ def main() -> None:
     try:
         values = protected_env(Path(args.env_file))
         username = clean_identity(input("Nom d'utilisateur Nevolium : "), "username", 64)
+        validate_username(username, values["KEYCLOAK_ADMIN"])
         profile = None
         password = None
         if args.action == "create":
@@ -296,6 +378,14 @@ def main() -> None:
                 raise RuntimeError("password confirmation differs")
             if len(password) < 16 or len(password) > 1024:
                 raise RuntimeError("temporary password must contain 16-1024 characters")
+        elif args.action == "correct-email":
+            email = clean_identity(input("Nouvelle adresse email : "), "email", 254)
+            confirmation = clean_identity(
+                input("Confirmez la nouvelle adresse email : "), "email", 254
+            )
+            if email != confirmation:
+                raise RuntimeError("email confirmation differs")
+            validate_email(email)
 
         api = KeycloakAdmin(
             LOCAL_KEYCLOAK,
@@ -308,16 +398,11 @@ def main() -> None:
             print("PREMIER_UTILISATEUR_KEYCLOAK_CREE")
             print("ROLE_NEVOLIUM_USER_ATTRIBUE")
             print("CHANGEMENT_MOT_DE_PASSE_ET_TOTP_REQUIS")
+        elif args.action == "correct-email":
+            correct_email(api, username, email)
+            print("ADRESSE_EMAIL_KEYCLOAK_CORRIGEE")
+            print("ROLE_ET_ACTIONS_MFA_PRESERVES")
         else:
-            validate_profile(
-                {
-                    "username": username,
-                    "email": "placeholder@example.invalid",
-                    "firstName": "placeholder",
-                    "lastName": "placeholder",
-                },
-                values["KEYCLOAK_ADMIN"],
-            )
             verify_user(api, username)
             print("UTILISATEUR_NEVOLIUM_ACTIF")
             print("TOTP_CONFIGURE")

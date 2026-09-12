@@ -126,6 +126,16 @@ sudo python3 scripts/ops/keycloak_first_user.py create \
   --env-file /etc/nevolium/production.env
 ```
 
+Avant la première connexion seulement, une adresse saisie incorrectement peut être remplacée après une
+double confirmation. La commande exige encore l'unique compte dans son état initial et vérifie que rôle,
+et actions MFA restent intacts ; elle ne transmet aucun champ de mot de passe et restaure l'adresse
+précédente sur échec :
+
+```bash
+sudo python3 scripts/ops/keycloak_first_user.py correct-email \
+  --env-file /etc/nevolium/production.env
+```
+
 Après la première connexion Web, le changement de mot de passe et l'enregistrement TOTP, vérifier l'état
 sans afficher l'identité ou les credentials :
 
