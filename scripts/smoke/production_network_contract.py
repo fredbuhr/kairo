@@ -20,6 +20,7 @@ def main():
         if line and not line.startswith('#') and '=' in line:
             key,value=line.split('=',1)
             env[key]=secrets.token_hex(32) if 'CHANGE_ME' in value else value
+    env['OPENBAO_TOKEN']='s.'+('c'*24)
     env.update(NEVOLIUM_API_PORT='14800',NEVOLIUM_WEB_PORT='15173',KEYCLOAK_PROXY_TRUSTED_ADDRESSES='127.0.0.1/32')
     with tempfile.NamedTemporaryFile(mode='w',suffix='.env') as file:
         file.write('\n'.join(k+'='+v for k,v in env.items()));file.flush()

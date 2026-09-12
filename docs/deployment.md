@@ -141,8 +141,9 @@ sudo python3 scripts/ops/bootstrap_openbao.py \
 ```
 
 La reprise exige le fichier de récupération root 0600 et le placeholder encore présent dans
-`production.env`. Elle déscelle si nécessaire, révoque les jetons périodiques interrompus correspondant
-à la policy Nevolium, puis recrée et vérifie un unique jeton de workload.
+`production.env`. Elle déscelle si nécessaire et exige de retrouver exactement l'unique jeton
+périodique interrompu correspondant à la policy Nevolium avant de le révoquer ; tout écart arrête
+la procédure sans révocation. Elle recrée ensuite et vérifie un unique jeton de workload.
 
 Seuls Web/Core/Keycloak conservent des ports sur loopback. Le proxy TLS de l'opérateur doit publier
 uniquement le Web, l'auth et `/v1/` de Core ; refuser `/internal/`, `/docs` et `/openapi.json` à l'ingress.

@@ -18,8 +18,8 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
 | Head Nevolium qualifié | `f2e22e09867fdf8dfd6d842cf393b905764d4a2a`, arbre `7b37615fd7c00c8340a12bde45b5f26d7a585895` |
-| Validation | **10/10 workflows réussis** sur `13f2fa7…` ; l'exécution cible a révélé une longueur de jeton OpenBao valide rejetée par les gardes, correction/reprise à revalider |
-| Prochaine action | Valider puis actualiser le correctif live, exécuter le mode `--resume`, vérifier le garde, puis exporter séparément le matériel de récupération |
+| Validation | **10/10 workflows réussis** sur `13f2fa7…` ; **9/10** sur `70f941e…`, seul le fixture réseau de production utilisait encore l'ancien faux format OpenBao |
+| Prochaine action | Valider ce checkpoint, l'actualiser sur la cible, exécuter le mode `--resume`, vérifier le garde, puis exporter séparément le matériel de récupération |
 | Conditions manquantes | OpenBao initialisé/déscellé mais bootstrap interrompu avant enregistrement du jeton de workload ; Nevolium non déployé ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 

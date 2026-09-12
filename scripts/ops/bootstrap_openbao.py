@@ -98,18 +98,23 @@ def revoke_interrupted_tokens():
         "list", "-format=json", "auth/token/accessors"
     ]).stdout)
     accessors = listing.get("data", {}).get("keys", [])
-    revoked = 0
+    matches = []
     for accessor in accessors:
         lookup = json.loads(bao_as("/tmp/nevolium-root-token", [
             "write", "-format=json", "auth/token/lookup-accessor", "-"
         ], stdin=json.dumps({"accessor": accessor})).stdout).get("data", {})
         if (lookup.get("policies") == ["nevolium-core"]
                 and int(lookup.get("period") or 0) == 604800):
-            bao_as("/tmp/nevolium-root-token", [
-                "write", "-format=json", "auth/token/revoke-accessor", "-"
-            ], stdin=json.dumps({"accessor": accessor}))
-            revoked += 1
-    return revoked
+            matches.append(accessor)
+    if len(matches) != 1:
+        raise RuntimeError(
+            "la reprise attend exactement un jeton interrompu ; "
+            f"{len(matches)} trouve"
+        )
+    bao_as("/tmp/nevolium-root-token", [
+        "write", "-format=json", "auth/token/revoke-accessor", "-"
+    ], stdin=json.dumps({"accessor": matches[0]}))
+    return 1
 
 
 def main():
