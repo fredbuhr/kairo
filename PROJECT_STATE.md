@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head Nevolium qualifié | `b5acf0ef6e10d291a8e264eec40fa76dbf98bb83`, arbre `caea5b20421594c695d1476a7efddfad60869327` |
-| Validation | **10/10 workflows réussis** sur `0c43270…` ; socle, Core et Web vérifiés sur cible, puis Caddy/TLS, redirections et refus publics confirmés depuis Windows |
-| Prochaine action | Créer un premier compte nominatif protégé par MFA, vérifier le parcours OIDC Web/API avec son jeton, puis retirer l'administrateur bootstrap Keycloak |
-| Conditions manquantes | Parcours OIDC nominatif/MFA et retrait bootstrap non prouvés ; Worker non déployé ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
+| Head déployé et qualifié | `6475bf6e93aab48594034bea460ec088f8c15f6c`, arbre `7997104b6fdf6def474a5aaa673963820fb4acf5` |
+| Validation | **10/10 workflows réussis** sur `6475bf6…` ; socle, Core, Web et TLS public vérifiés ; premier compte nominatif actif, rôle `nevolium-user`, mot de passe initial remplacé, TOTP configuré et aucune action initiale restante |
+| Prochaine action | Prouver l'échange OIDC Web/API avec un vrai jeton utilisateur, puis créer un administrateur Keycloak nominatif protégé par MFA avant de retirer l'accès bootstrap |
+| Conditions manquantes | Appel API authentifié et retrait bootstrap non prouvés ; Worker non déployé ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -78,10 +78,11 @@ a été basculé puis vérifié sur la nouvelle URL.
 - Provisionnement du premier utilisateur applicatif préparé par une commande root sans sortie de secret :
   realm vide obligatoire, compte désactivé jusqu'au mot de passe temporaire, rôle `nevolium-user` et
   actions `UPDATE_PASSWORD`/`CONFIGURE_TOTP`, avec suppression du compte neuf sur échec. Cette commande
-  a créé le premier compte sur la cible ; une correction d'e-mail avant connexion, à double confirmation
-  et retour arrière, est préparée sans transmettre de champ de mot de passe. Mot de passe définitif et
-  TOTP ne sont pas encore configurés. Ce compte
-  ne remplace pas le futur administrateur Keycloak nominatif.
+  a créé le premier compte sur la cible ; son adresse a été corrigée avant connexion par double confirmation,
+  sans transmettre de champ de mot de passe. La première connexion a remplacé le mot de passe temporaire
+  et configuré le TOTP. Une vérification administrative confirme le compte actif, le rôle `nevolium-user`,
+  le TOTP présent et l'absence d'action initiale restante. Cette preuve ne comprend pas encore un appel API
+  avec un vrai jeton utilisateur et ce compte ne remplace pas le futur administrateur Keycloak nominatif.
 - Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
   vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
   révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien
@@ -128,8 +129,9 @@ permettent la génération exceptionnelle d'un nouveau root. Le workload orpheli
 révocation. Son service systemd quotidien et persistant est actif après correction d'un premier refus de
 traversée du checkout, survenu sans renouvellement ni activation du timer. PostgreSQL utilise un volume
 neuf, reste sain et non publié ; les rôles SQL et la migration `0014_capacity_and_data` sont vérifiés.
-Keycloak utilise sa base dédiée et un realm de production neuf sans utilisateur ; son issuer public est
-exact derrière les en-têtes du proxy de confiance privé et son port 8081 est limité au loopback. Caddy
+Keycloak utilise sa base dédiée ; son realm de production initialement vide contient désormais le premier
+utilisateur applicatif actif avec TOTP et rôle borné. Son issuer public est exact derrière les en-têtes du
+proxy de confiance privé et son port 8081 est limité au loopback. Caddy
 publie désormais les trois noms HTTPS avec certificats valides et refus public borné. NATS/JetStream et SeaweedFS
 conservent leurs volumes dédiés derrière les réseaux internes. SeaweedFS annonce le nom `seaweedfs` et
 écoute ses deux interfaces après correction du défaut multiréseau découvert sur la cible. Temporal utilise

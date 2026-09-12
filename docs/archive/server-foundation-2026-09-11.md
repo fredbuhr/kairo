@@ -104,9 +104,12 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
 - Keycloak 26.7.3 utilise sa base dédiée et publie son service uniquement sur `127.0.0.1:8081`. L'adresse
   de proxy de confiance a été dérivée de la passerelle privée du réseau ingress et écrite atomiquement
   dans l'environnement root 0600, sans valeur réseau versionnée ni affichée.
-- Le realm de production `nevolium` est neuf et sans utilisateur. Son document de découverte, interrogé
-  localement avec les en-têtes du futur proxy TLS, expose exactement l'issuer
-  `https://auth.nevolium.com/realms/nevolium`.
+- Le realm de production `nevolium` a été importé vide. Son document de découverte, interrogé localement
+  avec les en-têtes du futur proxy TLS, expose exactement l'issuer
+  `https://auth.nevolium.com/realms/nevolium`. Le premier compte applicatif a ensuite été créé avec le rôle
+  `nevolium-user`. Après correction contrôlée de son adresse avant connexion, la première connexion a remplacé
+  le mot de passe temporaire et enregistré le TOTP ; la vérification administrative confirme le compte actif,
+  le TOTP présent et aucune action initiale restante.
 - Deux essais ont échoué de manière sûre avant cette preuve : la valeur sentinelle du proxy a provoqué une
   boucle arrêtée sans import ; la variable du realm manquante a ensuite fait refuser le fichier d'import.
   Aucun realm partiel n'est resté en base. Les deux causes ont été corrigées et les contrats associés passent
@@ -152,9 +155,9 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
 - Web et le document de découverte Keycloak répondent publiquement avec l'issuer exact. Sur l'API, la
   racine, les sondes, la documentation et les chemins internes sont refusés par 404 ; `/v1` refuse par 401
   la requête anonyme comme celle munie d'un faux bearer.
-- Cette preuve ne comprend aucun jeton utilisateur : le parcours OIDC complet reste subordonné à un
-  premier compte nominatif protégé par MFA.
+- Le premier compte nominatif et son enrôlement MFA sont vérifiés, mais cette preuve ne comprend encore
+  aucun appel API avec son jeton : le parcours OIDC complet reste à qualifier.
 
-Prochain point sûr : créer et vérifier ce compte nominatif avec MFA, exécuter le preflight authentifié,
-puis retirer le compte et les identifiants bootstrap Keycloak. Le paquet de clés ne remplace pas le futur
+Prochain point sûr : exécuter le preflight authentifié avec un vrai jeton utilisateur, créer et vérifier
+un administrateur Keycloak nominatif avec MFA, puis retirer le compte et les identifiants bootstrap Keycloak. Le paquet de clés ne remplace pas le futur
 backup Restic chiffré, indépendant du serveur et restauré sur volumes neufs.
