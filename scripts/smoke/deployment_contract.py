@@ -125,6 +125,14 @@ class Deployment(unittest.TestCase):
             self.assertNotIn('activepieces',valid['services'])
             for name in ['postgres','nats','temporal','seaweedfs','openbao']:
                 self.assertFalse(valid['services'][name].get('ports'))
+            self.assertEqual(
+                set(valid['services']['seaweedfs']['networks']),
+                {'canonical', 'telemetry'},
+            )
+            self.assertIn(
+                '-ip.bind=0.0.0.0',
+                valid['services']['seaweedfs']['command'],
+            )
             with_tools=config(['-f','compose.web-mcp.yaml','-f','compose.web-mcp.production.yaml','--profile','search','--profile','ai'])
             self.assertEqual(production.validate(with_tools),[])
             self.assertEqual(set(with_tools['services']['nevolium-web-mcp']['networks']),{'search','egress'})

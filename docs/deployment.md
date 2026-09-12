@@ -234,6 +234,12 @@ ni accès au réseau canonique. Les composants ayant une sortie Internet restent
 Ces réseaux ne prouvent ni isolation contre l'administrateur hôte, ni sandbox de code hostile, ni mTLS
 multi-hôte. Le déploiement effectif et les rejets réseau sur matériel cible appartiennent à D04.
 
+SeaweedFS appartient simultanément aux réseaux internes `canonical` et `telemetry`. Le serveur tout-en-un
+doit donc conserver `-ip.bind=0.0.0.0` afin que Master, Filer et S3 répondent sur les deux interfaces du
+conteneur. Cette écoute interne n'expose aucun port hôte : l'overlay de production remet explicitement
+la liste `ports` à zéro. Retirer ce paramètre laisse SeaweedFS choisir une seule interface et coupe les
+consommateurs de l'autre réseau.
+
 ## Modèles et mise à jour explicite
 
 Préparer les fichiers hors runtime, noter moteur, identifiant, révision et licence, puis enregistrer
