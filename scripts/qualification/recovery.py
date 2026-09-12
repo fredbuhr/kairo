@@ -121,14 +121,18 @@ def seed_and_policy():
         bao(client,'POST','secret/data/outside-nevolium',token=root,data={'data':{'value':'outside-fixture'}})
         policy=(ROOT/'infrastructure/openbao/policies/nevolium-core-read.hcl').read_text()
         bao(client,'PUT','sys/policies/acl/nevolium-core',token=root,data={'policy':policy})
-        token=bao(client,'POST','auth/token/create',token=root,data={'policies':['nevolium-core'],'no_default_policy':True,'ttl':'1h'})['auth']['client_token']
+        token=bao(client,'POST','auth/token/create',token=root,data={
+            'policies':['nevolium-core'],'no_default_policy':True,'no_parent':True,'period':'24h'
+        })['auth']['client_token']
         assert bao(client,'GET','secret/data/nevolium/d04-proof',token=token)['data']['data']['value']==PROOF.decode()
+        renewed=bao(client,'POST','auth/token/renew-self',token=token,data={})
+        assert renewed['auth']['renewable'] is True
         for method,path,data in [('GET','secret/data/outside-nevolium',None),('POST','secret/data/nevolium/d04-proof',{'data':{'value':'deny'}}),
                                   ('LIST','secret/metadata/nevolium',None),('PUT','sys/policies/acl/forbidden',{'policy':'path "*" { capabilities=["sudo"] }'})]:
             bao(client,method,path,token=token,data=data,expected=(403,))
         volume_json('write',{'unseal':unseal,'workload_token':token})
     return {'sql':True,'jetstream_message':True,'filer_object':filer,'filer_metadata_in_durable_volume':True,'openbao_file_backend':True,
-            'workload_read_only':True,'forbidden_openbao_operations':4}
+            'workload_read_only':True,'workload_self_renewal':True,'forbidden_openbao_operations':4}
 
 
 def readback():

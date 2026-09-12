@@ -18,9 +18,9 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
 | Head Nevolium qualifié | `d9478deada2c2c1781958abd87779b9a5e7c11f2`, arbre `898306b233b7f16de6b28b19f78304498e0d7b2e` |
-| Validation | **10/10 workflows réussis**, **5/5 jobs D04** sur le head Nevolium ; verrou identité, builds Python/JS, topologies et scénarios réels CI réussis |
-| Prochaine action | Actualiser le checkout serveur au head documenté, valider le gabarit production, puis préparer secrets privés et ingress/TLS D04 |
-| Conditions manquantes | Nevolium non déployé ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
+| Validation | **10/10 workflows réussis**, **5/5 jobs D04** sur le précédent head Nevolium ; le checkpoint de renouvellement OpenBao doit repasser ces gates |
+| Prochaine action | Attendre les workflows du head live, actualiser le checkout serveur, puis initialiser OpenBao avec export séparé du matériel de récupération |
+| Conditions manquantes | OpenBao démarré mais non initialisé ; Nevolium non déployé ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -78,7 +78,11 @@ APT, HTTPS et ICMP fonctionnent en IPv4/IPv6. Un snapshot hors ligne a précéd�
 hôte vers iptables-nft compatible Docker. Docker Engine/Compose officiels, rotation des logs,
 `live-restore` et `DOCKER-USER` ont été vérifiés ; le checkout D04 public est propre. Aucun identifiant
 réseau, compte ou secret n'est versionné ; [preuve expurgée](docs/archive/server-foundation-2026-09-11.md).
-Nevolium n'est pas encore déployé.
+Nevolium n'est pas encore déployé. OpenBao seul a été démarré avec son backend fichier persistant :
+il reste non initialisé, son port 8200 n'est pas publié sur l'hôte et aucun autre service Nevolium ne
+fonctionne. La policy de workload autorise désormais la lecture du namespace Nevolium et le renouvellement
+du jeton lui-même ; la campagne de récupération vérifie un jeton périodique orphelin sans policy par défaut.
+L'initialisation cible attend la validation CI de ce checkpoint et l'export séparé des clés de déscellement.
 ASUS TUF Gaming A16
 FA608PM relevé pour une répétition ultérieure : Ryzen 9 8940HX, 32 Go RAM, RTX 5060 Laptop 8 Go,
 environ 586 Go libres sous Windows x64. Budget préféré 50 €/mois, maximum 90 €, pilote 3–4 personnes.

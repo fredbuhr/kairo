@@ -101,8 +101,11 @@ via son token interne en production. Le CLI de rebuild lit désormais `NEVOLIUM_
 y mettre la valeur du token interne de développement.
 
 D04 ajoute la policy `infrastructure/openbao/policies/nevolium-core-read.hcl` pour le Core actuel : lecture
-du namespace `secret/data/nevolium/*`, sans écriture/liste/administration. Les anciens chemins hors de ce
-namespace doivent être migrés explicitement. L'entrypoint de l'image OpenBao charge déjà `/openbao/config` :
+du namespace `secret/data/nevolium/*`, sans écriture/liste/administration. Le jeton de workload est
+orphelin, périodique et sans policy par défaut ; cette policy lui accorde seulement `lookup-self` et
+`renew-self` pour permettre un renouvellement surveillé sans garder le jeton racine en ligne. Renouveler
+largement avant la fin de chaque période et alerter sur tout échec ; un jeton expiré doit être remplacé
+par l'opérateur après déscellement. Les anciens chemins hors de ce namespace doivent être migrés explicitement. L'entrypoint de l'image OpenBao charge déjà `/openbao/config` :
 utiliser `command: [server]` ; ajouter une seconde fois le fichier charge deux listeners et empêche le démarrage.
 OpenBao 2.6.2 refuse aussi l'ancienne option `disable_mlock` : elle et la capacité IPC_LOCK inutilisée
 sont retirées. La politique mémoire/swap de l'hôte reste à vérifier sur la cible D04.
