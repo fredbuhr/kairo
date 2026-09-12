@@ -118,7 +118,11 @@ Keycloak et Caddy sont restés sains ; une authentification MFA neuve de `fred-a
 console après le retrait. Aucun accès bootstrap de production ne subsiste.
 Le bundle hors ligne requis par Worker est également préparé sur la cible : les quatre révisions amont et
 les empreintes de huit poids correspondent au manifeste D04 archivé. Il est root-owned, destiné au montage
-en lecture seule et référencé par le fichier privé ; aucun moteur ni Worker n'a encore été activé.
+en lecture seule et référencé par le fichier privé. Aucun moteur n'avait été activé pendant cette préparation.
+Le premier palier moteur est désormais actif sans port hôte : Neo4j, Valkey/SearXNG et Ollama ont chacun
+réussi leur contrôle interne. Le modèle `qwen2.5:0.5b` n'a été accepté qu'après correspondance de son digest
+complet `a8b0c515…f1827c67` avec D04 ; Ollama a ensuite redémarré dans le seul réseau `models`, sans egress.
+Les services publics sont restés sains. LiteLLM et Worker sont toujours arrêtés.
 
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
@@ -137,7 +141,7 @@ la qualification graphique mobile restent à livrer. Présence de Three/Tauri/Yj
 | Domaine | Présent dans le code | Ce qui reste à prouver/livrer |
 |---|---|---|
 | État durable | PostgreSQL migré, NATS/JetStream, SeaweedFS et Temporal/namespace `default` actifs sur réseaux internes ; Core relit ses dépendances ; migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Parcours Worker, dimensionnement réel, archivage canonique et charge sur matériel identifié |
-| Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables ; bundle Docling/FastEmbed exact préparé hors ligne sur la cible | Activation progressive des magasins/moteurs puis mesure réelle du Worker sur le matériel cible |
+| Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables ; bundle Docling/FastEmbed exact préparé ; Neo4j, Valkey/SearXNG et Ollama/digest D04 actifs sans port hôte | Qualification LiteLLM puis démarrage et mesure réelle du Worker sur le matériel cible |
 | Identité et actions | Keycloak et Core derrière Caddy/TLS public ; utilisateur et administrateur nominatifs actifs avec TOTP et rôles bornés ; bootstrap `master` et secrets privés retirés après redémarrage sans environnement bootstrap ; connexions MFA, Authorization Code + PKCE/lecture owner-scoped et refus anonyme/faux jeton vérifiés | UX de rapprochement des coûts incertains |
 | Intelligence | Routing/recherche, Context Packs et gateway avec admission, estimations réservées, sortie bornée et replay comptable | Choix utilisateur des modèles/clés, UX Agents/Skills, preuve coûts et vrais moteurs |
 | Documents et mémoire | Ingestion/version/chunks, recherche/inspection Web, projections mémoire reconstruisibles | CI Documents emploie le fallback texte, mémoire emploie des stubs ; vraie intégration Docling/Mem0/Graphiti à mesurer en D04 |

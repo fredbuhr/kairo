@@ -171,8 +171,13 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
 - L'image Worker complète a préparé le bundle Docling/FastEmbed dans un répertoire temporaire. Ses quatre
   révisions amont et les empreintes de huit poids correspondent exactement au manifeste D04 archivé. Le
   bundle root-owned est désormais référencé par la configuration privée et destiné au montage en lecture
-  seule ; aucun magasin mémoire, moteur, routeur de modèle ou Worker n'a encore été démarré.
+  seule ; aucun magasin mémoire, moteur, routeur de modèle ou Worker n'avait été démarré pendant cette étape.
+- Neo4j, Valkey/SearXNG et Ollama ont ensuite été activés sans publier de port hôte. Les deux magasins et
+  la recherche ont répondu à leurs sondes internes. Un conteneur temporaire borné a téléchargé
+  `qwen2.5:0.5b` dans le volume Ollama ; son digest complet `a8b0c515…f1827c67` correspond à la preuve D04.
+  Ollama a alors redémarré dans le seul réseau interne `models`, sans egress. Les services publics sont
+  restés sains ; LiteLLM et Worker demeurent arrêtés.
 
-Prochain point sûr : activer puis vérifier séparément Neo4j, Valkey/SearXNG et Ollama, avec comparaison du
-digest du petit modèle de qualification avant LiteLLM et Worker. Le paquet de clés ne remplace pas le futur
-backup Restic chiffré, indépendant du serveur et restauré sur volumes neufs.
+Prochain point sûr : activer LiteLLM et prouver le routage borné de `local-fast` vers Ollama avant de
+construire ou démarrer Worker. Le paquet de clés ne remplace pas le futur backup Restic chiffré,
+indépendant du serveur et restauré sur volumes neufs.

@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head déployé et qualifié | `818b8ca7208729a87c5c85a18240b509123f5864`, arbre `68869c0b25d934a6b004d8bb530da9634ad13348` |
-| Validation | **10/10 workflows réussis** sur `818b8ca…` ; identité bootstrap retirée et comptes MFA qualifiés ; bundle Worker hors ligne reproduit sur la cible avec les quatre références D04 et les empreintes exactes de huit poids, puis monté dans la topologie sans démarrer de moteur |
-| Prochaine action | Activer et vérifier séparément Neo4j, Valkey/SearXNG et Ollama ; accepter le modèle de qualification seulement si son digest correspond à D04, avant LiteLLM et Worker |
-| Conditions manquantes | Moteurs et Worker non déployés ; backup Restic indépendant, parcours canonique moteurs, campagne cible, charge et modèle quotidien non validés |
+| Head déployé et qualifié | `e725ac0139dd3f69d178654f0761c4d6da9d9cda`, arbre `17d63b9044ab1b2e6c8e135d2ee7ddaf25262943` |
+| Validation | **10/10 workflows réussis** sur `e725ac0…` ; identité bootstrap retirée et comptes MFA qualifiés ; bundle Worker exact monté ; Neo4j, Valkey/SearXNG et Ollama actifs sans port hôte ; modèle `qwen2.5:0.5b` accepté uniquement avec le digest D04 `a8b0c515…f1827c67` puis Ollama replacé hors egress |
+| Prochaine action | Activer LiteLLM, prouver le routage `local-fast` vers l'Ollama interne et ses limites, puis construire/démarrer Worker seulement si ce relais reste sain |
+| Conditions manquantes | LiteLLM et Worker non déployés ; backup Restic indépendant, parcours canonique moteurs, campagne cible, charge et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -105,6 +105,11 @@ a été basculé puis vérifié sur la nouvelle URL.
   correspondent exactement au manifeste D04 archivé. Le bundle vérifié a été promu sous `/opt/nevolium`,
   appartient à root et sera monté en lecture seule ; la configuration privée root 0600 pointe vers lui.
   Aucun service Neo4j, Valkey, SearXNG, Ollama, LiteLLM ou Worker n'a été démarré à cette étape.
+- Premier palier de moteurs activé sans exposition hôte. Neo4j répond à une requête Cypher authentifiée ;
+  Valkey répond `PONG` et SearXNG sert son endpoint interne. Ollama a reçu le petit modèle de qualification
+  par un conteneur temporaire borné, puis le digest complet `a8b0c515…f1827c67` a été comparé à la preuve
+  D04 avant redémarrage dans le seul réseau interne `models`, sans egress. Keycloak, Caddy et Web sont
+  restés sains. LiteLLM et Worker demeurent arrêtés.
 - Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
   vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
   révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien
