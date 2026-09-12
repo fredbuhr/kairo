@@ -17,7 +17,7 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head Nevolium qualifié | `052fa7c8e1f4f1234f698ee0283e603ffb12a9c2`, arbre `33380dbab44bf125b12cf59fdbb25683bd6ae278` |
+| Head Nevolium qualifié | `052fa7c8e1f4f1234f698ee0283e603ffb12a9c2`, arbre `99451931f64b8e3a88b0c8def614c0ca5f58a6b1` |
 | Validation | **10/10 workflows réussis** sur `052fa7c…` ; récupération OpenBao chiffrée vérifiée hors serveur, jeton root révoqué, copies serveur retirées ; workload renouvelé sur cible et timer quotidien actif, service sain |
 | Prochaine action | Configurer l'ingress/TLS borné, puis exécuter le preflight cible avant tout déploiement élargi ou campagne de charge |
 | Conditions manquantes | Autres services Nevolium non déployés ; domaine/TLS et routes publiques refusées non prouvés ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
