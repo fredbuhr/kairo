@@ -184,6 +184,27 @@ Inclure `/redoc` et les endpoints `/health/` dans cette restriction publique ; l
 restent internes. Avant la charge D04, lancer le contrôle `target.py preflight` décrit dans
 [qualification-d04](qualification-d04.md) : TLS, authentification, formes JSON de l'API et refus des
 routes privées. Ce contrôle en lecture seule ne configure ni ne démarre le proxy.
+
+La configuration hôte versionnée dans `infrastructure/caddy/Caddyfile` publie les trois noms Nevolium
+avec HTTPS automatique. L'API suit une liste positive : seuls `/v1` et `/v1/*` atteignent Core ; tout
+autre chemin reçoit un 404 directement du proxy. Les upstreams restent exclusivement sur loopback et
+le journal d'accès Caddy n'est pas activé, afin de ne pas conserver accidentellement de paramètres
+sensibles. Installer Caddy depuis le paquet de la distribution seulement après validation du DNS et
+des pare-feu, puis valider le fichier avant toute activation :
+
+```bash
+sudo install -D -o root -g root -m 0644 \
+  infrastructure/caddy/Caddyfile /etc/caddy/Caddyfile
+sudo caddy fmt --overwrite /etc/caddy/Caddyfile
+sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+sudo systemctl enable --now caddy
+```
+
+Les ports 80 et 443 doivent être joignables depuis Internet pour les challenges ACME. Ne pas activer
+le proxy avec la page par défaut du paquet. Vérifier les trois certificats, les redirections HTTP vers
+HTTPS et les refus API depuis un client extérieur. Un upstream absent doit produire un échec explicite,
+jamais élargir la route publique. La valeur `KEYCLOAK_PROXY_TRUSTED_ADDRESSES` doit correspondre à
+l'adresse source réellement observée par Keycloak pour le proxy hôte, pas à une plage large inventée.
 Les connexions entre moteurs sont sur des réseaux Docker internes séparés. Core/Keycloak ont
 un pont d’entrée sans masquerading IP pour rendre leurs ports loopback joignables depuis le proxy hôte. Web MCP n'a ni token Core,
 ni accès au réseau canonique. Les composants ayant une sortie Internet restent du code de confiance.
