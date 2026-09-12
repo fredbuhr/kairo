@@ -57,7 +57,7 @@ backup indépendant n'est qualifié par ce jalon. [Preuve expurgée](archive/ser
 Un snapshot hors ligne a ensuite précédé l'installation officielle de Docker Engine 29.8.0 et Compose
 5.5.1. Le pare-feu hôte a été migré vers iptables-nft persistant, Fail2ban vers son action iptables et
 la chaîne `DOCKER-USER` refuse les publications externes hors 80/443. Le démon utilise `live-restore`
-et le pilote de logs local borné. OpenBao 2.6.2 est le seul service Nevolium démarré : backend persistant,
+et le pilote de logs local borné. OpenBao 2.6.2 utilise un backend persistant,
 trois parts de déscellement avec seuil deux, jeton de workload périodique de sept jours sans policy
 `default`, lecture Nevolium et renouvellement/introspection propres vérifiés. La récupération a été
 chiffrée avec une identité dédiée, déchiffrée et contrôlée hors serveur sans fichier clair, puis sa copie
@@ -66,8 +66,17 @@ serveur sont retirées. L'environnement et les métadonnées workload restent ro
 lie le jeton à son accessor, vérifie policy/période/TTL et le renouvelle quotidiennement ; son timer
 persistant est actif après un passage réel réussi à 604799 secondes de TTL. Un premier refus dû au retrait
 total des capacités Linux s'est produit avant renouvellement et activation ; `CAP_DAC_READ_SEARCH` seul
-a corrigé la traversée en lecture du checkout privé. OpenBao reste sain et son port 8200 n'est pas publié ;
-aucun autre service Nevolium n'est démarré.
+a corrigé la traversée en lecture du checkout privé. OpenBao reste sain et son port 8200 n'est pas publié.
+
+Le déploiement par paliers a ensuite créé un volume PostgreSQL neuf : service sain, port 5432 non publié,
+quatre identités SQL minimales provisionnées et migrations canoniques appliquées jusqu'à
+`0014_capacity_and_data`. Keycloak 26.7.3 utilise sa base dédiée et écoute seulement sur
+`127.0.0.1:8081`. Son proxy de confiance est lié à l'adresse privée exacte de la passerelle ingress ; le
+realm de production `nevolium` a été importé sans utilisateur et son issuer vaut exactement
+`https://auth.nevolium.com/realms/nevolium`. Un premier démarrage a refusé le placeholder de proxy, puis
+un second a révélé que la variable du realm n'était pas transmise au conteneur ; chaque tentative a été
+arrêtée sans realm partiel, corrigée dans la même branche et couverte par les dix workflows réussis sur
+`b2648de…`. Caddy, NATS, SeaweedFS, Temporal, Core et Web ne sont pas encore démarrés.
 
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
@@ -87,7 +96,7 @@ la qualification graphique mobile restent à livrer. Présence de Three/Tauri/Yj
 |---|---|---|
 | État durable | PostgreSQL, objets SeaweedFS, outbox/NATS, exécution Temporal, migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Dimensionnement réel, archivage canonique et charge sur matériel identifié |
 | Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables | Mesure réelle des moteurs et du matériel en D04 |
-| Identité et actions | Keycloak, ownership, policy/approbations, registre MCP et invocations idempotentes | Policies/ingress sur cible réelle D04 ; UX de rapprochement des coûts incertains |
+| Identité et actions | Keycloak de production sur loopback, realm neuf sans utilisateur et issuer public vérifié ; ownership, policy/approbations, registre MCP et invocations idempotentes | Premier compte nominatif/MFA, TLS public et parcours OIDC complet ; UX de rapprochement des coûts incertains |
 | Intelligence | Routing/recherche, Context Packs et gateway avec admission, estimations réservées, sortie bornée et replay comptable | Choix utilisateur des modèles/clés, UX Agents/Skills, preuve coûts et vrais moteurs |
 | Documents et mémoire | Ingestion/version/chunks, recherche/inspection Web, projections mémoire reconstruisibles | CI Documents emploie le fallback texte, mémoire emploie des stubs ; vraie intégration Docling/Mem0/Graphiti à mesurer en D04 |
 | Cockpit | Panneaux persistés par sujet, Command Center, Projects, Today, Research, News, Knowledge | Design Mycelium complet, réglages, attention et parcours cohérents |

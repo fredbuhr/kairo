@@ -95,6 +95,24 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
   la capacité à `CAP_DAC_READ_SEARCH`. Le second essai a renouvelé à 604799 secondes, activé le timer et
   confirmé l'absence du jeton temporaire, des copies serveur et de dégradation OpenBao.
 
-Prochain point sûr : configurer l'ingress/TLS et prouver les refus des routes internes avec le preflight
-cible avant le socle applicatif par paliers. Le paquet de clés ne remplace pas le futur backup Restic
+## Extension vérifiée le 12 septembre — PostgreSQL et identité
+
+- PostgreSQL de production a été créé sur un volume neuf, déclaré sain et conservé derrière les réseaux
+  Docker sans publication du port 5432. Les rôles `nevolium_app`, `nevolium_migrator`, `keycloak_app` et
+  `temporal_app` ont été provisionnés avant l'application transactionnelle de la chaîne Alembic jusqu'à
+  `0014_capacity_and_data`.
+- Keycloak 26.7.3 utilise sa base dédiée et publie son service uniquement sur `127.0.0.1:8081`. L'adresse
+  de proxy de confiance a été dérivée de la passerelle privée du réseau ingress et écrite atomiquement
+  dans l'environnement root 0600, sans valeur réseau versionnée ni affichée.
+- Le realm de production `nevolium` est neuf et sans utilisateur. Son document de découverte, interrogé
+  localement avec les en-têtes du futur proxy TLS, expose exactement l'issuer
+  `https://auth.nevolium.com/realms/nevolium`.
+- Deux essais ont échoué de manière sûre avant cette preuve : la valeur sentinelle du proxy a provoqué une
+  boucle arrêtée sans import ; la variable du realm manquante a ensuite fait refuser le fichier d'import.
+  Aucun realm partiel n'est resté en base. Les deux causes ont été corrigées et les contrats associés passent
+  dans les dix workflows GitHub du commit `b2648de…`.
+
+Prochain point sûr : démarrer et vérifier par paliers NATS, SeaweedFS et Temporal, puis Core et Web ;
+installer Caddy seulement lorsque ses upstreams loopback sont prêts, puis prouver TLS et les refus des
+routes internes avec le preflight cible. Le paquet de clés ne remplace pas le futur backup Restic
 chiffré, indépendant du serveur et restauré sur volumes neufs.
