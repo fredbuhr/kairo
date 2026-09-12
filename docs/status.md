@@ -102,8 +102,9 @@ par défaut. La configuration versionnée a été formatée, validée puis activ
 extérieur, `app`, `api` et `auth` présentent des certificats et noms valides, redirigent HTTP vers HTTPS,
 servent Web et le bon issuer Keycloak. La racine et les chemins privés de l'API répondent 404 ; l'accès
 à `/v1` sans jeton ou avec un faux jeton répond 401. L'administration Caddy écoute seulement sur
-`127.0.0.1:2019`. Le premier utilisateur réel et son enrôlement MFA sont qualifiés ; l'appel API avec
-un vrai jeton utilisateur reste à prouver avant de qualifier le parcours OIDC complet.
+`127.0.0.1:2019`. Le premier utilisateur réel et son enrôlement MFA sont qualifiés. Depuis Windows,
+le cockpit obtenu après Authorization Code + PKCE a chargé `/v1/today` sans erreur ; Core a donc validé
+le vrai bearer, son audience/issuer/azp et le rôle `nevolium-user`, puis appliqué la lecture owner-scoped.
 
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
@@ -123,7 +124,7 @@ la qualification graphique mobile restent à livrer. Présence de Three/Tauri/Yj
 |---|---|---|
 | État durable | PostgreSQL migré, NATS/JetStream, SeaweedFS et Temporal/namespace `default` actifs sur réseaux internes ; Core relit ses dépendances ; migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Parcours Worker, dimensionnement réel, archivage canonique et charge sur matériel identifié |
 | Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables | Mesure réelle des moteurs et du matériel en D04 |
-| Identité et actions | Keycloak et Core de production derrière Caddy/TLS public, premier compte nominatif actif avec rôle `nevolium-user`, mot de passe initial remplacé, TOTP configuré et aucune action initiale restante ; issuer public et refus anonyme/faux jeton vérifiés | Appel API avec un vrai jeton utilisateur, administrateur nominatif/MFA, retrait bootstrap et parcours OIDC complet ; UX de rapprochement des coûts incertains |
+| Identité et actions | Keycloak et Core derrière Caddy/TLS public ; premier compte nominatif actif, TOTP et rôle `nevolium-user` vérifiés ; Authorization Code + PKCE et lecture owner-scoped `/v1/today` acceptée avec son vrai jeton ; refus anonyme/faux jeton vérifiés | Administrateur nominatif/MFA et retrait bootstrap ; UX de rapprochement des coûts incertains |
 | Intelligence | Routing/recherche, Context Packs et gateway avec admission, estimations réservées, sortie bornée et replay comptable | Choix utilisateur des modèles/clés, UX Agents/Skills, preuve coûts et vrais moteurs |
 | Documents et mémoire | Ingestion/version/chunks, recherche/inspection Web, projections mémoire reconstruisibles | CI Documents emploie le fallback texte, mémoire emploie des stubs ; vraie intégration Docling/Mem0/Graphiti à mesurer en D04 |
 | Cockpit | Build Web de production publié par Caddy/TLS avec API/auth publiques embarquées ; panneaux persistés par sujet, Command Center, Projects, Today, Research, News, Knowledge | Parcours OIDC nominatif, design Mycelium complet, réglages, attention et parcours cohérents |

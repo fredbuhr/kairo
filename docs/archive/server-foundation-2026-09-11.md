@@ -155,9 +155,11 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
 - Web et le document de découverte Keycloak répondent publiquement avec l'issuer exact. Sur l'API, la
   racine, les sondes, la documentation et les chemins internes sont refusés par 404 ; `/v1` refuse par 401
   la requête anonyme comme celle munie d'un faux bearer.
-- Le premier compte nominatif et son enrôlement MFA sont vérifiés, mais cette preuve ne comprend encore
-  aucun appel API avec son jeton : le parcours OIDC complet reste à qualifier.
+- Le premier compte nominatif et son enrôlement MFA sont vérifiés. Depuis un client Windows, Web a achevé
+  Authorization Code + PKCE sans exposer le jeton, puis `/v1/today` a rendu l'état vide du propriétaire.
+  Cette réponse n'est produite qu'après validation par Core de la signature, de l'issuer, de l'audience,
+  de l'azp et du rôle `nevolium-user` ; les refus anonyme et faux bearer restent également prouvés.
 
-Prochain point sûr : exécuter le preflight authentifié avec un vrai jeton utilisateur, créer et vérifier
-un administrateur Keycloak nominatif avec MFA, puis retirer le compte et les identifiants bootstrap Keycloak. Le paquet de clés ne remplace pas le futur
+Prochain point sûr : créer et vérifier un administrateur Keycloak nominatif avec MFA, puis retirer le compte
+et les identifiants bootstrap Keycloak. Le paquet de clés ne remplace pas le futur
 backup Restic chiffré, indépendant du serveur et restauré sur volumes neufs.

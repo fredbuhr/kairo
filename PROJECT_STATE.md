@@ -18,9 +18,9 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
 | Head déployé et qualifié | `6475bf6e93aab48594034bea460ec088f8c15f6c`, arbre `7997104b6fdf6def474a5aaa673963820fb4acf5` |
-| Validation | **10/10 workflows réussis** sur `6475bf6…` ; socle, Core, Web et TLS public vérifiés ; premier compte nominatif actif, rôle `nevolium-user`, mot de passe initial remplacé, TOTP configuré et aucune action initiale restante |
-| Prochaine action | Prouver l'échange OIDC Web/API avec un vrai jeton utilisateur, puis créer un administrateur Keycloak nominatif protégé par MFA avant de retirer l'accès bootstrap |
-| Conditions manquantes | Appel API authentifié et retrait bootstrap non prouvés ; Worker non déployé ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
+| Validation | **10/10 workflows réussis** sur `56ddda0…` ; socle, Core, Web et TLS public vérifiés ; premier compte nominatif actif avec TOTP ; flux PKCE/OIDC et lecture `/v1/today` autorisée par Core avec le vrai jeton utilisateur confirmés depuis Windows |
+| Prochaine action | Créer un administrateur Keycloak nominatif protégé par MFA, vérifier son rôle et sa connexion, puis retirer l'accès bootstrap |
+| Conditions manquantes | Administrateur nominatif/MFA et retrait bootstrap non prouvés ; Worker non déployé ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -81,8 +81,10 @@ a été basculé puis vérifié sur la nouvelle URL.
   a créé le premier compte sur la cible ; son adresse a été corrigée avant connexion par double confirmation,
   sans transmettre de champ de mot de passe. La première connexion a remplacé le mot de passe temporaire
   et configuré le TOTP. Une vérification administrative confirme le compte actif, le rôle `nevolium-user`,
-  le TOTP présent et l'absence d'action initiale restante. Cette preuve ne comprend pas encore un appel API
-  avec un vrai jeton utilisateur et ce compte ne remplace pas le futur administrateur Keycloak nominatif.
+  le TOTP présent et l'absence d'action initiale restante. Depuis Windows, Web a ensuite obtenu son jeton
+  par Authorization Code + PKCE et `/v1/today` a rendu l'état vide du propriétaire sans erreur : Caddy et
+  Core ont donc accepté le vrai bearer `nevolium-user`. Ce compte ne remplace pas le futur administrateur
+  Keycloak nominatif.
 - Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
   vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
   révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien
@@ -131,7 +133,8 @@ traversée du checkout, survenu sans renouvellement ni activation du timer. Post
 neuf, reste sain et non publié ; les rôles SQL et la migration `0014_capacity_and_data` sont vérifiés.
 Keycloak utilise sa base dédiée ; son realm de production initialement vide contient désormais le premier
 utilisateur applicatif actif avec TOTP et rôle borné. Son issuer public est exact derrière les en-têtes du
-proxy de confiance privé et son port 8081 est limité au loopback. Caddy
+proxy de confiance privé et son port 8081 est limité au loopback. Le cockpit Web authentifié a obtenu un
+jeton PKCE et Core a autorisé sa lecture owner-scoped de `/v1/today`. Caddy
 publie désormais les trois noms HTTPS avec certificats valides et refus public borné. NATS/JetStream et SeaweedFS
 conservent leurs volumes dédiés derrière les réseaux internes. SeaweedFS annonce le nom `seaweedfs` et
 écoute ses deux interfaces après correction du défaut multiréseau découvert sur la cible. Temporal utilise
