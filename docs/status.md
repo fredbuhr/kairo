@@ -124,7 +124,11 @@ réussi leur contrôle interne. Le modèle `qwen2.5:0.5b` n'a été accepté qu'
 complet `a8b0c515…f1827c67` avec D04 ; Ollama a ensuite redémarré dans le seul réseau `models`, sans egress.
 LiteLLM est également actif sans port hôte, avec `local-fast` fixé sur ce modèle qualifié et aucune clé
 OpenAI ou Anthropic chargée. Une vraie réponse locale et son comptage ont traversé le relais ; un faux jeton
-a été refusé avec 401. Ollama reste hors egress et les services publics sont restés sains. Worker est toujours arrêté.
+a été refusé avec 401. Ollama reste hors egress et les services publics sont restés sains.
+Le Worker complet est désormais actif avec son bundle exact en lecture seule et ses bibliothèques de modèles
+forcées hors ligne. Il s'exécute sous UID 10001, sur un rootfs en lecture seule, sans capacité Linux, nouveau
+privilège ou port hôte, avec limites CPU/RAM/PID et cinq réseaux bornés. Il a réellement terminé un workflow
+Temporal minimal et enregistré son consumer mémoire durable JetStream ; le parcours métier reste à prouver.
 
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
@@ -143,7 +147,7 @@ la qualification graphique mobile restent à livrer. Présence de Three/Tauri/Yj
 | Domaine | Présent dans le code | Ce qui reste à prouver/livrer |
 |---|---|---|
 | État durable | PostgreSQL migré, NATS/JetStream, SeaweedFS et Temporal/namespace `default` actifs sur réseaux internes ; Core relit ses dépendances ; migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Parcours Worker, dimensionnement réel, archivage canonique et charge sur matériel identifié |
-| Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables ; bundle Docling/FastEmbed exact préparé ; Neo4j, Valkey/SearXNG, Ollama/digest D04 et LiteLLM/`local-fast` actifs sans port hôte | Démarrage confiné puis mesure réelle du Worker sur le matériel cible |
+| Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables ; bundle Docling/FastEmbed exact monté hors ligne ; Worker actif et confiné, workflow Temporal exécuté et consumer mémoire JetStream présent ; Neo4j, Valkey/SearXNG, Ollama/digest D04 et LiteLLM/`local-fast` actifs sans port hôte | Parcours métier complets puis mesure progressive et campagne de charge sur le matériel cible |
 | Identité et actions | Keycloak et Core derrière Caddy/TLS public ; utilisateur et administrateur nominatifs actifs avec TOTP et rôles bornés ; bootstrap `master` et secrets privés retirés après redémarrage sans environnement bootstrap ; connexions MFA, Authorization Code + PKCE/lecture owner-scoped et refus anonyme/faux jeton vérifiés | UX de rapprochement des coûts incertains |
 | Intelligence | Routing/recherche, Context Packs et gateway avec admission, estimations réservées, sortie bornée et replay comptable ; relais LiteLLM local réellement exécuté, compté et protégé par jeton sans clé fournisseur externe | Choix utilisateur du modèle quotidien/des clés, UX Agents/Skills et preuve coûts en parcours complet |
 | Documents et mémoire | Ingestion/version/chunks, recherche/inspection Web, projections mémoire reconstruisibles | CI Documents emploie le fallback texte, mémoire emploie des stubs ; vraie intégration Docling/Mem0/Graphiti à mesurer en D04 |

@@ -180,8 +180,13 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
 - LiteLLM a été activé sans port hôte avec `local-fast` dirigé vers ce modèle qualifié. Aucune clé OpenAI
   ou Anthropic n'est chargée. Une complétion locale non vide et son comptage de jetons ont été validés,
   tandis qu'un faux jeton a reçu 401. LiteLLM est limité à `models`, `telemetry` et `egress` ; Ollama reste
-  sur le seul réseau interne `models`. Les services publics sont sains et Worker demeure arrêté.
+  sur le seul réseau interne `models`. Les services publics sont sains.
+- Le Worker complet a été construit puis démarré sous UID 10001, rootfs en lecture seule, sans capacités
+  Linux ni nouveau privilège, avec limites CPU/RAM/PID et aucun port hôte. Son bundle exact est monté en
+  lecture seule et les bibliothèques de modèles restent hors ligne. Il a pris et terminé un vrai workflow
+  `FoundationWorkflow` via Temporal ; son consumer mémoire durable JetStream est actif. Les services publics
+  sont restés sains. Ce contrôle qualifie le runtime, pas encore un parcours métier ou une charge.
 
-Prochain point sûr : construire et démarrer Worker avec son bundle en lecture seule, vérifier son confinement
-et prouver un premier parcours réel borné vers les moteurs qualifiés. Le paquet de clés ne remplace pas le futur backup Restic chiffré,
+Prochain point sûr : prouver un premier parcours métier Worker borné avec les identités réelles, puis élargir
+progressivement aux moteurs qualifiés. Le paquet de clés ne remplace pas le futur backup Restic chiffré,
 indépendant du serveur et restauré sur volumes neufs.

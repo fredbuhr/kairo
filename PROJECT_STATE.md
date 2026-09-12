@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head déployé et qualifié | `22e7e2770364ea82f02277d019747dd6413fd564`, arbre `3ac2abb05d01141f0fec54ce6033f783a76573ac` |
-| Validation | **10/10 workflows réussis** sur `22e7e27…` ; identité bootstrap retirée et comptes MFA qualifiés ; bundle Worker exact monté ; Neo4j, Valkey/SearXNG, Ollama et LiteLLM actifs sans port hôte ; `local-fast` produit une vraie réponse comptée via le modèle D04 `qwen2.5:0.5b`, refuse un faux jeton et ne charge aucune clé externe ; Ollama reste hors egress |
-| Prochaine action | Construire puis démarrer Worker avec son bundle en lecture seule, vérifier son confinement et prouver un premier parcours réel borné vers les moteurs déjà qualifiés |
-| Conditions manquantes | Worker non déployé ; backup Restic indépendant, parcours canonique moteurs, campagne cible, charge et modèle quotidien non validés |
+| Head déployé et qualifié | `7c509e79d5967be986e4c6f3152f502ab532a4d7`, arbre `13174430ae9e2009fcca438e44e63f830df0a6ca` |
+| Validation | **10/10 workflows réussis** sur `7c509e7…` ; identité et moteurs internes qualifiés ; LiteLLM route `local-fast` vers le modèle D04 sans clé externe ; Worker complet actif, non-root/lecture seule/sans capacités ni port hôte, bundle exact monté en lecture seule, workflow Temporal exécuté et consumer mémoire JetStream présent |
+| Prochaine action | Prouver un premier parcours métier Worker borné de bout en bout avec les identités réelles, puis mesurer progressivement les moteurs sans confondre ce contrôle avec la campagne de charge |
+| Conditions manquantes | Backup Restic indépendant, parcours canoniques PDF/mémoire/recherche/modèle, campagne cible, charge et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -113,7 +113,13 @@ a été basculé puis vérifié sur la nouvelle URL.
 - LiteLLM est maintenant actif sans port hôte sur ses seuls réseaux `models`, `telemetry` et `egress`.
   Sa configuration de qualification ne charge aucune clé OpenAI ou Anthropic et route `local-fast` vers
   le modèle Ollama D04 présent. Une vraie complétion non vide et son nombre de jetons ont été reçus ; un
-  faux jeton LiteLLM a répondu 401. Ollama demeure limité à `models`, sans egress. Worker reste arrêté.
+  faux jeton LiteLLM a répondu 401. Ollama demeure limité à `models`, sans egress. À ce palier, Worker
+  restait arrêté.
+- L'image Worker complète a ensuite été construite et démarrée avec le bundle vérifié monté en lecture
+  seule et les téléchargements Hugging Face/Transformers désactivés. Le processus UID 10001 est en lecture
+  seule, sans capacité Linux ni nouveau privilège, borné en CPU/RAM/PID, sans port hôte et limité aux cinq
+  réseaux nécessaires. Un vrai workflow `FoundationWorkflow` a été pris puis terminé via Temporal ; le
+  durable JetStream `nevolium-memory-projector-v1` est actif. Les services publics sont restés sains.
 - Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
   vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
   révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien
