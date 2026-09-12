@@ -133,6 +133,10 @@ class Deployment(unittest.TestCase):
                 '-ip.bind=0.0.0.0',
                 valid['services']['seaweedfs']['command'],
             )
+            self.assertIn(
+                '-ip=seaweedfs',
+                valid['services']['seaweedfs']['command'],
+            )
             with_tools=config(['-f','compose.web-mcp.yaml','-f','compose.web-mcp.production.yaml','--profile','search','--profile','ai'])
             self.assertEqual(production.validate(with_tools),[])
             self.assertEqual(set(with_tools['services']['nevolium-web-mcp']['networks']),{'search','egress'})

@@ -235,10 +235,11 @@ Ces réseaux ne prouvent ni isolation contre l'administrateur hôte, ni sandbox 
 multi-hôte. Le déploiement effectif et les rejets réseau sur matériel cible appartiennent à D04.
 
 SeaweedFS appartient simultanément aux réseaux internes `canonical` et `telemetry`. Le serveur tout-en-un
-doit donc conserver `-ip.bind=0.0.0.0` afin que Master, Filer et S3 répondent sur les deux interfaces du
-conteneur. Cette écoute interne n'expose aucun port hôte : l'overlay de production remet explicitement
-la liste `ports` à zéro. Retirer ce paramètre laisse SeaweedFS choisir une seule interface et coupe les
-consommateurs de l'autre réseau.
+doit donc conserver `-ip=seaweedfs` comme identité annoncée, résoluble sur les deux réseaux, et
+`-ip.bind=0.0.0.0` afin que Master, Filer, volumes et S3 répondent sur les deux interfaces du conteneur.
+Cette écoute interne n'expose aucun port hôte : l'overlay de production remet explicitement la liste
+`ports` à zéro. Retirer l'un de ces paramètres laisse SeaweedFS choisir ou annoncer une seule interface
+et coupe les consommateurs de l'autre réseau.
 
 ## Modèles et mise à jour explicite
 
