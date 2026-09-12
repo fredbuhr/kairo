@@ -105,10 +105,11 @@ servent Web et le bon issuer Keycloak. La racine et les chemins privés de l'API
 `127.0.0.1:2019`. Le premier utilisateur réel et son enrôlement MFA sont qualifiés. Depuis Windows,
 le cockpit obtenu après Authorization Code + PKCE a chargé `/v1/today` sans erreur ; Core a donc validé
 le vrai bearer, son audience/issuer/azp et le rôle `nevolium-user`, puis appliqué la lecture owner-scoped.
-La branche prépare séparément un administrateur nominatif du seul realm Nevolium avec mot de passe
-temporaire, TOTP obligatoire, rôle applicatif `nevolium-admin`, composite `realm-management/realm-admin`
-et suppression automatique de la nouvelle identité si l'attribution ne peut pas être vérifiée. Cette
-transition n'est pas encore exécutée sur la cible et le bootstrap `master` reste actif.
+Un administrateur nominatif distinct du seul realm Nevolium est maintenant actif avec TOTP, rôle
+applicatif `nevolium-admin` et composite `realm-management/realm-admin`. Ces droits et l'absence d'action
+initiale ont été vérifiés par la commande bornée ; une connexion Windows affiche réellement la console du
+realm Nevolium. Le bootstrap `master` reste actif. La branche prépare son retrait en réservant ses variables
+à un overlay initial explicite, puis en exigeant un redémarrage sans cet environnement avant suppression.
 
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
@@ -128,7 +129,7 @@ la qualification graphique mobile restent à livrer. Présence de Three/Tauri/Yj
 |---|---|---|
 | État durable | PostgreSQL migré, NATS/JetStream, SeaweedFS et Temporal/namespace `default` actifs sur réseaux internes ; Core relit ses dépendances ; migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Parcours Worker, dimensionnement réel, archivage canonique et charge sur matériel identifié |
 | Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables | Mesure réelle des moteurs et du matériel en D04 |
-| Identité et actions | Keycloak et Core derrière Caddy/TLS public ; premier compte nominatif actif, TOTP et rôle `nevolium-user` vérifiés ; Authorization Code + PKCE et lecture owner-scoped `/v1/today` acceptée avec son vrai jeton ; refus anonyme/faux jeton vérifiés | Administrateur nominatif/MFA et retrait bootstrap ; UX de rapprochement des coûts incertains |
+| Identité et actions | Keycloak et Core derrière Caddy/TLS public ; utilisateur et administrateur nominatifs actifs avec TOTP et rôles bornés ; console realm et Authorization Code + PKCE/lecture owner-scoped vérifiés ; refus anonyme/faux jeton vérifiés | Redémarrage sans environnement bootstrap puis retrait du compte `master` ; UX de rapprochement des coûts incertains |
 | Intelligence | Routing/recherche, Context Packs et gateway avec admission, estimations réservées, sortie bornée et replay comptable | Choix utilisateur des modèles/clés, UX Agents/Skills, preuve coûts et vrais moteurs |
 | Documents et mémoire | Ingestion/version/chunks, recherche/inspection Web, projections mémoire reconstruisibles | CI Documents emploie le fallback texte, mémoire emploie des stubs ; vraie intégration Docling/Mem0/Graphiti à mesurer en D04 |
 | Cockpit | Build Web de production publié par Caddy/TLS avec API/auth publiques embarquées ; panneaux persistés par sujet, Command Center, Projects, Today, Research, News, Knowledge | Parcours OIDC nominatif, design Mycelium complet, réglages, attention et parcours cohérents |

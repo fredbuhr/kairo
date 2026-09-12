@@ -121,6 +121,15 @@ class Deployment(unittest.TestCase):
                 return json.loads(result.stdout)
             valid=config([])
             self.assertEqual(production.validate(valid),[])
+            with_bootstrap=config(['-f','compose.keycloak-bootstrap.yaml'])
+            self.assertEqual(production.validate(with_bootstrap),[])
+            self.assertEqual(
+                with_bootstrap['services']['keycloak']['environment']['KC_BOOTSTRAP_ADMIN_USERNAME'],
+                'nevolium-admin',
+            )
+            self.assertTrue(
+                with_bootstrap['services']['keycloak']['environment']['KC_BOOTSTRAP_ADMIN_PASSWORD']
+            )
             self.assertNotIn('nevolium-realtime',valid['services'])
             self.assertNotIn('activepieces',valid['services'])
             for name in ['postgres','nats','temporal','seaweedfs','openbao']:

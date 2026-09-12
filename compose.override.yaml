@@ -11,6 +11,8 @@ services:
   keycloak:
     command: ["start-dev", "--import-realm"]
     environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL}
     volumes:
       - ./infrastructure/keycloak:/opt/keycloak/data/import:ro

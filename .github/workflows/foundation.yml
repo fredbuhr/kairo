@@ -26,6 +26,7 @@ jobs:
       - name: Validate production and operations topologies
         run: |
           docker compose --env-file .env.production.example -f compose.yaml -f compose.production.yaml config >/dev/null
+          docker compose --env-file .env.production.example -f compose.yaml -f compose.production.yaml -f compose.keycloak-bootstrap.yaml config >/dev/null
           docker compose --env-file .env.production.example -f compose.yaml -f compose.production.yaml -f compose.ops.yaml --profile ops config >/dev/null
 
       - uses: pnpm/action-setup@v4
@@ -111,6 +112,9 @@ jobs:
 
       - name: Prove safe nominated Keycloak administrator transition contract
         run: python scripts/smoke/keycloak_nominated_admin_contract.py
+
+      - name: Prove safe Keycloak bootstrap retirement contract
+        run: python scripts/smoke/keycloak_bootstrap_retirement_contract.py
 
       - name: Prove exact Keycloak trusted-proxy configuration contract
         run: python scripts/smoke/keycloak_proxy_contract.py

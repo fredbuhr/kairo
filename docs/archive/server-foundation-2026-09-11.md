@@ -159,7 +159,11 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
   Authorization Code + PKCE sans exposer le jeton, puis `/v1/today` a rendu l'état vide du propriétaire.
   Cette réponse n'est produite qu'après validation par Core de la signature, de l'issuer, de l'audience,
   de l'azp et du rôle `nevolium-user` ; les refus anonyme et faux bearer restent également prouvés.
+- Un second compte nominatif, distinct, porte `nevolium-admin` et le composite
+  `realm-management/realm-admin` du seul realm Nevolium. Mot de passe initial remplacé, TOTP, absence
+  d'action restante et rôles ont été vérifiés ; une connexion Windows affiche la console administrative
+  du realm. Le bootstrap `master` reste intact jusqu'à la preuve d'un redémarrage sans ses variables.
 
-Prochain point sûr : créer et vérifier un administrateur Keycloak nominatif avec MFA, puis retirer le compte
-et les identifiants bootstrap Keycloak. Le paquet de clés ne remplace pas le futur
+Prochain point sûr : recréer Keycloak avec la topologie normale sans environnement bootstrap, revérifier
+la console nominative, puis retirer le compte et les identifiants bootstrap. Le paquet de clés ne remplace pas le futur
 backup Restic chiffré, indépendant du serveur et restauré sur volumes neufs.

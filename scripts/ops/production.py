@@ -83,9 +83,16 @@ def main() -> None:
     p.add_argument('--env-file', default='.env.production')
     p.add_argument('--profile', action='append', default=[])
     p.add_argument('--web-mcp', action='store_true')
+    p.add_argument(
+        '--keycloak-bootstrap',
+        action='store_true',
+        help='render the explicit one-time Keycloak bootstrap overlay',
+    )
     args = p.parse_args()
     root = Path(__file__).resolve().parents[2]
     command = ['docker','compose','--env-file',str(Path(args.env_file).resolve()),'-f','compose.yaml','-f','compose.production.yaml']
+    if args.keycloak_bootstrap:
+        command += ['-f', 'compose.keycloak-bootstrap.yaml']
     if 'observability' in args.profile:
         command += ['-f','compose.observability.yaml']
     if args.web_mcp:

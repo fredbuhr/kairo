@@ -8,6 +8,9 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 REALM_PATH = ROOT / "infrastructure/keycloak/production/nevolium-realm.json"
 COMPOSE_PATH = ROOT / "compose.production.yaml"
+BASE_COMPOSE_PATH = ROOT / "compose.yaml"
+DEVELOPMENT_COMPOSE_PATH = ROOT / "compose.override.yaml"
+BOOTSTRAP_COMPOSE_PATH = ROOT / "compose.keycloak-bootstrap.yaml"
 
 
 class KeycloakProductionContract(unittest.TestCase):
@@ -15,6 +18,9 @@ class KeycloakProductionContract(unittest.TestCase):
     def setUpClass(cls):
         cls.realm = json.loads(REALM_PATH.read_text(encoding="utf-8"))
         cls.compose = COMPOSE_PATH.read_text(encoding="utf-8")
+        cls.base_compose = BASE_COMPOSE_PATH.read_text(encoding="utf-8")
+        cls.development_compose = DEVELOPMENT_COMPOSE_PATH.read_text(encoding="utf-8")
+        cls.bootstrap_compose = BOOTSTRAP_COMPOSE_PATH.read_text(encoding="utf-8")
 
     def test_realm_has_no_users_and_requires_external_tls(self):
         self.assertNotIn("users", self.realm)
@@ -55,6 +61,14 @@ class KeycloakProductionContract(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertIn(value, self.compose)
         self.assertNotIn("./infrastructure/keycloak/nevolium-realm.json", self.compose)
+
+    def test_bootstrap_credentials_require_an_explicit_one_time_overlay(self):
+        for key in ("KC_BOOTSTRAP_ADMIN_USERNAME", "KC_BOOTSTRAP_ADMIN_PASSWORD"):
+            with self.subTest(key=key):
+                self.assertNotIn(key, self.base_compose)
+                self.assertNotIn(key, self.compose)
+                self.assertIn(key, self.development_compose)
+                self.assertIn(key, self.bootstrap_compose)
 
 
 if __name__ == "__main__":

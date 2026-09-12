@@ -111,10 +111,22 @@ Web public, le code flow avec PKCE S256, les origines exactes et le mapper d'aud
 Keycloak ignore l'import si le realm existe déjà ; toute évolution ultérieure doit donc passer par une
 opération d'administration explicite et vérifiée, jamais par l'écrasement implicite de données.
 
-Les identifiants `KC_BOOTSTRAP_ADMIN_*` créent un administrateur temporaire dans le realm `master` au
-premier démarrage. Après création et vérification d'un accès administrateur nominatif protégé par MFA,
-supprimer ce compte temporaire et retirer ses identifiants de la configuration privée. Ne pas réutiliser
-ce compte comme utilisateur pilote Nevolium.
+Les identifiants `KC_BOOTSTRAP_ADMIN_*` ne sont présents ni dans `compose.yaml`, ni dans l'overlay de
+production normal. Le développement les ajoute dans `compose.override.yaml`. Une production neuve doit
+ajouter explicitement `compose.keycloak-bootstrap.yaml` au tout premier démarrage seulement :
+
+```bash
+python3 scripts/ops/production.py check --env-file .env.production \
+  --keycloak-bootstrap
+docker compose --env-file .env.production \
+  -f compose.yaml -f compose.production.yaml -f compose.keycloak-bootstrap.yaml \
+  up -d keycloak
+```
+
+Cet overlay crée un administrateur temporaire dans le realm `master`. Tous les redémarrages suivants
+utilisent uniquement `compose.yaml` et `compose.production.yaml`. Après création et vérification d'un
+accès administrateur nominatif protégé par MFA, supprimer le compte temporaire et ses deux affectations
+du fichier privé. Ne pas réutiliser ce compte comme utilisateur pilote Nevolium.
 
 Créer le premier compte applicatif seulement après validation de TLS. La commande refuse un realm non
 vide, lit les identifiants bootstrap depuis le fichier root 0600 sans les afficher, crée d'abord le compte
@@ -168,7 +180,24 @@ sudo python3 scripts/ops/keycloak_nominated_admin.py verify \
 ```
 
 Le bootstrap du realm `master` doit rester actif jusqu'à cette vérification et à une connexion réussie à
-la console. Son retrait constitue une opération séparée avec ses propres contrôles et retour arrière.
+la console. Avant de le retirer, recréer une fois Keycloak avec la topologie de production normale, vérifier
+dans le JSON Compose que les deux variables `KC_BOOTSTRAP_ADMIN_*` sont absentes, puis refaire une connexion
+nominative à la console après ce redémarrage. Le compte bootstrap existe encore en base pendant cette gate.
+
+La commande de retrait exige exactement les deux comptes actifs avec TOTP dans le realm Nevolium, leurs
+rôles `nevolium-user`, `nevolium-admin` et `realm-management/realm-admin`, puis identifie exactement le
+bootstrap dans `master`. Après confirmation littérale, elle supprime ce seul compte, prouve que ses anciens
+identifiants sont refusés et remplace atomiquement le fichier root 0600 par une copie sans les deux lignes
+bootstrap. Elle prépare cette copie avant la suppression et ne l'installe jamais si les préconditions
+échouent :
+
+```bash
+sudo python3 scripts/ops/retire_keycloak_bootstrap.py \
+  --env-file /etc/nevolium/production.env
+```
+
+Après cette opération, ne plus employer `compose.keycloak-bootstrap.yaml`. La topologie normale doit encore
+être rendue, Keycloak doit rester sain et une nouvelle connexion nominative à la console doit réussir.
 
 Initialiser et désceller OpenBao, créer le chemin KV et une policy limitée aux chemins Nevolium utilisés ;
 fournir un token de workload non root. Le contrôle de configuration détecte les valeurs dev/faibles,

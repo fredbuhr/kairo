@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head déployé et qualifié | `7a976bdc8f2805c9b7d7ce93b1cee4b40ebeca9b`, arbre `9492fcb45a4f2d25069233b0abf7939d2af3eb01` |
-| Validation | **10/10 workflows réussis** sur `7a976bd…` ; socle, Core, Web et TLS public vérifiés ; premier compte nominatif actif avec TOTP ; flux PKCE/OIDC et lecture `/v1/today` autorisée par Core avec le vrai jeton utilisateur confirmés depuis Windows |
-| Prochaine action | Créer un administrateur Keycloak nominatif protégé par MFA, vérifier son rôle et sa connexion, puis retirer l'accès bootstrap |
-| Conditions manquantes | Administrateur nominatif/MFA et retrait bootstrap non prouvés ; Worker non déployé ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
+| Head déployé et qualifié | `4225eeed4e5beab8543cd553cbbbac5dba8cc271`, arbre `197072d81e9fbbae838fbbc395208c19263c9671` |
+| Validation | **10/10 workflows réussis** sur `4225eee…` ; socle/Core/Web/TLS et OIDC utilisateur vérifiés ; administrateur nominatif actif avec TOTP, rôles applicatif/realm confirmés et console du realm Nevolium ouverte depuis Windows |
+| Prochaine action | Recréer Keycloak avec la topologie normale sans variables bootstrap, revérifier la console nominative, puis supprimer le bootstrap `master` et ses identifiants privés |
+| Conditions manquantes | Redémarrage sans environnement bootstrap et retrait du compte `master` non prouvés ; Worker non déployé ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -88,8 +88,14 @@ a été basculé puis vérifié sur la nouvelle URL.
 - Transition vers un administrateur nominatif préparée sans réutiliser le compte standard : création
   désactivée, mot de passe temporaire et TOTP obligatoires, rôle applicatif `nevolium-admin` et composite
   `realm-management/realm-admin` limité au realm Nevolium. La commande refuse un état initial ambigu et
-  supprime la nouvelle identité sur attribution incomplète. Elle n'a pas encore été exécutée sur la cible ;
-  l'administrateur bootstrap du realm `master` reste intact.
+  supprime la nouvelle identité sur attribution incomplète. La cible contient désormais ce compte actif :
+  mot de passe initial remplacé, TOTP présent, aucune action restante, deux rôles vérifiés et console du
+  realm Nevolium ouverte depuis Windows. L'administrateur bootstrap du realm `master` reste intact.
+- Retrait bootstrap préparé en deux gates. Les variables `KC_BOOTSTRAP_ADMIN_*` quittent les topologies
+  standard et restent uniquement dans les overlays dev et bootstrap initial explicite. Keycloak devra
+  d'abord être recréé et sa console nominative revérifiée sans ces variables de conteneur. La commande
+  suivante vérifiera ensuite les deux identités MFA, supprimera exactement le bootstrap `master`, refusera
+  son ancien login et retirera atomiquement ses deux secrets du fichier privé. Aucun retrait exécuté.
 - Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
   vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
   révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien
