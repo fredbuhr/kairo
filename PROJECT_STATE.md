@@ -1,6 +1,6 @@
 # Nevolium — checkpoint de reprise
 
-Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
+Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 
 ## Source canonique
 
@@ -17,9 +17,9 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head Nevolium qualifié | `d9478deada2c2c1781958abd87779b9a5e7c11f2`, arbre `898306b233b7f16de6b28b19f78304498e0d7b2e` |
-| Validation | **10/10 workflows réussis**, **5/5 jobs D04** sur le précédent head Nevolium ; le checkpoint de renouvellement OpenBao doit repasser ces gates |
-| Prochaine action | Attendre les workflows du head live, actualiser le checkout serveur, puis initialiser OpenBao avec export séparé du matériel de récupération |
+| Head Nevolium qualifié | `f2e22e09867fdf8dfd6d842cf393b905764d4a2a`, arbre `7b37615fd7c00c8340a12bde45b5f26d7a585895` |
+| Validation | **10/10 workflows réussis**, **5/5 jobs D04** sur le head qualifié ; run D04 `34662416910`, renouvellement/refus/restauration OpenBao réussis |
+| Prochaine action | Actualiser le checkout serveur, initialiser OpenBao, exporter séparément le matériel de récupération, puis configurer le renouvellement surveillé |
 | Conditions manquantes | OpenBao démarré mais non initialisé ; Nevolium non déployé ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
