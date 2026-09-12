@@ -97,6 +97,9 @@ jobs:
       - name: Prove production settings, JWT claims, ops separation and effective topologies
         run: uv run --locked --all-packages python scripts/smoke/deployment_contract.py
 
+      - name: Prove monitored OpenBao token renewal contract
+        run: python scripts/smoke/openbao_renewal_contract.py
+
       - name: Prepare isolated public-address alias for real TLS/DNS proofs
         run: |
           sudo ip addr add 93.184.216.34/32 dev lo

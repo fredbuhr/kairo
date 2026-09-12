@@ -1,0 +1,11 @@
+[Unit]
+Description=Renew the Nevolium OpenBao workload token every day
+
+[Timer]
+OnCalendar=*-*-* 03:17:00 UTC
+RandomizedDelaySec=30min
+Persistent=true
+Unit=nevolium-openbao-renew.service
+
+[Install]
+WantedBy=timers.target

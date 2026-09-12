@@ -133,6 +133,34 @@ Le jeton de workload reste dans le fichier d'environnement privé et son accesso
 moins 24 caractères alphanumériques ; ils sont validés par leur format et leurs capacités effectives,
 tandis que les autres secrets Nevolium conservent le minimum de 32 caractères.
 
+Le renouvellement surveillé est installé comme un exécutable root stable et un timer systemd. Le service
+lit les deux fichiers privés sans les afficher, lie le jeton à l'accessor enregistré, exige l'unique policy
+`nevolium-core`, l'absence de parent et de policy `default`, la période de sept jours et un TTL renouvelé
+d'au moins six jours. Il verrouille les exécutions concurrentes, nettoie le jeton temporaire du conteneur
+et échoue sans inclure le secret dans ses diagnostics.
+
+```bash
+sudo install -D -o root -g root -m 0755 \
+  scripts/ops/renew_openbao_token.py \
+  /usr/local/libexec/nevolium-openbao-renew
+sudo install -o root -g root -m 0644 \
+  infrastructure/systemd/nevolium-openbao-renew.service \
+  infrastructure/systemd/nevolium-openbao-renew.timer \
+  /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl start nevolium-openbao-renew.service
+sudo systemctl enable --now nevolium-openbao-renew.timer
+systemctl --no-pager status nevolium-openbao-renew.service
+systemctl list-timers --all nevolium-openbao-renew.timer
+```
+
+Le démarrage manuel du service est la gate avant activation du timer. Celui-ci renouvelle chaque jour à
+03:17 UTC avec jusqu'à trente minutes de dispersion et rattrape une échéance manquée. Un échec reste
+visible dans l'état systemd et dans `journalctl -u nevolium-openbao-renew.service` sans valeur secrète ;
+une notification externe demeure à raccorder au futur canal d'exploitation. Après un redémarrage avec
+Shamir, OpenBao reste scellé jusqu'au déscellement opérateur : contrôler ensuite le service immédiatement,
+sans attendre le timer. Réinstaller l'exécutable et les unités après une mise à niveau de cette procédure.
+
 Si une première exécution a été interrompue après l'initialisation et avant l'écriture du jeton dans
 l'environnement, ne jamais réinitialiser le coffre. Après diagnostic, reprendre explicitement :
 
