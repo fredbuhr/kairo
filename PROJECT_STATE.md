@@ -18,7 +18,7 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
 | Head Nevolium qualifié | `8bb9cc8ce57526ecc760cc031db55d1a40a4490e`, arbre `1cf073fdb57136eefc6bee444057305818cda246` |
-| Validation | **10/10 workflows réussis** sur `8bb9cc8…` ; la reprise cible s'est arrêtée sans révocation car OpenBao CLI renvoie directement le tableau JSON des accessors |
+| Validation | **10/10 workflows réussis** sur `8bb9cc8…` ; Foundation sur `c25ce72…` a détecté une enveloppe vide insuffisamment refusée, correction stricte à revalider |
 | Prochaine action | Valider le parseur des deux formes de liste, actualiser la cible, reprendre OpenBao, vérifier le garde, puis exporter séparément le matériel de récupération |
 | Conditions manquantes | OpenBao initialisé/déscellé mais bootstrap interrompu avant enregistrement du jeton de workload ; Nevolium non déployé ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |

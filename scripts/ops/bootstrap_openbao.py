@@ -97,7 +97,10 @@ def accessor_keys(listing):
     if isinstance(listing, list):
         accessors = listing
     elif isinstance(listing, dict):
-        accessors = listing.get("data", {}).get("keys", [])
+        data = listing.get("data")
+        if not isinstance(data, dict) or "keys" not in data:
+            raise RuntimeError("liste des accessors OpenBao inattendue")
+        accessors = data["keys"]
     else:
         raise RuntimeError("liste des accessors OpenBao inattendue")
     if (not isinstance(accessors, list)
