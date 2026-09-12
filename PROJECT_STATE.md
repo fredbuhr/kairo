@@ -19,8 +19,8 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
 | Head Nevolium qualifié | `d9478deada2c2c1781958abd87779b9a5e7c11f2`, arbre `898306b233b7f16de6b28b19f78304498e0d7b2e` |
 | Validation | **10/10 workflows réussis**, **5/5 jobs D04** sur le head Nevolium ; verrou identité, builds Python/JS, topologies et scénarios réels CI réussis |
-| Prochaine action | Créer le snapshot du socle durci, installer Docker/Compose sur netcup, puis préparer le déploiement privé D04 |
-| Conditions manquantes | Docker et Nevolium non déployés ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
+| Prochaine action | Actualiser le checkout serveur au head documenté, valider le gabarit production, puis préparer secrets privés et ingress/TLS D04 |
+| Conditions manquantes | Nevolium non déployé ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -74,8 +74,11 @@ et plan D05–D22 ajustés dans la même PR ; choix de conception, pas fonctionn
 Netcup RS 4000 G12 livré à Vienne : 12 CPU AMD64, 32 Gio de RAM et disque 1 Tio. Debian 13,
 accès administratif non-root par clé, SSH durci, mises à jour automatiques, journald persistant,
 Fail2ban et pare-feu nftables/fournisseur ont été vérifiés, puis revérifiés après cold boot. DNS,
-APT, HTTPS et ICMP fonctionnent en IPv4/IPv6. Aucun identifiant réseau, compte ou secret n'est versionné ;
-[preuve expurgée](docs/archive/server-foundation-2026-09-11.md). Docker et Nevolium ne sont pas encore installés.
+APT, HTTPS et ICMP fonctionnent en IPv4/IPv6. Un snapshot hors ligne a précédé la migration du pare-feu
+hôte vers iptables-nft compatible Docker. Docker Engine/Compose officiels, rotation des logs,
+`live-restore` et `DOCKER-USER` ont été vérifiés ; le checkout D04 public est propre. Aucun identifiant
+réseau, compte ou secret n'est versionné ; [preuve expurgée](docs/archive/server-foundation-2026-09-11.md).
+Nevolium n'est pas encore déployé.
 ASUS TUF Gaming A16
 FA608PM relevé pour une répétition ultérieure : Ryzen 9 8940HX, 32 Go RAM, RTX 5060 Laptop 8 Go,
 environ 586 Go libres sous Windows x64. Budget préféré 50 €/mois, maximum 90 €, pilote 3–4 personnes.

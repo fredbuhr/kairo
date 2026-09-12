@@ -54,6 +54,10 @@ non-root par clé, SSH sans root/mot de passe, mises à jour automatiques, journ
 pare-feu hôte à refus entrant-by-default et pare-feu fournisseur. Un cold boot a conservé l'accès et les
 services ; DNS, APT, ICMP et HTTPS fonctionnent en IPv4/IPv6. Aucun moteur Nevolium, TLS applicatif ou
 backup indépendant n'est qualifié par ce jalon. [Preuve expurgée](archive/server-foundation-2026-09-11.md).
+Un snapshot hors ligne a ensuite précédé l'installation officielle de Docker Engine 29.8.0 et Compose
+5.5.1. Le pare-feu hôte a été migré vers iptables-nft persistant, Fail2ban vers son action iptables et
+la chaîne `DOCKER-USER` refuse les publications externes hors 80/443. Le démon utilise `live-restore`
+et le pilote de logs local borné. Un conteneur de test fonctionne ; Nevolium n'est pas encore démarré.
 
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,

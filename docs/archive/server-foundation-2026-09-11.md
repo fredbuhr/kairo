@@ -1,6 +1,6 @@
 # D04 — socle serveur privé validé le 11 septembre 2026
 
-Ce rapport conserve le jalon opératoire vérifié avant l'installation de Docker. Il ne contient ni
+Ce rapport conserve le jalon opératoire vérifié avant puis pendant l'installation de Docker. Il ne contient ni
 adresse IP/MAC, identifiant fournisseur, compte d'administration, clé, empreinte de clé, secret ou
 capture du panneau. Les valeurs propres à l'installation restent dans le registre d'exploitation privé.
 
@@ -10,7 +10,7 @@ capture du panneau. Les valeurs propres à l'installation restent dans le regist
 - Debian 13 (trixie), noyau `6.12.107+deb13-amd64`, horloge UTC et synchronisation NTP active.
 - Nom d'hôte court et FQDN cohérents ; résolution locale normalisée. Cloud-init est désactivé sur l'image
   fournisseur et ne réécrit pas ces valeurs.
-- Ce jalon qualifie l'accès et le socle système. Il ne qualifie encore ni Docker, ni Nevolium, ni TLS,
+- Ce jalon qualifie l'accès, le socle système et l'exécution Docker. Il ne qualifie encore ni Nevolium, ni TLS,
   ni les moteurs, ni les sauvegardes applicatives.
 
 ## Accès administratif
@@ -26,21 +26,23 @@ capture du panneau. Les valeurs propres à l'installation restent dans le regist
 
 ## Maintenance et journalisation
 
-- `unattended-upgrades`, les deux timers APT, Fail2ban et nftables sont activés et persistants.
+- `unattended-upgrades`, les deux timers APT, Fail2ban et `netfilter-persistent` sont activés et persistants.
 - Mises à jour automatiques quotidiennes, nettoyage hebdomadaire, noyaux inutilisés supprimables et
   redémarrage automatique interdit. Le dry-run s'est terminé avec le code 0.
 - Journal systemd persistant, compressé et scellé, plafond 1 Gio, réserve disque 5 Gio, plafond runtime
   256 Mio et rétention maximale 30 jours.
-- Fail2ban utilise le backend systemd et l'action nftables pour SSH : quatre échecs sur dix minutes,
+- Fail2ban utilise le backend systemd et l'action `iptables-multiport` pour SSH : quatre échecs sur dix minutes,
   bannissement initial d'une heure, croissance jusqu'à une semaine. Configuration, socket et jail SSH
   ont été vérifiés après redémarrage.
 
 ## Défense réseau en profondeur
 
-Le pare-feu hôte nftables possède une chaîne `input` à refus par défaut : loopback, états
-`established,related`, ICMP/ICMPv6 et nouveaux flux TCP vers 22/80/443 sont acceptés ; états invalides
-refusés. La sortie hôte reste autorisée. PostgreSQL, NATS, Neo4j, OpenBao, Ollama et les interfaces
-d'administration ne doivent jamais être publiés.
+Le premier snapshot hors ligne conserve le socle nftables antérieur à Docker. L'hôte courant a ensuite
+été migré vers `iptables-nft`, backend pris en charge par Docker : chaînes INPUT et FORWARD à refus par
+défaut, OUTPUT autorisée, loopback, états `established,related`, ICMP/ICMPv6 et nouveaux flux TCP vers
+22/80/443 acceptés. Les fichiers IPv4/IPv6 sont restaurés par `netfilter-persistent` ; l'ancien service
+nftables est désactivé. PostgreSQL, NATS, Neo4j, OpenBao, Ollama et les interfaces d'administration ne
+doivent jamais être publiés.
 
 Le pare-feu fournisseur applique avant ses règles implicites une politique personnalisée :
 
@@ -60,10 +62,18 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
 
 - DNS, APT, ping IPv4/IPv6 et HTTPS IPv4/IPv6 réussis après application du pare-feu fournisseur.
 - Arrêt propre puis rallumage exigé par le panneau Netcup effectué.
-- Après cold boot : SSH par clé, nftables, Fail2ban et timers APT actifs ; règles nftables restaurées ;
+- Après le premier cold boot : SSH par clé, nftables, Fail2ban et timers APT actifs ; règles restaurées ;
   réponses HTTPS IPv4 et IPv6 `200`.
 - Debian n'annonçait aucun redémarrage en attente et le noyau courant correspondait au noyau attendu.
+- Snapshot fournisseur hors ligne créé avant Docker. La migration suivante vers `iptables-nft` a elle
+  aussi survécu à un redémarrage : règles IPv4/IPv6, bannissement Fail2ban et connectivité HTTPS conservés.
+- Docker Engine 29.8.0, containerd 2.3.5, Buildx 0.37.1 et Compose 5.5.1 installés depuis le dépôt Docker
+  officiel pour Debian 13. `overlayfs`, cgroups v2/systemd et le conteneur `hello-world` ont été vérifiés.
+- Démon Docker : `live-restore` actif et journaux `local` bornés à cinq fichiers de 10 Mio. Un
+  `ExecStartPost` recalcule l'interface externe et peuple `DOCKER-USER` à chaque démarrage : connexions
+  établies puis ports originaux 80/443 acceptés, autres nouveaux flux externes vers des conteneurs refusés.
+  Le compte d'administration n'est pas membre du groupe root-equivalent `docker`.
 
-Prochain point sûr : créer un snapshot fournisseur nommé sans secret, puis installer Docker Engine et
-Compose depuis le dépôt officiel Debian de Docker. Le snapshot ne remplace pas le futur backup Restic
-chiffré, indépendant du serveur et restauré sur volumes neufs.
+Prochain point sûr : valider la configuration de production Nevolium depuis le checkout D04, préparer
+les secrets hors Git puis déployer l'ingress/TLS et le socle applicatif par paliers. Le snapshot ne
+remplace pas le futur backup Restic chiffré, indépendant du serveur et restauré sur volumes neufs.

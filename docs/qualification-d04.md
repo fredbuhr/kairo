@@ -162,8 +162,10 @@ Ne pas transmettre le mot de passe root, une clé privée, `/etc/shadow`, les va
 ou les fichiers de configuration SSH. Une fois l'accès confirmé, créer l'accès par clé d'un compte
 d'administration, vérifier une seconde connexion dans un autre terminal, puis seulement désactiver
 l'authentification root/mot de passe. Appliquer la politique pare-feu hôte et fournisseur en conservant
-la session active et la console de secours. SSH est limité à l'adresse opérateur ; 80/443 ne sont ouverts
-qu'au moment de configurer l'ingress. PostgreSQL, Neo4j, NATS, OpenBao, Ollama et les interfaces
+la session active et la console de secours. Restreindre SSH à une adresse opérateur stable ou à un VPN
+lorsqu'ils existent ; pendant le pilote à adresses clientes dynamiques, conserver clés seules,
+Fail2ban et double pare-feu, puis enregistrer cette exception. 80/443 ne sont ouverts qu'en préparation
+de l'ingress. PostgreSQL, Neo4j, NATS, OpenBao, Ollama et les interfaces
 d'administration ne sont jamais publiés. Créer un snapshot après mise à jour et durcissement, avant le
 déploiement ; ce snapshot ne remplace pas la restauration Restic hors hôte.
 
