@@ -12,6 +12,7 @@ import unittest
 from unittest.mock import patch
 
 import jwt
+import yaml
 from fastapi import HTTPException
 from cryptography.hazmat.primitives.asymmetric import rsa
 from pydantic import ValidationError
@@ -42,6 +43,21 @@ def core_values():
 
 
 class Deployment(unittest.TestCase):
+    def test_local_fast_is_explicitly_zero_cost_and_on_host(self):
+        for relative_path in (
+            "infrastructure/litellm/config.yaml",
+            "infrastructure/litellm/config.observability.yaml",
+        ):
+            with self.subTest(config=relative_path):
+                document = yaml.safe_load((ROOT / relative_path).read_text(encoding="utf-8"))
+                local = next(
+                    item for item in document["model_list"] if item["model_name"] == "local-fast"
+                )
+                self.assertEqual(local["litellm_params"]["model"], "os.environ/OLLAMA_MODEL")
+                self.assertEqual(local["litellm_params"]["api_base"], "http://ollama:11434")
+                self.assertEqual(local["model_info"]["input_cost_per_token"], 0)
+                self.assertEqual(local["model_info"]["output_cost_per_token"], 0)
+
     def test_openbao_accessor_output_shapes(self):
         accessors = ["abc123", "def456"]
         self.assertEqual(bootstrap_openbao.accessor_keys(accessors), accessors)
