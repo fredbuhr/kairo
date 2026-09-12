@@ -103,6 +103,9 @@ jobs:
       - name: Prove bounded production TLS ingress contract
         run: python scripts/smoke/ingress_contract.py
 
+      - name: Prove user-free production Keycloak bootstrap contract
+        run: python scripts/smoke/keycloak_production_contract.py
+
       - name: Prepare isolated public-address alias for real TLS/DNS proofs
         run: |
           sudo ip addr add 93.184.216.34/32 dev lo

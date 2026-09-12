@@ -25,6 +25,7 @@ services:
   keycloak:
     command:
     - start
+    - --import-realm
     environment:
       KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL}
       KC_HTTP_ENABLED: 'true'
@@ -34,6 +35,10 @@ services:
       KC_DB_USERNAME: keycloak_app
       KC_DB_PASSWORD: ${KEYCLOAK_DATABASE_PASSWORD}
       KC_PROXY_TRUSTED_ADDRESSES: ${KEYCLOAK_PROXY_TRUSTED_ADDRESSES}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      NEVOLIUM_CORS_ORIGINS: ${NEVOLIUM_CORS_ORIGINS}
+    volumes:
+    - ./infrastructure/keycloak/nevolium-production-realm.json:/opt/keycloak/data/import/nevolium-realm.json:ro
     networks: !override
     - identity
     - ingress

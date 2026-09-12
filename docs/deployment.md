@@ -93,6 +93,18 @@ comme dans la fixture de développement. Le Core vérifie RS256, issuer, audienc
 `typ=Bearer`, sujet/rôles et dates. Un ID token ou un access token d'un autre client est refusé.
 Limiter `KEYCLOAK_PROXY_TRUSTED_ADDRESSES` à l'adresse/CIDR du proxy TLS réellement utilisé.
 
+Le premier démarrage de production monte uniquement `nevolium-production-realm.json` et utilise
+`--import-realm`. Ce fichier ne contient aucun utilisateur ni secret : il crée les deux rôles, le client
+Web public, le code flow avec PKCE S256, les origines exactes et le mapper d'audience. La fixture
+`nevolium-realm.json` reste réservée au développement et ne doit jamais être montée en production.
+Keycloak ignore l'import si le realm existe déjà ; toute évolution ultérieure doit donc passer par une
+opération d'administration explicite et vérifiée, jamais par l'écrasement implicite de données.
+
+Les identifiants `KC_BOOTSTRAP_ADMIN_*` créent un administrateur temporaire dans le realm `master` au
+premier démarrage. Après création et vérification d'un accès administrateur nominatif protégé par MFA,
+supprimer ce compte temporaire et retirer ses identifiants de la configuration privée. Ne pas réutiliser
+ce compte comme utilisateur pilote Nevolium.
+
 Initialiser et désceller OpenBao, créer le chemin KV et une policy limitée aux chemins Nevolium utilisés ;
 fournir un token de workload non root. Le contrôle de configuration détecte les valeurs dev/faibles,
 pas la portée réelle d'un token OpenBao : vérifier ses droits dans le scénario D04 et les renouveler.

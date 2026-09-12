@@ -1,0 +1,61 @@
+{
+  "realm": "${KEYCLOAK_REALM}",
+  "enabled": true,
+  "displayName": "Nevolium",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxDeltaTimeSeconds": 43200,
+  "roles": {
+    "realm": [
+      {
+        "name": "nevolium-user",
+        "description": "Authenticated Nevolium user"
+      },
+      {
+        "name": "nevolium-admin",
+        "description": "Nevolium trust-boundary administrator"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "${KEYCLOAK_CLIENT_ID}",
+      "name": "Nevolium Web",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "${NEVOLIUM_CORS_ORIGINS}/*"
+      ],
+      "webOrigins": [
+        "${NEVOLIUM_CORS_ORIGINS}"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "nevolium-core-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "nevolium-core",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ]
+}
