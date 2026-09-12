@@ -18,9 +18,9 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
 | Head Nevolium qualifié | `b5acf0ef6e10d291a8e264eec40fa76dbf98bb83`, arbre `caea5b20421594c695d1476a7efddfad60869327` |
-| Validation | **10/10 workflows réussis** sur `b5acf0e…` ; OpenBao, PostgreSQL, Keycloak, NATS/JetStream, SeaweedFS et Temporal vérifiés sur la cible, persistants et sans port moteur publié |
-| Prochaine action | Démarrer et vérifier Core seul sur son port loopback, puis Web ; installer Caddy seulement lorsque ses trois upstreams sont prêts, avant le preflight public |
-| Conditions manquantes | Core et Web non déployés ; Caddy/TLS et routes publiques refusées non prouvés ; premier compte nominatif avec MFA absent ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
+| Validation | **10/10 workflows réussis** sur `73492a9…` ; socle interne, Core et Web vérifiés sur la cible, services moteur non publiés et ports applicatifs limités au loopback |
+| Prochaine action | Installer et valider Caddy avec ses trois upstreams prêts, puis exécuter le preflight TLS/routage depuis un client extérieur avant de créer le premier compte nominatif |
+| Conditions manquantes | Caddy/TLS et routes publiques refusées non prouvés ; premier compte nominatif avec MFA absent ; Worker non déployé ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -69,6 +69,11 @@ a été basculé puis vérifié sur la nouvelle URL.
 - Temporal 1.31.2 est sain sur les réseaux canonique/exécution, sans port hôte. Les schémas `temporal` et
   `temporal_visibility` sont installés dans PostgreSQL et le namespace `default` est vérifié ; les deux
   conteneurs ponctuels de préparation et de namespace se sont terminés avec le code 0.
+- Core est opérationnel sur `127.0.0.1:8000` : ses dépendances et frontières de confiance répondent,
+  la requête anonyme et celle munie d'un faux jeton sont refusées, le jeton workload OpenBao est utilisable
+  et le conteneur non-root reste en lecture seule, sans capacités Linux. Web sert le build de production
+  sur `127.0.0.1:5173`, avec URLs API/auth publiques embarquées, routage SPA et en-têtes de sécurité
+  vérifiés ; son unique réseau est `frontend`. Aucun de ces deux ports n'est encore exposé sur Internet.
 - Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
   vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
   révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien
@@ -102,7 +107,7 @@ hôte vers iptables-nft compatible Docker. Docker Engine/Compose officiels, rota
 `live-restore` et `DOCKER-USER` ont été vérifiés ; le checkout D04 public est propre. Aucun identifiant
 réseau, compte ou secret n'est versionné ; [preuve expurgée](docs/archive/server-foundation-2026-09-11.md).
 Le socle Nevolium est déployé par paliers : OpenBao 2.6.2, PostgreSQL, Keycloak, NATS/JetStream,
-SeaweedFS et Temporal fonctionnent ; Core, Worker et Web restent arrêtés. OpenBao utilise son backend
+SeaweedFS, Temporal, Core et Web fonctionnent ; Worker reste arrêté. OpenBao utilise son backend
 fichier persistant et son port 8200 n'est pas publié sur l'hôte. Après deux arrêts sûrs ayant révélé le format de jeton puis
 la réponse CLI des accessors, la reprise contrôlée a révoqué l'unique jeton interrompu et enregistré
 un nouveau jeton périodique orphelin de sept jours. Sa policy sans policy `default` autorise seulement

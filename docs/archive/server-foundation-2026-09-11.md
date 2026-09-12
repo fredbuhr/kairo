@@ -128,7 +128,20 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
 - Le commit de correction SeaweedFS `b5acf0e…` passe les dix workflows GitHub avant son installation sur
   la cible. NATS, SeaweedFS et Temporal restent opérationnels après leurs contrôles croisés.
 
-Prochain point sûr : démarrer et vérifier Core seul, puis Web ; installer Caddy seulement lorsque ses
-upstreams loopback sont prêts, puis prouver TLS et les refus des
-routes internes avec le preflight cible. Le paquet de clés ne remplace pas le futur backup Restic
-chiffré, indépendant du serveur et restauré sur volumes neufs.
+## Extension vérifiée le 12 septembre — Core et Web
+
+- Core est construit et actif sur `127.0.0.1:8000`. Ses contrôles de disponibilité confirment
+  PostgreSQL, NATS, Temporal et SeaweedFS ; sa frontière de confiance confirme Keycloak, OpenBao et S3.
+  L'appel anonyme et celui muni d'un faux bearer sont refusés par 401.
+- Le jeton workload OpenBao de Core réalise une lecture autorisée sans disposer du jeton root. Le
+  conteneur s'exécute avec l'UID/GID applicatif, racine en lecture seule, toutes capacités retirées et
+  `no-new-privileges`, sur les seuls réseaux prévus.
+- Web sert le build statique de production sur `127.0.0.1:5173`. Les URLs exactes de l'API et de Keycloak
+  sont présentes dans les artefacts ; la page d'entrée, le repli SPA, les refus 404/405 et les en-têtes
+  `nosniff`, `DENY` et `same-origin` sont vérifiés.
+- Web est non-root, en lecture seule, sans capacité Linux et limité au réseau `frontend`. Core et Web ne
+  sont donc joignables que depuis l'hôte ; aucune exposition Internet applicative n'est encore active.
+
+Prochain point sûr : installer Caddy maintenant que ses trois upstreams loopback sont prêts, puis prouver
+TLS et les refus des routes internes avec le preflight cible. Le paquet de clés ne remplace pas le futur
+backup Restic chiffré, indépendant du serveur et restauré sur volumes neufs.

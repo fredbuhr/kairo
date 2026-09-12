@@ -85,7 +85,16 @@ multiréseau a montré qu'il choisissait et annonçait seulement l'interface `te
 `-ip=seaweedfs` et l'écoute `-ip.bind=0.0.0.0` corrigent le routage sur les deux réseaux sans ouvrir l'hôte.
 Temporal 1.31.2 est sain, ses schémas d'exécution/visibilité sont présents dans PostgreSQL, le namespace
 `default` répond et le port 7233 reste interne. Les tâches ponctuelles SQL et namespace sont sorties avec
-le code 0. Le correctif SeaweedFS `b5acf0e…` passe 10/10 workflows. Core, Worker, Web et Caddy restent arrêtés.
+le code 0. Le correctif SeaweedFS `b5acf0e…` et le checkpoint documentaire `73492a9…` passent chacun
+10/10 workflows.
+
+Core et Web sont désormais vérifiés sur la cible. Core répond sur `127.0.0.1:8000`, confirme ses quatre
+dépendances et ses trois frontières de confiance, refuse l'accès anonyme comme un faux bearer, et utilise
+le jeton workload OpenBao sans élargissement de policy. Web sert le build de production sur
+`127.0.0.1:5173` ; les URLs publiques API et Keycloak sont embarquées, le routage SPA, les refus 404/405
+et les en-têtes de sécurité sont vérifiés. Les deux conteneurs sont non-root, en lecture seule, sans
+capacités Linux et limités aux réseaux prévus. Worker et Caddy restent arrêtés ; aucune exposition
+Internet applicative n'est active.
 
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
@@ -103,12 +112,12 @@ la qualification graphique mobile restent à livrer. Présence de Three/Tauri/Yj
 
 | Domaine | Présent dans le code | Ce qui reste à prouver/livrer |
 |---|---|---|
-| État durable | PostgreSQL migré, NATS/JetStream, SeaweedFS et Temporal/namespace `default` actifs sur réseaux internes ; migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Parcours applicatif Core/Worker, dimensionnement réel, archivage canonique et charge sur matériel identifié |
+| État durable | PostgreSQL migré, NATS/JetStream, SeaweedFS et Temporal/namespace `default` actifs sur réseaux internes ; Core relit ses dépendances ; migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Parcours Worker, dimensionnement réel, archivage canonique et charge sur matériel identifié |
 | Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables | Mesure réelle des moteurs et du matériel en D04 |
-| Identité et actions | Keycloak de production sur loopback, realm neuf sans utilisateur et issuer public vérifié ; ownership, policy/approbations, registre MCP et invocations idempotentes | Premier compte nominatif/MFA, TLS public et parcours OIDC complet ; UX de rapprochement des coûts incertains |
+| Identité et actions | Keycloak et Core de production sur loopback, realm neuf sans utilisateur, issuer public et refus anonyme/faux jeton vérifiés ; ownership, policy/approbations, registre MCP et invocations idempotentes | Premier compte nominatif/MFA, TLS public et parcours OIDC complet ; UX de rapprochement des coûts incertains |
 | Intelligence | Routing/recherche, Context Packs et gateway avec admission, estimations réservées, sortie bornée et replay comptable | Choix utilisateur des modèles/clés, UX Agents/Skills, preuve coûts et vrais moteurs |
 | Documents et mémoire | Ingestion/version/chunks, recherche/inspection Web, projections mémoire reconstruisibles | CI Documents emploie le fallback texte, mémoire emploie des stubs ; vraie intégration Docling/Mem0/Graphiti à mesurer en D04 |
-| Cockpit | Panneaux persistés par sujet, Command Center, Projects, Today, Research, News, Knowledge | Design Mycelium complet, réglages, attention et parcours cohérents |
+| Cockpit | Build Web de production actif sur loopback avec API/auth publiques embarquées ; panneaux persistés par sujet, Command Center, Projects, Today, Research, News, Knowledge | TLS public, parcours OIDC nominatif, design Mycelium complet, réglages, attention et parcours cohérents |
 | Planification | Priorité, dates prévues/échéance, PATCH owner-scoped, Today/fuseaux | Gantt, calendrier complet, dépendances/jalons/Kanban et récurrences |
 | Graphes | Relations canoniques, interfaces dans `packages/graph` | Mindmap 2D éditable et rendu Mycelium 3D absents du `main` inspecté |
 | Realtime/Desktop/voix | Scaffolds ou moteurs configurés | Auth/persistence collaboration, Sidecar, permissions appareil et parcours vocal |
