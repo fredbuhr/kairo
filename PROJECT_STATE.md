@@ -17,9 +17,9 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head Nevolium qualifié | `052fa7c8e1f4f1234f698ee0283e603ffb12a9c2`, arbre `99451931f64b8e3a88b0c8def614c0ca5f58a6b1` |
-| Validation | **10/10 workflows réussis** sur `052fa7c…` ; récupération OpenBao chiffrée vérifiée hors serveur, jeton root révoqué, copies serveur retirées ; workload renouvelé sur cible et timer quotidien actif, service sain |
-| Prochaine action | Configurer l'ingress/TLS borné, puis exécuter le preflight cible avant tout déploiement élargi ou campagne de charge |
+| Head Nevolium qualifié | `bfb787842b6a637eab5131924b0447b4ae88805c`, arbre `34967ec11e8f9cca8fec5f1fcaec15624c05b551` |
+| Validation | **10/10 workflows réussis** sur `bfb7878…` ; récupération OpenBao et renouvellement cible prouvés ; configuration Caddy bornée et contrat 3/3 validés, sans déploiement du proxy à ce stade |
+| Prochaine action | Synchroniser la cible sur `bfb7878…`, démarrer les upstreams loopback contrôlés, puis installer/valider Caddy et exécuter le preflight avant toute charge |
 | Conditions manquantes | Autres services Nevolium non déployés ; domaine/TLS et routes publiques refusées non prouvés ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
@@ -51,6 +51,9 @@ a été basculé puis vérifié sur la nouvelle URL.
 - Inventaire et contrôle préalable cible prêts : TLS, refus anonyme/faux jeton, JSON Nevolium attendu et
   routes privées bloquées avant la charge ; réponses bornées et erreurs sans secrets. Six tests HTTP/TLS
   réussis en CI. Les clients virtuels ne sont pas des comptes distincts ; le serveur de fixture ne mesure pas la capacité Nevolium.
+- Ingress Caddy hôte préparé pour `app`, `api` et `auth` : HTTPS automatique, upstreams loopback,
+  API limitée à `/v1` et `/v1/*`, refus 404 par défaut et absence de journal d'accès. Le contrat statique
+  passe 3/3 ; l'installation, les certificats et les refus depuis un client extérieur restent à prouver.
 - Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
   vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
   révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien
