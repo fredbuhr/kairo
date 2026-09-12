@@ -116,6 +116,28 @@ premier démarrage. Après création et vérification d'un accès administrateur
 supprimer ce compte temporaire et retirer ses identifiants de la configuration privée. Ne pas réutiliser
 ce compte comme utilisateur pilote Nevolium.
 
+Créer le premier compte applicatif seulement après validation de TLS. La commande refuse un realm non
+vide, lit les identifiants bootstrap depuis le fichier root 0600 sans les afficher, crée d'abord le compte
+désactivé, puis configure un mot de passe temporaire, le rôle `nevolium-user` et les actions obligatoires
+`UPDATE_PASSWORD`/`CONFIGURE_TOTP` avant de l'activer. Tout échec intermédiaire retire ce compte neuf :
+
+```bash
+sudo python3 scripts/ops/keycloak_first_user.py create \
+  --env-file /etc/nevolium/production.env
+```
+
+Après la première connexion Web, le changement de mot de passe et l'enregistrement TOTP, vérifier l'état
+sans afficher l'identité ou les credentials :
+
+```bash
+sudo python3 scripts/ops/keycloak_first_user.py verify \
+  --env-file /etc/nevolium/production.env
+```
+
+Ce compte standard n'est pas l'administrateur Keycloak nominatif requis avant le retrait du bootstrap.
+Ne pas supprimer le bootstrap ni ses variables tant que l'accès d'administration de remplacement avec
+MFA n'a pas été créé et testé séparément.
+
 Initialiser et désceller OpenBao, créer le chemin KV et une policy limitée aux chemins Nevolium utilisés ;
 fournir un token de workload non root. Le contrôle de configuration détecte les valeurs dev/faibles,
 pas la portée réelle d'un token OpenBao : vérifier ses droits dans le scénario D04 et les renouveler.
