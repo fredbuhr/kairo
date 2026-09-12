@@ -148,6 +148,28 @@ Ce compte standard n'est pas l'administrateur Keycloak nominatif requis avant le
 Ne pas supprimer le bootstrap ni ses variables tant que l'accès d'administration de remplacement avec
 MFA n'a pas été créé et testé séparément.
 
+Créer ensuite un compte administratif distinct dans le realm `nevolium`. La commande exige qu'il n'existe
+encore que le compte applicatif standard, refuse tout identifiant ou e-mail déjà utilisé, crée le compte
+désactivé puis lui attribue le rôle applicatif `nevolium-admin` et le rôle client `realm-management/realm-admin`.
+Ce dernier limite l'administration au realm Nevolium ; il ne crée pas un second super-administrateur du
+realm `master`. Un échec intermédiaire supprime automatiquement la nouvelle identité :
+
+```bash
+sudo python3 scripts/ops/keycloak_nominated_admin.py create \
+  --env-file /etc/nevolium/production.env
+```
+
+Après remplacement du mot de passe temporaire et configuration du TOTP depuis la console d'administration
+du realm Nevolium, vérifier le compte, ses deux rôles et l'absence d'action initiale restante :
+
+```bash
+sudo python3 scripts/ops/keycloak_nominated_admin.py verify \
+  --env-file /etc/nevolium/production.env
+```
+
+Le bootstrap du realm `master` doit rester actif jusqu'à cette vérification et à une connexion réussie à
+la console. Son retrait constitue une opération séparée avec ses propres contrôles et retour arrière.
+
 Initialiser et désceller OpenBao, créer le chemin KV et une policy limitée aux chemins Nevolium utilisés ;
 fournir un token de workload non root. Le contrôle de configuration détecte les valeurs dev/faibles,
 pas la portée réelle d'un token OpenBao : vérifier ses droits dans le scénario D04 et les renouveler.

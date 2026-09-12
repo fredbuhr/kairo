@@ -17,8 +17,8 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head déployé et qualifié | `6475bf6e93aab48594034bea460ec088f8c15f6c`, arbre `7997104b6fdf6def474a5aaa673963820fb4acf5` |
-| Validation | **10/10 workflows réussis** sur `56ddda0…` ; socle, Core, Web et TLS public vérifiés ; premier compte nominatif actif avec TOTP ; flux PKCE/OIDC et lecture `/v1/today` autorisée par Core avec le vrai jeton utilisateur confirmés depuis Windows |
+| Head déployé et qualifié | `7a976bdc8f2805c9b7d7ce93b1cee4b40ebeca9b`, arbre `9492fcb45a4f2d25069233b0abf7939d2af3eb01` |
+| Validation | **10/10 workflows réussis** sur `7a976bd…` ; socle, Core, Web et TLS public vérifiés ; premier compte nominatif actif avec TOTP ; flux PKCE/OIDC et lecture `/v1/today` autorisée par Core avec le vrai jeton utilisateur confirmés depuis Windows |
 | Prochaine action | Créer un administrateur Keycloak nominatif protégé par MFA, vérifier son rôle et sa connexion, puis retirer l'accès bootstrap |
 | Conditions manquantes | Administrateur nominatif/MFA et retrait bootstrap non prouvés ; Worker non déployé ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
@@ -85,6 +85,11 @@ a été basculé puis vérifié sur la nouvelle URL.
   par Authorization Code + PKCE et `/v1/today` a rendu l'état vide du propriétaire sans erreur : Caddy et
   Core ont donc accepté le vrai bearer `nevolium-user`. Ce compte ne remplace pas le futur administrateur
   Keycloak nominatif.
+- Transition vers un administrateur nominatif préparée sans réutiliser le compte standard : création
+  désactivée, mot de passe temporaire et TOTP obligatoires, rôle applicatif `nevolium-admin` et composite
+  `realm-management/realm-admin` limité au realm Nevolium. La commande refuse un état initial ambigu et
+  supprime la nouvelle identité sur attribution incomplète. Elle n'a pas encore été exécutée sur la cible ;
+  l'administrateur bootstrap du realm `master` reste intact.
 - Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
   vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
   révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien

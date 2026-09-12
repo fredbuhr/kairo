@@ -105,6 +105,10 @@ servent Web et le bon issuer Keycloak. La racine et les chemins privés de l'API
 `127.0.0.1:2019`. Le premier utilisateur réel et son enrôlement MFA sont qualifiés. Depuis Windows,
 le cockpit obtenu après Authorization Code + PKCE a chargé `/v1/today` sans erreur ; Core a donc validé
 le vrai bearer, son audience/issuer/azp et le rôle `nevolium-user`, puis appliqué la lecture owner-scoped.
+La branche prépare séparément un administrateur nominatif du seul realm Nevolium avec mot de passe
+temporaire, TOTP obligatoire, rôle applicatif `nevolium-admin`, composite `realm-management/realm-admin`
+et suppression automatique de la nouvelle identité si l'attribution ne peut pas être vérifiée. Cette
+transition n'est pas encore exécutée sur la cible et le bootstrap `master` reste actif.
 
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
