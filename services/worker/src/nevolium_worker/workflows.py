@@ -131,8 +131,8 @@ class TaskExecutionWorkflow:
                 result = await workflow.execute_activity(
                     perform_semantic_route,
                     work_payload,
-                    start_to_close_timeout=timedelta(seconds=90),
-                    heartbeat_timeout=timedelta(seconds=60),
+                    start_to_close_timeout=timedelta(seconds=120),
+                    heartbeat_timeout=timedelta(seconds=90),
                     retry_policy=ACTIVITY_RETRY,
                 )
             elif capability == "research.autonomous":

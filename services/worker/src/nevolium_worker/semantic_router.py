@@ -20,9 +20,11 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
 
 from .config import settings
 from .model_gateway import (
+    ModelCallOutcomeUnknown,
     chat_completion,
     deterministic_model_call_key,
     read_activity_model_checkpoint,
@@ -191,12 +193,20 @@ async def perform_semantic_route(payload: dict[str, Any]) -> dict[str, Any]:
             resume_checkpoint=resume_checkpoint,
             temperature=0.0,
             estimated_cost_usd=Decimal(str(settings.nevolium_semantic_router_estimated_cost_usd)),
-            timeout_seconds=45.0,
+            timeout_seconds=60.0,
         )
         return result.content
 
     try:
         proposal = await semantic_route_with_pydantic_ai(task_input, accounted_completion)
+    except ModelCallOutcomeUnknown as exc:
+        # A prior attempt may already have reached LiteLLM/Ollama. Retrying this activity would
+        # repeat only the same fail-closed checkpoint, so stop Temporal retries explicitly.
+        raise ApplicationError(
+            "Semantic model outcome is unknown; refusing blind replay",
+            type="ModelCallOutcomeUnknown",
+            non_retryable=True,
+        ) from exc
     except UnexpectedModelBehavior as exc:
         # One paid/local model call may already have completed. Do not trigger a second hidden model
         # turn just to repair invalid JSON; Core receives a conservative unsupported proposal.

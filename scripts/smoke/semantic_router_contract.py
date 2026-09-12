@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 from typing import Any
 
+from nevolium_worker import semantic_router, workflows
 from nevolium_worker.semantic_router import SemanticRouteTask, semantic_route_with_pydantic_ai
 
 
@@ -56,6 +58,48 @@ def route_json(*, capability: str = "news.brief", confidence: float = 0.94) -> s
 
 
 async def main() -> None:
+    activity_source = inspect.getsource(semantic_router.perform_semantic_route)
+    assert "timeout_seconds=60.0" in activity_source, activity_source
+    assert "except ModelCallOutcomeUnknown" in activity_source, activity_source
+    assert "non_retryable=True" in activity_source, activity_source
+
+    workflow_source = inspect.getsource(workflows.TaskExecutionWorkflow.run)
+    semantic_activity_contract = """perform_semantic_route,
+                    work_payload,
+                    start_to_close_timeout=timedelta(seconds=120),
+                    heartbeat_timeout=timedelta(seconds=90),"""
+    assert semantic_activity_contract in workflow_source, workflow_source
+
+    original_route = semantic_router.semantic_route_with_pydantic_ai
+
+    async def unknown_route(*_: Any) -> semantic_router.SemanticRouteProposal:
+        raise semantic_router.ModelCallOutcomeUnknown("fixture outcome unknown")
+
+    semantic_router.semantic_route_with_pydantic_ai = unknown_route
+    try:
+        try:
+            await semantic_router.perform_semantic_route(
+                {
+                    "task_id": "00000000-0000-0000-0000-000000000001",
+                    "workflow_execution_id": "00000000-0000-0000-0000-000000000002",
+                    "correlation_id": "00000000-0000-0000-0000-000000000003",
+                    "task_input": {
+                        "command_id": "00000000-0000-0000-0000-000000000004",
+                        "text": "Route this safely",
+                        "locale": "fr-FR",
+                        "requested_output": "auto",
+                        "routable_capabilities": CATALOG,
+                    },
+                }
+            )
+        except semantic_router.ApplicationError as exc:
+            assert exc.non_retryable is True, exc
+            assert exc.type == "ModelCallOutcomeUnknown", exc
+        else:
+            raise AssertionError("Unknown provider outcomes must stop Temporal retries")
+    finally:
+        semantic_router.semantic_route_with_pydantic_ai = original_route
+
     captured: list[list[dict[str, Any]]] = []
 
     async def valid_completion(messages: list[dict[str, Any]]) -> str:
@@ -111,7 +155,8 @@ async def main() -> None:
 
     print(
         "SEMANTIC ROUTER CONTRACT PASS: PydanticAI validates structured proposals, receives only the "
-        "Nevolium catalog, rejects invented capability keys and uses one model turn per route attempt."
+        "Nevolium catalog, rejects invented capability keys, uses one model turn per route attempt, "
+        "allows a bounded local cold start and makes unknown provider outcomes non-retryable."
     )
 
 
