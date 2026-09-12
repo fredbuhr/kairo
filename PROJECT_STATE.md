@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head Nevolium qualifié | `8bb9cc8ce57526ecc760cc031db55d1a40a4490e`, arbre `1cf073fdb57136eefc6bee444057305818cda246` |
-| Validation | **10/10 workflows réussis** sur `b7f68d3…` ; la cible a ensuite révélé que le jeton sans policy `default` ne pouvait pas appeler `sys/capabilities-self`, correction et preuve réelle à revalider |
-| Prochaine action | Valider la policy d'introspection propre, actualiser la cible, reprendre OpenBao, vérifier le garde, puis exporter séparément le matériel de récupération |
-| Conditions manquantes | OpenBao initialisé/déscellé mais bootstrap interrompu avant enregistrement du jeton de workload ; Nevolium non déployé ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
+| Head Nevolium qualifié | `76a8e18fc570857b56decb5226204aa69fc6ee82`, arbre `c5fc2724a91282e7db8650ea76e0d64ba63535c2` |
+| Validation | **10/10 workflows réussis** sur `76a8e18…`, dont OpenBao réel sans policy `default` ; bootstrap cible repris avec succès, garde accepté, trois fichiers privés root 0600, service sain et port 8200 non publié |
+| Prochaine action | Exporter et chiffrer le matériel de récupération hors serveur, vérifier la copie avant tout retrait local ou révocation root, puis configurer le renouvellement surveillé et l'ingress/TLS |
+| Conditions manquantes | Export/récupération OpenBao séparés non encore prouvés ; autres services Nevolium non déployés ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -78,17 +78,16 @@ APT, HTTPS et ICMP fonctionnent en IPv4/IPv6. Un snapshot hors ligne a précéd�
 hôte vers iptables-nft compatible Docker. Docker Engine/Compose officiels, rotation des logs,
 `live-restore` et `DOCKER-USER` ont été vérifiés ; le checkout D04 public est propre. Aucun identifiant
 réseau, compte ou secret n'est versionné ; [preuve expurgée](docs/archive/server-foundation-2026-09-11.md).
-Nevolium n'est pas encore déployé. OpenBao seul utilise son backend fichier persistant et son
-port 8200 n'est pas publié sur l'hôte. Le bootstrap cible l'a initialisé et déscellé, puis s'est arrêté une première fois avant d'écrire le
-jeton de workload : OpenBao 2.6 a émis un jeton de service opaque valide plus court que le minimum
-générique erroné de 32 caractères. Une première reprise s'est arrêtée avant révocation parce que la
-CLI renvoie directement le tableau JSON des accessors. Après correction, la reprise a franchi cette
-étape puis s'est arrêtée sur une commande OpenBao de code 2 : l'analyse du client 2.6.2 et de la policy
-identifie l'appel `sys/capabilities-self`, absent puisque le jeton n'hérite volontairement pas de la
-policy `default`. Le fichier de récupération root 0600 et le placeholder restent conservés ; un seul
-jeton périodique interrompu est attendu et aucun autre service Nevolium ne fonctionne. La policy de workload autorise désormais la lecture du namespace Nevolium, l'introspection de ses capacités et le renouvellement
-du jeton lui-même ; la campagne de récupération vérifie un jeton périodique orphelin sans policy par défaut.
-L'initialisation cible attend la validation CI de ce checkpoint et l'export séparé des clés de déscellement.
+Nevolium n'est pas encore déployé. OpenBao 2.6.2 seul utilise son backend fichier persistant et
+son port 8200 n'est pas publié sur l'hôte. Après deux arrêts sûrs ayant révélé le format de jeton puis
+la réponse CLI des accessors, la reprise contrôlée a révoqué l'unique jeton interrompu et enregistré
+un nouveau jeton périodique orphelin de sept jours. Sa policy sans policy `default` autorise seulement
+la lecture du namespace Nevolium, l'introspection de ses propres capacités et son renouvellement ;
+quatre refus ont été vérifiés. Le service est sain, le garde de production accepte la configuration
+et les fichiers privés d'environnement, de récupération et de métadonnées sont root 0600. Aucun autre
+service Nevolium ne fonctionne. Le matériel de récupération demeure provisoirement sur le serveur :
+son export chiffré, sa séparation et une vérification de récupération doivent précéder toute suppression
+locale ou révocation du jeton racine.
 ASUS TUF Gaming A16
 FA608PM relevé pour une répétition ultérieure : Ryzen 9 8940HX, 32 Go RAM, RTX 5060 Laptop 8 Go,
 environ 586 Go libres sous Windows x64. Budget préféré 50 €/mois, maximum 90 €, pilote 3–4 personnes.

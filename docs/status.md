@@ -57,7 +57,12 @@ backup indépendant n'est qualifié par ce jalon. [Preuve expurgée](archive/ser
 Un snapshot hors ligne a ensuite précédé l'installation officielle de Docker Engine 29.8.0 et Compose
 5.5.1. Le pare-feu hôte a été migré vers iptables-nft persistant, Fail2ban vers son action iptables et
 la chaîne `DOCKER-USER` refuse les publications externes hors 80/443. Le démon utilise `live-restore`
-et le pilote de logs local borné. Un conteneur de test fonctionne ; Nevolium n'est pas encore démarré.
+et le pilote de logs local borné. OpenBao 2.6.2 est le seul service Nevolium démarré : backend persistant,
+trois parts de déscellement avec seuil deux, jeton de workload périodique de sept jours sans policy
+`default`, lecture Nevolium et renouvellement/introspection propres vérifiés. Les trois fichiers privés
+sont root 0600, le garde de production accepte la configuration, le service est sain et son port 8200
+n'est pas publié sur l'hôte. Le matériel de récupération doit encore être exporté, séparé et testé hors
+serveur avant retrait local et révocation root ; aucun autre service Nevolium n'est démarré.
 
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,

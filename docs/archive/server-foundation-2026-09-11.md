@@ -74,6 +74,19 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
   établies puis ports originaux 80/443 acceptés, autres nouveaux flux externes vers des conteneurs refusés.
   Le compte d'administration n'est pas membre du groupe root-equivalent `docker`.
 
-Prochain point sûr : valider la configuration de production Nevolium depuis le checkout D04, préparer
-les secrets hors Git puis déployer l'ingress/TLS et le socle applicatif par paliers. Le snapshot ne
-remplace pas le futur backup Restic chiffré, indépendant du serveur et restauré sur volumes neufs.
+## Extension vérifiée le 12 septembre — OpenBao
+
+- OpenBao 2.6.2 utilise seul son backend fichier persistant ; aucun autre service Nevolium n'est démarré.
+- Initialisation avec trois parts de déscellement et seuil de deux, puis reprise contrôlée après deux
+  incompatibilités CLI détectées sans perte du matériel de récupération.
+- Jeton de workload périodique orphelin de sept jours, sans policy `default` ; lecture du namespace
+  Nevolium, introspection et renouvellement propres autorisés, quatre opérations hors portée refusées.
+- Fichiers privés d'environnement, de récupération et de métadonnées détenus par root en mode 0600.
+- Garde de production accepté, service sain et port OpenBao 8200 absent des sockets publiées de l'hôte.
+- Le matériel de récupération reste provisoirement sur le serveur. Son export chiffré, sa séparation
+  et une récupération vérifiée doivent précéder la suppression locale et la révocation du jeton root.
+
+Prochain point sûr : exporter le matériel de récupération hors serveur sans l'afficher, vérifier la
+copie chiffrée, puis préparer renouvellement surveillé, ingress/TLS et socle applicatif par paliers.
+Le snapshot ne remplace pas le futur backup Restic chiffré, indépendant du serveur et restauré sur
+volumes neufs.
