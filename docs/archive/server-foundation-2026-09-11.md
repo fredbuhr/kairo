@@ -185,8 +185,20 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
   Linux ni nouveau privilège, avec limites CPU/RAM/PID et aucun port hôte. Son bundle exact est monté en
   lecture seule et les bibliothèques de modèles restent hors ligne. Il a pris et terminé un vrai workflow
   `FoundationWorkflow` via Temporal ; son consumer mémoire durable JetStream est actif. Les services publics
-  sont restés sains. Ce contrôle qualifie le runtime, pas encore un parcours métier ou une charge.
+  sont restés sains.
+- Le premier parcours métier `news.brief` a terminé son Task et son workflow Temporal, conservé dix sources
+  owner-scoped et rendu un briefing déterministe. La synthèse locale a expiré au délai borné : aucune réponse
+  modèle, aucun usage et aucun jeton n'ont été inventés ; la réservation correspondante reste `uncertain`.
+- Le routage sémantique du Command Center a ensuite appelé `local-fast` avec 924 jetons de prompt, 101 de
+  complétion et 1025 au total, sous la limite configurée de 256 jetons de sortie. La proposition
+  `semantic.unsupported` a été refusée prudemment par Core et l'interface affiche maintenant l'état terminal
+  dans le panneau Command.
+- LiteLLM déclare un coût nul explicite pour l'alias local. Le Worker accepte l'absence de l'en-tête de coût
+  comme zéro confirmé uniquement pour cet alias qualifié. La nouvelle écriture comptable a réglé sa
+  réservation ; l'ancienne écriture identique a été rapprochée via le rejeu idempotent de l'API canonique.
+  Le nombre d'usages est resté inchangé, aucune donnée métier n'a été modifiée et la réservation News sans
+  usage a été préservée. Worker et services publics sont restés sains.
 
-Prochain point sûr : prouver un premier parcours métier Worker borné avec les identités réelles, puis élargir
-progressivement aux moteurs qualifiés. Le paquet de clés ne remplace pas le futur backup Restic chiffré,
+Prochain point sûr : prouver le parcours PDF réel owner-scoped, puis les projections mémoire et recherche
+avant d'élargir progressivement aux mesures et à la charge. Le paquet de clés ne remplace pas le futur backup Restic chiffré,
 indépendant du serveur et restauré sur volumes neufs.

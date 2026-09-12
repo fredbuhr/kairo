@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head déployé et qualifié | `7c509e79d5967be986e4c6f3152f502ab532a4d7`, arbre `13174430ae9e2009fcca438e44e63f830df0a6ca` |
-| Validation | **10/10 workflows réussis** sur `7c509e7…` ; identité et moteurs internes qualifiés ; LiteLLM route `local-fast` vers le modèle D04 sans clé externe ; Worker complet actif, non-root/lecture seule/sans capacités ni port hôte, bundle exact monté en lecture seule, workflow Temporal exécuté et consumer mémoire JetStream présent |
-| Prochaine action | Prouver un premier parcours métier Worker borné de bout en bout avec les identités réelles, puis mesurer progressivement les moteurs sans confondre ce contrôle avec la campagne de charge |
-| Conditions manquantes | Backup Restic indépendant, parcours canoniques PDF/mémoire/recherche/modèle, campagne cible, charge et modèle quotidien non validés |
+| Head de code déployé et qualifié | `08d5bd8afe759df7d07555e39c87f5d1c824ffef` |
+| Validation | **10/10 workflows réussis** sur `08d5bd8…` ; identité et moteurs internes qualifiés ; LiteLLM route `local-fast` à coût nul vers le modèle D04 sans clé externe ; Worker confiné actif ; premiers parcours News et routage sémantique exécutés en production avec comptabilité canonique vérifiée |
+| Prochaine action | Prouver le parcours PDF réel owner-scoped, puis les projections mémoire/recherche avant toute campagne de charge |
+| Conditions manquantes | Backup Restic indépendant, parcours canoniques PDF/mémoire/recherche, campagne cible, charge et choix du modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -120,6 +120,17 @@ a été basculé puis vérifié sur la nouvelle URL.
   seule, sans capacité Linux ni nouveau privilège, borné en CPU/RAM/PID, sans port hôte et limité aux cinq
   réseaux nécessaires. Un vrai workflow `FoundationWorkflow` a été pris puis terminé via Temporal ; le
   durable JetStream `nevolium-memory-projector-v1` est actif. Les services publics sont restés sains.
+- Un premier parcours métier `news.brief` authentifié a terminé son Task et son workflow Temporal, conservé
+  dix sources owner-scoped et rendu un briefing déterministe après expiration bornée de la synthèse LiteLLM.
+  Comme aucune réponse modèle n'a été obtenue, aucun usage ni jeton n'a été inventé et la réservation reste
+  `uncertain` conformément à la politique de refus prudent.
+- Le Command Center a ensuite exercé le routage sémantique `local-fast` avec 924 jetons de prompt, 101 de
+  complétion et 1025 au total sous la limite de 256 jetons de sortie. Le modèle a proposé `unsupported` et
+  Core a refusé l'exécution métier ; l'interface affiche désormais cet état terminal dans le bon panneau.
+  Les configurations LiteLLM déclarent explicitement le coût nul local et le Worker ne traite l'absence de
+  l'en-tête de coût comme zéro confirmé que pour cet alias qualifié. La nouvelle écriture a réglé sa
+  réservation ; l'écriture antérieure identique a été rapprochée par rejeu idempotent de l'API canonique,
+  sans créer de doublon ni modifier de donnée métier. La réservation News sans usage demeure inchangée.
 - Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
   vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
   révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien
@@ -128,12 +139,13 @@ a été basculé puis vérifié sur la nouvelle URL.
 ## Conditions de sortie et reprise après interruption
 
 Les preuves CPU de CI ne clôturent pas H5. La séparation des clés OpenBao et le renouvellement du workload
-sont désormais prouvés sur la cible. Restent : parcours canonique complet PDF/mémoire/recherche/modèle
-choisi, charge et files en usage mixte, TLS/ingress, droits SQL/réseau, upgrade/rollback compatible et
-restauration applicative Restic indépendante sur volumes neufs.
+sont désormais prouvés sur la cible. Restent : parcours canoniques PDF/mémoire/recherche, charge et files en usage mixte, upgrade/rollback
+compatible et restauration applicative Restic indépendante sur volumes neufs. TLS/ingress, identités
+nominatives, premiers parcours News/sémantique et comptabilité locale sont maintenant prouvés sur la cible.
 Le modèle de test 0.5B ne sélectionne pas le modèle quotidien ; le PDF à couche texte ne qualifie pas
-les scans complexes ; aucun test GPU ni 1000 comptes privés réels revendiqué. Les coûts inconnus D02
-restent inconnus, même si une réponse locale expose un montant numérique nul.
+les scans complexes ; aucun test GPU ni 1000 comptes privés réels revendiqué. Une réservation sans usage
+issue du timeout News reste inconnue par prudence ; les usages locaux réellement observés sont rapprochés
+à coût nul sans généraliser cette règle aux alias potentiellement payants.
 
 Avant reprise : lire AGENTS, comparer `main`, PR #88 et son head live ; lire le rapport et ses limites.
 Les commits de preuves/checkpoint après le head de code doivent rester documentaires. Si un test échoue,
@@ -153,7 +165,7 @@ hôte vers iptables-nft compatible Docker. Docker Engine/Compose officiels, rota
 `live-restore` et `DOCKER-USER` ont été vérifiés ; le checkout D04 public est propre. Aucun identifiant
 réseau, compte ou secret n'est versionné ; [preuve expurgée](docs/archive/server-foundation-2026-09-11.md).
 Le socle Nevolium est déployé par paliers : OpenBao 2.6.2, PostgreSQL, Keycloak, NATS/JetStream,
-SeaweedFS, Temporal, Core et Web fonctionnent ; Worker reste arrêté. OpenBao utilise son backend
+SeaweedFS, Temporal, Core, Web, Worker et moteurs internes qualifiés fonctionnent. OpenBao utilise son backend
 fichier persistant et son port 8200 n'est pas publié sur l'hôte. Après deux arrêts sûrs ayant révélé le format de jeton puis
 la réponse CLI des accessors, la reprise contrôlée a révoqué l'unique jeton interrompu et enregistré
 un nouveau jeton périodique orphelin de sept jours. Sa policy sans policy `default` autorise seulement
