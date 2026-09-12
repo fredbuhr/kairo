@@ -69,11 +69,20 @@ def validate(config: dict) -> list[str]:
     webargs = services.get('nevolium-web',{}).get('build',{}).get('args',{})
     for key in ('VITE_NEVOLIUM_API_URL','VITE_KEYCLOAK_URL'):
         if webargs and urlsplit(webargs.get(key,'')).scheme != 'https': errors.append(f'Web: HTTPS {key} required')
-    worker = services.get('nevolium-worker',{}).get('environment',{})
+    worker_service = services.get('nevolium-worker', {})
+    worker = worker_service.get('environment', {})
     if worker:
         if worker.get('NEVOLIUM_MEMORY_PROJECTOR_MODE') != 'real': errors.append('Worker production memory must be real')
         if urlsplit(worker.get('MEM0_DATABASE_URL','')).username != 'mem0_app': errors.append('Worker must use mem0_app')
         if not worker.get('NEVOLIUM_MODEL_ASSETS_MANIFEST'): errors.append('Worker model bundle required')
+        worker_networks = set(worker_service.get('networks', {}))
+        seaweed_networks = set(services.get('seaweedfs', {}).get('networks', {}))
+        if 'assets' not in worker_networks or 'assets' not in seaweed_networks:
+            errors.append('Worker and SeaweedFS require the dedicated internal assets network')
+        if 'canonical' in worker_networks:
+            errors.append('Worker must not join the canonical network')
+        if 'egress' in seaweed_networks:
+            errors.append('SeaweedFS must not have egress')
     return errors
 
 

@@ -138,12 +138,13 @@ services:
     ports: !reset []
   seaweedfs:
     # The all-in-one server otherwise binds to one detected interface only.
-    # Production spans canonical and telemetry networks; listen on both bridges
-    # while keeping every host port removed below.
+    # The dedicated internal assets network lets the Worker fetch canonical source bytes
+    # without joining the broader canonical network or exposing SeaweedFS to egress.
     command: ["server", "-dir=/data", "-s3", "-s3.port=8333", "-ip=seaweedfs", "-ip.bind=0.0.0.0"]
     networks: !override
     - canonical
     - telemetry
+    - assets
     ports: !reset []
   temporal-admin-tools:
     networks: !override
@@ -202,6 +203,7 @@ services:
   nevolium-worker:
     networks: !override
     - execution
+    - assets
     - memory
     - models
     - search
@@ -343,6 +345,8 @@ networks:
     driver_opts:
       com.docker.network.bridge.enable_ip_masquerade: "false"
   canonical:
+    internal: true
+  assets:
     internal: true
   identity:
     internal: true

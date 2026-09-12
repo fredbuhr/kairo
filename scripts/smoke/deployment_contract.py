@@ -152,7 +152,19 @@ class Deployment(unittest.TestCase):
                 self.assertFalse(valid['services'][name].get('ports'))
             self.assertEqual(
                 set(valid['services']['seaweedfs']['networks']),
-                {'canonical', 'telemetry'},
+                {'canonical', 'telemetry', 'assets'},
+            )
+            self.assertEqual(
+                set(valid['services']['nevolium-worker']['networks']),
+                {'execution', 'assets', 'memory', 'models', 'search', 'egress'},
+            )
+            self.assertNotIn(
+                'canonical',
+                valid['services']['nevolium-worker']['networks'],
+            )
+            self.assertNotIn(
+                'egress',
+                valid['services']['seaweedfs']['networks'],
             )
             self.assertIn(
                 '-ip.bind=0.0.0.0',
@@ -172,6 +184,19 @@ class Deployment(unittest.TestCase):
                 self.assertTrue(production.validate(config(extra)),extra)
             bad=copy.deepcopy(valid);bad['services']['nevolium-core']['environment']['DATABASE_URL']='postgresql://postgres:secret@db/nevolium'
             self.assertTrue(production.validate(bad))
+            for service_name, network_name in (
+                ('nevolium-worker', 'assets'),
+                ('seaweedfs', 'assets'),
+            ):
+                bad = copy.deepcopy(valid)
+                del bad['services'][service_name]['networks'][network_name]
+                self.assertTrue(production.validate(bad), (service_name, network_name))
+            bad = copy.deepcopy(valid)
+            bad['services']['nevolium-worker']['networks']['canonical'] = None
+            self.assertTrue(production.validate(bad), 'Worker canonical isolation')
+            bad = copy.deepcopy(valid)
+            bad['services']['seaweedfs']['networks']['egress'] = None
+            self.assertTrue(production.validate(bad), 'SeaweedFS egress isolation')
             for trusted_proxy in ('CHANGE_ME_PROXY_ADDRESS', '0.0.0.0/0', '8.8.8.8/32', '172.20.0.0/16'):
                 bad=copy.deepcopy(valid)
                 bad['services']['keycloak']['environment']['KC_PROXY_TRUSTED_ADDRESSES']=trusted_proxy
