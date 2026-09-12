@@ -142,6 +142,19 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
 - Web est non-root, en lecture seule, sans capacité Linux et limité au réseau `frontend`. Core et Web ne
   sont donc joignables que depuis l'hôte ; aucune exposition Internet applicative n'est encore active.
 
-Prochain point sûr : installer Caddy maintenant que ses trois upstreams loopback sont prêts, puis prouver
-TLS et les refus des routes internes avec le preflight cible. Le paquet de clés ne remplace pas le futur
+## Extension vérifiée le 12 septembre — ingress TLS public
+
+- L'installation du paquet Caddy a bloqué son démarrage automatique jusqu'au remplacement de la page par
+  défaut par la configuration versionnée. Le fichier root 0644 a été formaté et validé avant activation.
+- Caddy obtient et sert des certificats publics valides pour `app.nevolium.com`, `api.nevolium.com` et
+  `auth.nevolium.com`. Les trois redirections HTTP vers HTTPS et la suppression de l'en-tête serveur sont
+  confirmées depuis un client Windows extérieur ; l'administration reste sur `127.0.0.1:2019`.
+- Web et le document de découverte Keycloak répondent publiquement avec l'issuer exact. Sur l'API, la
+  racine, les sondes, la documentation et les chemins internes sont refusés par 404 ; `/v1` refuse par 401
+  la requête anonyme comme celle munie d'un faux bearer.
+- Cette preuve ne comprend aucun jeton utilisateur : le parcours OIDC complet reste subordonné à un
+  premier compte nominatif protégé par MFA.
+
+Prochain point sûr : créer et vérifier ce compte nominatif avec MFA, exécuter le preflight authentifié,
+puis retirer le compte et les identifiants bootstrap Keycloak. Le paquet de clés ne remplace pas le futur
 backup Restic chiffré, indépendant du serveur et restauré sur volumes neufs.

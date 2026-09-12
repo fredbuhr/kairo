@@ -18,9 +18,9 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
 | Head Nevolium qualifié | `b5acf0ef6e10d291a8e264eec40fa76dbf98bb83`, arbre `caea5b20421594c695d1476a7efddfad60869327` |
-| Validation | **10/10 workflows réussis** sur `73492a9…` ; socle interne, Core et Web vérifiés sur la cible, services moteur non publiés et ports applicatifs limités au loopback |
-| Prochaine action | Installer et valider Caddy avec ses trois upstreams prêts, puis exécuter le preflight TLS/routage depuis un client extérieur avant de créer le premier compte nominatif |
-| Conditions manquantes | Caddy/TLS et routes publiques refusées non prouvés ; premier compte nominatif avec MFA absent ; Worker non déployé ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
+| Validation | **10/10 workflows réussis** sur `0c43270…` ; socle, Core et Web vérifiés sur cible, puis Caddy/TLS, redirections et refus publics confirmés depuis Windows |
+| Prochaine action | Créer un premier compte nominatif protégé par MFA, vérifier le parcours OIDC Web/API avec son jeton, puis retirer l'administrateur bootstrap Keycloak |
+| Conditions manquantes | Parcours OIDC nominatif/MFA et retrait bootstrap non prouvés ; Worker non déployé ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -51,9 +51,10 @@ a été basculé puis vérifié sur la nouvelle URL.
 - Inventaire et contrôle préalable cible prêts : TLS, refus anonyme/faux jeton, JSON Nevolium attendu et
   routes privées bloquées avant la charge ; réponses bornées et erreurs sans secrets. Six tests HTTP/TLS
   réussis en CI. Les clients virtuels ne sont pas des comptes distincts ; le serveur de fixture ne mesure pas la capacité Nevolium.
-- Ingress Caddy hôte préparé pour `app`, `api` et `auth` : HTTPS automatique, upstreams loopback,
-  API limitée à `/v1` et `/v1/*`, refus 404 par défaut et absence de journal d'accès. Le contrat statique
-  passe 3/3 ; l'installation, les certificats et les refus depuis un client extérieur restent à prouver.
+- Ingress Caddy hôte actif pour `app`, `api` et `auth` : certificats publics et redirections HTTPS
+  vérifiés depuis Windows, upstreams loopback, API limitée à `/v1` et `/v1/*`, refus 404 par défaut et
+  absence de journal d'accès. Les routes privées et les requêtes anonyme/faussement authentifiée sont
+  refusées ; le parcours OIDC avec un utilisateur réel reste à prouver.
 - PostgreSQL de production démarré sur un volume neuf, sain et non publié ; les quatre identités SQL
   minimales ont été provisionnées et la chaîne Alembic canonique appliquée jusqu'à `0014_capacity_and_data`.
 - Keycloak 26.7.3 démarré sur `127.0.0.1:8081` avec proxy de confiance limité à la passerelle ingress
@@ -122,7 +123,7 @@ traversée du checkout, survenu sans renouvellement ni activation du timer. Post
 neuf, reste sain et non publié ; les rôles SQL et la migration `0014_capacity_and_data` sont vérifiés.
 Keycloak utilise sa base dédiée et un realm de production neuf sans utilisateur ; son issuer public est
 exact derrière les en-têtes du proxy de confiance privé et son port 8081 est limité au loopback. Caddy
-n'est pas encore installé et aucun certificat public n'est donc revendiqué. NATS/JetStream et SeaweedFS
+publie désormais les trois noms HTTPS avec certificats valides et refus public borné. NATS/JetStream et SeaweedFS
 conservent leurs volumes dédiés derrière les réseaux internes. SeaweedFS annonce le nom `seaweedfs` et
 écoute ses deux interfaces après correction du défaut multiréseau découvert sur la cible. Temporal utilise
 ses deux schémas PostgreSQL, son namespace `default` est présent et son port 7233 n'est pas publié.
