@@ -120,21 +120,20 @@ def main() -> None:
     if not 1 <= args.minimum_ttl_seconds <= EXPECTED_PERIOD_SECONDS:
         raise SystemExit("ARRET : seuil TTL invalide.")
 
-    project_root = args.project_root.resolve()
-    env_file = args.env_file.absolute()
-    workload_meta = args.workload_meta.absolute()
-    for name in ("compose.yaml", "compose.production.yaml"):
-        if not (project_root / name).is_file():
-            raise SystemExit(f"ARRET : {name} absent du projet.")
-
     lock_descriptor = None
-    base = [
-        "docker", "compose", "--project-directory", str(project_root),
-        "--env-file", str(env_file),
-        "-f", str(project_root / "compose.yaml"),
-        "-f", str(project_root / "compose.production.yaml"),
-    ]
     try:
+        project_root = args.project_root.resolve()
+        env_file = args.env_file.absolute()
+        workload_meta = args.workload_meta.absolute()
+        for name in ("compose.yaml", "compose.production.yaml"):
+            if not (project_root / name).is_file():
+                raise RuntimeError(f"{name} absent du projet")
+        base = [
+            "docker", "compose", "--project-directory", str(project_root),
+            "--env-file", str(env_file),
+            "-f", str(project_root / "compose.yaml"),
+            "-f", str(project_root / "compose.production.yaml"),
+        ]
         private_file(env_file)
         private_file(workload_meta)
         token = env_token(env_file.read_text())

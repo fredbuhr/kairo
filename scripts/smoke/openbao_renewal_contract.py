@@ -77,7 +77,7 @@ class OpenBaoRenewal(unittest.TestCase):
             "User=root",
             "NoNewPrivileges=yes",
             "ProtectSystem=strict",
-            "CapabilityBoundingSet=",
+            "CapabilityBoundingSet=CAP_DAC_READ_SEARCH",
             "RestrictAddressFamilies=AF_UNIX",
             "ReadOnlyPaths=/etc/nevolium /opt/nevolium/source",
         ):

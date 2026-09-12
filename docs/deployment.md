@@ -138,6 +138,8 @@ lit les deux fichiers privés sans les afficher, lie le jeton à l'accessor enre
 `nevolium-core`, l'absence de parent et de policy `default`, la période de sept jours et un TTL renouvelé
 d'au moins six jours. Il verrouille les exécutions concurrentes, nettoie le jeton temporaire du conteneur
 et échoue sans inclure le secret dans ses diagnostics.
+L'unité conserve seulement `CAP_DAC_READ_SEARCH` pour traverser le checkout privé en lecture ; le reste
+de son espace système demeure en lecture seule et elle ne reçoit aucune capacité d'écriture privilégiée.
 
 ```bash
 sudo install -D -o root -g root -m 0755 \
