@@ -252,9 +252,15 @@ def main():
             "sys/policies/acl/forbidden": {"deny"},
         }
         for path, expected in expected_capabilities.items():
-            actual = set(bao_as("/tmp/nevolium-workload-token", [
-                "token", "capabilities", path
-            ]).stdout.split())
+            try:
+                result = bao_as("/tmp/nevolium-workload-token", [
+                    "token", "capabilities", path
+                ])
+            except RuntimeError as exc:
+                raise RuntimeError(
+                    f"verification de capability OpenBao pour {path}: {exc}"
+                ) from None
+            actual = set(result.stdout.split())
             if actual != expected:
                 raise RuntimeError("capabilities workload OpenBao inattendues")
 

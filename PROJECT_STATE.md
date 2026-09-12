@@ -18,8 +18,8 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
 | Head Nevolium qualifié | `8bb9cc8ce57526ecc760cc031db55d1a40a4490e`, arbre `1cf073fdb57136eefc6bee444057305818cda246` |
-| Validation | **10/10 workflows réussis** sur `8bb9cc8…` ; Foundation sur `c25ce72…` a détecté une enveloppe vide insuffisamment refusée, correction stricte à revalider |
-| Prochaine action | Valider le parseur des deux formes de liste, actualiser la cible, reprendre OpenBao, vérifier le garde, puis exporter séparément le matériel de récupération |
+| Validation | **10/10 workflows réussis** sur `b7f68d3…` ; la cible a ensuite révélé que le jeton sans policy `default` ne pouvait pas appeler `sys/capabilities-self`, correction et preuve réelle à revalider |
+| Prochaine action | Valider la policy d'introspection propre, actualiser la cible, reprendre OpenBao, vérifier le garde, puis exporter séparément le matériel de récupération |
 | Conditions manquantes | OpenBao initialisé/déscellé mais bootstrap interrompu avant enregistrement du jeton de workload ; Nevolium non déployé ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
@@ -81,9 +81,12 @@ réseau, compte ou secret n'est versionné ; [preuve expurgée](docs/archive/ser
 Nevolium n'est pas encore déployé. OpenBao seul utilise son backend fichier persistant et son
 port 8200 n'est pas publié sur l'hôte. Le bootstrap cible l'a initialisé et déscellé, puis s'est arrêté une première fois avant d'écrire le
 jeton de workload : OpenBao 2.6 a émis un jeton de service opaque valide plus court que le minimum
-générique erroné de 32 caractères. La reprise s'est ensuite arrêtée avant toute révocation parce que
-la CLI renvoie directement le tableau JSON des accessors. Le fichier de récupération root 0600 est conservé ;
-aucun autre service Nevolium ne fonctionne. La policy de workload autorise désormais la lecture du namespace Nevolium et le renouvellement
+générique erroné de 32 caractères. Une première reprise s'est arrêtée avant révocation parce que la
+CLI renvoie directement le tableau JSON des accessors. Après correction, la reprise a franchi cette
+étape puis s'est arrêtée sur une commande OpenBao de code 2 : l'analyse du client 2.6.2 et de la policy
+identifie l'appel `sys/capabilities-self`, absent puisque le jeton n'hérite volontairement pas de la
+policy `default`. Le fichier de récupération root 0600 et le placeholder restent conservés ; un seul
+jeton périodique interrompu est attendu et aucun autre service Nevolium ne fonctionne. La policy de workload autorise désormais la lecture du namespace Nevolium, l'introspection de ses capacités et le renouvellement
 du jeton lui-même ; la campagne de récupération vérifie un jeton périodique orphelin sans policy par défaut.
 L'initialisation cible attend la validation CI de ce checkpoint et l'export séparé des clés de déscellement.
 ASUS TUF Gaming A16

@@ -124,6 +124,12 @@ def seed_and_policy():
         token=bao(client,'POST','auth/token/create',token=root,data={
             'policies':['nevolium-core'],'no_default_policy':True,'no_parent':True,'period':'24h'
         })['auth']['client_token']
+        allowed=bao(client,'POST','sys/capabilities-self',token=token,
+                    data={'path':'secret/data/nevolium/d04-proof'})
+        denied=bao(client,'POST','sys/capabilities-self',token=token,
+                   data={'path':'secret/data/outside-nevolium'})
+        assert set(allowed['capabilities'])=={'read'}
+        assert set(denied['capabilities'])=={'deny'}
         assert bao(client,'GET','secret/data/nevolium/d04-proof',token=token)['data']['data']['value']==PROOF.decode()
         renewed=bao(client,'POST','auth/token/renew-self',token=token,data={})
         assert renewed['auth']['renewable'] is True
@@ -132,7 +138,8 @@ def seed_and_policy():
             bao(client,method,path,token=token,data=data,expected=(403,))
         volume_json('write',{'unseal':unseal,'workload_token':token})
     return {'sql':True,'jetstream_message':True,'filer_object':filer,'filer_metadata_in_durable_volume':True,'openbao_file_backend':True,
-            'workload_read_only':True,'workload_self_renewal':True,'forbidden_openbao_operations':4}
+            'workload_read_only':True,'workload_self_introspection':True,
+            'workload_self_renewal':True,'forbidden_openbao_operations':4}
 
 
 def readback():
