@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head Nevolium qualifié | `76a8e18fc570857b56decb5226204aa69fc6ee82`, arbre `c5fc2724a91282e7db8650ea76e0d64ba63535c2` |
-| Validation | **10/10 workflows réussis** sur `76a8e18…`, dont OpenBao réel sans policy `default` ; bootstrap cible repris avec succès, garde accepté, trois fichiers privés root 0600, service sain et port 8200 non publié |
-| Prochaine action | Exporter et chiffrer le matériel de récupération hors serveur, vérifier la copie avant tout retrait local ou révocation root, puis configurer le renouvellement surveillé et l'ingress/TLS |
-| Conditions manquantes | Export/récupération OpenBao séparés non encore prouvés ; autres services Nevolium non déployés ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
+| Head Nevolium qualifié | `052fa7c8e1f4f1234f698ee0283e603ffb12a9c2`, arbre `33380dbab44bf125b12cf59fdbb25683bd6ae278` |
+| Validation | **10/10 workflows réussis** sur `052fa7c…` ; récupération OpenBao chiffrée vérifiée hors serveur, jeton root révoqué, copies serveur retirées ; workload renouvelé sur cible et timer quotidien actif, service sain |
+| Prochaine action | Configurer l'ingress/TLS borné, puis exécuter le preflight cible avant tout déploiement élargi ou campagne de charge |
+| Conditions manquantes | Autres services Nevolium non déployés ; domaine/TLS et routes publiques refusées non prouvés ; backup Restic indépendant, campagne cible, charge et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -51,12 +51,17 @@ a été basculé puis vérifié sur la nouvelle URL.
 - Inventaire et contrôle préalable cible prêts : TLS, refus anonyme/faux jeton, JSON Nevolium attendu et
   routes privées bloquées avant la charge ; réponses bornées et erreurs sans secrets. Six tests HTTP/TLS
   réussis en CI. Les clients virtuels ne sont pas des comptes distincts ; le serveur de fixture ne mesure pas la capacité Nevolium.
+- Récupération OpenBao exportée avec une identité dédiée, chiffrée par une seconde phrase secrète et
+  vérifiée hors serveur, puis copie cloud privée retéléchargée et contrôlée par SHA-256. Jeton root initial
+  révoqué seulement après preuve du workload ; sources locale et serveur retirées. Renouvellement quotidien
+  systemd installé, premier passage réel réussi et jeton temporaire absent après exécution.
 
 ## Conditions de sortie et reprise après interruption
 
-Les preuves CPU de CI ne clôturent pas H5. Restent sur la cible retenue : parcours canonique complet
-PDF/mémoire/recherche/modèle choisi, charge et files en usage mixte, TLS/ingress, droits SQL/réseau,
-upgrade/rollback compatible et restauration indépendante avec récupération séparée des clés.
+Les preuves CPU de CI ne clôturent pas H5. La séparation des clés OpenBao et le renouvellement du workload
+sont désormais prouvés sur la cible. Restent : parcours canonique complet PDF/mémoire/recherche/modèle
+choisi, charge et files en usage mixte, TLS/ingress, droits SQL/réseau, upgrade/rollback compatible et
+restauration applicative Restic indépendante sur volumes neufs.
 Le modèle de test 0.5B ne sélectionne pas le modèle quotidien ; le PDF à couche texte ne qualifie pas
 les scans complexes ; aucun test GPU ni 1000 comptes privés réels revendiqué. Les coûts inconnus D02
 restent inconnus, même si une réponse locale expose un montant numérique nul.
@@ -83,11 +88,13 @@ son port 8200 n'est pas publié sur l'hôte. Après deux arrêts sûrs ayant ré
 la réponse CLI des accessors, la reprise contrôlée a révoqué l'unique jeton interrompu et enregistré
 un nouveau jeton périodique orphelin de sept jours. Sa policy sans policy `default` autorise seulement
 la lecture du namespace Nevolium, l'introspection de ses propres capacités et son renouvellement ;
-quatre refus ont été vérifiés. Le service est sain, le garde de production accepte la configuration
-et les fichiers privés d'environnement, de récupération et de métadonnées sont root 0600. Aucun autre
-service Nevolium ne fonctionne. Le matériel de récupération demeure provisoirement sur le serveur :
-son export chiffré, sa séparation et une vérification de récupération doivent précéder toute suppression
-locale ou révocation du jeton racine.
+quatre refus ont été vérifiés. Le service est sain et le garde de production accepte la configuration. L'environnement et les métadonnées
+workload restent root 0600. Le matériel de récupération a été chiffré avec une identité dédiée, vérifié sans
+écriture en clair sur le poste, copié sur un cloud privé puis retéléchargé avec empreinte identique. Le jeton
+root initial a ensuite été révoqué et les copies de récupération retirées du serveur ; les parts hors serveur
+permettent la génération exceptionnelle d'un nouveau root. Le workload orphelin a été renouvelé après
+révocation. Son service systemd quotidien et persistant est actif après correction d'un premier refus de
+traversée du checkout, survenu sans renouvellement ni activation du timer. Aucun autre service Nevolium ne fonctionne.
 ASUS TUF Gaming A16
 FA608PM relevé pour une répétition ultérieure : Ryzen 9 8940HX, 32 Go RAM, RTX 5060 Laptop 8 Go,
 environ 586 Go libres sous Windows x64. Budget préféré 50 €/mois, maximum 90 €, pilote 3–4 personnes.

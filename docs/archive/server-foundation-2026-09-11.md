@@ -81,12 +81,20 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
   incompatibilités CLI détectées sans perte du matériel de récupération.
 - Jeton de workload périodique orphelin de sept jours, sans policy `default` ; lecture du namespace
   Nevolium, introspection et renouvellement propres autorisés, quatre opérations hors portée refusées.
-- Fichiers privés d'environnement, de récupération et de métadonnées détenus par root en mode 0600.
-- Garde de production accepté, service sain et port OpenBao 8200 absent des sockets publiées de l'hôte.
-- Le matériel de récupération reste provisoirement sur le serveur. Son export chiffré, sa séparation
-  et une récupération vérifiée doivent précéder la suppression locale et la révocation du jeton root.
+- Environnement et métadonnées du workload détenus par root en mode 0600 ; garde de production accepté,
+  service sain et port OpenBao 8200 absent des sockets publiées de l'hôte.
+- Matériel de récupération exporté avec une identité age dédiée, puis paquet protégé par une phrase secrète
+  distincte. Déchiffrement et structure 3 parts/seuil 2 vérifiés en mémoire sur le poste Windows, sans JSON
+  clair ; copie cloud privée retéléchargée avec empreinte SHA-256 identique. La phrase secrète reste séparée.
+- Jeton root initial révoqué après renouvellement probant du workload ; fichier clair et export intermédiaire
+  retirés du serveur. Le workload orphelin reste valide et les parts hors serveur permettent une procédure
+  exceptionnelle de génération d'un nouveau root.
+- Renouvellement systemd quotidien à 03:17 UTC, persistant et dispersé de trente minutes. L'unité lie le
+  jeton à son accessor, exige policy/période/orphelin/TTL et nettoie son fichier temporaire. Le premier essai
+  a refusé la traversée du checkout privé avant toute mutation et sans activer le timer ; le correctif limite
+  la capacité à `CAP_DAC_READ_SEARCH`. Le second essai a renouvelé à 604799 secondes, activé le timer et
+  confirmé l'absence du jeton temporaire, des copies serveur et de dégradation OpenBao.
 
-Prochain point sûr : exporter le matériel de récupération hors serveur sans l'afficher, vérifier la
-copie chiffrée, puis préparer renouvellement surveillé, ingress/TLS et socle applicatif par paliers.
-Le snapshot ne remplace pas le futur backup Restic chiffré, indépendant du serveur et restauré sur
-volumes neufs.
+Prochain point sûr : configurer l'ingress/TLS et prouver les refus des routes internes avec le preflight
+cible avant le socle applicatif par paliers. Le paquet de clés ne remplace pas le futur backup Restic
+chiffré, indépendant du serveur et restauré sur volumes neufs.
