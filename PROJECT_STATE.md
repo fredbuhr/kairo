@@ -18,8 +18,8 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
 | Head Nevolium qualifié | `f2e22e09867fdf8dfd6d842cf393b905764d4a2a`, arbre `7b37615fd7c00c8340a12bde45b5f26d7a585895` |
-| Validation | **10/10 workflows réussis**, **5/5 jobs D04** sur le head qualifié ; run D04 `34662416910`, renouvellement/refus/restauration OpenBao réussis |
-| Prochaine action | Actualiser le checkout serveur, initialiser OpenBao, exporter séparément le matériel de récupération, puis configurer le renouvellement surveillé |
+| Validation | **10/10 workflows réussis**, **5/5 jobs D04** sur `f2e22e0…` ; le bootstrap opérateur ajouté au checkpoint live doit repasser les gates |
+| Prochaine action | Valider puis actualiser le checkpoint live, exécuter le bootstrap OpenBao versionné, exporter séparément le matériel de récupération, puis configurer le renouvellement surveillé |
 | Conditions manquantes | OpenBao démarré mais non initialisé ; Nevolium non déployé ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 

@@ -111,6 +111,23 @@ OpenBao 2.6.2 refuse aussi l'ancienne option `disable_mlock` : elle et la capaci
 sont retirées. La politique mémoire/swap de l'hôte reste à vérifier sur la cible D04.
 La [campagne D04](qualification-d04.md) vérifie le serveur persistant et la restauration sur un autre hôte.
 
+Sur une nouvelle instance privée déjà démarrée mais non initialisée, le bootstrap contrôlé génère
+trois parts de déscellement avec un seuil de deux, conserve temporairement la réponse d'initialisation
+dans un fichier root 0600, active KV v2, charge la policy, crée un jeton périodique orphelin de sept
+jours et vérifie ses capacités ainsi que son renouvellement sans afficher de secret. Il refuse une
+instance déjà initialisée ou un fichier de récupération existant et ne démarre aucun autre service :
+
+```bash
+sudo python3 scripts/ops/bootstrap_openbao.py \
+  --env-file /etc/nevolium/production.env \
+  --recovery-file /etc/nevolium/openbao-recovery.json
+```
+
+Exporter ensuite le fichier de récupération hors serveur par un canal chiffré, séparer les parts et
+vérifier la récupération avant d'effacer la copie serveur et de révoquer le jeton racine initial.
+Le jeton de workload reste dans le fichier d'environnement privé et son accessor non secret dans
+`openbao-workload.json`.
+
 Seuls Web/Core/Keycloak conservent des ports sur loopback. Le proxy TLS de l'opérateur doit publier
 uniquement le Web, l'auth et `/v1/` de Core ; refuser `/internal/`, `/docs` et `/openapi.json` à l'ingress.
 Inclure `/redoc` et les endpoints `/health/` dans cette restriction publique ; les sondes opérateur
