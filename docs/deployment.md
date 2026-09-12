@@ -92,6 +92,17 @@ URLs de redirection/origines HTTPS exactes. Ajouter le mapper audience `nevolium
 comme dans la fixture de développement. Le Core vérifie RS256, issuer, audience, `azp` égal au client Web,
 `typ=Bearer`, sujet/rôles et dates. Un ID token ou un access token d'un autre client est refusé.
 Limiter `KEYCLOAK_PROXY_TRUSTED_ADDRESSES` à l'adresse/CIDR du proxy TLS réellement utilisé.
+Pour le proxy Caddy hôte, après création du réseau `nevolium_ingress` et avec Keycloak arrêté,
+lier atomiquement cette valeur à l'unique passerelle privée détectée sans afficher ni réécrire les
+autres secrets :
+
+```bash
+sudo python3 scripts/ops/configure_keycloak_proxy.py \
+  --env-file /etc/nevolium/production.env
+```
+
+Le garde de production refuse les placeholders, adresses publiques, plages larges et adresses de
+confiance multiples. Relancer le garde après cette opération et avant Keycloak.
 
 Le premier démarrage de production monte uniquement `keycloak/production/nevolium-realm.json` et utilise
 `--import-realm`. Ce fichier ne contient aucun utilisateur ni secret : il crée les deux rôles, le client

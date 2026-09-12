@@ -135,6 +135,10 @@ class Deployment(unittest.TestCase):
                 self.assertTrue(production.validate(config(extra)),extra)
             bad=copy.deepcopy(valid);bad['services']['nevolium-core']['environment']['DATABASE_URL']='postgresql://postgres:secret@db/nevolium'
             self.assertTrue(production.validate(bad))
+            for trusted_proxy in ('CHANGE_ME_PROXY_ADDRESS', '0.0.0.0/0', '8.8.8.8/32', '172.20.0.0/16'):
+                bad=copy.deepcopy(valid)
+                bad['services']['keycloak']['environment']['KC_PROXY_TRUSTED_ADDRESSES']=trusted_proxy
+                self.assertTrue(production.validate(bad),trusted_proxy)
 
 
 if __name__=='__main__': unittest.main(verbosity=2)

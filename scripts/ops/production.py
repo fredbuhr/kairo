@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate the effective production configuration before explicit activation. Never prints secrets."""
 import argparse
+import ipaddress
 import json
 from pathlib import Path
 import re
@@ -58,6 +59,13 @@ def validate(config: dict) -> list[str]:
     for name, key in [('nevolium-core','KEYCLOAK_ISSUER'), ('keycloak','KC_HOSTNAME')]:
         value = services.get(name,{}).get('environment',{}).get(key)
         if value and (urlsplit(value).scheme != 'https' or '*' in value): errors.append(f'{name}: explicit HTTPS origin required')
+    trusted_proxy = str(services.get('keycloak',{}).get('environment',{}).get('KC_PROXY_TRUSTED_ADDRESSES') or '')
+    try:
+        trusted_network = ipaddress.ip_network(trusted_proxy, strict=False)
+        if trusted_network.num_addresses != 1 or not (trusted_network.is_private or trusted_network.is_loopback):
+            raise ValueError
+    except ValueError:
+        errors.append('keycloak: exact private trusted proxy address required')
     webargs = services.get('nevolium-web',{}).get('build',{}).get('args',{})
     for key in ('VITE_NEVOLIUM_API_URL','VITE_KEYCLOAK_URL'):
         if webargs and urlsplit(webargs.get(key,'')).scheme != 'https': errors.append(f'Web: HTTPS {key} required')
