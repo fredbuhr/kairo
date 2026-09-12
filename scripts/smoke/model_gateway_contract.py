@@ -1,429 +1,309 @@
-import { FormEvent, useEffect, useState } from 'react'
+#!/usr/bin/env python3
+"""Deterministic proof of Nevolium's logical model gateway accounting, replay and trace contract."""
 
-import CockpitShell from './CockpitShell'
-import CommandCenterPanel from './CommandCenterPanel'
-import KnowledgePanel from './KnowledgePanel'
-import NewsWorkspacePanel, {
-  type NewsBrief,
-  type NewsMode,
-  type NewsOutput,
-} from './NewsWorkspacePanel'
-import ProjectsWorkspace from './ProjectsWorkspace'
-import ResearchWorkspace from './ResearchWorkspace'
-import TodayWorkspace from './TodayWorkspace'
-import { nevoliumFetch } from './lib/apiClient'
-import {
-  type CapabilityTaskView,
-  isTerminalTaskStatus,
-  loadCapabilityTask,
-} from './taskTracking'
+from __future__ import annotations
 
-const spaces = [
-  'Command Center',
-  'Today',
-  'Projects',
-  'Knowledge',
-  'Mind 2D / 3D',
-  'Gantt',
-  'Calendar',
-  'People',
-  'News Intelligence',
-  'Research',
-  'Automations',
-  'Agents',
-  'Developer',
-  'Crypto',
-  'Finance',
-  'Home',
-  'Analytics',
-  'Maps',
-  'Approvals',
-  'Activity',
-  'System',
-]
+import asyncio
+from decimal import Decimal
+from typing import Any
 
-const activeSpaces = new Set([
-  'Command Center',
-  'Today',
-  'Projects',
-  'Knowledge',
-  'News Intelligence',
-  'Research',
-])
+import httpx
 
-const API_URL = (import.meta.env.VITE_NEVOLIUM_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+from nevolium_worker import model_gateway
 
-type NewsRun = {
-  task_id: string
-  status: string
-  query: string
-  mode: string
-  output: string
-}
+TASK_ID = "00000000-0000-0000-0000-000000000001"
+EXECUTION_ID = "00000000-0000-0000-0000-000000000002"
+CORRELATION_ID = "00000000-0000-0000-0000-000000000003"
+CALL_KEY = model_gateway.deterministic_model_call_key(
+    task_id=TASK_ID,
+    workflow_execution_id=EXECUTION_ID,
+    call_slot="contract.fixture.v1",
+)
+SECOND_CALL_KEY = model_gateway.deterministic_model_call_key(
+    task_id=TASK_ID,
+    workflow_execution_id=EXECUTION_ID,
+    call_slot="contract.fixture.second.v1",
+)
 
-type RouteParameters = {
-  query?: string
-  mode?: NewsMode
-  location?: string | null
-  output?: NewsOutput
-}
 
-type AssistantRun = {
-  command_id: string
-  conversation_id: string
-  status: string
-  routing: 'deterministic' | 'semantic'
-  capability?: string | null
-  confidence?: number | null
-  route_reason: string
-  parameters: RouteParameters
-  task_id?: string | null
-  routing_task_id?: string | null
-}
-
-type CommandState = {
-  id: string
-  conversation_id: string
-  capability_key?: string | null
-  status: string
-  confidence?: number | string | null
-  route_reason?: string | null
-  parameters_json: RouteParameters
-  task_id?: string | null
-}
-
-export default function App() {
-  const [command, setCommand] = useState('Quelles sont les nouvelles du jour sur la ville de Paris ?')
-  const [conversationId, setConversationId] = useState<string | null>(null)
-  const [pendingCommandId, setPendingCommandId] = useState<string | null>(null)
-  const [lastRoute, setLastRoute] = useState<AssistantRun | null>(null)
-
-  const [query, setQuery] = useState('Quelles sont les nouvelles du jour sur la ville de Paris ?')
-  const [mode, setMode] = useState<NewsMode>('local')
-  const [location, setLocation] = useState('Paris')
-  const [output, setOutput] = useState<NewsOutput>('both')
-
-  const [taskId, setTaskId] = useState<string | null>(null)
-  const [taskCapability, setTaskCapability] = useState<string | null>(null)
-  const [taskView, setTaskView] = useState<CapabilityTaskView | null>(null)
-  const [brief, setBrief] = useState<NewsBrief | null>(null)
-
-  const [submitting, setSubmitting] = useState(false)
-  const [routing, setRouting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!pendingCommandId) return
-    let cancelled = false
-    let timer: number | undefined
-
-    const poll = async () => {
-      try {
-        const response = await nevoliumFetch(`${API_URL}/v1/commands/${pendingCommandId}`)
-        if (!response.ok) throw new Error(`Nevolium Core répond ${response.status}`)
-        const state = (await response.json()) as CommandState
-        if (cancelled) return
-
-        if (state.status === 'accepted' && state.task_id && state.capability_key) {
-          const parameters = state.parameters_json || {}
-          setLastRoute({
-            command_id: state.id,
-            conversation_id: state.conversation_id,
-            status: 'accepted',
-            routing: 'semantic',
-            capability: state.capability_key,
-            confidence: state.confidence == null ? null : Number(state.confidence),
-            route_reason: state.route_reason || 'semantic.model',
-            parameters,
-            task_id: state.task_id,
-          })
-          setTaskCapability(state.capability_key)
-          setTaskId(state.task_id)
-          setQuery(parameters.query || command)
-          if (parameters.mode) setMode(parameters.mode)
-          if (parameters.output) setOutput(parameters.output)
-          setLocation(parameters.location || '')
-          setPendingCommandId(null)
-          return
-        }
-
-        if (state.status === 'unsupported') {
-          setLastRoute({
-            command_id: state.id,
-            conversation_id: state.conversation_id,
-            status: 'unsupported',
-            routing: 'semantic',
-            capability: null,
-            confidence: state.confidence == null ? null : Number(state.confidence),
-            route_reason: state.route_reason || 'semantic.unsupported',
-            parameters: state.parameters_json || {},
-          })
-          setPendingCommandId(null)
-          setError('Nevolium n’a pas encore de capacité enregistrée capable de traiter cette demande en sécurité.')
-          return
-        }
-        if (state.status === 'failed') {
-          setLastRoute({
-            command_id: state.id,
-            conversation_id: state.conversation_id,
-            status: 'failed',
-            routing: 'semantic',
-            capability: null,
-            confidence: state.confidence == null ? null : Number(state.confidence),
-            route_reason: state.route_reason || 'semantic.execution-failed',
-            parameters: state.parameters_json || {},
-          })
-          setPendingCommandId(null)
-          setError('Le routage sémantique Nevolium a échoué. La demande n’a pas été exécutée.')
-          return
-        }
-        timer = window.setTimeout(poll, 700)
-      } catch (pollError) {
-        if (!cancelled) {
-          setPendingCommandId(null)
-          setError(
-            pollError instanceof Error
-              ? pollError.message
-              : 'Impossible de suivre le routage sémantique.',
-          )
-        }
-      }
+def checkpoint(stage: str, *, key: str = CALL_KEY) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "kind": model_gateway.MODEL_CHECKPOINT_KIND,
+        "version": model_gateway.MODEL_CHECKPOINT_VERSION,
+        "stage": stage,
+        "idempotency_key": key,
     }
-
-    void poll()
-    return () => {
-      cancelled = true
-      if (timer) window.clearTimeout(timer)
-    }
-  }, [pendingCommandId, command])
-
-  useEffect(() => {
-    if (!taskId || !taskCapability) return
-    let cancelled = false
-    let timer: number | undefined
-
-    const poll = async () => {
-      try {
-        const data = await loadCapabilityTask(API_URL, taskCapability, taskId)
-        if (cancelled) return
-        setTaskView(data)
-        setBrief(taskCapability === 'news.brief' ? (data.raw as NewsBrief) : null)
-        if (data.status === 'failed' && data.error) setError(data.error)
-        if (!isTerminalTaskStatus(data.status)) timer = window.setTimeout(poll, 1200)
-      } catch (pollError) {
-        if (!cancelled) {
-          setError(
-            pollError instanceof Error ? pollError.message : 'Impossible de suivre la tâche Nevolium.',
-          )
+    if stage in {"completed", "accounting", "accounted"}:
+        payload["result"] = {
+            "content": "fixture completion",
+            "usage": {
+                "provider_model": "openai/gpt-fixture",
+                "prompt_tokens": 101,
+                "completion_tokens": 29,
+                "total_tokens": 130,
+                "cost_usd": "0.012345",
+                "cost_reported": True,
+                "litellm_call_id": key,
+            },
         }
-      }
-    }
+    return payload
 
-    void poll()
-    return () => {
-      cancelled = true
-      if (timer) window.clearTimeout(timer)
-    }
-  }, [taskId, taskCapability])
 
-  function resetTaskSurface() {
-    setError(null)
-    setBrief(null)
-    setTaskView(null)
-    setTaskCapability(null)
-    setTaskId(null)
-    setLastRoute(null)
-  }
+async def main() -> None:
+    authorized: list[dict[str, Any]] = []
+    accounting_attempts: list[dict[str, Any]] = []
+    provider_posts: list[dict[str, Any]] = []
 
-  async function submitCommand(event: FormEvent) {
-    event.preventDefault()
-    if (!command.trim()) return
-    setRouting(true)
-    setPendingCommandId(null)
-    resetTaskSurface()
+    async def fake_authorize(**kwargs: Any) -> None:
+        authorized.append(dict(kwargs))
 
-    try {
-      const response = await nevoliumFetch(`${API_URL}/v1/assistant/commands`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: command,
-          conversation_id: conversationId,
-          locale: 'fr-FR',
-          output: 'auto',
-        }),
-      })
-      const responseBody = await response.json().catch(() => null)
-      if (!response.ok) {
-        const detail = responseBody?.detail
-        if (detail?.conversation_id) setConversationId(detail.conversation_id)
-        throw new Error(
-          detail?.message || `Nevolium ne sait pas encore router cette demande (${response.status}).`,
+    async def fake_record(**kwargs: Any) -> None:
+        accounting_attempts.append(dict(kwargs))
+
+    class FakeClient:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            self.timeout = kwargs.get("timeout")
+
+        async def __aenter__(self) -> "FakeClient":
+            return self
+
+        async def __aexit__(self, *args: Any) -> None:
+            return None
+
+        async def post(self, url: str, **kwargs: Any) -> httpx.Response:
+            assert url.endswith("/v1/chat/completions"), url
+            provider_posts.append(dict(kwargs))
+            payload = kwargs["json"]
+            assert payload["model"] == "smart", payload
+            assert payload["max_tokens"] == model_gateway.settings.nevolium_model_max_output_tokens
+            metadata = payload["metadata"]
+            assert metadata == {
+                "generation_name": "nevolium.model.invoke",
+                "trace_id": "00000000000000000000000000000003",
+                "session_id": EXECUTION_ID,
+                "tags": ["nevolium", "model:smart"],
+                "nevoliumTaskId": TASK_ID,
+                "nevoliumWorkflowExecutionId": EXECUTION_ID,
+                "nevoliumModelCallKey": CALL_KEY,
+                "nevoliumModelAlias": "smart",
+            }, metadata
+            assert len(metadata["trace_id"]) == 32, metadata
+            assert metadata["trace_id"].isalnum() and metadata["trace_id"] == metadata["trace_id"].lower()
+            assert "messages" not in metadata and "content" not in metadata, metadata
+            headers = kwargs["headers"]
+            assert headers["x-litellm-call-id"] == CALL_KEY, headers
+            return httpx.Response(
+                200,
+                request=httpx.Request("POST", url),
+                headers={
+                    "x-litellm-response-cost": "0.012345",
+                    "x-litellm-call-id": CALL_KEY,
+                },
+                json={
+                    "model": "openai/gpt-fixture",
+                    "choices": [{"message": {"content": "fixture completion"}}],
+                    "usage": {
+                        "prompt_tokens": 101,
+                        "completion_tokens": 29,
+                        "total_tokens": 130,
+                    },
+                },
+            )
+
+    original_authorize = model_gateway._authorize_model_call
+    original_record = model_gateway._record_usage
+    original_client = model_gateway.httpx.AsyncClient
+    try:
+        model_gateway._authorize_model_call = fake_authorize
+        model_gateway._record_usage = fake_record
+        model_gateway.httpx.AsyncClient = FakeClient
+
+        # 1) Normal invocation reaches the provider exactly once, carries stable trace metadata and
+        # hands off actual usage to the canonical ledger.
+        result = await model_gateway.chat_completion(
+            task_id=TASK_ID,
+            workflow_execution_id=EXECUTION_ID,
+            correlation_id=CORRELATION_ID,
+            model_alias="smart",
+            idempotency_key=CALL_KEY,
+            estimated_cost_usd=Decimal("0.02"),
+            messages=[{"role": "user", "content": "fixture"}],
         )
-      }
+        assert result.content == "fixture completion", result
+        assert result.usage.provider_model == "openai/gpt-fixture", result.usage
+        assert result.usage.prompt_tokens == 101, result.usage
+        assert result.usage.completion_tokens == 29, result.usage
+        assert result.usage.total_tokens == 130, result.usage
+        assert result.usage.cost_usd == Decimal("0.012345"), result.usage
+        assert result.usage.cost_reported is True, result.usage
+        assert result.usage.litellm_call_id == CALL_KEY, result.usage
+        assert len(provider_posts) == 1, provider_posts
+        assert len(authorized) == 1, authorized
+        assert len(accounting_attempts) == 1, accounting_attempts
+        assert accounting_attempts[0]["idempotency_key"] == CALL_KEY, accounting_attempts
 
-      const run = responseBody as AssistantRun
-      setLastRoute(run)
-      setConversationId(run.conversation_id)
-      if (run.status === 'routing' && run.routing === 'semantic') {
-        setPendingCommandId(run.command_id)
-        return
-      }
-      if (!run.task_id || !run.capability) {
-        throw new Error('Nevolium a accepté la commande sans fournir de capacité finale.')
-      }
+        # 2) An accounted heartbeat replays the known result without provider or ledger traffic.
+        replayed = await model_gateway.chat_completion(
+            task_id=TASK_ID,
+            workflow_execution_id=EXECUTION_ID,
+            correlation_id=CORRELATION_ID,
+            model_alias="smart",
+            idempotency_key=CALL_KEY,
+            resume_checkpoint=checkpoint("accounted"),
+            estimated_cost_usd=Decimal("0.02"),
+            messages=[{"role": "user", "content": "fixture"}],
+        )
+        assert replayed.content == "fixture completion", replayed
+        assert replayed.raw["replayed_from_temporal_checkpoint"] is True, replayed.raw
+        assert len(provider_posts) == 1, provider_posts
+        assert len(authorized) == 1, authorized
+        assert len(accounting_attempts) == 1, accounting_attempts
 
-      setTaskCapability(run.capability)
-      setTaskId(run.task_id)
-      setQuery(run.parameters.query || command)
-      if (run.parameters.mode) setMode(run.parameters.mode)
-      if (run.parameters.output) setOutput(run.parameters.output)
-      setLocation(run.parameters.location || '')
-    } catch (routeError) {
-      setError(routeError instanceof Error ? routeError.message : 'Impossible de router la commande.')
-    } finally {
-      setRouting(false)
-    }
-  }
+        # 3) A completed provider result resumes only the idempotent accounting handoff.
+        resumed = await model_gateway.chat_completion(
+            task_id=TASK_ID,
+            workflow_execution_id=EXECUTION_ID,
+            correlation_id=CORRELATION_ID,
+            model_alias="smart",
+            idempotency_key=CALL_KEY,
+            resume_checkpoint=checkpoint("completed"),
+            estimated_cost_usd=Decimal("0.02"),
+            messages=[{"role": "user", "content": "fixture"}],
+        )
+        assert resumed.content == "fixture completion", resumed
+        assert len(provider_posts) == 1, provider_posts
+        assert len(accounting_attempts) == 2, accounting_attempts
 
-  async function submitNews(event: FormEvent) {
-    event.preventDefault()
-    setSubmitting(true)
-    setPendingCommandId(null)
-    resetTaskSurface()
+        # 4) An ambiguous accounting HTTP outcome retries the same canonical idempotency key.
+        retried = await model_gateway.chat_completion(
+            task_id=TASK_ID,
+            workflow_execution_id=EXECUTION_ID,
+            correlation_id=CORRELATION_ID,
+            model_alias="smart",
+            idempotency_key=CALL_KEY,
+            resume_checkpoint=checkpoint("accounting"),
+            messages=[{"role": "user", "content": "fixture"}],
+        )
+        assert retried.content == "fixture completion", retried
+        assert len(provider_posts) == 1, provider_posts
+        assert len(accounting_attempts) == 3, accounting_attempts
+        assert {attempt["idempotency_key"] for attempt in accounting_attempts} == {CALL_KEY}
 
-    try {
-      const response = await nevoliumFetch(`${API_URL}/v1/news/briefs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query,
-          mode,
-          location: mode === 'local' ? location || null : null,
-          language: 'fr',
-          time_range: 'day',
-          max_sources: 10,
-          output,
-          voice: 'ff_siwis',
-        }),
-      })
-      if (!response.ok) {
-        const body = await response.text()
-        throw new Error(`Impossible de lancer le briefing (${response.status}) : ${body}`)
-      }
-      const run = (await response.json()) as NewsRun
-      setTaskCapability('news.brief')
-      setTaskId(run.task_id)
-    } catch (submitError) {
-      setError(
-        submitError instanceof Error ? submitError.message : 'Impossible de lancer le briefing.',
-      )
-    } finally {
-      setSubmitting(false)
-    }
-  }
+        # 5) If the prior attempt may have reached the provider, replay fails closed.
+        try:
+            await model_gateway.chat_completion(
+                task_id=TASK_ID,
+                workflow_execution_id=EXECUTION_ID,
+                correlation_id=CORRELATION_ID,
+                model_alias="smart",
+                idempotency_key=CALL_KEY,
+                resume_checkpoint=checkpoint("started"),
+                messages=[{"role": "user", "content": "fixture"}],
+            )
+        except model_gateway.ModelCallOutcomeUnknown:
+            pass
+        else:
+            raise AssertionError("Ambiguous provider outcome must refuse blind replay")
+        assert len(provider_posts) == 1, provider_posts
 
-  const commandPanel = (
-    <CommandCenterPanel
-      command={command}
-      conversationId={conversationId}
-      pendingCommandId={pendingCommandId}
-      routing={routing}
-      route={lastRoute}
-      task={taskView}
-      error={error}
-      onCommandChange={setCommand}
-      onSubmit={submitCommand}
-      onUseExample={(value) => {
-        setCommand(value)
-        setError(null)
-      }}
-    />
-  )
+        # 6) Multi-slot heartbeat bundles retain earlier model-call outcomes when a later logical
+        # slot advances. Legacy single-call heartbeats remain readable during rolling retries.
+        ledger = model_gateway.ModelCheckpointLedger.from_heartbeat_details(
+            [checkpoint("accounted")]
+        )
+        assert ledger.checkpoint_for(CALL_KEY)["stage"] == "accounted"
+        ledger.record(checkpoint("started", key=SECOND_CALL_KEY))
+        bundled = ledger.snapshot()
+        assert bundled["kind"] == model_gateway.MODEL_CHECKPOINT_BUNDLE_KIND, bundled
+        assert set(bundled["checkpoints"]) == {CALL_KEY, SECOND_CALL_KEY}, bundled
 
-  const newsPanel = (
-    <NewsWorkspacePanel
-      apiUrl={API_URL}
-      query={query}
-      mode={mode}
-      location={location}
-      output={output}
-      brief={brief}
-      submitting={submitting}
-      running={Boolean(taskId && taskCapability === 'news.brief')}
-      error={error}
-      onQueryChange={setQuery}
-      onModeChange={setMode}
-      onLocationChange={setLocation}
-      onOutputChange={setOutput}
-      onSubmit={submitNews}
-    />
-  )
+        restored = model_gateway.ModelCheckpointLedger.from_heartbeat_details([bundled])
+        assert restored.checkpoint_for(CALL_KEY)["stage"] == "accounted"
+        assert restored.checkpoint_for(SECOND_CALL_KEY)["stage"] == "started"
 
-  return (
-    <main className="shell">
-      <header>
-        <div>
-          <span className="eyebrow">PERSONAL AI OPERATING SYSTEM</span>
-          <h1>Nevolium</h1>
-        </div>
-        <span className="status">cockpit + durable command kernel</span>
-      </header>
+        replayed_from_bundle = await model_gateway.chat_completion(
+            task_id=TASK_ID,
+            workflow_execution_id=EXECUTION_ID,
+            correlation_id=CORRELATION_ID,
+            model_alias="smart",
+            idempotency_key=CALL_KEY,
+            checkpoint_ledger=restored,
+            messages=[{"role": "user", "content": "fixture"}],
+        )
+        assert replayed_from_bundle.content == "fixture completion"
+        try:
+            await model_gateway.chat_completion(
+                task_id=TASK_ID,
+                workflow_execution_id=EXECUTION_ID,
+                correlation_id=CORRELATION_ID,
+                model_alias="smart",
+                idempotency_key=SECOND_CALL_KEY,
+                checkpoint_ledger=restored,
+                messages=[{"role": "user", "content": "second fixture"}],
+            )
+        except model_gateway.ModelCallOutcomeUnknown:
+            pass
+        else:
+            raise AssertionError("Bundled ambiguous slot must refuse blind replay")
+        assert len(provider_posts) == 1, provider_posts
+        assert len(authorized) == 1, authorized
+        assert len(accounting_attempts) == 3, accounting_attempts
+    finally:
+        model_gateway._authorize_model_call = original_authorize
+        model_gateway._record_usage = original_record
+        model_gateway.httpx.AsyncClient = original_client
 
-      <section className="hero">
-        <h2>One interface. One world model. Replaceable engines.</h2>
-        <p>
-          Canonical state, durable workflows, policy, events and specialist capabilities behind one
-          persistent conversational command surface.
-        </p>
-      </section>
+    # Non-UUID correlations still produce a deterministic valid W3C trace id.
+    fallback_trace = model_gateway.deterministic_trace_id(
+        task_id=TASK_ID,
+        workflow_execution_id=EXECUTION_ID,
+        correlation_id="external-correlation",
+    )
+    assert len(fallback_trace) == 32, fallback_trace
+    assert fallback_trace == model_gateway.deterministic_trace_id(
+        task_id=TASK_ID,
+        workflow_execution_id=EXECUTION_ID,
+        correlation_id="external-correlation",
+    )
+    assert fallback_trace != model_gateway.deterministic_trace_id(
+        task_id=TASK_ID,
+        workflow_execution_id=EXECUTION_ID,
+        correlation_id="different-correlation",
+    )
 
-      <CockpitShell
-        slots={{
-          command: commandPanel,
-          news: newsPanel,
-          research: <ResearchWorkspace apiUrl={API_URL} />,
-        }}
-        extraPanels={[
-          {
-            key: 'today',
-            id: 'today-workspace',
-            title: 'Today',
-            content: <TodayWorkspace apiUrl={API_URL} />,
-            minimumWidth: 360,
-          },
-          {
-            key: 'projects',
-            id: 'projects-workspace',
-            title: 'Projects',
-            content: <ProjectsWorkspace apiUrl={API_URL} />,
-          },
-          {
-            key: 'knowledge',
-            id: 'knowledge-workspace',
-            title: 'Knowledge',
-            content: <KnowledgePanel apiUrl={API_URL} />,
-          },
-        ]}
-      />
+    missing_cost = model_gateway.parse_usage(
+        {
+            "model": "ollama/qwen-fixture",
+            "usage": {"prompt_tokens": 3, "completion_tokens": 2},
+        },
+        httpx.Headers({}),
+        model_alias="smart",
+    )
+    assert missing_cost.total_tokens == 5, missing_cost
+    assert missing_cost.cost_usd == Decimal("0"), missing_cost
+    assert missing_cost.cost_reported is False, missing_cost
+    local_zero_cost = model_gateway.parse_usage(
+        {
+            "model": "local-fast",
+            "usage": {"prompt_tokens": 3, "completion_tokens": 2},
+        },
+        httpx.Headers({}),
+        model_alias="local-fast",
+    )
+    assert local_zero_cost.cost_usd == Decimal("0"), local_zero_cost
+    assert local_zero_cost.cost_reported is True, local_zero_cost
+    for invalid_cost in ("NaN", "Infinity", "-1", "bad-cost"):
+        cost, reported = model_gateway._response_cost(
+            httpx.Headers({"x-litellm-response-cost": invalid_cost}), model_alias="local-fast"
+        )
+        assert cost == 0 and reported is False
 
-      <section className="grid" aria-label="Nevolium spaces">
-        {spaces.map((space) => (
-          <article
-            key={space}
-            className={`card ${activeSpaces.has(space) ? 'card-active' : ''}`}
-          >
-            <span>{space}</span>
-            <small>
-              {space === 'Command Center'
-                ? 'dockable command surface'
-                : activeSpaces.has(space)
-                  ? 'dockable working capability'
-                  : 'planned workspace'}
-            </small>
-          </article>
-        ))}
-      </section>
-    </main>
-  )
-}
+    print(
+        "MODEL GATEWAY CONTRACT PASS: stable model-call identity, W3C trace correlation, provider replay "
+        "refusal, replayable canonical accounting, bounded multi-slot checkpoints, usage parsing and "
+        "LiteLLM cost capture behave deterministically"
+    )
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
