@@ -25,6 +25,11 @@ ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('production_check', ROOT / 'scripts/ops/production.py')
 production = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(production)
+bootstrap_spec = importlib.util.spec_from_file_location(
+    'bootstrap_openbao_check', ROOT / 'scripts/ops/bootstrap_openbao.py'
+)
+bootstrap_openbao = importlib.util.module_from_spec(bootstrap_spec)
+bootstrap_spec.loader.exec_module(bootstrap_openbao)
 
 
 def core_values():
@@ -37,6 +42,17 @@ def core_values():
 
 
 class Deployment(unittest.TestCase):
+    def test_openbao_accessor_output_shapes(self):
+        accessors = ["abc123", "def456"]
+        self.assertEqual(bootstrap_openbao.accessor_keys(accessors), accessors)
+        self.assertEqual(
+            bootstrap_openbao.accessor_keys({"data": {"keys": accessors}}),
+            accessors,
+        )
+        for invalid in (None, {}, {"data": {"keys": "abc123"}}, [""]):
+            with self.subTest(invalid=invalid), self.assertRaises(RuntimeError):
+                bootstrap_openbao.accessor_keys(invalid)
+
     def test_settings_fail_closed(self):
         CoreSettings(_env_file=None, **core_values())
         for change in [dict(nevolium_env='prod'), dict(nevolium_auth_enabled=False),

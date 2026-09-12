@@ -93,13 +93,25 @@ def recovery_material():
     return keys, root_token
 
 
+def accessor_keys(listing):
+    if isinstance(listing, list):
+        accessors = listing
+    elif isinstance(listing, dict):
+        accessors = listing.get("data", {}).get("keys", [])
+    else:
+        raise RuntimeError("liste des accessors OpenBao inattendue")
+    if (not isinstance(accessors, list)
+            or not all(isinstance(value, str) and value for value in accessors)):
+        raise RuntimeError("liste des accessors OpenBao inattendue")
+    return accessors
+
+
 def revoke_interrupted_tokens():
     listing = json.loads(bao_as("/tmp/nevolium-root-token", [
         "list", "-format=json", "auth/token/accessors"
     ]).stdout)
-    accessors = listing.get("data", {}).get("keys", [])
     matches = []
-    for accessor in accessors:
+    for accessor in accessor_keys(listing):
         lookup = json.loads(bao_as("/tmp/nevolium-root-token", [
             "write", "-format=json", "auth/token/lookup-accessor", "-"
         ], stdin=json.dumps({"accessor": accessor})).stdout).get("data", {})
