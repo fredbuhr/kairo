@@ -110,6 +110,8 @@ applicatif `nevolium-admin` et composite `realm-management/realm-admin`. Ces dro
 initiale ont été vérifiés par la commande bornée ; une connexion Windows affiche réellement la console du
 realm Nevolium. Le bootstrap `master` reste actif. La branche prépare son retrait en réservant ses variables
 à un overlay initial explicite, puis en exigeant un redémarrage sans cet environnement avant suppression.
+Cette gate est passée sur la cible : Keycloak a été recréé sans les deux variables de conteneur, son issuer
+est resté sain, puis `fred-admin` a terminé une nouvelle authentification MFA et rouvert la console du realm.
 
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
@@ -129,7 +131,7 @@ la qualification graphique mobile restent à livrer. Présence de Three/Tauri/Yj
 |---|---|---|
 | État durable | PostgreSQL migré, NATS/JetStream, SeaweedFS et Temporal/namespace `default` actifs sur réseaux internes ; Core relit ses dépendances ; migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Parcours Worker, dimensionnement réel, archivage canonique et charge sur matériel identifié |
 | Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables | Mesure réelle des moteurs et du matériel en D04 |
-| Identité et actions | Keycloak et Core derrière Caddy/TLS public ; utilisateur et administrateur nominatifs actifs avec TOTP et rôles bornés ; console realm et Authorization Code + PKCE/lecture owner-scoped vérifiés ; refus anonyme/faux jeton vérifiés | Redémarrage sans environnement bootstrap puis retrait du compte `master` ; UX de rapprochement des coûts incertains |
+| Identité et actions | Keycloak et Core derrière Caddy/TLS public ; utilisateur et administrateur nominatifs actifs avec TOTP et rôles bornés ; redémarrage sans environnement bootstrap puis nouvelle connexion console MFA réussis ; Authorization Code + PKCE/lecture owner-scoped et refus anonyme/faux jeton vérifiés | Retrait du compte bootstrap `master` et de ses deux secrets ; UX de rapprochement des coûts incertains |
 | Intelligence | Routing/recherche, Context Packs et gateway avec admission, estimations réservées, sortie bornée et replay comptable | Choix utilisateur des modèles/clés, UX Agents/Skills, preuve coûts et vrais moteurs |
 | Documents et mémoire | Ingestion/version/chunks, recherche/inspection Web, projections mémoire reconstruisibles | CI Documents emploie le fallback texte, mémoire emploie des stubs ; vraie intégration Docling/Mem0/Graphiti à mesurer en D04 |
 | Cockpit | Build Web de production publié par Caddy/TLS avec API/auth publiques embarquées ; panneaux persistés par sujet, Command Center, Projects, Today, Research, News, Knowledge | Parcours OIDC nominatif, design Mycelium complet, réglages, attention et parcours cohérents |
