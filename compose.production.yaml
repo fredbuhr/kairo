@@ -38,7 +38,7 @@ services:
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
       NEVOLIUM_CORS_ORIGINS: ${NEVOLIUM_CORS_ORIGINS}
     volumes:
-    - ./infrastructure/keycloak/nevolium-production-realm.json:/opt/keycloak/data/import/nevolium-realm.json:ro
+    - ./infrastructure/keycloak/production/nevolium-realm.json:/opt/keycloak/data/import/nevolium-realm.json:ro
     networks: !override
     - identity
     - ingress

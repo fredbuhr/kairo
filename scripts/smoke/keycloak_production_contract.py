@@ -6,7 +6,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-REALM_PATH = ROOT / "infrastructure/keycloak/nevolium-production-realm.json"
+REALM_PATH = ROOT / "infrastructure/keycloak/production/nevolium-realm.json"
 COMPOSE_PATH = ROOT / "compose.production.yaml"
 
 
@@ -48,7 +48,7 @@ class KeycloakProductionContract(unittest.TestCase):
             "- --import-realm",
             "NEVOLIUM_CORS_ORIGINS: ${NEVOLIUM_CORS_ORIGINS}",
             "KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}",
-            "./infrastructure/keycloak/nevolium-production-realm.json:/opt/keycloak/data/import/nevolium-realm.json:ro",
+            "./infrastructure/keycloak/production/nevolium-realm.json:/opt/keycloak/data/import/nevolium-realm.json:ro",
         )
         for value in required:
             with self.subTest(value=value):

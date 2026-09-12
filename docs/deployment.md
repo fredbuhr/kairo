@@ -93,7 +93,7 @@ comme dans la fixture de développement. Le Core vérifie RS256, issuer, audienc
 `typ=Bearer`, sujet/rôles et dates. Un ID token ou un access token d'un autre client est refusé.
 Limiter `KEYCLOAK_PROXY_TRUSTED_ADDRESSES` à l'adresse/CIDR du proxy TLS réellement utilisé.
 
-Le premier démarrage de production monte uniquement `nevolium-production-realm.json` et utilise
+Le premier démarrage de production monte uniquement `keycloak/production/nevolium-realm.json` et utilise
 `--import-realm`. Ce fichier ne contient aucun utilisateur ni secret : il crée les deux rôles, le client
 Web public, le code flow avec PKCE S256, les origines exactes et le mapper d'audience. La fixture
 `nevolium-realm.json` reste réservée au développement et ne doit jamais être montée en production.
