@@ -124,8 +124,12 @@ Référence installation : [Docker Desktop Windows / WSL2](https://docs.docker.c
 
 ## Inventaire et charge sur la cible privée
 
-Le serveur netcup est livré mais aucun accès opérateur n'est fourni à cette session et le stockage de
-sauvegarde indépendant reste à choisir. Les commandes suivantes sont prêtes pour la cible retenue :
+Le serveur netcup est livré et son socle Debian durci a été vérifié manuellement, y compris après un
+cold boot : accès par clé, SSH sans root/mot de passe, maintenance automatique, journalisation,
+Fail2ban, pare-feu hôte/fournisseur et connectivité IPv4/IPv6. Le rapport public est volontairement
+expurgé de toutes les valeurs d'accès : [socle serveur](archive/server-foundation-2026-09-11.md).
+Docker, le stockage de sauvegarde indépendant et la campagne Nevolium restent à réaliser. Les commandes
+suivantes sont prêtes pour la cible retenue après installation contrôlée :
 
 ```bash
 python scripts/qualification/target.py inventory --output .nevolium-qualification/evidence/server-inventory.json

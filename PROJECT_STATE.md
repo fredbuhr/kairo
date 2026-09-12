@@ -19,8 +19,8 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
 | Head Nevolium qualifié | `d9478deada2c2c1781958abd87779b9a5e7c11f2`, arbre `898306b233b7f16de6b28b19f78304498e0d7b2e` |
 | Validation | **10/10 workflows réussis**, **5/5 jobs D04** sur le head Nevolium ; verrou identité, builds Python/JS, topologies et scénarios réels CI réussis |
-| Prochaine action | Reprendre l'inventaire SSH et le durcissement du serveur netcup, puis exécuter la campagne privée D04 |
-| Conditions manquantes | Inventaire OS réel, pare-feu, domaine/TLS, sauvegarde indépendante et modèle quotidien non validés |
+| Prochaine action | Créer le snapshot du socle durci, installer Docker/Compose sur netcup, puis préparer le déploiement privé D04 |
+| Conditions manquantes | Docker et Nevolium non déployés ; domaine/TLS, sauvegarde indépendante, campagne cible et modèle quotidien non validés |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -71,9 +71,12 @@ inconnues ou données pour débloquer une gate. Aucun déploiement utilisateur e
 Serveur prioritaire ; installation complète sur PC personnel également visée. Clients PC, smartphone
 et tablette, avec mode hors ligne borné et 3D adaptative. [ADR-029 et critères](https://github.com/fredbuhr/nevolium/blob/hardening/d04-real-engine-qualification/docs/decisions/ADR-029-server-personal-and-offline-clients.md)
 et plan D05–D22 ajustés dans la même PR ; choix de conception, pas fonctionnalités livrées.
-Netcup RS 4000 G12 livré à Vienne et en fonctionnement selon captures utilisateur : 12 CPU AMD64,
-32 Gio de RAM, disque 1 Tio et IPv4/IPv6 attribuées. Aucun identifiant réseau ou de compte n'est versionné.
-Le panneau montre zéro règle de pare-feu ; état réel à vérifier avant installation. ASUS TUF Gaming A16
+Netcup RS 4000 G12 livré à Vienne : 12 CPU AMD64, 32 Gio de RAM et disque 1 Tio. Debian 13,
+accès administratif non-root par clé, SSH durci, mises à jour automatiques, journald persistant,
+Fail2ban et pare-feu nftables/fournisseur ont été vérifiés, puis revérifiés après cold boot. DNS,
+APT, HTTPS et ICMP fonctionnent en IPv4/IPv6. Aucun identifiant réseau, compte ou secret n'est versionné ;
+[preuve expurgée](docs/archive/server-foundation-2026-09-11.md). Docker et Nevolium ne sont pas encore installés.
+ASUS TUF Gaming A16
 FA608PM relevé pour une répétition ultérieure : Ryzen 9 8940HX, 32 Go RAM, RTX 5060 Laptop 8 Go,
 environ 586 Go libres sous Windows x64. Budget préféré 50 €/mois, maximum 90 €, pilote 3–4 personnes.
 Protocole local/serveur ajouté dans qualification-d04 ; captures seulement, aucun test exécuté sur les machines.

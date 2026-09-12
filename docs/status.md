@@ -49,6 +49,12 @@ Corrections trouvées : bibliothèques natives OCR absentes, écritures techniqu
 configuration OpenBao persistante incompatible avec sa version épinglée. La cible privée reste à qualifier ;
 ne pas utiliser les résultats de branche comme une validation de production du main D03.
 
+Le premier socle serveur privé est désormais vérifié avant déploiement : Debian 13, administration
+non-root par clé, SSH sans root/mot de passe, mises à jour automatiques, journald persistant, Fail2ban,
+pare-feu hôte à refus entrant-by-default et pare-feu fournisseur. Un cold boot a conservé l'accès et les
+services ; DNS, APT, ICMP et HTTPS fonctionnent en IPv4/IPv6. Aucun moteur Nevolium, TLS applicatif ou
+backup indépendant n'est qualifié par ce jalon. [Preuve expurgée](archive/server-foundation-2026-09-11.md).
+
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
 avec lectures bornées et diagnostics sans secrets. Six tests HTTP/TLS du runner réussis en CI ;
