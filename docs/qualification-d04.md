@@ -26,6 +26,25 @@ La couche texte PDF ne prouve pas à elle seule les scans/OCR, tableaux complexe
 Les scopes Mem0/épisodes Graphiti sont des projections : aucune extraction générative ni mindmap produit
 n'est déclarée livrée. La recherche dépend d'amonts publics et peut être limitée sur une IP de CI.
 
+### Budget du routage sémantique sur la cible CPU
+
+Le seuil modèle local ci-dessus reste inchangé. Après observation d'un `TimeoutError` à 60 s et
+d'une réponse Ollama HTTP 200 à environ 70 s sur la même fenêtre horaire, le routage utilise les
+110 s déjà accordées au gateway local par `local_services.py`. L'activité dispose de 180 s pour
+l'admission (deux requêtes bornées à 10 s), l'appel modèle, la comptabilité (10 s) et l'application
+de proposition à Core (30 s). Le heartbeat de 120 s reste supérieur au plus long appel individuel.
+Aucune augmentation CPU/RAM, limite de sortie ou limite proxy n'accompagne ce correctif.
+
+Le contrat offline exécute réellement le gateway et PydanticAI avec transport factice et horloge
+virtuelle : réponse à 70 s comptabilisée une fois ; expiration à 111 s sans usage inventé ; reprise
+depuis le checkpoint `started` refusée sans seconde requête au fournisseur. Le contrat vérifie aussi
+les options effectivement transmises par le workflow. Ce n'est ni une mesure Ollama, ni une preuve
+du nombre d'essais d'un serveur Temporal réel. Le scénario Foundation ajoute une réponse HTTP factice
+retardée de 70 secondes avec les vrais Core, Worker et Temporal : cette preuve intégrée reste distincte
+de la performance Ollama. Qualifier ensuite une nouvelle commande cible,
+modèle déchargé puis chaud, vérifier tokens/coût/réservation et conserver les anciens échecs.
+Un dépassement persistant doit être mesuré et diagnostiqué, pas caché par une nouvelle hausse de seuil.
+
 ## Préparer les modèles une fois, exécuter sans téléchargement
 
 Sur un environnement de développement isolé avec Docker et le dépôt courant :

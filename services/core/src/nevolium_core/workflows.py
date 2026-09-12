@@ -572,9 +572,12 @@ async def internal_fail_execution(
 
     if execution.status != "completed":
         if execution.status != "failed":
+            now = datetime.now(UTC)
             execution.status = "failed"
+            execution.completed_at = execution.completed_at or now
             execution.last_error = body.error
             task.status = "failed"
+            task.completed_at = task.completed_at or now
             await enqueue_domain_event(
                 session,
                 event_type="execution.failed",

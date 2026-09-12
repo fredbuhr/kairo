@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Head de code déployé et qualifié | `8c175902e56da95470899db3129ba769f57bc815` |
-| Validation | **10/10 workflows réussis** sur `8c17590…` ; identité et moteurs internes qualifiés ; LiteLLM route `local-fast` à coût nul vers le modèle D04 sans clé externe ; Worker confiné actif ; parcours News, routage sémantique et PDF Docling owner-scoped exécutés en production |
-| Prochaine action | Prouver les projections mémoire et le parcours recherche avant toute campagne de charge |
-| Conditions manquantes | Backup Restic indépendant, parcours canoniques mémoire/recherche, campagne cible, charge et choix du modèle quotidien non validés |
+| Dernier code déployé confirmé | `bc0c607c1af7e91de0035a098284a7cb46a403ba` ; le test sémantique à froid échoue encore, ce n'est pas une qualification complète |
+| Validation | Parent `bc0c607…` : 10/10 workflows réussis. Mémoire propriétaire et rejeu génération 2 prouvés sur cible. Correctif présent : contrats virtuels 70/111 secondes et dates de fin des nouveaux échecs ; vérifier sa CI exacte avant déploiement |
+| Prochaine action | Déployer le correctif de budget D04 sur Core/Worker après CI, puis qualifier une nouvelle commande à froid et à chaud sans rejouer les anciennes issues inconnues |
+| Conditions manquantes | Routage fiable sur cible, Research avec outils réels, backup Restic indépendant, campagne cible/charge/rollback et choix du modèle quotidien |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04
@@ -38,6 +38,9 @@ Le dépôt est renommé `fredbuhr/nevolium`, la PR #88 a suivi le changement et 
 a été basculé puis vérifié sur la nouvelle URL.
 
 ## Réalisé sur la branche, sans promotion de main
+
+Les paragraphes suivants sont un historique des paliers, pas une description simultanée de l'état
+actuel. Le tableau de reprise ci-dessus et le complément d'incident dans le rapport serveur font foi.
 
 - Image Worker complète avec dépendances natives OCR figées ; écriture technique Mem0 dans TMPDIR
   et historique SDK en mémoire pour respecter le système en lecture seule.
@@ -145,7 +148,8 @@ a été basculé puis vérifié sur la nouvelle URL.
 ## Conditions de sortie et reprise après interruption
 
 Les preuves CPU de CI ne clôturent pas H5. La séparation des clés OpenBao et le renouvellement du workload
-sont désormais prouvés sur la cible. Restent : parcours canoniques mémoire/recherche, charge et files en usage mixte, upgrade/rollback
+sont désormais prouvés sur la cible, ainsi que les projections mémoire propriétaire et leur rejeu sans doublon.
+Restent : routage à froid/chaud, parcours Research, charge et files en usage mixte, upgrade/rollback
 compatible et restauration applicative Restic indépendante sur volumes neufs. TLS/ingress, identités
 nominatives, premiers parcours News/sémantique et comptabilité locale sont maintenant prouvés sur la cible.
 Le modèle de test 0.5B ne sélectionne pas le modèle quotidien ; le PDF à couche texte ne qualifie pas

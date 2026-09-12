@@ -150,10 +150,27 @@ def main() -> None:
     assert replay["status"] == "accepted", replay
     assert replay["task_id"] == expected_final_task, replay
 
+    # Real Worker/Temporal/Core with delayed fixture HTTP, not a real model performance test.
+    slow_started = time.monotonic()
+    _, slow = json_request(
+        "POST", "/v1/assistant/commands", expected=202,
+        payload={"text": "NEVOLIUM-CI-SLOW-SEMANTIC classify safely", "locale": "fr-FR"},
+    )
+    assert slow["routing"] == "semantic", slow
+    slow_command = wait_command(slow["command_id"], timeout=150)
+    assert slow_command["status"] == "unsupported", slow_command
+    assert slow_command["task_id"] is None, slow_command
+    assert time.monotonic() - slow_started >= 69
+    slow_task = wait_task(slow["routing_task_id"], {"completed"})
+    assert slow_task["completed_at"], slow_task
+    _, slow_artifacts = json_request("GET", f"/v1/tasks/{slow_task['id']}/artifacts")
+    assert len([item for item in slow_artifacts if item["kind"] == "semantic-route"]) == 1
+
     print(
         "SEMANTIC COMMAND INTEGRATION PASS: ambiguous input is durably routed through PydanticAI and "
         "the accounted model gateway, Core validates the registered capability, and replay reuses the "
-        "same deterministic final Task."
+        "same deterministic final Task. A separate 70-second HTTP fixture completes routing "
+        "without launching a business capability; real target model performance remains unqualified."
     )
 
 

@@ -51,6 +51,13 @@ class SemanticRouteTask(BaseModel):
 
 CompletionFn = Callable[[list[dict[str, Any]]], Awaitable[str]]
 
+# Match the existing D04 local-model gateway budget (110 s, measured case <=115 s).
+# These are qualification bounds, not a claim of interactive latency or cold-start success.
+SEMANTIC_MODEL_TIMEOUT_SECONDS = 110.0
+SEMANTIC_HEARTBEAT_TIMEOUT_SECONDS = 120
+# Leave room for admission, accounting and the final bounded Core handoff.
+SEMANTIC_ACTIVITY_TIMEOUT_SECONDS = 180
+
 SEMANTIC_ROUTER_INSTRUCTIONS = """
 You are Nevolium's semantic capability router. You never solve the user's request yourself and you
 never call tools. Your only job is to propose exactly one capability from the catalog included in
@@ -193,7 +200,7 @@ async def perform_semantic_route(payload: dict[str, Any]) -> dict[str, Any]:
             resume_checkpoint=resume_checkpoint,
             temperature=0.0,
             estimated_cost_usd=Decimal(str(settings.nevolium_semantic_router_estimated_cost_usd)),
-            timeout_seconds=60.0,
+            timeout_seconds=SEMANTIC_MODEL_TIMEOUT_SECONDS,
         )
         return result.content
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
@@ -50,6 +51,13 @@ class Handler(BaseHTTPRequestHandler):
             },
             "rationale": "The ambiguous request is asking for current local events in Paris.",
         }
+        if "NEVOLIUM-CI-SLOW-SEMANTIC" in text:
+            # Disposable CI only: exercise a real HTTP wait beyond the former 60 s cutoff.
+            time.sleep(70)
+            proposal = {
+                "outcome": "unsupported", "capability": None, "confidence": 0,
+                "parameters": {}, "rationale": "Slow fixture: no business action requested.",
+            }
         response = {
             "id": "chatcmpl-nevolium-semantic-ci",
             "object": "chat.completion",

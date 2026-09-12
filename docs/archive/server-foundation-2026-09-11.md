@@ -207,6 +207,29 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
   PostgreSQL confirment deux générations, le SHA-256 source inchangé et le même propriétaire pour projet,
   asset et document. Worker, stockage et réseau restent sans port hôte ; les services publics sont sains.
 
-Prochain point sûr : prouver les projections mémoire et le parcours recherche
-avant d'élargir progressivement aux mesures et à la charge. Le paquet de clés ne remplace pas le futur backup Restic chiffré,
+À ce checkpoint PDF, le point suivant était la mémoire et Research. Le paquet de clés ne remplace pas le futur backup Restic chiffré,
 indépendant du serveur et restauré sur volumes neufs.
+
+## Complément opérateur : mémoire et échec à froid du 12 septembre
+
+- Mem0 a retrouvé le message canonique dans son scope propriétaire, tandis qu'un scope étranger
+  était vide. Graphiti contient l'épisode correspondant. Les deux projections et leur Task sont terminées.
+  Le rejeu canonique génération 2 a conservé les clés, réutilisé Mem0 et conservé un seul épisode Graphiti.
+  L'échec du routage de la même conversation ne supprime pas ces preuves mémoire indépendantes.
+- Après déploiement de `bc0c607…`, une nouvelle commande de qualification démarre à 21:52:19 UTC.
+  Temporal rapporte un premier `TimeoutError`, une seconde tentative à environ 61 s et un échec
+  `ModelCallOutcomeUnknown` non rejouable vers 62 s. Le dernier appel `/api/generate` du journal
+  Ollama finit à 21:53:30 avec HTTP 200 après environ 70 s. Les heures concordent ; aucun identifiant
+  de requête partagé ni détail de chargement n'a été exposé, donc ne pas attribuer toute la durée au cold load.
+- L'inspection confirme 2 CPU, 4 Gio, aucun redémarrage du conteneur et `OOMKilled=false` dans son
+  dernier état. Cela ne prouve ni absence de contention CPU ni absence historique de pression mémoire.
+  La Task est unique pour le marqueur. Son workflow est `failed`, mais `completed_at` est nul : le
+  handler Core d'échec ne renseignait pas ce champ. Aucun horodatage historique n'est reconstitué.
+- Le correctif de branche aligne le budget modèle sémantique sur les 110 s déjà utilisées par D04,
+  heartbeat 120 s, activité 180 s ; conserve 256 jetons de sortie dans la configuration cible et
+  laisse CPU/RAM/proxy inchangés. Les nouveaux échecs reçoivent leur date terminale, conservée au rejeu.
+  Les tests virtuels et unitaires ne déclarent pas ce correctif déployé ni le scénario réel réussi.
+
+Prochain point sûr : vérifier la CI du correctif, déployer Core/Worker, qualifier un nouvel essai
+à froid puis à chaud, sans supprimer ni rejouer les réservations inconnues. Research réel, restauration
+indépendante, mesures mixtes et rollback demeurent des conditions D04, avant D05.

@@ -3,6 +3,23 @@
 Révision : 2026-09-12, D03 terminé par #87 ; D04/H5 actif dans #88.
 Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJECT_STATE.md).
 
+## Complément courant : mémoire et incident sémantique
+
+Les contrôles opérateur ont prouvé Mem0 sur le bon propriétaire, un scope étranger vide, un épisode
+Graphiti et le rejeu mémoire génération 2 sans doublon. Le routage sémantique est indépendant et reste
+non qualifié à froid : sous `bc0c607…`, l'historique Temporal montre un `TimeoutError`, puis une seconde
+tentative arrêtée comme `ModelCallOutcomeUnknown` non rejouable. Les heures concordent avec une réponse
+Ollama HTTP 200 en environ 70 s, après le délai Worker de 60 s ; elles ne mesurent pas le chargement du modèle.
+Ollama conserve sa limite de 2 CPU/4 Gio. Le correctif aligne l'appel sur le budget local D04 existant
+de 110 s, le heartbeat sur 120 s et l'activité sur 180 s. Des tests à horloge virtuelle passent par le
+vrai gateway et le vrai adaptateur PydanticAI ; ils ne prouvent pas la performance du serveur.
+Les nouveaux échecs Core reçoivent une date de fin idempotente, sans réécriture des anciens échecs.
+Déploiement et nouvel essai cible encore requis. Réservations inconnues et anciennes Tasks inchangées.
+
+Les sections ci-dessous conservent l'historique des paliers. Six espaces UI sont raccordés, pas quinze
+modules futurs ; le cockpit Mycelium reste D05. L'erreur partagée Command/News, les débordements de panneaux
+et la qualité des réponses ne sont pas corrigés par ce changement de budget.
+
 ## Acquis canoniques
 
 - Reset R0–R7 terminé, G51 Daily Spine intégré.

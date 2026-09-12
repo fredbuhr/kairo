@@ -13,7 +13,11 @@ with workflow.unsafe.imports_passed_through():
     from .policy_activities import check_policy_gate
     from .research_agent import perform_autonomous_research
     from .research_context_pack import prepare_research_context_pack
-    from .semantic_router import perform_semantic_route
+    from .semantic_router import (
+        SEMANTIC_ACTIVITY_TIMEOUT_SECONDS,
+        SEMANTIC_HEARTBEAT_TIMEOUT_SECONDS,
+        perform_semantic_route,
+    )
     from .tool_runtime import fail_tool_invocation, perform_tool_invocation
 
 ACTIVITY_RETRY = RetryPolicy(
@@ -131,8 +135,8 @@ class TaskExecutionWorkflow:
                 result = await workflow.execute_activity(
                     perform_semantic_route,
                     work_payload,
-                    start_to_close_timeout=timedelta(seconds=120),
-                    heartbeat_timeout=timedelta(seconds=90),
+                    start_to_close_timeout=timedelta(seconds=SEMANTIC_ACTIVITY_TIMEOUT_SECONDS),
+                    heartbeat_timeout=timedelta(seconds=SEMANTIC_HEARTBEAT_TIMEOUT_SECONDS),
                     retry_policy=ACTIVITY_RETRY,
                 )
             elif capability == "research.autonomous":

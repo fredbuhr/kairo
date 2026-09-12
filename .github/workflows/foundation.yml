@@ -86,6 +86,9 @@ jobs:
       - name: Prove Assistant conversation ownership contract
         run: uv run --locked --project services/core python scripts/smoke/assistant_ownership_contract.py
 
+      - name: Prove failed execution timestamps and replay preservation
+        run: uv run --locked --project services/core python scripts/smoke/execution_terminal_contract.py
+
       - name: Prove PydanticAI semantic routing contract
         run: uv run --locked --project services/worker python scripts/smoke/semantic_router_contract.py
 
