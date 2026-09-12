@@ -176,8 +176,12 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
   la recherche ont répondu à leurs sondes internes. Un conteneur temporaire borné a téléchargé
   `qwen2.5:0.5b` dans le volume Ollama ; son digest complet `a8b0c515…f1827c67` correspond à la preuve D04.
   Ollama a alors redémarré dans le seul réseau interne `models`, sans egress. Les services publics sont
-  restés sains ; LiteLLM et Worker demeurent arrêtés.
+  restés sains.
+- LiteLLM a été activé sans port hôte avec `local-fast` dirigé vers ce modèle qualifié. Aucune clé OpenAI
+  ou Anthropic n'est chargée. Une complétion locale non vide et son comptage de jetons ont été validés,
+  tandis qu'un faux jeton a reçu 401. LiteLLM est limité à `models`, `telemetry` et `egress` ; Ollama reste
+  sur le seul réseau interne `models`. Les services publics sont sains et Worker demeure arrêté.
 
-Prochain point sûr : activer LiteLLM et prouver le routage borné de `local-fast` vers Ollama avant de
-construire ou démarrer Worker. Le paquet de clés ne remplace pas le futur backup Restic chiffré,
+Prochain point sûr : construire et démarrer Worker avec son bundle en lecture seule, vérifier son confinement
+et prouver un premier parcours réel borné vers les moteurs qualifiés. Le paquet de clés ne remplace pas le futur backup Restic chiffré,
 indépendant du serveur et restauré sur volumes neufs.
