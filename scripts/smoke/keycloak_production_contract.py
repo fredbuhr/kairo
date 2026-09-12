@@ -47,6 +47,7 @@ class KeycloakProductionContract(unittest.TestCase):
         required = (
             "- --import-realm",
             "NEVOLIUM_CORS_ORIGINS: ${NEVOLIUM_CORS_ORIGINS}",
+            "KEYCLOAK_REALM: ${KEYCLOAK_REALM}",
             "KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}",
             "./infrastructure/keycloak/production/nevolium-realm.json:/opt/keycloak/data/import/nevolium-realm.json:ro",
         )
