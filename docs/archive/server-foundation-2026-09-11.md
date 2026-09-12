@@ -164,8 +164,11 @@ et tester ultérieurement une API transactionnelle ou une exception de relais bo
   d'action restante et rôles ont été vérifiés ; une connexion Windows affiche la console administrative
   du realm. Keycloak a ensuite été recréé avec la topologie normale sans les deux variables bootstrap ;
   l'issuer est resté sain et une nouvelle authentification MFA de l'administrateur nominatif a rouvert la
-  console. Le bootstrap `master` reste intact jusqu'à son retrait explicite.
+  console. Les deux comptes nominatifs et leurs TOTP ont été revérifiés avant suppression de l'unique
+  bootstrap `master`. Ses anciens identifiants ont ensuite été explicitement refusés et leurs deux
+  affectations retirées atomiquement du fichier privé root 0600. Keycloak, Caddy et la topologie normale
+  sont restés sains ; une authentification MFA neuve a encore rouvert la console administrative.
 
-Prochain point sûr : retirer exactement le compte bootstrap `master`, prouver que ses anciens identifiants
-sont refusés et supprimer atomiquement ses deux secrets privés. Le paquet de clés ne remplace pas le futur
-backup Restic chiffré, indépendant du serveur et restauré sur volumes neufs.
+Prochain point sûr : préparer puis qualifier le palier Worker et ses moteurs réels sur la cible sans élargir
+l'exposition publique. Le paquet de clés ne remplace pas le futur backup Restic chiffré, indépendant du
+serveur et restauré sur volumes neufs.

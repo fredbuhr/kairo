@@ -108,10 +108,14 @@ le vrai bearer, son audience/issuer/azp et le rôle `nevolium-user`, puis appliq
 Un administrateur nominatif distinct du seul realm Nevolium est maintenant actif avec TOTP, rôle
 applicatif `nevolium-admin` et composite `realm-management/realm-admin`. Ces droits et l'absence d'action
 initiale ont été vérifiés par la commande bornée ; une connexion Windows affiche réellement la console du
-realm Nevolium. Le bootstrap `master` reste actif. La branche prépare son retrait en réservant ses variables
-à un overlay initial explicite, puis en exigeant un redémarrage sans cet environnement avant suppression.
-Cette gate est passée sur la cible : Keycloak a été recréé sans les deux variables de conteneur, son issuer
-est resté sain, puis `fred-admin` a terminé une nouvelle authentification MFA et rouvert la console du realm.
+realm Nevolium. La branche réserve les variables bootstrap à un overlay initial explicite et exige un
+redémarrage sans cet environnement avant suppression. Cette première gate est passée sur la cible :
+Keycloak a été recréé sans les deux variables de conteneur ; son issuer est resté sain, puis `fred-admin`
+a terminé une nouvelle authentification MFA et rouvert la console du realm.
+La seconde gate a ensuite supprimé exactement le bootstrap `master`, prouvé le refus de ses anciens
+identifiants et retiré atomiquement ses deux secrets du fichier privé root 0600. La topologie normale,
+Keycloak et Caddy sont restés sains ; une authentification MFA neuve de `fred-admin` a encore rouvert la
+console après le retrait. Aucun accès bootstrap de production ne subsiste.
 
 Une campagne intermédiaire réexécutée sur `a5a61db…` avait également passé 9/9 workflows et 5/5 jobs D04.
 Le contrôle préalable d’accès D04 vérifie désormais TLS/authentification/routage avant la charge,
@@ -131,7 +135,7 @@ la qualification graphique mobile restent à livrer. Présence de Three/Tauri/Yj
 |---|---|---|
 | État durable | PostgreSQL migré, NATS/JetStream, SeaweedFS et Temporal/namespace `default` actifs sur réseaux internes ; Core relit ses dépendances ; migrations jusqu'à `0014_capacity_and_data`, pagination SQL et rétention technique | Parcours Worker, dimensionnement réel, archivage canonique et charge sur matériel identifié |
 | Exécution Worker | Parsing hors boucle async, téléchargement/texte/durée bornés, nettoyage timeout/annulation, admission globale/par propriétaire, attente Temporal, enfants annulables | Mesure réelle des moteurs et du matériel en D04 |
-| Identité et actions | Keycloak et Core derrière Caddy/TLS public ; utilisateur et administrateur nominatifs actifs avec TOTP et rôles bornés ; redémarrage sans environnement bootstrap puis nouvelle connexion console MFA réussis ; Authorization Code + PKCE/lecture owner-scoped et refus anonyme/faux jeton vérifiés | Retrait du compte bootstrap `master` et de ses deux secrets ; UX de rapprochement des coûts incertains |
+| Identité et actions | Keycloak et Core derrière Caddy/TLS public ; utilisateur et administrateur nominatifs actifs avec TOTP et rôles bornés ; bootstrap `master` et secrets privés retirés après redémarrage sans environnement bootstrap ; connexions MFA, Authorization Code + PKCE/lecture owner-scoped et refus anonyme/faux jeton vérifiés | UX de rapprochement des coûts incertains |
 | Intelligence | Routing/recherche, Context Packs et gateway avec admission, estimations réservées, sortie bornée et replay comptable | Choix utilisateur des modèles/clés, UX Agents/Skills, preuve coûts et vrais moteurs |
 | Documents et mémoire | Ingestion/version/chunks, recherche/inspection Web, projections mémoire reconstruisibles | CI Documents emploie le fallback texte, mémoire emploie des stubs ; vraie intégration Docling/Mem0/Graphiti à mesurer en D04 |
 | Cockpit | Build Web de production publié par Caddy/TLS avec API/auth publiques embarquées ; panneaux persistés par sujet, Command Center, Projects, Today, Research, News, Knowledge | Parcours OIDC nominatif, design Mycelium complet, réglages, attention et parcours cohérents |
