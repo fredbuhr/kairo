@@ -18,6 +18,11 @@ nouvelle commande termine en 59,57 s avec `semantic.execution-veto`, zéro Task 
 et une réservation réglée. Le modèle cible a lui-même répondu `unsupported` sans capacité proposée :
 cette exécution confirme le déploiement et le refus, tandis que la CI qualifie la frontière avec une
 proposition valide. La commande News historique et les anciennes réservations inconnues restent inchangées.
+Le préflight Research trouve ensuite zéro serveur et zéro outil Web enregistré. La première activation
+isolée de l'adaptateur est refusée par Docker avant création : la forme YAML compacte du TMPFS sépare
+`mode=1777` en faux chemin relatif. Le nettoyage automatique retire le conteneur ; Worker, registre et
+services publics restent inchangés. La correction rend le montage unique et le garde de production
+refuse désormais tout chemin TMPFS non absolu. Déploiement et preuve cible restent requis.
 
 Les sections ci-dessous conservent l'historique des paliers. Six espaces UI sont raccordés, pas quinze
 modules futurs ; le cockpit Mycelium reste D05. L'erreur partagée Command/News, les débordements de panneaux

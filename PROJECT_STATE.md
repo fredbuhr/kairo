@@ -17,9 +17,9 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Dernier code déployé confirmé | `e3adbe648b245e2567970769e6a4bf4333b3e4a4` ; Core porte le veto d'exécution, Worker reste opérationnel avec le budget 110/120/180 s et la sortie 256 jetons |
-| Validation | `e3adbe6…` : 10/10 workflows réussis. Sur cible, la commande de veto termine en 59,57 s avec `semantic.execution-veto`, un usage modèle, une réservation réglée et zéro Task métier. Le modèle cible n'a proposé aucune capacité ; la CI prouve séparément le blocage d'une proposition `news.brief` valide et confiante |
-| Prochaine action | Qualifier le parcours Research sur la cible avec ses outils réels, en conservant les commandes sémantiques et la Task News historiques |
+| Dernier code déployé confirmé | `e3adbe648b245e2567970769e6a4bf4333b3e4a4` ; checkpoint documentaire `70c69311cff4a7cbe46cc6383ef6b2bdd7ee5925` synchronisé ; Core porte le veto d'exécution et Worker reste opérationnel |
+| Validation | Veto : 10/10 workflows et preuve cible sans Task métier. Préflight Research : registre Web vide et dépendances saines. Le premier démarrage Web MCP a été retiré automatiquement avant création, car la liste YAML compacte séparait `mode=1777` en faux chemin TMPFS |
+| Prochaine action | Valider puis déployer la correction TMPFS Web MCP et reprendre son activation isolée ; le registre canonique reste vide |
 | Conditions manquantes | Pertinence générale du routage et choix du modèle quotidien, Research avec outils réels, backup Restic indépendant, campagne cible/charge/rollback |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 

@@ -37,6 +37,10 @@ def validate(config: dict) -> list[str]:
             errors.append(f'{name}: host privileges forbidden')
         for vol in svc.get('volumes', []):
             if 'docker.sock' in str(vol): errors.append(f'{name}: Docker host socket forbidden')
+        for mount in svc.get('tmpfs', []):
+            target = str(mount).split(':', 1)[0].strip()
+            if not target.startswith('/'):
+                errors.append(f'{name}: tmpfs mount path must be absolute')
         for port in svc.get('ports', []):
             if port.get('host_ip') not in {'127.0.0.1','::1'}:
                 errors.append(f'{name}: public host port requires an explicit TLS ingress design')

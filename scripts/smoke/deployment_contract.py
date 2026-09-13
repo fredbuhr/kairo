@@ -178,6 +178,16 @@ class Deployment(unittest.TestCase):
             self.assertEqual(production.validate(with_tools),[])
             self.assertEqual(set(with_tools['services']['nevolium-web-mcp']['networks']),{'search','egress'})
             self.assertNotIn('NEVOLIUM_INTERNAL_TOKEN',with_tools['services']['nevolium-web-mcp']['environment'])
+            self.assertEqual(
+                with_tools['services']['nevolium-web-mcp']['tmpfs'],
+                ['/tmp:size=67108864,mode=1777'],
+            )
+            bad_tmpfs = copy.deepcopy(with_tools)
+            bad_tmpfs['services']['nevolium-web-mcp']['tmpfs'] = [
+                '/tmp:size=67108864',
+                'mode=1777',
+            ]
+            self.assertTrue(production.validate(bad_tmpfs), 'invalid tmpfs target')
             bad=config(['-f','compose.test-noauth.yaml'])
             self.assertTrue(production.validate(bad))
             for extra in [['-f','compose.override.yaml'],['--profile','collaboration-experimental'],['--profile','home']]:

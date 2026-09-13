@@ -247,3 +247,11 @@ indépendant du serveur et restauré sur volumes neufs.
 Prochain point sûr : qualifier Research avec ses outils réels. La pertinence générale du routage, le choix
 du modèle quotidien, la restauration indépendante, les mesures mixtes et le rollback demeurent des
 conditions D04, avant D05.
+
+Le préflight Research confirme ensuite une topologie Web MCP bornée aux réseaux `search` et `egress`,
+sans port hôte ni jeton interne, ainsi qu'un registre canonique vide. Le premier démarrage isolé échoue
+avant création du conteneur : dans la liste YAML compacte, la virgule du TMPFS transforme `mode=1777`
+en second chemin relatif refusé par Docker. Le nettoyage automatique ne trouve aucun état à préserver et
+retire le service tenté ; Worker, moteurs, registre et services publics restent inchangés. La correction
+utilise une entrée de liste unique et ajoute au garde de production le refus des chemins TMPFS non absolus.
+Elle doit passer la CI exacte puis être synchronisée avant une nouvelle activation.
