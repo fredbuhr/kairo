@@ -1,6 +1,6 @@
 # Nevolium — état fonctionnel vérifié
 
-Révision : 2026-09-12, D03 terminé par #87 ; D04/H5 actif dans #88.
+Révision : 2026-09-13, D03 terminé par #87 ; D04/H5 actif dans #88.
 Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJECT_STATE.md).
 
 ## Complément courant : mémoire et incident sémantique
@@ -22,7 +22,13 @@ Le préflight Research trouve ensuite zéro serveur et zéro outil Web enregistr
 isolée de l'adaptateur est refusée par Docker avant création : la forme YAML compacte du TMPFS sépare
 `mode=1777` en faux chemin relatif. Le nettoyage automatique retire le conteneur ; Worker, registre et
 services publics restent inchangés. La correction rend le montage unique et le garde de production
-refuse désormais tout chemin TMPFS non absolu. Déploiement et preuve cible restent requis.
+refuse désormais tout chemin TMPFS non absolu. Le commit `db3da89…` passe ensuite 10/10 workflows,
+est synchronisé et permet l'activation isolée du Web MCP. Le conteneur reste limité aux réseaux
+`search` et `egress`, sans port hôte ni jeton interne, avec racine en lecture seule, capacités supprimées
+et TMPFS `/tmp` valide. Son catalogue réel contient exactement les outils en lecture seule `search` et
+`fetch` ; `web.search` renvoie trois sources publiques et `web.fetch` refuse une destination loopback.
+Le Worker existant n'est pas recréé, les services publics restent sains et le registre canonique demeure
+vide. L'enregistrement explicite des deux outils puis le parcours Research authentifié restent requis.
 
 Les sections ci-dessous conservent l'historique des paliers. Six espaces UI sont raccordés, pas quinze
 modules futurs ; le cockpit Mycelium reste D05. L'erreur partagée Command/News, les débordements de panneaux

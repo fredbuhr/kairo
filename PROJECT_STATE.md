@@ -1,6 +1,6 @@
 # Nevolium — checkpoint de reprise
 
-Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
+Dernière revue : 2026-09-13. **Vérifier GitHub live avant toute action.**
 
 ## Source canonique
 
@@ -17,10 +17,10 @@ Dernière revue : 2026-09-12. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Dernier code déployé confirmé | `e3adbe648b245e2567970769e6a4bf4333b3e4a4` ; checkpoint documentaire `70c69311cff4a7cbe46cc6383ef6b2bdd7ee5925` synchronisé ; Core porte le veto d'exécution et Worker reste opérationnel |
-| Validation | Veto : 10/10 workflows et preuve cible sans Task métier. Préflight Research : registre Web vide et dépendances saines. Le premier démarrage Web MCP a été retiré automatiquement avant création, car la liste YAML compacte séparait `mode=1777` en faux chemin TMPFS |
-| Prochaine action | Valider puis déployer la correction TMPFS Web MCP et reprendre son activation isolée ; le registre canonique reste vide |
-| Conditions manquantes | Pertinence générale du routage et choix du modèle quotidien, Research avec outils réels, backup Restic indépendant, campagne cible/charge/rollback |
+| Dernier code déployé confirmé | Core/Worker `e3adbe648b245e2567970769e6a4bf4333b3e4a4` ; topologie Web MCP corrigée `db3da89acfb041db75e6c7a2417a83dbafc6ce80` synchronisée et active ; Worker existant inchangé |
+| Validation | Veto : 10/10 workflows et preuve cible sans Task métier. Web MCP réel : catalogue exact `search`/`fetch`, trois résultats publics, destination privée refusée, confinement `search`/`egress`, aucun port hôte ni jeton interne ; registre canonique encore vide |
+| Prochaine action | Enregistrer ce checkpoint, puis déclarer et activer canoniquement `web.search` et `web.fetch` avant le parcours Research authentifié |
+| Conditions manquantes | Pertinence générale du routage et choix du modèle quotidien, Research canonique de bout en bout, backup Restic indépendant, campagne cible/charge/rollback |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
 ## Transition d'identité achevée dans D04

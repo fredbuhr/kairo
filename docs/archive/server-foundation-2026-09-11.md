@@ -254,4 +254,15 @@ avant création du conteneur : dans la liste YAML compacte, la virgule du TMPFS 
 en second chemin relatif refusé par Docker. Le nettoyage automatique ne trouve aucun état à préserver et
 retire le service tenté ; Worker, moteurs, registre et services publics restent inchangés. La correction
 utilise une entrée de liste unique et ajoute au garde de production le refus des chemins TMPFS non absolus.
-Elle doit passer la CI exacte puis être synchronisée avant une nouvelle activation.
+Le commit `db3da89…` passe 10/10 workflows, puis est synchronisé sur la cible. La seconde activation
+construit et démarre uniquement `nevolium-web-mcp`. L'inspection confirme l'utilisateur non privilégié,
+la racine en lecture seule, le retrait de toutes les capacités, `no-new-privileges`, un unique TMPFS
+`/tmp`, les seuls réseaux `search` et `egress`, aucun port hôte et aucun jeton interne transmis.
+
+Depuis le Worker existant, le catalogue MCP réel contient exactement `search` et `fetch`, tous deux
+déclarés en lecture seule. Une recherche réelle renvoie trois sources publiques ; une lecture visant
+`127.0.0.1` est refusée par la protection SSRF. Le conteneur Worker garde le même identifiant, les trois
+services publics restent sains et le registre conserve exactement zéro serveur et zéro outil. Cette
+preuve qualifie l'adaptateur isolé ; elle n'active pas encore les outils dans le registre canonique et ne
+vaut donc pas parcours Research de bout en bout. Le prochain point sûr est l'enregistrement explicite de
+`web.search` et `web.fetch`, puis une exécution Research authentifiée et owner-scoped.
