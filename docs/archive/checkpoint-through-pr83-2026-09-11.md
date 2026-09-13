@@ -1,6 +1,6 @@
 > Historical snapshot. Read ../../PROJECT_STATE.md for current state and ../implementation-plan.md for the active delivery plan. Statements below describe their original checkpoint and may be superseded.
 
-# KAIRO — current project state
+# Nevolium — current project state
 
 Last checkpoint review: 2026-09-11 (Europe/Paris)
 
@@ -13,8 +13,8 @@ Last checkpoint review: 2026-09-11 (Europe/Paris)
 - H1 Memory/Auth handoff: PR #74, merge `3fa1aa5a67628c97ee4367e9a0224cff9086fbf0`.
 - H2 Code hygiene: PR #75, merge `31e53b88135ac2db4600bb00a4112bc14d46ba5d`.
 - H3a Dependency locks/frozen direct CI: PR #76, merge `ecc3394a648070b16ab4505e07706006999ab945`.
-- H3b1 Locked KAIRO container builds: PR #77, merge `e43e192938ce412f534eb68e989e7408289be3be`.
-- H3b2a KAIRO Node build-base digest pins: PR #78, merge `f51ac9c0b00c46b046bb24b751540d204763bcbc`.
+- H3b1 Locked Nevolium container builds: PR #77, merge `e43e192938ce412f534eb68e989e7408289be3be`.
+- H3b2a Nevolium Node build-base digest pins: PR #78, merge `f51ac9c0b00c46b046bb24b751540d204763bcbc`.
 - H3b2b Core Compose service digest pins: PR #79, merge `f510043eb69b63919c6d012208f9b64b2bb63749`.
 - H3b2c Temporal Compose digest pins: PR #80, merge `082a296650d77ebbe247bb3d5360b15e621c2596`.
 - H3b2d Backup/restore operations digest pins: PR #81, merge `2e6fffffb09d8cc0fd191b79773d50b5daa8381b`.
@@ -36,9 +36,9 @@ Product feature work remains paused until H5 is complete.
 2. **H2 — Code hygiene: complete and canonical.**
 3. **H3 — Reproducibility: complete for the recorded container/dependency baseline.**
    - **H3a — Dependency locks/frozen direct CI: complete and canonical.**
-   - **H3b1 — Locked KAIRO container builds: complete and canonical.**
+   - **H3b1 — Locked Nevolium container builds: complete and canonical.**
    - **H3b2 — External image pinning/debt reduction: complete and canonical.**
-     - **H3b2a — KAIRO Node build-base digest pins: complete and canonical.**
+     - **H3b2a — Nevolium Node build-base digest pins: complete and canonical.**
      - **H3b2b — Core Compose service digest pins: complete and canonical.**
      - **H3b2c — Temporal Compose digest pins: complete and canonical.**
      - **H3b2d — Backup/restore operations digest pins: complete and canonical.**
@@ -90,28 +90,28 @@ H3a added canonical `pnpm-lock.yaml`, root UV workspace `uv.lock`, `uv.toml` req
 
 `hardening/h3a-dependency-locks` is retired and must not be reused.
 
-### H3b1 — Locked KAIRO container builds
+### H3b1 — Locked Nevolium container builds
 
 Canonical merge:
 
-- PR #77 — `H3b1: build KAIRO containers from canonical locked graphs`;
+- PR #77 — `H3b1: build Nevolium containers from canonical locked graphs`;
 - merge commit: `e43e192938ce412f534eb68e989e7408289be3be`;
 - final validated PR head: `ac5835f0071412236dc6797c0c7911fbcf317164`.
 
-H3b1 solves **KAIRO-owned container dependency/build reproducibility only**. Core, Worker, Realtime and Web consume canonical locked dependency graphs; Reproducibility CI builds all four images; the Research crash overlay follows the same Worker build contract. Final PR-head validation passed 8/8 workflows, including Foundation and the real Worker SIGKILL Research replay.
+H3b1 solves **Nevolium-owned container dependency/build reproducibility only**. Core, Worker, Realtime and Web consume canonical locked dependency graphs; Reproducibility CI builds all four images; the Research crash overlay follows the same Worker build contract. Final PR-head validation passed 8/8 workflows, including Foundation and the real Worker SIGKILL Research replay.
 
 `hardening/h3b1-container-locks` is retired after merge and must not be reused. The connector does not expose branch-ref deletion, so the inert remote ref may remain.
 
-### H3b2a — KAIRO Node build-base digest pins
+### H3b2a — Nevolium Node build-base digest pins
 
 Canonical merge:
 
-- PR #78 — `H3b2a: pin KAIRO Node build images by digest`;
+- PR #78 — `H3b2a: pin Nevolium Node build images by digest`;
 - merge commit: `f51ac9c0b00c46b046bb24b751540d204763bcbc`;
 - validated technical head: `538af6072bee2239187339a0bf66bda8c29fa916`;
 - final validated PR head: `93ad537c29d2862d210f977ab8344ef9b0c6fcd7`.
 
-H3b2a is deliberately limited to the two KAIRO-owned Node build-base references. No Compose service image changed in this sub-gate.
+H3b2a is deliberately limited to the two Nevolium-owned Node build-base references. No Compose service image changed in this sub-gate.
 
 Canonical H3b2a changes:
 
@@ -133,7 +133,7 @@ Technical-head validation on `538af607...`: **8/8 push workflows success**.
 
 Final PR-head validation on exact head `93ad537c...`: **8/8 workflows success**:
 
-- Baseline reproducibility validation — run `34587827514` — success, including real KAIRO container builds using the digest-pinned Node base;
+- Baseline reproducibility validation — run `34587827514` — success, including real Nevolium container builds using the digest-pinned Node base;
 - Foundation validation — run `34587827426` — success;
 - Autonomous Research validation — run `34587827470` — success, including the real Worker SIGKILL replay proof;
 - MCP tool registry validation — run `34587827453` — success;
@@ -176,7 +176,7 @@ Technical-head validation on exact head `b3d6fe1a54907699f5f15aa8243620d3cc112e7
 
 Final PR-head validation on exact head `e6170558584cf231de228ff0f11b591dfe86b509`: **8/8 pull-request workflows success**:
 
-- Baseline reproducibility validation — run `34589403058` — success, including baseline-drift proof and locked KAIRO container builds;
+- Baseline reproducibility validation — run `34589403058` — success, including baseline-drift proof and locked Nevolium container builds;
 - Foundation validation — run `34589403074` — success, including Compose topology and integration checks;
 - Autonomous Research validation — run `34589403065` — success, including the real Worker SIGKILL replay proof;
 - MCP tool registry validation — run `34589403040` — success;
@@ -377,7 +377,7 @@ Baseline v8 records **0** remaining unpinned references; this does not cover run
 
 Canonical truth is `main`. Two non-canonical salvage reservoirs remain intentionally available:
 
-1. `feat/kairo-test-interface-v1` — broad prototype/salvage reservoir; never merge wholesale.
+1. Legacy interface prototype at `ed12d503…` — broad salvage reservoir; never merge wholesale.
 2. `consolidate/g49-research-durable-stages` — focused Research design reservoir; never resume as active development.
 
 Retired hardening branches may remain as inert refs when the connector cannot delete refs. They are not development branches and must never be resumed.

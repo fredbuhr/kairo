@@ -1,14 +1,26 @@
 import asyncio
 import json
 from decimal import Decimal
+from datetime import timedelta
+from unittest.mock import patch
 
 from pydantic_ai import UnexpectedModelBehavior
 
-from kairo_worker.model_gateway import MODEL_CHECKPOINT_KIND, MODEL_CHECKPOINT_VERSION, ModelCheckpointLedger
-from kairo_worker.research_agent import (
+from nevolium_worker import model_gateway, workflows
+from nevolium_worker.model_gateway import (
+    MODEL_CHECKPOINT_KIND,
+    MODEL_CHECKPOINT_VERSION,
+    ModelCallOutcomeUnknown,
+    ModelCheckpointLedger,
+)
+from nevolium_worker.research_agent import (
+    RESEARCH_ACTIVITY_TIMEOUT_SECONDS,
+    RESEARCH_HEARTBEAT_TIMEOUT_SECONDS,
+    RESEARCH_MODEL_TIMEOUT_SECONDS,
     build_research_evidence,
     plan_research,
     research_progress_snapshot,
+    run_research_model_stage,
     split_research_model_budget,
     synthesize_research,
 )
@@ -32,14 +44,14 @@ TOOL_RESULTS = [
     {
         "slot": 0,
         "tool_key": "web.search",
-        "input": {"query": "KAIRO architecture"},
+        "input": {"query": "Nevolium architecture"},
         "rationale": "Find public evidence.",
         "invocation_id": "00000000-0000-0000-0000-000000000010",
         "result": {
             "items": [
                 {
-                    "title": "KAIRO architecture",
-                    "snippet": "KAIRO keeps canonical state in its own platform boundary.",
+                    "title": "Nevolium architecture",
+                    "snippet": "Nevolium keeps canonical state in its own platform boundary.",
                 }
             ]
         },
@@ -48,13 +60,71 @@ TOOL_RESULTS = [
 
 
 async def main() -> None:
+    scheduled: list[dict] = []
+    workflow_payload = {
+        "task_id": "00000000-0000-0000-0000-000000000020",
+        "workflow_id": "fixture-research-bounds",
+        "workflow_execution_id": "00000000-0000-0000-0000-000000000021",
+        "correlation_id": "00000000-0000-0000-0000-000000000022",
+    }
+
+    async def execute_activity(function, value, **options):
+        if function is workflows.begin_execution:
+            return {
+                "task_title": "fixture",
+                "task_input": {"capability": "research.autonomous", "authority_level": 1},
+            }
+        if function is workflows.check_policy_gate:
+            return {"allowed": True}
+        if function is workflows.prepare_research_context_pack:
+            return {"items": []}
+        if function is workflows.perform_autonomous_research:
+            scheduled.append(options)
+            return {"kind": "autonomous-research"}
+        assert function is workflows.complete_execution, function
+        return {"status": "completed"}
+
+    with patch.object(workflows.workflow, "execute_activity", execute_activity):
+        result = await workflows.TaskExecutionWorkflow().run(workflow_payload)
+    assert result["status"] == "completed", result
+    assert len(scheduled) == 1, scheduled
+    assert scheduled[0]["start_to_close_timeout"] == timedelta(
+        seconds=RESEARCH_ACTIVITY_TIMEOUT_SECONDS
+    )
+    assert scheduled[0]["heartbeat_timeout"] == timedelta(
+        seconds=RESEARCH_HEARTBEAT_TIMEOUT_SECONDS
+    )
+    assert RESEARCH_MODEL_TIMEOUT_SECONDS == model_gateway.MODEL_REQUEST_TIMEOUT_CAP_SECONDS == 180
+    assert model_gateway.MODEL_REQUEST_HEARTBEAT_INTERVAL_SECONDS == 30
+    assert (
+        model_gateway.MODEL_REQUEST_HEARTBEAT_INTERVAL_SECONDS
+        < RESEARCH_HEARTBEAT_TIMEOUT_SECONDS
+        < RESEARCH_MODEL_TIMEOUT_SECONDS
+        < RESEARCH_ACTIVITY_TIMEOUT_SECONDS
+    )
+
+    async def unknown_model_call():
+        raise ModelCallOutcomeUnknown("fixture outcome unknown")
+
+    for stage, operation in (
+        ("planning", unknown_model_call),
+        ("synthesis", unknown_model_call),
+    ):
+        try:
+            await run_research_model_stage(stage, operation)
+        except workflows.ApplicationError as exc:
+            assert exc.non_retryable is True, exc
+            assert exc.type == "ModelCallOutcomeUnknown", exc
+        else:
+            raise AssertionError(f"Research {stage} must stop ambiguous model-call retries")
+
     async def valid_completion(_messages):
         return json.dumps(
             {
                 "calls": [
                     {
                         "tool_key": "web.search",
-                        "input": {"query": "KAIRO architecture"},
+                        "input": {"query": "Nevolium architecture"},
                         "rationale": "Find public evidence.",
                     }
                 ],
@@ -63,7 +133,7 @@ async def main() -> None:
         )
 
     plan = await plan_research(
-        query="Research KAIRO architecture",
+        query="Research Nevolium architecture",
         tools=TOOLS,
         max_tool_calls=1,
         completion=valid_completion,
@@ -109,10 +179,10 @@ async def main() -> None:
         synthesis_prompts.append(messages)
         return json.dumps(
             {
-                "answer": "The supplied evidence says KAIRO keeps canonical state inside its own platform boundary.",
+                "answer": "The supplied evidence says Nevolium keeps canonical state inside its own platform boundary.",
                 "claims": [
                     {
-                        "text": "KAIRO keeps canonical state inside its own platform boundary.",
+                        "text": "Nevolium keeps canonical state inside its own platform boundary.",
                         "evidence_ids": ["E1"],
                         "confidence": "high",
                     }
@@ -122,7 +192,7 @@ async def main() -> None:
         )
 
     synthesis = await synthesize_research(
-        query="What does the evidence say about KAIRO architecture?",
+        query="What does the evidence say about Nevolium architecture?",
         evidence=evidence,
         completion=grounded_completion,
     )

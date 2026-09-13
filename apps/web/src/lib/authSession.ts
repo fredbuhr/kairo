@@ -1,6 +1,6 @@
 import Keycloak from 'keycloak-js'
 
-export type KairoAuthSnapshot = {
+export type NevoliumAuthSnapshot = {
   enabled: boolean
   initialized: boolean
   authenticated: boolean
@@ -10,10 +10,10 @@ export type KairoAuthSnapshot = {
   roles: string[]
 }
 
-const AUTH_ENABLED = String(import.meta.env.VITE_KAIRO_AUTH_ENABLED ?? 'true').toLowerCase() !== 'false'
+const AUTH_ENABLED = String(import.meta.env.VITE_NEVOLIUM_AUTH_ENABLED ?? 'true').toLowerCase() !== 'false'
 const KEYCLOAK_URL = String(import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8081').replace(/\/$/, '')
-const KEYCLOAK_REALM = String(import.meta.env.VITE_KEYCLOAK_REALM || 'kairo')
-const KEYCLOAK_CLIENT_ID = String(import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'kairo-web')
+const KEYCLOAK_REALM = String(import.meta.env.VITE_KEYCLOAK_REALM || 'nevolium')
+const KEYCLOAK_CLIENT_ID = String(import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'nevolium-web')
 
 let client: Keycloak | null = null
 let initialization: Promise<void> | null = null
@@ -78,7 +78,7 @@ export async function initializeAuth(): Promise<void> {
   return initialization
 }
 
-export function getAuthSnapshot(): KairoAuthSnapshot {
+export function getAuthSnapshot(): NevoliumAuthSnapshot {
   if (!AUTH_ENABLED) {
     return {
       enabled: false,
@@ -87,7 +87,7 @@ export function getAuthSnapshot(): KairoAuthSnapshot {
       subject: 'development-user',
       username: 'development-user',
       email: null,
-      roles: ['kairo-user'],
+      roles: ['nevolium-user'],
     }
   }
 
@@ -117,7 +117,7 @@ async function refreshAccessToken(): Promise<string> {
   const keycloak = getClient()
   if (!keycloak.authenticated || !keycloak.token) {
     await keycloak.login({ redirectUri: redirectUri() })
-    throw new Error('KAIRO authentication is required.')
+    throw new Error('Nevolium authentication is required.')
   }
 
   try {
@@ -129,7 +129,7 @@ async function refreshAccessToken(): Promise<string> {
     throw error
   }
 
-  if (!keycloak.token) throw new Error('KAIRO authentication token is unavailable.')
+  if (!keycloak.token) throw new Error('Nevolium authentication token is unavailable.')
   emit()
   return keycloak.token
 }
@@ -139,7 +139,7 @@ export async function getAccessToken(): Promise<string | null> {
   return refreshAccessToken()
 }
 
-export async function logoutKairo() {
+export async function logoutNevolium() {
   if (!AUTH_ENABLED) return
   await initializeAuth()
   await getClient().logout({ redirectUri: redirectUri() })

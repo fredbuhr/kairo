@@ -19,12 +19,12 @@ function renderApp() {
 }
 
 function renderAuthFailure(error: unknown) {
-  const message = error instanceof Error ? error.message : 'Impossible d’établir la session KAIRO.'
+  const message = error instanceof Error ? error.message : 'Impossible d’établir la session Nevolium.'
   root.render(
     <React.StrictMode>
       <main className="shell">
         <section className="hero" aria-live="assertive">
-          <span className="eyebrow">KAIRO · IDENTITÉ</span>
+          <span className="eyebrow">Nevolium · IDENTITÉ</span>
           <h1>Connexion sécurisée indisponible</h1>
           <p>{message}</p>
           <button type="button" onClick={() => window.location.reload()}>

@@ -59,7 +59,7 @@ class Handler(BaseHTTPRequestHandler):
             stage = "synthesis"
             content = json.dumps(
                 {
-                    "answer": "The fixture evidence confirms that KAIRO recovered the research run after the Worker interruption.",
+                    "answer": "The fixture evidence confirms that Nevolium recovered the research run after the Worker interruption.",
                     "claims": [
                         {
                             "text": "The recovered research run retained the canonical MCP evidence.",
@@ -77,7 +77,7 @@ class Handler(BaseHTTPRequestHandler):
                     "calls": [
                         {
                             "tool_key": "crash.search",
-                            "input": {"query": "KAIRO crash replay fixture"},
+                            "input": {"query": "Nevolium crash replay fixture"},
                             "rationale": "Collect the single deterministic evidence record.",
                         }
                     ],
@@ -93,10 +93,10 @@ class Handler(BaseHTTPRequestHandler):
         call_number = _increment(stage)
         call_id = self.headers.get("x-litellm-call-id") or f"research-{stage}-{call_number}"
         response = {
-            "id": f"chatcmpl-kairo-research-{stage}-{call_number}",
+            "id": f"chatcmpl-nevolium-research-{stage}-{call_number}",
             "object": "chat.completion",
             "created": 1789032000,
-            "model": "openai/kairo-research-fixture",
+            "model": "openai/nevolium-research-fixture",
             "choices": [
                 {
                     "index": 0,

@@ -1,4 +1,4 @@
-# KAIRO — développement, reprise et incidents
+# Nevolium — développement, reprise et incidents
 
 Le code et GitHub live priment. Ce protocole applique [AGENTS](../AGENTS.md) sans multiplier les
 validations administratives. Il sert après changement de discussion, perte du workspace ou échec CI.
@@ -63,7 +63,7 @@ de la même tête pour les intégrations. Si elle est inaccessible, laisser la P
 
 ## Message de reprise à utiliser dans une nouvelle discussion
 
-> Reprends KAIRO depuis https://github.com/fredbuhr/kairo. Vérifie le main live, lis AGENTS.md et
+> Reprends Nevolium depuis https://github.com/fredbuhr/nevolium. Vérifie le main live, lis AGENTS.md et
 > PROJECT_STATE.md, inspecte la branche/PR active et ses checks. Continue uniquement le lot Dxx
 > réellement actif du plan, à partir de la prochaine action enregistrée. Ne fais confiance ni au
 > SHA de cette discussion ni aux anciens next action des archives. Préserve le scope, les preuves

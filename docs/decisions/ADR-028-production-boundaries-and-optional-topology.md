@@ -10,7 +10,7 @@ Le lecteur News/Web MCP résolvait une destination pour la contrôler, puis HTTP
 à nouveau lors de la connexion. L'ensemble Compose lançait des services sans consommateur,
 le Web utilisait Vite dev, et le contrôle d'images ignorait les stages suivants et les COPY externes.
 
-Les réservoirs `feat/kairo-test-interface-v1` (`ed12d503…`) et
+Le prototype d'interface historique (`ed12d503…`) et le réservoir
 `consolidate/g49-research-durable-stages` (`57a1a217…`) ont été comparés au main de départ
 `ec38ce3…`. Leurs lecteurs Web conservaient la même fenêtre DNS/HTTP et leurs validations JWT
 la même absence d'audience/azp obligatoire. Aucun code de ces branches n'a été fusionné en bloc.
@@ -18,9 +18,9 @@ la même absence d'audience/azp obligatoire. Aucun code de ces branches n'a ét�
 ## Décisions
 
 - Production refuse le mode inconnu, le contournement d'identité, les secrets faibles/placeholders
-  et les identifiants SQL non dédiés. JWT RS256 : issuer, audience `kairo-core`, authorized party
+  et les identifiants SQL non dédiés. JWT RS256 : issuer, audience `nevolium-core`, authorized party
   du client Web et type d'access token `Bearer` ; rôles structurés, sujet non vide, dates requises.
-- Le Core possède `kairo_app` (DML), la migration possède `kairo_migrator` (DDL). Mem0, Keycloak,
+- Le Core possède `nevolium_app` (DML), la migration possède `nevolium_migrator` (DDL). Mem0, Keycloak,
   Temporal, LiteLLM, Langfuse et Activepieces possèdent des comptes/bases distincts sans privilèges
   administratifs ni connexions croisées. Le démarrage Core vérifie aussi les droits effectifs SQL.
 - Le Worker reste un composant de confiance chargé d'exécuter les Tasks déjà liées et autorisées.

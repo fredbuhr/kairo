@@ -9,9 +9,9 @@ import uuid
 
 from pydantic import ValidationError
 
-from kairo_core.models import Task
-from kairo_core.planning import _planning_window, router
-from kairo_core.schemas import TaskCreate
+from nevolium_core.models import Task
+from nevolium_core.planning import _planning_window, router
+from nevolium_core.schemas import TaskCreate
 
 ROOT = Path(__file__).resolve().parents[2]
 

@@ -52,7 +52,7 @@ def wait_ready() -> None:
         except Exception as exc:  # noqa: BLE001
             last_error = exc
         time.sleep(1)
-    raise RuntimeError(f"KAIRO Core did not become ready: {last_error}")
+    raise RuntimeError(f"Nevolium Core did not become ready: {last_error}")
 
 
 def wait_command(command_id: str, timeout: float = 90) -> dict[str, Any]:
@@ -94,7 +94,7 @@ def main() -> None:
     routing_task_id = initial["routing_task_id"]
 
     expected_routing_task = str(
-        uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:semantic-route:{command_id}:v1")
+        uuid.uuid5(uuid.NAMESPACE_URL, f"nevolium:semantic-route:{command_id}:v1")
     )
     assert routing_task_id == expected_routing_task, initial
 
@@ -113,7 +113,7 @@ def main() -> None:
     assert command["parameters_json"]["location"] == "Paris", command
 
     expected_final_task = str(
-        uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:command:{command_id}:news.brief:v1")
+        uuid.uuid5(uuid.NAMESPACE_URL, f"nevolium:command:{command_id}:news.brief:v1")
     )
     assert command["task_id"] == expected_final_task, command
     assert command["workflow_execution_id"], command
@@ -142,7 +142,7 @@ def main() -> None:
         method="POST",
         headers={
             "Content-Type": "application/json",
-            "X-Kairo-Internal-Token": "CHANGE_ME_INTERNAL_TOKEN",
+            "X-Nevolium-Internal-Token": "CHANGE_ME_INTERNAL_TOKEN",
         },
     )
     with urllib.request.urlopen(replay_request, timeout=10) as response:
@@ -150,10 +150,51 @@ def main() -> None:
     assert replay["status"] == "accepted", replay
     assert replay["task_id"] == expected_final_task, replay
 
+    # A model may confidently misclassify an explicit classification-only request. Core must retain
+    # the proposal for audit but veto the business handoff from the canonical user message.
+    veto_text = "Classify only this request. Do not execute any action."
+    _, veto = json_request(
+        "POST", "/v1/assistant/commands", expected=202,
+        payload={"text": veto_text, "locale": "en-US"},
+    )
+    assert veto["routing"] == "semantic", veto
+    veto_command = wait_command(veto["command_id"])
+    assert veto_command["status"] == "unsupported", veto_command
+    assert veto_command["route_reason"] == "semantic.execution-veto", veto_command
+    assert veto_command["task_id"] is None, veto_command
+    assert veto_command["result_json"]["semantic_proposed_capability"] == "news.brief"
+    veto_task = wait_task(veto["routing_task_id"], {"completed"})
+    _, veto_artifacts = json_request("GET", f"/v1/tasks/{veto_task['id']}/artifacts")
+    veto_artifact = next(item for item in veto_artifacts if item["kind"] == "semantic-route")
+    assert veto_artifact["content"]["proposal"]["capability"] == "news.brief"
+    assert veto_artifact["content"]["applied"]["status"] == "unsupported"
+    expected_veto_task = str(
+        uuid.uuid5(uuid.NAMESPACE_URL, f"nevolium:command:{veto['command_id']}:news.brief:v1")
+    )
+    json_request("GET", f"/v1/tasks/{expected_veto_task}", expected=404)
+
+    # Real Worker/Temporal/Core with delayed fixture HTTP, not a real model performance test.
+    slow_started = time.monotonic()
+    _, slow = json_request(
+        "POST", "/v1/assistant/commands", expected=202,
+        payload={"text": "NEVOLIUM-CI-SLOW-SEMANTIC classify safely", "locale": "fr-FR"},
+    )
+    assert slow["routing"] == "semantic", slow
+    slow_command = wait_command(slow["command_id"], timeout=150)
+    assert slow_command["status"] == "unsupported", slow_command
+    assert slow_command["task_id"] is None, slow_command
+    assert time.monotonic() - slow_started >= 69
+    slow_task = wait_task(slow["routing_task_id"], {"completed"})
+    assert slow_task["completed_at"], slow_task
+    _, slow_artifacts = json_request("GET", f"/v1/tasks/{slow_task['id']}/artifacts")
+    assert len([item for item in slow_artifacts if item["kind"] == "semantic-route"]) == 1
+
     print(
         "SEMANTIC COMMAND INTEGRATION PASS: ambiguous input is durably routed through PydanticAI and "
         "the accounted model gateway, Core validates the registered capability, and replay reuses the "
-        "same deterministic final Task."
+        "same deterministic final Task. Core vetoes a model-proposed business route when the original "
+        "message forbids execution. A separate 70-second HTTP fixture completes routing without "
+        "launching a business capability; real target model performance remains unqualified."
     )
 
 

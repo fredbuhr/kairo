@@ -31,12 +31,12 @@ jobs:
       - name: Prepare registry environment
         run: |
           cp .env.example .env
-          echo 'KAIRO_AUTH_ENABLED=false' >> .env
-          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+          echo 'NEVOLIUM_AUTH_ENABLED=false' >> .env
+          echo 'NEVOLIUM_WORKER_EXTRAS=' >> .env
 
       - name: Start canonical registry substrate
         run: |
-          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+          docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace nevolium-core
 
       - name: Prove canonical MCP registry and deny-by-default policy
         run: python scripts/smoke/tool_registry.py
@@ -45,7 +45,7 @@ jobs:
         if: failure()
         run: |
           docker compose ps -a
-          docker compose logs --no-color --tail=500 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+          docker compose logs --no-color --tail=500 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace nevolium-core
 
       - name: Tear down registry stack
         if: always()

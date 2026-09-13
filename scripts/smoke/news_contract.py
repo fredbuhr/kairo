@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic contract proof for KAIRO News Intelligence.
+"""Deterministic contract proof for Nevolium News Intelligence.
 
 External search/model services are replaced with fixtures so CI validates capability routing,
 provenance retention, transient full-text handling, SSRF protection, accounted model metadata and
@@ -12,8 +12,8 @@ import asyncio
 from decimal import Decimal
 from typing import Any
 
-from kairo_worker import activities, news_activity
-from kairo_worker.model_gateway import ChatCompletionResult, ModelUsage
+from nevolium_worker import activities, news_activity
+from nevolium_worker.model_gateway import ChatCompletionResult, ModelUsage
 
 
 SOURCES = [
@@ -48,7 +48,7 @@ async def fake_enrich(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
     enriched = [dict(source) for source in sources]
     enriched[0]["analysis_text"] = (
         "Texte principal temporaire extrait de la page. Il ne doit jamais être persisté dans "
-        "l'Artifact KAIRO."
+        "l'Artifact Nevolium."
     )
     enriched[0]["content_available"] = True
     enriched[1]["content_available"] = False
@@ -59,7 +59,7 @@ async def fake_chat_completion(**kwargs: Any) -> ChatCompletionResult:
     assert kwargs["estimated_cost_usd"] == Decimal("0.01")
     return ChatCompletionResult(
         content=(
-            '{"headline":"Paris aujourd\u0027hui — briefing KAIRO",'
+            '{"headline":"Paris aujourd\u0027hui — briefing Nevolium",'
             '"summary":"La circulation évolue à Paris [S1]. Les marchés surveillent aussi la BCE [S2].",'
             '"spoken_summary":"La circulation évolue à Paris. Les marchés surveillent aussi la BCE.",'
             '"market_impact":null}'
@@ -120,7 +120,7 @@ async def main() -> None:
     assert len(content["sources"]) == 2, content
     assert content["sources"][0]["content_available"] is True, content
     assert "analysis_text" not in content["sources"][0], content
-    assert content["model_usage"]["model_alias"] == news_activity.settings.kairo_news_model, content
+    assert content["model_usage"]["model_alias"] == news_activity.settings.nevolium_news_model, content
     assert content["model_usage"]["provider_model"] == "openai/gpt-fixture", content
     assert content["model_usage"]["total_tokens"] == 160, content
     assert content["model_usage"]["cost_usd"] == "0.0042", content

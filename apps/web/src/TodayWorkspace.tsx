@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { kairoFetch } from './lib/apiClient'
+import { nevoliumFetch } from './lib/apiClient'
 
 type PlannedTask = {
   id: string
@@ -57,7 +57,7 @@ const BUCKETS: Array<{
   hint: string
 }> = [
   { key: 'overdue', title: 'En retard', hint: 'Échéance antérieure à aujourd’hui' },
-  { key: 'in_progress', title: 'En cours', hint: 'Travail déjà confié à KAIRO / Temporal' },
+  { key: 'in_progress', title: 'En cours', hint: 'Travail déjà confié à Nevolium / Temporal' },
   { key: 'due_today', title: 'À rendre aujourd’hui', hint: 'Échéance dans la journée' },
   { key: 'planned', title: 'Planifié aujourd’hui', hint: 'Créneau de travail qui recouvre la journée' },
   { key: 'completed_today', title: 'Terminé aujourd’hui', hint: 'Actions clôturées pendant la journée' },
@@ -71,7 +71,7 @@ async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const detail = body?.detail
     const message = typeof detail === 'string' ? detail : detail?.message
-    throw new Error(message || `KAIRO Core répond ${response.status}`)
+    throw new Error(message || `Nevolium Core répond ${response.status}`)
   }
   return body as T
 }
@@ -135,7 +135,7 @@ export default function TodayWorkspace({ apiUrl }: Props) {
     setLoadingBucket(null)
     setError(null)
     try {
-      const response = await kairoFetch(
+      const response = await nevoliumFetch(
         `${apiUrl}/v1/today?day=${encodeURIComponent(day)}&timezone=${encodeURIComponent(timezone)}`,
         { signal: controller.signal },
       )
@@ -164,7 +164,7 @@ export default function TodayWorkspace({ apiUrl }: Props) {
     setLoadingBucket(bucket)
     setError(null)
     try {
-      const response = await kairoFetch(
+      const response = await nevoliumFetch(
         `${apiUrl}/v1/today?day=${encodeURIComponent(day)}&timezone=${encodeURIComponent(timezone)}&bucket=${bucket}&cursor=${encodeURIComponent(cursor)}`,
         { signal: controller.signal },
       )
@@ -189,7 +189,7 @@ export default function TodayWorkspace({ apiUrl }: Props) {
     setSavingTaskId(taskId)
     setError(null)
     try {
-      const response = await kairoFetch(`${apiUrl}/v1/tasks/${taskId}`, {
+      const response = await nevoliumFetch(`${apiUrl}/v1/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -246,7 +246,7 @@ export default function TodayWorkspace({ apiUrl }: Props) {
       {loading && !view && !error && (
         <div className="progress-panel">
           <strong>Composition de votre journée.</strong>
-          <span>KAIRO agrège uniquement les Tasks du propriétaire authentifié.</span>
+          <span>Nevolium agrège uniquement les Tasks du propriétaire authentifié.</span>
         </div>
       )}
 

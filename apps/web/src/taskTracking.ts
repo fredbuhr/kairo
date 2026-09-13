@@ -1,4 +1,4 @@
-import { kairoFetch } from './lib/apiClient'
+import { nevoliumFetch } from './lib/apiClient'
 
 export type CapabilityArtifact = {
   id: string
@@ -48,9 +48,9 @@ type ResearchRunRead = {
 }
 
 async function readJson<T>(url: string): Promise<T> {
-  const response = await kairoFetch(url)
+  const response = await nevoliumFetch(url)
   if (!response.ok) {
-    throw new Error(`KAIRO Core répond ${response.status}`)
+    throw new Error(`Nevolium Core répond ${response.status}`)
   }
   return (await response.json()) as T
 }

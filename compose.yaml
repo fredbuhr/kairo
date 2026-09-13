@@ -1,4 +1,4 @@
-name: kairo
+name: nevolium
 
 services:
   postgres:
@@ -23,7 +23,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
-    networks: [kairo]
+    networks: [nevolium]
 
   neo4j:
     profiles: [memory]
@@ -41,7 +41,7 @@ services:
       - "127.0.0.1:7687:7687"
     volumes:
       - neo4j_data:/data
-    networks: [kairo]
+    networks: [nevolium]
 
   valkey:
     profiles: [search, automation, observability]
@@ -57,7 +57,7 @@ services:
       - "127.0.0.1:6379:6379"
     volumes:
       - valkey_data:/data
-    networks: [kairo]
+    networks: [nevolium]
 
   nats:
     image: nats:2.14.5-alpine@sha256:d4ac35882ac65aff236cd65b9d3fa4d24332c681e1a85f94eedccd3cdd65b1da
@@ -78,7 +78,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-    networks: [kairo]
+    networks: [nevolium]
 
   seaweedfs:
     image: chrislusf/seaweedfs:4.46@sha256:08d516132314207d10c8e37cbffc1f32b147d870169688734cc61c6231625b62
@@ -94,7 +94,7 @@ services:
       - "127.0.0.1:8333:8333"
     volumes:
       - seaweed_data:/data
-    networks: [kairo]
+    networks: [nevolium]
 
   temporal-admin-tools:
     image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}@sha256:dbc5fcd6ee8f0f4d808bf765af9a87dea9d8a283abfdcfbd2fc148496ba66107
@@ -118,7 +118,7 @@ services:
       - ./infrastructure/temporal/scripts:/scripts:ro
     entrypoint: ["/bin/sh"]
     command: ["/scripts/setup-postgres.sh"]
-    networks: [kairo]
+    networks: [nevolium]
 
   temporal:
     image: temporalio/server:${TEMPORAL_VERSION}@sha256:b5ecdb8282bededae2a10c36e8d862e27d0bc2d247fc73c5416025997ab4a1da
@@ -149,7 +149,7 @@ services:
       timeout: 3s
       start_period: 10s
       retries: 60
-    networks: [kairo]
+    networks: [nevolium]
 
   temporal-create-namespace:
     image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}@sha256:dbc5fcd6ee8f0f4d808bf765af9a87dea9d8a283abfdcfbd2fc148496ba66107
@@ -170,7 +170,7 @@ services:
       - ./infrastructure/temporal/scripts:/scripts:ro
     entrypoint: ["/bin/sh"]
     command: ["/scripts/create-namespace.sh"]
-    networks: [kairo]
+    networks: [nevolium]
 
   temporal-ui:
     profiles: [admin]
@@ -188,7 +188,7 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:8233:8080"
-    networks: [kairo]
+    networks: [nevolium]
 
   openbao:
     image: openbao/openbao:2.6.2@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641
@@ -198,14 +198,13 @@ services:
     pids_limit: 256
     stop_grace_period: 30s
     restart: unless-stopped
-    cap_add: [IPC_LOCK]
     environment:
       BAO_DEV_ROOT_TOKEN_ID: ${OPENBAO_DEV_TOKEN}
       BAO_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
     command: ["server", "-dev"]
     ports:
       - "127.0.0.1:8200:8200"
-    networks: [kairo]
+    networks: [nevolium]
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54
@@ -217,8 +216,6 @@ services:
     restart: unless-stopped
     command: ["start-dev"]
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: ${POSTGRES_USER}
@@ -228,7 +225,7 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:8081:8080"
-    networks: [kairo]
+    networks: [nevolium]
 
   litellm:
     profiles: [ai]
@@ -255,7 +252,7 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:4000:4000"
-    networks: [kairo]
+    networks: [nevolium]
 
   activepieces:
     profiles: [automation]
@@ -290,7 +287,7 @@ services:
       - "127.0.0.1:8080:80"
     volumes:
       - activepieces_cache:/usr/src/app/cache
-    networks: [kairo]
+    networks: [nevolium]
 
   searxng:
     profiles: [search]
@@ -313,7 +310,7 @@ services:
     volumes:
       - ./infrastructure/searxng/settings.yml:/etc/searxng/settings.yml:ro
       - searxng_cache:/var/cache/searxng
-    networks: [kairo]
+    networks: [nevolium]
 
   ollama:
     profiles: [local-ai]
@@ -328,7 +325,7 @@ services:
       - "127.0.0.1:11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    networks: [kairo]
+    networks: [nevolium]
 
   ntfy:
     profiles: [notifications]
@@ -347,7 +344,7 @@ services:
     volumes:
       - ntfy_cache:/var/cache/ntfy
       - ntfy_data:/var/lib/ntfy
-    networks: [kairo]
+    networks: [nevolium]
 
   clickhouse:
     profiles: [observability]
@@ -368,7 +365,7 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
-    networks: [kairo]
+    networks: [nevolium]
 
   langfuse-worker:
     profiles: [observability]
@@ -389,15 +386,15 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       REDIS_HOST: valkey
       REDIS_PORT: 6379
-      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: kairo-langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: nevolium-langfuse
       LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
       LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://seaweedfs:8333
-      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: kairo
-      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: kairo-dev
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: nevolium
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: nevolium-dev
       LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
       TELEMETRY_ENABLED: "false"
     depends_on: [postgres, valkey, clickhouse, seaweedfs]
-    networks: [kairo]
+    networks: [nevolium]
 
   langfuse-web:
     profiles: [observability]
@@ -415,7 +412,7 @@ services:
     depends_on: [langfuse-worker]
     ports:
       - "127.0.0.1:3000:3000"
-    networks: [kairo]
+    networks: [nevolium]
 
   livekit:
     profiles: [voice-experimental]
@@ -431,7 +428,7 @@ services:
       - "127.0.0.1:7880:7880"
       - "127.0.0.1:7881:7881"
       - "127.0.0.1:7882:7882/udp"
-    networks: [kairo]
+    networks: [nevolium]
 
   kokoro-tts:
     image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.8.0@sha256:d32322c61254a871e0bc9c38d4e60cd18539cf9b1a2fc8f3ae04409061d0793b
@@ -448,9 +445,9 @@ services:
       ENABLE_DEBUG_ENDPOINTS: "false"
     ports:
       - "127.0.0.1:8880:8880"
-    networks: [kairo]
+    networks: [nevolium]
 
-  kairo-core:
+  nevolium-core:
     build:
       context: .
       dockerfile: services/core/Dockerfile
@@ -461,21 +458,21 @@ services:
     stop_grace_period: 30s
     restart: unless-stopped
     environment:
-      KAIRO_ENV: ${KAIRO_ENV}
-      KAIRO_COMPONENT_REGISTRY: /app/config/components.yaml
-      KAIRO_INTERNAL_TOKEN: ${KAIRO_INTERNAL_TOKEN}
-      KAIRO_CORS_ORIGINS: ${KAIRO_CORS_ORIGINS}
+      NEVOLIUM_ENV: ${NEVOLIUM_ENV}
+      NEVOLIUM_COMPONENT_REGISTRY: /app/config/components.yaml
+      NEVOLIUM_INTERNAL_TOKEN: ${NEVOLIUM_INTERNAL_TOKEN}
+      NEVOLIUM_CORS_ORIGINS: ${NEVOLIUM_CORS_ORIGINS}
       DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
       DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-5}
       DATABASE_POOL_TIMEOUT: ${DATABASE_POOL_TIMEOUT:-10}
-      KAIRO_MODEL_GLOBAL_CONCURRENCY: ${KAIRO_MODEL_GLOBAL_CONCURRENCY:-8}
-      KAIRO_MODEL_OWNER_CONCURRENCY: ${KAIRO_MODEL_OWNER_CONCURRENCY:-2}
-      KAIRO_MODEL_GLOBAL_DAILY_BUDGET_USD: ${KAIRO_MODEL_GLOBAL_DAILY_BUDGET_USD:-50}
-      KAIRO_MODEL_OWNER_DAILY_BUDGET_USD: ${KAIRO_MODEL_OWNER_DAILY_BUDGET_USD:-10}
-      KAIRO_WORK_GLOBAL_CONCURRENCY: ${KAIRO_WORK_GLOBAL_CONCURRENCY:-4}
-      KAIRO_WORK_OWNER_CONCURRENCY: ${KAIRO_WORK_OWNER_CONCURRENCY:-1}
-      KAIRO_WORK_MAX_PENDING: ${KAIRO_WORK_MAX_PENDING:-1000}
-      KAIRO_WORK_OWNER_MAX_PENDING: ${KAIRO_WORK_OWNER_MAX_PENDING:-100}
+      NEVOLIUM_MODEL_GLOBAL_CONCURRENCY: ${NEVOLIUM_MODEL_GLOBAL_CONCURRENCY:-8}
+      NEVOLIUM_MODEL_OWNER_CONCURRENCY: ${NEVOLIUM_MODEL_OWNER_CONCURRENCY:-2}
+      NEVOLIUM_MODEL_GLOBAL_DAILY_BUDGET_USD: ${NEVOLIUM_MODEL_GLOBAL_DAILY_BUDGET_USD:-50}
+      NEVOLIUM_MODEL_OWNER_DAILY_BUDGET_USD: ${NEVOLIUM_MODEL_OWNER_DAILY_BUDGET_USD:-10}
+      NEVOLIUM_WORK_GLOBAL_CONCURRENCY: ${NEVOLIUM_WORK_GLOBAL_CONCURRENCY:-4}
+      NEVOLIUM_WORK_OWNER_CONCURRENCY: ${NEVOLIUM_WORK_OWNER_CONCURRENCY:-1}
+      NEVOLIUM_WORK_MAX_PENDING: ${NEVOLIUM_WORK_MAX_PENDING:-1000}
+      NEVOLIUM_WORK_OWNER_MAX_PENDING: ${NEVOLIUM_WORK_OWNER_MAX_PENDING:-100}
       OUTBOX_MAX_PENDING: ${OUTBOX_MAX_PENDING:-10000}
       OUTBOX_PAYLOAD_MAX_BYTES: ${OUTBOX_PAYLOAD_MAX_BYTES:-65536}
       OUTBOX_RETENTION_DAYS: ${OUTBOX_RETENTION_DAYS:-30}
@@ -486,7 +483,7 @@ services:
       NATS_URL: nats://nats:4222
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: default
-      TEMPORAL_TASK_QUEUE: kairo-default
+      TEMPORAL_TASK_QUEUE: nevolium-default
       OPENBAO_ADDR: http://openbao:8200
       KOKORO_TTS_URL: http://kokoro-tts:8880
       KOKORO_DEFAULT_VOICE: ${KOKORO_DEFAULT_VOICE}
@@ -503,56 +500,56 @@ services:
       temporal-create-namespace:
         condition: service_completed_successfully
     ports:
-      - "127.0.0.1:${KAIRO_API_PORT}:8000"
-    networks: [kairo]
+      - "127.0.0.1:${NEVOLIUM_API_PORT}:8000"
+    networks: [nevolium]
 
-  kairo-worker:
+  nevolium-worker:
     build:
       context: .
       dockerfile: services/worker/Dockerfile
       args:
-        KAIRO_WORKER_EXTRAS: ${KAIRO_WORKER_EXTRAS}
+        NEVOLIUM_WORKER_EXTRAS: ${NEVOLIUM_WORKER_EXTRAS}
     restart: unless-stopped
     init: true
     stop_grace_period: 45s
-    cpus: ${KAIRO_WORKER_CPUS:-2.0}
-    mem_limit: ${KAIRO_WORKER_MEMORY_LIMIT:-4g}
-    pids_limit: ${KAIRO_WORKER_PIDS_LIMIT:-256}
+    cpus: ${NEVOLIUM_WORKER_CPUS:-2.0}
+    mem_limit: ${NEVOLIUM_WORKER_MEMORY_LIMIT:-4g}
+    pids_limit: ${NEVOLIUM_WORKER_PIDS_LIMIT:-256}
     environment:
-      KAIRO_ENV: ${KAIRO_ENV}
-      KAIRO_WORK_GLOBAL_CONCURRENCY: ${KAIRO_WORK_GLOBAL_CONCURRENCY:-4}
-      KAIRO_WORKER_MAX_CONCURRENT_ACTIVITIES: ${KAIRO_WORKER_MAX_CONCURRENT_ACTIVITIES:-16}
-      KAIRO_WORKER_MAX_CONCURRENT_WORKFLOW_TASKS: ${KAIRO_WORKER_MAX_CONCURRENT_WORKFLOW_TASKS:-8}
-      KAIRO_DOCUMENT_MAX_CONCURRENT: ${KAIRO_DOCUMENT_MAX_CONCURRENT:-1}
-      KAIRO_DOCUMENT_MAX_SOURCE_BYTES: ${KAIRO_DOCUMENT_MAX_SOURCE_BYTES:-26214400}
-      KAIRO_DOCUMENT_MAX_TEXT_CHARS: ${KAIRO_DOCUMENT_MAX_TEXT_CHARS:-1000000}
-      KAIRO_DOCUMENT_PARSE_TIMEOUT_SECONDS: ${KAIRO_DOCUMENT_PARSE_TIMEOUT_SECONDS:-180}
-      KAIRO_INTERNAL_TOKEN: ${KAIRO_INTERNAL_TOKEN}
+      NEVOLIUM_ENV: ${NEVOLIUM_ENV}
+      NEVOLIUM_WORK_GLOBAL_CONCURRENCY: ${NEVOLIUM_WORK_GLOBAL_CONCURRENCY:-4}
+      NEVOLIUM_WORKER_MAX_CONCURRENT_ACTIVITIES: ${NEVOLIUM_WORKER_MAX_CONCURRENT_ACTIVITIES:-16}
+      NEVOLIUM_WORKER_MAX_CONCURRENT_WORKFLOW_TASKS: ${NEVOLIUM_WORKER_MAX_CONCURRENT_WORKFLOW_TASKS:-8}
+      NEVOLIUM_DOCUMENT_MAX_CONCURRENT: ${NEVOLIUM_DOCUMENT_MAX_CONCURRENT:-1}
+      NEVOLIUM_DOCUMENT_MAX_SOURCE_BYTES: ${NEVOLIUM_DOCUMENT_MAX_SOURCE_BYTES:-26214400}
+      NEVOLIUM_DOCUMENT_MAX_TEXT_CHARS: ${NEVOLIUM_DOCUMENT_MAX_TEXT_CHARS:-1000000}
+      NEVOLIUM_DOCUMENT_PARSE_TIMEOUT_SECONDS: ${NEVOLIUM_DOCUMENT_PARSE_TIMEOUT_SECONDS:-180}
+      NEVOLIUM_INTERNAL_TOKEN: ${NEVOLIUM_INTERNAL_TOKEN}
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: default
-      TEMPORAL_TASK_QUEUE: kairo-default
+      TEMPORAL_TASK_QUEUE: nevolium-default
       NATS_URL: nats://nats:4222
       LITELLM_URL: http://litellm:4000
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
-      KAIRO_NEWS_MODEL: ${KAIRO_NEWS_MODEL}
-      KAIRO_NEWS_MODEL_ESTIMATED_COST_USD: ${KAIRO_NEWS_MODEL_ESTIMATED_COST_USD:-0.01}
-      KAIRO_MODEL_MAX_OUTPUT_TOKENS: ${KAIRO_MODEL_MAX_OUTPUT_TOKENS:-4096}
-      KAIRO_SEMANTIC_ROUTER_MODEL: ${KAIRO_SEMANTIC_ROUTER_MODEL:-local-fast}
-      KAIRO_SEMANTIC_ROUTER_ESTIMATED_COST_USD: ${KAIRO_SEMANTIC_ROUTER_ESTIMATED_COST_USD:-0.002}
+      NEVOLIUM_NEWS_MODEL: ${NEVOLIUM_NEWS_MODEL}
+      NEVOLIUM_NEWS_MODEL_ESTIMATED_COST_USD: ${NEVOLIUM_NEWS_MODEL_ESTIMATED_COST_USD:-0.01}
+      NEVOLIUM_MODEL_MAX_OUTPUT_TOKENS: ${NEVOLIUM_MODEL_MAX_OUTPUT_TOKENS:-4096}
+      NEVOLIUM_SEMANTIC_ROUTER_MODEL: ${NEVOLIUM_SEMANTIC_ROUTER_MODEL:-local-fast}
+      NEVOLIUM_SEMANTIC_ROUTER_ESTIMATED_COST_USD: ${NEVOLIUM_SEMANTIC_ROUTER_ESTIMATED_COST_USD:-0.002}
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: ${NEO4J_USER}
       NEO4J_PASSWORD: ${NEO4J_PASSWORD}
       SEARXNG_URL: http://searxng:8080
-      KAIRO_CORE_URL: http://kairo-core:8000
+      NEVOLIUM_CORE_URL: http://nevolium-core:8000
     depends_on:
-      kairo-core:
+      nevolium-core:
         condition: service_started
       temporal-create-namespace:
         condition: service_completed_successfully
-    networks: [kairo]
+    networks: [nevolium]
 
-  kairo-realtime:
+  nevolium-realtime:
     profiles: [collaboration-experimental]
     build:
       context: .
@@ -565,18 +562,18 @@ services:
     restart: unless-stopped
     environment:
       PORT: 1234
-      KAIRO_ENV: ${KAIRO_ENV}
-    depends_on: [kairo-core, nats]
+      NEVOLIUM_ENV: ${NEVOLIUM_ENV}
+    depends_on: [nevolium-core, nats]
     ports:
-      - "127.0.0.1:${KAIRO_REALTIME_PORT}:1234"
-    networks: [kairo]
+      - "127.0.0.1:${NEVOLIUM_REALTIME_PORT}:1234"
+    networks: [nevolium]
 
-  kairo-web:
+  nevolium-web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        VITE_KAIRO_API_URL: http://localhost:${KAIRO_API_PORT}
+        VITE_NEVOLIUM_API_URL: http://localhost:${NEVOLIUM_API_PORT}
         VITE_KEYCLOAK_URL: ${KEYCLOAK_PUBLIC_URL}
         VITE_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
         VITE_KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
@@ -586,10 +583,10 @@ services:
     pids_limit: 256
     stop_grace_period: 30s
     restart: unless-stopped
-    depends_on: [kairo-core]
+    depends_on: [nevolium-core]
     ports:
-      - "127.0.0.1:${KAIRO_WEB_PORT}:5173"
-    networks: [kairo]
+      - "127.0.0.1:${NEVOLIUM_WEB_PORT}:5173"
+    networks: [nevolium]
 
   rotki:
     image: rotki/rotki:latest@sha256:918e35cfbcce68633eafc9cdcc206bb2b45a1110f86e544d48d1fded04c280ff
@@ -605,7 +602,7 @@ services:
     volumes:
       - rotki_data:/data
       - rotki_logs:/logs
-    networks: [kairo]
+    networks: [nevolium]
 
   actual-budget:
     image: actualbudget/actual-server:latest@sha256:552beab3dec8c93d46b8b9245612d63c3f123b8a45063a474f53e229b17621d3
@@ -620,7 +617,7 @@ services:
       - "127.0.0.1:5006:5006"
     volumes:
       - actual_data:/data
-    networks: [kairo]
+    networks: [nevolium]
 
   hummingbot:
     image: hummingbot/hummingbot:latest@sha256:632d2b07aa156b761310f2f7258a78c9660a1c28b6df4b33874e09a0c7d06c85
@@ -637,7 +634,7 @@ services:
       - hummingbot_conf:/home/hummingbot/conf
       - hummingbot_logs:/home/hummingbot/logs
       - hummingbot_data:/home/hummingbot/data
-    networks: [kairo]
+    networks: [nevolium]
 
   home-assistant:
     image: ghcr.io/home-assistant/home-assistant:stable@sha256:612d76760b544cb40b7ba01387fdac964c59a6a550a50a4d30b4773c822d2918
@@ -675,7 +672,7 @@ services:
       - host.docker.internal:host-gateway
     ports:
       - "127.0.0.1:3001:3000"
-    networks: [kairo]
+    networks: [nevolium]
 
   vllm:
     image: vllm/vllm-openai:latest@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
@@ -692,7 +689,7 @@ services:
       - "127.0.0.1:8001:8000"
     volumes:
       - huggingface_cache:/root/.cache/huggingface
-    networks: [kairo]
+    networks: [nevolium]
 
   headscale:
     image: headscale/headscale:latest@sha256:0e7f1c6e4ce6c2a2a001103ecd3fa645a045adf30ac8a5234fe037b43000cd72
@@ -709,10 +706,10 @@ services:
     volumes:
       - headscale_data:/var/lib/headscale
       - ./infrastructure/headscale:/etc/headscale:ro
-    networks: [kairo]
+    networks: [nevolium]
 
 networks:
-  kairo:
+  nevolium:
     driver: bridge
 
 volumes:

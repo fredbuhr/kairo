@@ -2,7 +2,7 @@
 """Explicit SQL provisioning/rotation, run with services stopped and a verified backup.
 
 Uses existing admin credentials; never emits passwords or SQL. No canonical data is deleted.
-Migrations use kairo_migrator; runtime KAIRO gets DML only. Each engine owns only its own DB.
+Migrations use nevolium_migrator; runtime Nevolium gets DML only. Each engine owns only its own DB.
 """
 import argparse
 import asyncio
@@ -12,8 +12,8 @@ import asyncpg
 from dotenv import dotenv_values
 
 ROLES = {
-    "kairo_migrator": ("KAIRO_MIGRATOR_PASSWORD", ["kairo"]),
-    "kairo_app": ("KAIRO_DATABASE_PASSWORD", []),
+    "nevolium_migrator": ("NEVOLIUM_MIGRATOR_PASSWORD", ["nevolium"]),
+    "nevolium_app": ("NEVOLIUM_DATABASE_PASSWORD", []),
     "mem0_app": ("MEM0_DATABASE_PASSWORD", ["mem0"]),
     "keycloak_app": ("KEYCLOAK_DATABASE_PASSWORD", ["keycloak"]),
     "temporal_app": ("TEMPORAL_DATABASE_PASSWORD", ["temporal", "temporal_visibility"]),
@@ -61,9 +61,9 @@ async def provision(env: dict, host: str, port: int) -> None:
                 try:
                     await conn.execute('REVOKE ALL ON SCHEMA public FROM PUBLIC')
                     await conn.execute(f'ALTER SCHEMA public OWNER TO {role}')
-                    if db in {'kairo', 'mem0'}:
+                    if db in {'nevolium', 'mem0'}:
                         await conn.execute('CREATE EXTENSION IF NOT EXISTS vector')
-                    if db == 'kairo':
+                    if db == 'nevolium':
                         await conn.execute('CREATE EXTENSION IF NOT EXISTS pgcrypto')
                     # Upgrade existing development schemas without REASSIGN OWNED (which also
                     # changes shared database ownership). Exclude extension-managed objects.
@@ -71,15 +71,15 @@ async def provision(env: dict, host: str, port: int) -> None:
                     for row in rows:
                         kind = {'S':'SEQUENCE','v':'VIEW','m':'MATERIALIZED VIEW'}.get(row['relkind'], 'TABLE')
                         await conn.execute(f'ALTER {kind} public.{ident(row["relname"])} OWNER TO {role}')
-                    if db == 'kairo':
-                        await conn.execute('GRANT CONNECT ON DATABASE kairo TO kairo_app')
-                        await conn.execute('GRANT USAGE ON SCHEMA public TO kairo_app')
-                        await conn.execute('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO kairo_app')
-                        await conn.execute('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO kairo_app')
+                    if db == 'nevolium':
+                        await conn.execute('GRANT CONNECT ON DATABASE nevolium TO nevolium_app')
+                        await conn.execute('GRANT USAGE ON SCHEMA public TO nevolium_app')
+                        await conn.execute('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO nevolium_app')
+                        await conn.execute('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO nevolium_app')
                         if await conn.fetchval("SELECT to_regclass('public.alembic_version')"):
-                            await conn.execute('REVOKE ALL ON TABLE public.alembic_version FROM kairo_app')
-                        await conn.execute('ALTER DEFAULT PRIVILEGES FOR ROLE kairo_migrator IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO kairo_app')
-                        await conn.execute('ALTER DEFAULT PRIVILEGES FOR ROLE kairo_migrator IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO kairo_app')
+                            await conn.execute('REVOKE ALL ON TABLE public.alembic_version FROM nevolium_app')
+                        await conn.execute('ALTER DEFAULT PRIVILEGES FOR ROLE nevolium_migrator IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO nevolium_app')
+                        await conn.execute('ALTER DEFAULT PRIVILEGES FOR ROLE nevolium_migrator IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO nevolium_app')
                 finally:
                     await conn.close()
         # Restrict default utility databases too; no service needs cross-engine connections.

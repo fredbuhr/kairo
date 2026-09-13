@@ -11,16 +11,19 @@ model_list:
     litellm_params:
       model: os.environ/OLLAMA_MODEL
       api_base: http://ollama:11434
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
 
 router_settings:
   routing_strategy: least-busy
   num_retries: 0
-  timeout: 120
+  timeout: 210
 
 litellm_settings:
   num_retries: 0
-  # Observability only. KAIRO Core remains the authority for policy, audit and spend accounting.
-  # The OTEL exporter consumes correlation metadata already attached by KAIRO's model gateway.
+  # Observability only. Nevolium Core remains the authority for policy, audit and spend accounting.
+  # The OTEL exporter consumes correlation metadata already attached by Nevolium's model gateway.
   callbacks: ["langfuse_otel"]
 
 general_settings:

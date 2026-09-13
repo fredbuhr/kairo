@@ -199,7 +199,7 @@ def main() -> None:
 
     print(
         "REPRODUCIBILITY CONTRACT PASSED: canonical pnpm/uv lockfiles and toolchains are "
-        "required, KAIRO container installs are frozen/locked, validated build and Compose "
+        "required, Nevolium container installs are frozen/locked, validated build and Compose "
         "digests are fixed, and all remaining unpinned-image debt exactly matches the "
         "explicit reproducibility baseline."
     )

@@ -1,7 +1,8 @@
 services:
-  kairo-web-mcp:
+  nevolium-web-mcp:
     networks: !override [search, egress]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     read_only: true
-    tmpfs: [/tmp:size=67108864,mode=1777]
+    tmpfs:
+      - /tmp:size=67108864,mode=1777

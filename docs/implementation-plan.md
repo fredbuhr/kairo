@@ -1,4 +1,4 @@
-# KAIRO — plan de développement exécutable
+# Nevolium — plan de développement exécutable
 
 Révision : 2026-09-11. Ce document remplace les anciens blocs trop larges comme guide
 d'implémentation ; leur [historique](archive/implementation-blocks-through-g51.md) est conservé.
@@ -7,9 +7,9 @@ La [roadmap](roadmap.md) résume l'ordre ; [status](status.md) décrit les capac
 
 ## Résultat recherché et règles communes
 
-Un KAIRO accessible par le Web, utilisable quotidiennement, avec espace Mycelium personnalisable,
+Un Nevolium accessible par le Web, utilisable quotidiennement, avec espace Mycelium personnalisable,
 Gantt, calendrier, mindmap 2D/3D et assistant travaillant sur les mêmes données. Les comptes,
-projets, tâches, documents, liens, permissions, coûts et décisions restent sous contrôle de KAIRO.
+projets, tâches, documents, liens, permissions, coûts et décisions restent sous contrôle de Nevolium.
 Les moteurs ne deviennent ni des produits juxtaposés ni des sources de vérité parallèles.
 
 - Construire des tranches verticales : modèle/API nécessaire, interface, comportement réel et reprise.
@@ -36,6 +36,16 @@ du head final sont verts, que le merge est revérifié et que checkpoint/status 
 Toute limitation est nommée et rattachée à un lot futur. Une preuve exigeant un serveur, une clé,
 du matériel ou une autorisation absent reste **non vérifiée** ; préparer les éléments indépendants,
 sans substituer un mock à cette preuve ni déclarer abusivement le lot terminé.
+
+## Cibles d'installation et continuité multi-appareil
+
+Décision du 2026-09-11 : [ADR-029](decisions/ADR-029-server-personal-and-offline-clients.md).
+Serveur prioritaire ; le même backend peut être hébergé sur PC personnel. Clients Web/PWA adaptés
+au PC, smartphone et tablette ; Desktop réutilise ce client. Chaque espace garde une seule instance
+canonique. Mode hors ligne borné aux données préparées et notes/tâches simples, synchronisation
+contrôlée en D12 ; pas de réplication automatique entre deux serveurs autonomes. La 3D reste une vue
+adaptative, avec accès 2D/listes à toutes les fonctions essentielles. Ces exigences complètent les
+lots ci-dessous, sans ajouter de sous-lots ni qualifier ces fonctions comme déjà livrées.
 
 ## Phase A — socle avant nouvelles fonctions produit
 
@@ -96,8 +106,19 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
   simulation sans API payante et mesure sur matériel identifié. Fixer les seuils avant mesure.
 - **Sortie :** rapport daté (versions, matériel, résultats, limites), aucun P0/P1 bloquant l'usage
   privé, récupération prouvée et baseline/tag post-audit.
+- **Cible de sortie :** serveur Linux x86_64 retenu pour le premier pilote ; la qualification de tous les OS,
+  clients mobiles et modes offline appartient aux lots produit/distribution, pas à une extension indéfinie de H5.
 - **Condition externe :** ne pas acheter serveur/API ni publier sans autorisation ; préparer scripts
   et protocole même si le matériel manque. La capacité commerciale sera approfondie en D21.
+- **Livraison active : #88**, une campagne commune dans `hardening/d04-real-engine-qualification`.
+  [Protocole et seuils](qualification-d04.md), vrais adaptateurs CPU, IA locale/recherche et restauration
+  chiffrée entre deux hôtes CI ; correctifs de runtime dans la même PR. D04/H5 reste ouvert jusqu’au
+  scénario privé et aux mesures de la cible, sans transformer cette condition en un nouveau sous-lot.
+- **Identité canonique :** la bascule complète vers Nevolium reste dans cette même livraison D04,
+  conformément à l'[ADR-030](decisions/ADR-030-nevolium-canonical-identity.md). Aucun alias de
+  compatibilité n'est conservé avant le premier déploiement ; la CI refuse tout résidu dans l'arbre
+  suivi. Le head `d9478de…` passe 10/10 workflows et 5/5 jobs D04 ; le dépôt GitHub et le remote local
+  sont maintenant basculés vers Nevolium. La reprise peut continuer sur le serveur dans D04.
 
 ## Phase B — interface quotidienne et pensée visuelle
 
@@ -108,6 +129,8 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
   labels sobres, centre lisible, panneaux adaptés ; navigation, recherche d'accès rapide,
   inspecteur, états vides/chargement/erreur, clavier et réduction des animations. Conserver Dockview,
   layouts par propriétaire et profils manuels réversibles, sans permission implicite.
+- **Multi-appareil :** shell Web installable/PWA, formats téléphone/tablette/bureau, alternatives tactiles
+  au survol/glisser, états de connexion ; layouts par appareil. Le cache métier et ses mutations attendent D12.
 - **Sortie :** ouvrir projet/conversation/Today/document, réorganiser et recharger sans perte ;
   téléphone et navigateur sans WebGL utilisables. Pas de graphe 3D décoratif permanent dans ce lot.
 - **Références :** les images de conversations ne sont pas automatiquement dans Git. Consigner
@@ -122,6 +145,8 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
   fuseaux/DST et récurrences sans doublons ; replanification avec aperçu et annulation.
 - **Sortie :** décaler un prédécesseur, inspecter les effets et valider ; Today/Gantt/calendrier
   concordent après rechargement et conflit d'édition ; aucune mutation implicite par l'IA.
+- **Appareils :** Gantt tactile sur tablette, agenda/liste et édition de tâche sur téléphone ; le glisser
+  n’est jamais la seule façon de modifier une date. Consultation préparée hors ligne raccordée en D12.
 - **Limite :** pas de solveur universel ; calendriers externes en D11.
 
 ### D07 — connaissances éditables, recherche et provenance
@@ -142,7 +167,8 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
   undo/redo et liens profonds. Conversion idée→tâche conservant la référence, sans copie du métier.
 - **Sortie :** construire une carte, convertir une branche en tâches visibles au Gantt ;
   rechargement/export préservent identités/liens ; isolation et chargement par périmètre testés.
-- **Réemploi :** inspecter le prototype `feat/kairo-test-interface-v1` sélectivement, jamais fusionner en bloc.
+- **Réemploi :** inspecter sélectivement le prototype d'interface historique à `ed12d503…`,
+  sans jamais le fusionner en bloc.
 
 ### D09 — Mycelium 3D interactif et vue spatiale
 
@@ -150,6 +176,8 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
 - **Livraison :** caméra/focus/zoom/sélection, filaments/groupes, labels limités, activité et liens
   vers le cockpit. Mêmes identités 2D/3D ; positions distinctes des relations métier. Qualité
   adaptative, rendu du visible, arrêt quand masqué, fallback 2D et préférences persistantes.
+  Rendu client, pas de vidéo serveur ; niveaux de détail, graphe chargé par périmètre, perte WebGL
+  récupérable. 3D facultative sur mobile, profils économiques et mesures sur GPU intégré/tablette.
 - **Sortie :** passer 2D↔3D, modifier un objet et vérifier sa cohérence partout ; reconnexion sans
   événements dupliqués ; mesurer fluidité et mémoire sur des jeux de tailles annoncées.
 - **Limite :** bureau spatial et graphe de connaissances gardent leurs usages, avec composants/données partagés.
@@ -182,8 +210,16 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
 - **Livraison :** boîte d'attention (approbations/tâches/messages/alertes), préférences et livraison
   des notifications ; reconnexion multi-appareil. Realtime authentifié, documents persistés,
   partage/rôles/conflits explicites sans casser l'isolation privée.
+- **Hors ligne borné :** cache IndexedDB choisi par instance/compte, documents téléchargés, lecture
+  Gantt/mindmaps préparés, capture et édition simple notes/tâches. Opérations identifiées/versionnées,
+  reçus, réauthentification, contrôle des droits et résolution visible des conflits à la reprise.
+  Pas d'effets externes/approbations définitives ni de replanification structurelle hors serveur.
+  Reprise au premier plan sans dépendre du background sync ; quotas, schéma local, purge/changement
+  de compte et export des brouillons non synchronisés traités selon ADR-029.
 - **Sortie :** deux appareils reprennent un travail ; deux personnes autorisées éditent sans perte,
   tiers exclu ; coupure réseau récupérable et absence de notifications répétées indéfiniment.
+  Réouverture en mode avion, écriture locale, conflit/suppression/révocation et reconnexion sans doublon
+  vérifiés ; stockage plein/éviction n’est jamais présenté comme une sauvegarde réussie.
 
 ### D13 — version personnelle utilisable, pilote à deux
 
@@ -193,7 +229,9 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
   de base et upgrades réversibles ; aucun cache offline de secrets.
 - **Sortie :** document→discussion→mindmap→tâches→Gantt→rappel→reprise sur installation privée avec
   deux comptes ; bilan d'usage, bugs triés, dépenses mesurées et restauration vérifiée.
-- **Jalon :** premier KAIRO complet pour l'usage quotidien central, sans attendre tous les modules spécialisés.
+  Parcours PC, téléphone et tablette avec coupure/reprise ; instance personnelle administrée sur PC
+  testée avec profils utiles, veille/redémarrage et distinction Internet/LAN. Installer grand public en D22.
+- **Jalon :** premier Nevolium complet pour l'usage quotidien central, sans attendre tous les modules spécialisés.
 
 ## Phase D — présence et autonomie étendue
 
@@ -201,7 +239,8 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
 
 - **Prérequis :** D13.
 - **Livraison :** Tauri, enregistrement/révocation, raccourci global/notifications, accès choisi
-  au presse-papiers, écran et dossiers ; mises à jour signées/contrôlées.
+  au presse-papiers, écran et dossiers ; mises à jour signées/contrôlées. Réutiliser Web/sync, sans
+  second modèle métier ; le shell Desktop ne constitue pas l’installateur du backend personnel.
 - **Sortie :** traiter un fichier autorisé, refuser hors périmètre ; appareil déconnecté sans
   arrêter les tâches serveur ; aucune autorité locale héritée d'une simple session Web.
 
@@ -264,6 +303,8 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
 - **Livraison :** mesures 1/5/10/20/30/40/50/100/500/1 000 utilisateurs ; distinguer inscrits,
   actifs/simultanés ; fairness/quotas ; local/cloud/BYOK ; CPU/RAM/GPU/API/stockage ; rétention,
   incidents et restauration multi-tenant. Scale Workers/DB seulement sur goulot mesuré.
+  Rendu 3D sur clients, isolation des caches/objets, téléchargements bornés et pools IA/documents
+  dimensionnés séparément ; pas de promesse de concurrence IA fondée sur les utilisateurs inscrits.
 - **Sortie :** capacité/coût reproductibles sur matériel identifié, saturation connue et
   dégradation contrôlée ; aucune promesse de capacité déduite de la présence de Compose.
 
@@ -272,7 +313,9 @@ restants de l'audit ; D04 est la sortie H5. G51 reste le dernier jalon produit.
 - **Prérequis :** D21 pour offre hébergée ; D13 et revue dédiée pour distribution personnelle.
 - **Livraison :** installation/upgrade/rollback, support/diagnostics, licences/SBOM,
   confidentialité/rétention/export/effacement, packaging personnel ou hébergé ; mesure d'usage,
-  plafonds et facturation si offre payante.
+  plafonds et facturation si offre payante. Matrice OS/architecture réellement testée pour backend
+  personnel et clients : Linux x86_64 prioritaire, Windows/macOS/ARM selon qualification. Installation
+  complète distincte du client ; migration personnelle→serveur avec une seule autorité en écriture.
 - **Sortie :** utilisateur externe installé/inscrit, récupération après incident, export/suppression
   et fin de service vérifiés ; abonnement testé si activé.
 - **Décisions utilisateur :** hébergement/tarifs, dépenses/support et choix stratégiques avant

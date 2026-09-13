@@ -6,9 +6,9 @@ Accepted.
 
 ## Context
 
-The deterministic KAIRO command router is intentionally conservative. This is desirable for known intents, but natural language often expresses a proven capability without using a stable keyword. For example, “Que s'est-il passé à Paris ce matin ?” is clearly a request for current local information but does not necessarily contain `news`, `actualités` or another deterministic trigger.
+The deterministic Nevolium command router is intentionally conservative. This is desirable for known intents, but natural language often expresses a proven capability without using a stable keyword. For example, “Que s'est-il passé à Paris ce matin ?” is clearly a request for current local information but does not necessarily contain `news`, `actualités` or another deterministic trigger.
 
-A semantic model can improve usability, but placing an LLM directly inside KAIRO Core would create three unacceptable bypasses:
+A semantic model can improve usability, but placing an LLM directly inside Nevolium Core would create three unacceptable bypasses:
 
 - model calls could escape the canonical usage/budget ledger;
 - provider retries could bypass Temporal replay-safety checkpoints;
@@ -16,7 +16,7 @@ A semantic model can improve usability, but placing an LLM directly inside KAIRO
 
 ## Decision
 
-Semantic routing is implemented as the internal KAIRO capability `assistant.route.semantic`.
+Semantic routing is implemented as the internal Nevolium capability `assistant.route.semantic`.
 
 ### Deterministic routing remains the first tier
 
@@ -28,7 +28,7 @@ An ambiguous command creates a canonical Task with a deterministic ID and a Temp
 
 ### PydanticAI does not own provider access
 
-PydanticAI validates a typed `SemanticRouteProposal`, but its `FunctionModel` delegates the one permitted model turn to KAIRO's existing Worker `model_gateway`.
+PydanticAI validates a typed `SemanticRouteProposal`, but its `FunctionModel` delegates the one permitted model turn to Nevolium's existing Worker `model_gateway`.
 
 That gateway remains responsible for:
 
@@ -39,7 +39,7 @@ That gateway remains responsible for:
 - Temporal heartbeat replay checkpoints;
 - fail-closed handling of an ambiguous provider outcome.
 
-PydanticAI therefore sits above the KAIRO model boundary rather than creating a second provider boundary.
+PydanticAI therefore sits above the Nevolium model boundary rather than creating a second provider boundary.
 
 ### The model can only propose
 
@@ -47,16 +47,19 @@ Core sends only capabilities explicitly marked `routable=true` to the semantic r
 
 Core then independently verifies:
 
+- the canonical user message does not explicitly forbid execution;
 - the key still exists and is routable;
 - confidence meets the configured floor;
 - parameters validate against the registered capability input schema;
-- a concrete KAIRO adapter exists.
+- a concrete Nevolium adapter exists.
 
 Only after those checks does Core launch the final capability. A provider response cannot invent an MCP tool, HTTP endpoint, specialist engine or hidden action.
+An explicit classification-only or no-execution instruction remains auditable but makes the command
+terminal as `semantic.execution-veto`, even if the model proposes a valid capability with high confidence.
 
 ### One logical model turn for V1
 
-The semantic PydanticAI agent uses zero automatic output retries. If the first provider response fails structured validation, KAIRO records an unsupported proposal rather than silently spending a second model call.
+The semantic PydanticAI agent uses zero automatic output retries. If the first provider response fails structured validation, Nevolium records an unsupported proposal rather than silently spending a second model call.
 
 Multi-turn structured repair may be enabled later only after the model gateway can checkpoint multiple named model-call slots inside one durable Activity.
 
@@ -68,7 +71,7 @@ For semantic commands, the final capability Task ID is derived deterministically
 
 - Natural phrasing becomes usable without weakening deterministic routes.
 - Cheap/local models can classify routine requests while paid models remain replaceable LiteLLM fallbacks.
-- Every semantic model call is budgeted and accounted like other KAIRO model usage.
+- Every semantic model call is budgeted and accounted like other Nevolium model usage.
 - Model output remains untrusted proposal data until Core validation.
 - Semantic routing survives Worker interruption without duplicating the final capability Task.
 - The same architecture can later route to Projects, Calendar, Research, Finance and Home capabilities as those contracts become real.

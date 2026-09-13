@@ -13,11 +13,11 @@ SELECT 'CREATE DATABASE litellm'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'litellm')\gexec
 
 -- Mem0 is a derived projection, so it gets a separate database rather than writing its vector
--- tables into KAIRO's canonical schema. The entire database may be dropped and rebuilt from Core.
+-- tables into Nevolium's canonical schema. The entire database may be dropped and rebuilt from Core.
 SELECT 'CREATE DATABASE mem0'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'mem0')\gexec
 
-\connect kairo
+\connect nevolium
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

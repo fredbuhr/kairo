@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic ownership and artifact-binding contract proof for KAIRO News.
+"""Deterministic ownership and artifact-binding contract proof for Nevolium News.
 
 The contract exercises the Core boundary directly with lightweight fake sessions so ownership,
 authentication wiring, artifact integrity and replay safety can be validated without Docker,
@@ -15,10 +15,10 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException
 
-from kairo_core import news as news_module
-from kairo_core.auth import Principal, require_kairo_user
-from kairo_core.models import Artifact, Project, Task, WorkflowExecution
-from kairo_core.schemas import NewsBriefCreate, NewsBriefRunResponse
+from nevolium_core import news as news_module
+from nevolium_core.auth import Principal, require_nevolium_user
+from nevolium_core.models import Artifact, Project, Task, WorkflowExecution
+from nevolium_core.schemas import NewsBriefCreate, NewsBriefRunResponse
 
 
 def principal(subject: str) -> Principal:
@@ -26,7 +26,7 @@ def principal(subject: str) -> Principal:
         subject=subject,
         username=subject,
         email=None,
-        roles=frozenset({"kairo-user"}),
+        roles=frozenset({"nevolium-user"}),
         claims={},
     )
 
@@ -44,7 +44,7 @@ def news_project(subject: str) -> Project:
     return Project(
         id=news_module._news_project_id(subject),
         owner_subject=subject,
-        name="KAIRO News",
+        name="Nevolium News",
         status="active",
         summary=None,
         parent_id=None,
@@ -86,7 +86,7 @@ def workflow_execution(
     return WorkflowExecution(
         id=execution_id or uuid.uuid4(),
         task_id=task.id,
-        workflow_id=workflow_id or f"kairo-task-{task.id}",
+        workflow_id=workflow_id or f"nevolium-task-{task.id}",
         status="completed",
         correlation_id=uuid.uuid4(),
     )
@@ -186,7 +186,7 @@ class OwnedTaskSession:
                 None,
             )
             assert task is not None, params
-            canonical_workflow_id = f"kairo-task-{task.id}"
+            canonical_workflow_id = f"nevolium-task-{task.id}"
             assert canonical_workflow_id in params, params
 
             for artifact in sorted(
@@ -226,9 +226,9 @@ class ReplaySession:
         raise AssertionError(f"Unexpected scalar query: {sql}")
 
 
-def assert_requires_kairo_user(endpoint) -> None:
+def assert_requires_nevolium_user(endpoint) -> None:
     dependency = inspect.signature(endpoint).parameters["principal"].default
-    assert getattr(dependency, "dependency", None) is require_kairo_user, dependency
+    assert getattr(dependency, "dependency", None) is require_nevolium_user, dependency
 
 
 async def prove_create_is_bound_to_principal(body: NewsBriefCreate, owner: Principal) -> None:
@@ -481,7 +481,7 @@ async def main() -> None:
         news_module.get_news_brief,
         news_module.news_brief_audio,
     ):
-        assert_requires_kairo_user(endpoint)
+        assert_requires_nevolium_user(endpoint)
 
     await prove_create_is_bound_to_principal(body, owner)
     await prove_public_read_boundaries(body, owner, stranger)

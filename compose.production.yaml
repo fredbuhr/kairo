@@ -3,7 +3,8 @@ services:
   openbao:
     command:
     - server
-    - -config=/openbao/config/config.hcl
+    # The pinned image entrypoint already loads /openbao/config. Repeating the file
+    # loads the TCP listener twice and prevents the persistent server from starting.
     environment:
       BAO_ADDR: http://127.0.0.1:8200
       BAO_DEV_ROOT_TOKEN_ID: ''
@@ -24,6 +25,7 @@ services:
   keycloak:
     command:
     - start
+    - --import-realm
     environment:
       KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL}
       KC_HTTP_ENABLED: 'true'
@@ -33,6 +35,11 @@ services:
       KC_DB_USERNAME: keycloak_app
       KC_DB_PASSWORD: ${KEYCLOAK_DATABASE_PASSWORD}
       KC_PROXY_TRUSTED_ADDRESSES: ${KEYCLOAK_PROXY_TRUSTED_ADDRESSES}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      NEVOLIUM_CORS_ORIGINS: ${NEVOLIUM_CORS_ORIGINS}
+    volumes:
+    - ./infrastructure/keycloak/production/nevolium-realm.json:/opt/keycloak/data/import/nevolium-realm.json:ro
     networks: !override
     - identity
     - ingress
@@ -67,11 +74,11 @@ services:
     networks: !override
     - telemetry
     ports: !reset []
-  kairo-core:
+  nevolium-core:
     environment:
-      KAIRO_OPERATIONS_TOKEN: ${KAIRO_OPERATIONS_TOKEN}
-      KAIRO_AUTH_ENABLED: 'true'
-      KAIRO_POLICY_SIGNING_KEY: ${KAIRO_POLICY_SIGNING_KEY}
+      NEVOLIUM_OPERATIONS_TOKEN: ${NEVOLIUM_OPERATIONS_TOKEN}
+      NEVOLIUM_AUTH_ENABLED: 'true'
+      NEVOLIUM_POLICY_SIGNING_KEY: ${NEVOLIUM_POLICY_SIGNING_KEY}
       ASSET_MAX_BYTES: ${ASSET_MAX_BYTES}
       SEAWEED_FILER_ENDPOINT: http://seaweedfs:8888
       OPENBAO_TOKEN: ${OPENBAO_TOKEN}
@@ -79,9 +86,9 @@ services:
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
       KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
-      KAIRO_ENV: production
-      DATABASE_URL: postgresql+asyncpg://kairo_app:${KAIRO_DATABASE_PASSWORD}@postgres:5432/kairo
-      KEYCLOAK_AUDIENCE: kairo-core
+      NEVOLIUM_ENV: production
+      DATABASE_URL: postgresql+asyncpg://nevolium_app:${NEVOLIUM_DATABASE_PASSWORD}@postgres:5432/nevolium
+      KEYCLOAK_AUDIENCE: nevolium-core
     networks: !override
     - canonical
     - identity
@@ -97,7 +104,7 @@ services:
     - /tmp:size=268435456,mode=1777
     command:
     - uvicorn
-    - kairo_core.main:app
+    - nevolium_core.main:app
     - --host
     - 0.0.0.0
     - --port
@@ -130,9 +137,14 @@ services:
     - execution
     ports: !reset []
   seaweedfs:
+    # The all-in-one server otherwise binds to one detected interface only.
+    # The dedicated internal assets network lets the Worker fetch canonical source bytes
+    # without joining the broader canonical network or exposing SeaweedFS to egress.
+    command: ["server", "-dir=/data", "-s3", "-s3.port=8333", "-ip=seaweedfs", "-ip.bind=0.0.0.0"]
     networks: !override
     - canonical
     - telemetry
+    - assets
     ports: !reset []
   temporal-admin-tools:
     networks: !override
@@ -188,9 +200,10 @@ services:
     networks: !override
     - execution
     ports: !reset []
-  kairo-worker:
+  nevolium-worker:
     networks: !override
     - execution
+    - assets
     - memory
     - models
     - search
@@ -203,19 +216,19 @@ services:
     tmpfs:
     - /tmp:size=268435456,mode=1777
     environment:
-      KAIRO_ENV: production
+      NEVOLIUM_ENV: production
       DATABASE_URL: postgresql+asyncpg://mem0_app:${MEM0_DATABASE_PASSWORD}@postgres:5432/mem0
       MEM0_DATABASE_URL: postgresql://mem0_app:${MEM0_DATABASE_PASSWORD}@postgres:5432/mem0
-      KAIRO_MEMORY_PROJECTOR_MODE: real
-      KAIRO_MODEL_ASSETS_MANIFEST: /models/manifest.json
+      NEVOLIUM_MEMORY_PROJECTOR_MODE: real
+      NEVOLIUM_MODEL_ASSETS_MANIFEST: /models/manifest.json
       HF_HOME: /models/huggingface
       HF_HUB_OFFLINE: '1'
       TRANSFORMERS_OFFLINE: '1'
       DOCLING_ARTIFACTS_PATH: /models/docling
       FASTEMBED_CACHE_PATH: /models/fastembed
     volumes:
-    - ${KAIRO_MODEL_ASSETS_PATH:-./model-assets}:/models:ro
-  kairo-realtime:
+    - ${NEVOLIUM_MODEL_ASSETS_PATH:-./model-assets}:/models:ro
+  nevolium-realtime:
     networks: !override
     - optional
     ports: !reset []
@@ -227,8 +240,8 @@ services:
     tmpfs:
     - /tmp:size=268435456,mode=1777
     environment:
-      KAIRO_ENV: production
-  kairo-web:
+      NEVOLIUM_ENV: production
+  nevolium-web:
     networks: !override
     - frontend
     security_opt:
@@ -240,7 +253,7 @@ services:
     - /tmp:size=268435456,mode=1777
     build:
       args:
-        VITE_KAIRO_API_URL: ${KAIRO_PUBLIC_API_URL}
+        VITE_NEVOLIUM_API_URL: ${NEVOLIUM_PUBLIC_API_URL}
         VITE_KEYCLOAK_URL: ${KEYCLOAK_PUBLIC_URL}
         VITE_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
         VITE_KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
@@ -272,7 +285,7 @@ services:
     networks: !override
     - optional
     ports: !reset []
-  kairo-migrate:
+  nevolium-migrate:
     profiles:
     - ops
     build:
@@ -285,7 +298,7 @@ services:
     - upgrade
     - head
     environment:
-      KAIRO_MIGRATION_DATABASE_URL: postgresql+asyncpg://kairo_migrator:${KAIRO_MIGRATOR_PASSWORD}@postgres:5432/kairo
+      NEVOLIUM_MIGRATION_DATABASE_URL: postgresql+asyncpg://nevolium_migrator:${NEVOLIUM_MIGRATOR_PASSWORD}@postgres:5432/nevolium
     networks: !override
     - canonical
     init: true
@@ -296,7 +309,7 @@ services:
     - no-new-privileges:true
     cap_drop:
     - ALL
-  kairo-db-provision:
+  nevolium-db-provision:
     profiles: [ops]
     build:
       context: .
@@ -305,8 +318,8 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      KAIRO_DATABASE_PASSWORD: ${KAIRO_DATABASE_PASSWORD}
-      KAIRO_MIGRATOR_PASSWORD: ${KAIRO_MIGRATOR_PASSWORD}
+      NEVOLIUM_DATABASE_PASSWORD: ${NEVOLIUM_DATABASE_PASSWORD}
+      NEVOLIUM_MIGRATOR_PASSWORD: ${NEVOLIUM_MIGRATOR_PASSWORD}
       MEM0_DATABASE_PASSWORD: ${MEM0_DATABASE_PASSWORD}
       KEYCLOAK_DATABASE_PASSWORD: ${KEYCLOAK_DATABASE_PASSWORD}
       TEMPORAL_DATABASE_PASSWORD: ${TEMPORAL_DATABASE_PASSWORD}
@@ -332,6 +345,8 @@ networks:
     driver_opts:
       com.docker.network.bridge.enable_ip_masquerade: "false"
   canonical:
+    internal: true
+  assets:
     internal: true
   identity:
     internal: true

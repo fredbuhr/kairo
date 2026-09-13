@@ -23,7 +23,7 @@ def upgrade() -> None:
         sa.text(
             f"""
             INSERT INTO projects (id, name, status, summary, parent_id)
-            VALUES ('{DOCUMENTS_PROJECT_ID}'::uuid, 'KAIRO Documents', 'active',
+            VALUES ('{DOCUMENTS_PROJECT_ID}'::uuid, 'Nevolium Documents', 'active',
                     'System workspace for canonical document ingestion and provenance.', NULL)
             ON CONFLICT (id) DO NOTHING
             """

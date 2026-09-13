@@ -15,7 +15,7 @@ export default function KnowledgeWorkspaceStateView({
 
       {loading && !error && (
         <div className="progress-panel">
-          <strong>Chargement de votre base documentaire KAIRO.</strong>
+          <strong>Chargement de votre base documentaire Nevolium.</strong>
           <span>Les Documents sont fournis par le Core selon le propriétaire authentifié.</span>
         </div>
       )}

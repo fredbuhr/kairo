@@ -4,7 +4,7 @@ authority_levels:
   A0:
     description: read and observe approved sources
   A1:
-    description: reversible writes to KAIRO-owned state
+    description: reversible writes to Nevolium-owned state
   A2:
     description: prepare external action without executing side effect
   A3:

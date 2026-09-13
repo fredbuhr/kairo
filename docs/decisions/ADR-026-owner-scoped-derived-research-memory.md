@@ -6,7 +6,7 @@ Date: 2026-09-10
 
 ## Context
 
-KAIRO already projects canonical `ConversationMessage` records into Mem0 and Graphiti. Those stores are rebuildable and non-authoritative. Autonomous Research now needs relevant personal context, but letting a Worker infer a user scope from arbitrary model input or enumerate every graph group would create a privacy boundary outside Core.
+Nevolium already projects canonical `ConversationMessage` records into Mem0 and Graphiti. Those stores are rebuildable and non-authoritative. Autonomous Research now needs relevant personal context, but letting a Worker infer a user scope from arbitrary model input or enumerate every graph group would create a privacy boundary outside Core.
 
 Mem0 projections can use one user scope (`subject:<keycloak-subject>`). Current Graphiti projections are grouped per canonical Conversation (`conversation:<conversation-id>`), so Graphiti access must be constrained to conversations that Core says belong to the requester.
 
@@ -21,7 +21,7 @@ The Worker cannot widen this scope. It queries Mem0 with the exact `filters={"us
 
 Graphiti context retrieval deliberately does not instantiate Graphiti's `Neo4jDriver`, whose constructor schedules index/constraint maintenance. Research uses the underlying Neo4j async driver in explicit READ access mode against the derived `Episodic` projection. A context read therefore cannot acquire graph-maintenance authority as a side effect of opening the store.
 
-Results are normalized behind KAIRO context records with stable `M*` and `G*` ids, bounded excerpts and links back to canonical message/conversation ids when available. Engine-specific payloads do not escape this adapter.
+Results are normalized behind Nevolium context records with stable `M*` and `G*` ids, bounded excerpts and links back to canonical message/conversation ids when available. Engine-specific payloads do not escape this adapter.
 
 Mem0 and Graphiti are queried independently. A failure in either derived store is reported as `unavailable` but does not fail the other store or become a Research authority decision.
 

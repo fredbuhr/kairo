@@ -3,7 +3,7 @@ import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
 import { readKnowledgeJson } from './knowledgeApi'
 import type { CanonicalDocument, DocumentVersion } from './knowledgeTypes'
 import { mergeById } from './lib/usePagedCollection'
-import { kairoFetch } from './lib/apiClient'
+import { nevoliumFetch } from './lib/apiClient'
 
 type Options = {
   apiUrl: string
@@ -36,7 +36,7 @@ export function useKnowledgeIngestionTracking({
 
     const pollIngestion = async () => {
       try {
-        const documentResponse = await kairoFetch(`${apiUrl}/v1/documents/${trackingDocumentId}`)
+        const documentResponse = await nevoliumFetch(`${apiUrl}/v1/documents/${trackingDocumentId}`)
         const document = await readKnowledgeJson<CanonicalDocument>(documentResponse)
         if (cancelled) return
 
@@ -48,7 +48,7 @@ export function useKnowledgeIngestionTracking({
 
         if (selectedDocumentId === document.id) {
           try {
-            const versionsResponse = await kairoFetch(
+            const versionsResponse = await nevoliumFetch(
               `${apiUrl}/v1/documents/${document.id}/versions`,
             )
             const loadedVersions = await readKnowledgeJson<DocumentVersion[]>(versionsResponse)

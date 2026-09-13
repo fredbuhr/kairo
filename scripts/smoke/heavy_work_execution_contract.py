@@ -9,10 +9,10 @@ from unittest.mock import AsyncMock, patch
 
 from pydantic import ValidationError
 
-from kairo_worker import memory_projection, work_capacity
-from kairo_worker.config import Settings
-from kairo_worker.owned_process import run_owned_process
-from kairo_worker.workflows import TaskExecutionWorkflow
+from nevolium_worker import memory_projection, work_capacity
+from nevolium_worker.config import Settings
+from nevolium_worker.owned_process import run_owned_process
+from nevolium_worker.workflows import TaskExecutionWorkflow
 
 
 class HeavyWorkExecutionContract(unittest.IsolatedAsyncioTestCase):
@@ -78,16 +78,16 @@ class HeavyWorkExecutionContract(unittest.IsolatedAsyncioTestCase):
         source = {"message_id": "fixture", "conversation_id": "conversation", "subject_ref": "owner",
                   "content": "Canonical source", "role": "user", "source_version": 1,
                   "created_at": datetime.now(UTC).isoformat()}
-        with patch.dict(os.environ, {"KAIRO_INTERNAL_TOKEN": "fixture-secret", "OPENAI_API_KEY": "fixture-key"}), patch.object(asyncio, "create_subprocess_exec", spawn):
+        with patch.dict(os.environ, {"NEVOLIUM_INTERNAL_TOKEN": "fixture-secret", "OPENAI_API_KEY": "fixture-key"}), patch.object(asyncio, "create_subprocess_exec", spawn):
             reports = await asyncio.wait_for(memory_projection._run_projection(source, "stub"), 15)
         self.assertEqual([r["projector"] for r in reports], ["mem0", "graphiti"])
         self.assertTrue(all(r["metadata"]["backend"] == "deterministic-stub" for r in reports))
-        self.assertNotIn("KAIRO_INTERNAL_TOKEN", environments[0])
+        self.assertNotIn("NEVOLIUM_INTERNAL_TOKEN", environments[0])
         self.assertNotIn("OPENAI_API_KEY", environments[0])
 
     async def test_waiting_work_uses_durable_timer_and_bounded_history(self):
         # Temporal orchestration fixture complements the real Temporal memory/document CI suites.
-        from kairo_worker import workflows
+        from nevolium_worker import workflows
         timer = AsyncMock()
         execute = AsyncMock(side_effect=[{"waiting_for_capacity": True}, {"kind": "done"}])
         with patch.object(workflows.workflow, "execute_activity", execute), patch.object(workflows.workflow, "sleep", timer):
@@ -103,7 +103,7 @@ class HeavyWorkExecutionContract(unittest.IsolatedAsyncioTestCase):
 
     def test_configuration_reserves_slots_for_other_activities(self):
         with self.assertRaises(ValidationError):
-            Settings(kairo_work_global_concurrency=4, kairo_worker_max_concurrent_activities=4)
+            Settings(nevolium_work_global_concurrency=4, nevolium_worker_max_concurrent_activities=4)
 
 
 if __name__ == "__main__":

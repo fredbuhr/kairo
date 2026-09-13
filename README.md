@@ -1,8 +1,8 @@
-# KAIRO
+# Nevolium
 
-KAIRO is a self-hosted **Personal AI Operating System**: one coherent interface and domain model for projects, knowledge, tasks, communication, agents, automation, finance, crypto, devices, voice, research, development and personal operations.
+Nevolium is a self-hosted **Personal AI Operating System**: one coherent interface and domain model for projects, knowledge, tasks, communication, agents, automation, finance, crypto, devices, voice, research, development and personal operations.
 
-KAIRO is not a chatbot wrapper and it is not a fork of another assistant. KAIRO owns the user experience, system-of-record, policy model and integration contracts; specialized open-source engines remain replaceable behind those boundaries.
+Nevolium is not a chatbot wrapper and it is not a fork of another assistant. Nevolium owns the user experience, system-of-record, policy model and integration contracts; specialized open-source engines remain replaceable behind those boundaries.
 
 ## Current delivery line — September 2026
 
@@ -26,12 +26,12 @@ Those experiments achieved their purpose. The repository reset established the p
 The component registry records the wider target architecture. Runtime activation and implementation
 follow proven needs and the delivery plan; configured components do not all need to run by default.
 
-## KAIRO-owned layers
+## Nevolium-owned layers
 
 ```text
-KAIRO Web / Desktop / Mobile
+Nevolium Web / Desktop / Mobile
             |
-       KAIRO Core API
+       Nevolium Core API
             |
    +--------+---------+
    |                  |
@@ -46,7 +46,7 @@ Policy + Domain    Intelligence
  Open-source engines / APIs
 ```
 
-KAIRO itself owns:
+Nevolium itself owns:
 
 - the Cockpit and design system;
 - the canonical domain model and graph semantics;
@@ -67,7 +67,7 @@ The target foundation includes, from the start:
 - **SeaweedFS** — S3-compatible object storage;
 - **Temporal** — durable workflows and crash-safe execution;
 - **LiteLLM** — provider/model gateway and routing boundary;
-- **PydanticAI** — KAIRO agent framework;
+- **PydanticAI** — Nevolium agent framework;
 - **Mem0** — derived long-term conversational memory;
 - **Docling** — document ingestion;
 - **Activepieces** — external automation/connectors;
@@ -95,7 +95,7 @@ See [`docs/component-matrix.md`](docs/component-matrix.md) for ownership and dep
 
 ```text
 apps/
-  web/              KAIRO Cockpit
+  web/              Nevolium Cockpit
   desktop/          Tauri Sidecar/Desktop shell
 services/
   core/             canonical API, policy and domain
@@ -103,7 +103,7 @@ services/
   realtime/         Hocuspocus/Yjs collaboration
 packages/
   protocol/         stable contracts/types/events
-  ui/               KAIRO design system
+  ui/               Nevolium design system
   graph/            2D/3D graph views
   gantt/            scheduling/Gantt UX
 config/
@@ -124,13 +124,13 @@ compose.ops.yaml             backup/restore operations overlay
 
 ## Architectural rule
 
-**No specialist engine becomes KAIRO's system of record.** PostgreSQL and KAIRO-owned object storage hold canonical product state. Search indexes, vector indexes, Graphiti, Mem0, realtime documents and third-party tools are projections or adapters that can be rebuilt or replaced.
+**No specialist engine becomes Nevolium's system of record.** PostgreSQL and Nevolium-owned object storage hold canonical product state. Search indexes, vector indexes, Graphiti, Mem0, realtime documents and third-party tools are projections or adapters that can be rebuilt or replaced.
 
-The only exception is workflow execution state while a workflow is actively owned by Temporal; KAIRO stores its correlation, intent, policy, audit trail and resulting artefacts.
+The only exception is workflow execution state while a workflow is actively owned by Temporal; Nevolium stores its correlation, intent, policy, audit trail and resulting artefacts.
 
 ## Security rule
 
-Technical capability is never equivalent to authority. Every external or sensitive action passes through the KAIRO policy/approval boundary. Private wallet keys and raw secrets never enter an LLM context.
+Technical capability is never equivalent to authority. Every external or sensitive action passes through the Nevolium policy/approval boundary. Private wallet keys and raw secrets never enter an LLM context.
 
 See [`docs/security-model.md`](docs/security-model.md).
 
@@ -148,7 +148,7 @@ make ops-config   # validate production + Restic operations topology
 make backup       # quiesced Restic snapshot using the selected environment/overlay
 ```
 
-Restore is destructive and requires `KAIRO_CONFIRM_RESTORE=YES`. See [`docs/operations.md`](docs/operations.md) before running it.
+Restore is destructive and requires `NEVOLIUM_CONFIRM_RESTORE=YES`. See [`docs/operations.md`](docs/operations.md) before running it.
 
 ## Implementation
 

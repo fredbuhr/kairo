@@ -1,4 +1,4 @@
-# KAIRO platform architecture
+# Nevolium platform architecture
 
 This document combines implemented boundaries and target responsibilities. Current maturity is
 in [component-matrix](component-matrix.md), current delivery in [status](status.md), and planned
@@ -8,9 +8,19 @@ The component registry is not a requirement to start every service; D03 assigns 
 
 ## Architectural objective
 
-KAIRO is built as a modular personal AI operating system with a **KAIRO-owned shell, domain model, policy boundary and API**, backed by replaceable open-source engines.
+Nevolium is built as a modular personal AI operating system with a **Nevolium-owned shell, domain model, policy boundary and API**, backed by replaceable open-source engines.
 
 The architecture intentionally declares the full dependency graph now. This is not a requirement to expose or actively use every feature immediately; it is a requirement that identity, storage, eventing, security and integration boundaries are correct before feature modules grow around accidental assumptions.
+
+## Hosting and device continuity — target decision
+
+[ADR-029](decisions/ADR-029-server-personal-and-offline-clients.md) makes server hosting the primary
+product target and allows the same backend on a personal PC. A workspace has one authoritative
+instance; clients hold selected cached data, never a second canonical database. Web/PWA is shared
+across desktop, phone and tablet; Tauri adds local capabilities. Mycelium renders on the client with
+adaptive detail and a functional 2D fallback. Bounded offline notes/tasks and explicit reconnect
+conflicts belong to D12; installed PWA does not itself prove offline data support. Full personal
+runtime packaging and platform compatibility are qualified in D13/D22. These are planned capabilities.
 
 ## Runtime topology
 
@@ -19,7 +29,7 @@ Web / Desktop / future mobile
           |
           v
 +-------------------------+
-|       KAIRO Core        |
+|       Nevolium Core        |
 | API · Domain · Policy   |
 +---+---------+---------+-+
     |         |         |
@@ -32,7 +42,7 @@ Web / Desktop / future mobile
     +--------------------------> Temporal
                                   |
                                   v
-                           KAIRO Worker
+                           Nevolium Worker
                     PydanticAI · tools · agents
                                   |
              +--------------------+--------------------+
@@ -45,9 +55,9 @@ Web / Desktop / future mobile
 Cross-cutting: NATS · Valkey · OpenBao · Keycloak · Langfuse · ntfy
 ```
 
-## KAIRO-owned application services
+## Nevolium-owned application services
 
-### `kairo-core`
+### `nevolium-core`
 The canonical API and policy boundary. It owns:
 
 - domain mutations;
@@ -59,9 +69,9 @@ The canonical API and policy boundary. It owns:
 - projection/outbox events;
 - API contracts used by every client.
 
-`kairo-core` does **not** run arbitrary agent loops or browser/code execution inside the API process.
+`nevolium-core` does **not** run arbitrary agent loops or browser/code execution inside the API process.
 
-### `kairo-worker`
+### `nevolium-worker`
 Runs Temporal workers and AI activities:
 
 - PydanticAI agents;
@@ -72,10 +82,10 @@ Runs Temporal workers and AI activities:
 - deterministic scheduled jobs;
 - integration calls that have already passed policy checks.
 
-### `kairo-realtime`
+### `nevolium-realtime`
 Target Hocuspocus/Yjs collaboration plane for documents, mindmaps, Gantt interaction and live
 multi-device presence. Canonical authentication/persistence are not implemented yet. D12 must
-materialize durable state into KAIRO records; Yjs must not become the domain system of record.
+materialize durable state into Nevolium records; Yjs must not become the domain system of record.
 
 ### Shared planning and visual state
 
@@ -86,10 +96,10 @@ preferences are separate from domain relations and permissions. A visual rearran
 silently reschedule work or grant access. Derived Graphiti suggestions retain provenance and do
 not overwrite user-authored facts/decisions without an explicit accepted mutation.
 
-### `kairo-web`
-The customizable Cockpit. Dockable workspaces and shared KAIRO view models prevent each feature from becoming a disconnected app.
+### `nevolium-web`
+The customizable Cockpit. Dockable workspaces and shared Nevolium view models prevent each feature from becoming a disconnected app.
 
-### `kairo-desktop`
+### `nevolium-desktop`
 Tauri desktop shell and Sidecar. It owns local permission prompts and device-level capabilities: global hotkey, microphone, clipboard, screenshots, selected filesystem access, local notifications and approved app/system commands.
 
 ## Data planes
@@ -106,13 +116,13 @@ Authoritative for attachments, imported source files, generated artefacts, audio
 Graphiti maintains temporal semantic relationships and retrieval context. It is a projection from canonical/ingested events and can be rebuilt. Neo4j is selected as the open-source graph backend because Graphiti currently supports it directly and Kuzu is deprecated/archived.
 
 ### Derived conversational memory — Mem0
-Mem0 holds user/agent memory optimized for retrieval. Memory items retain KAIRO source IDs/provenance whenever possible. Canonical facts and decisions must not exist only inside Mem0.
+Mem0 holds user/agent memory optimized for retrieval. Memory items retain Nevolium source IDs/provenance whenever possible. Canonical facts and decisions must not exist only inside Mem0.
 
 ### Realtime collaborative state — Yjs
-Optimizes concurrent editing and presence. Durable snapshots and domain mutations flow back into KAIRO-owned storage.
+Optimizes concurrent editing and presence. Durable snapshots and domain mutations flow back into Nevolium-owned storage.
 
 ### Workflow state — Temporal
-Temporal is authoritative for in-flight workflow execution semantics. KAIRO remains authoritative for intent, authority, approval, cost budget, user-visible status and resulting domain artefacts.
+Temporal is authoritative for in-flight workflow execution semantics. Nevolium remains authoritative for intent, authority, approval, cost budget, user-visible status and resulting domain artefacts.
 
 ## Shared execution capacity and bounded reads
 
@@ -132,7 +142,7 @@ preserved. Limits, observability, upgrade and replay procedures are in `docs/ope
 
 ## Eventing
 
-KAIRO uses a transactional outbox in PostgreSQL and publishes committed domain events to NATS JetStream.
+Nevolium uses a transactional outbox in PostgreSQL and publishes committed domain events to NATS JetStream.
 
 Rules:
 
@@ -161,7 +171,7 @@ Every significant autonomous workflow carries:
 
 ## Model plane
 
-All general model traffic uses LiteLLM as the provider boundary. The worker asks KAIRO routing policy for a task class/quality/risk budget, then calls a logical model alias rather than provider-specific names.
+All general model traffic uses LiteLLM as the provider boundary. The worker asks Nevolium routing policy for a task class/quality/risk budget, then calls a logical model alias rather than provider-specific names.
 
 Local tiers:
 
@@ -177,13 +187,13 @@ Provider-specific capabilities remain available through adapters when needed, bu
 Primary capability protocol for AI-callable tools and integrations.
 
 ### Activepieces
-External SaaS/webhook automation and connector engine. Its flow state belongs to Activepieces; KAIRO stores the automation identity, policy, trigger relationship and user-visible execution linkage.
+External SaaS/webhook automation and connector engine. Its flow state belongs to Activepieces; Nevolium stores the automation identity, policy, trigger relationship and user-visible execution linkage.
 
 ### Browser
 Playwright is preferred for deterministic browser tasks; Browser Use is used when AI-driven navigation is genuinely needed.
 
 ### Software development
-OpenHands is a specialized development engine invoked behind a KAIRO adapter and sandbox boundary. KAIRO owns repository intent, permissions, task state, approvals and produced diffs/artifacts.
+OpenHands is a specialized development engine invoked behind a Nevolium adapter and sandbox boundary. Nevolium owns repository intent, permissions, task state, approvals and produced diffs/artifacts.
 
 ## Identity and secrets
 
@@ -195,7 +205,7 @@ OpenHands is a specialized development engine invoked behind a KAIRO adapter and
 
 ## Observability
 
-Langfuse records AI traces/evaluations; OpenTelemetry-compatible service telemetry is the long-term transport for application metrics/traces. KAIRO's own audit log is separate and authoritative for security/user accountability.
+Langfuse records AI traces/evaluations; OpenTelemetry-compatible service telemetry is the long-term transport for application metrics/traces. Nevolium's own audit log is separate and authoritative for security/user accountability.
 
 ## Deployment profiles
 
@@ -212,7 +222,7 @@ This keeps dependencies explicit without forcing every development laptop to run
 
 ## Replaceability rule
 
-Every engine has a KAIRO adapter or protocol boundary. Replacing Mem0, Graphiti, Activepieces, LiteLLM, the Gantt renderer or a model provider must not require rewriting the canonical domain model.
+Every engine has a Nevolium adapter or protocol boundary. Replacing Mem0, Graphiti, Activepieces, LiteLLM, the Gantt renderer or a model provider must not require rewriting the canonical domain model.
 
 
 ## D03 deployment boundaries

@@ -147,7 +147,7 @@ components:
   - id: hocuspocus
     name: Hocuspocus
     category: realtime
-    mode: kairo-service-library
+    mode: nevolium-service-library
     ownership: realtime-session
     profile: collaboration-experimental
   - id: yjs
@@ -250,65 +250,65 @@ components:
     name: Tauri
     category: desktop
     mode: application-framework
-    ownership: kairo-ui
+    ownership: nevolium-ui
     profile: desktop
   - id: dockview
     name: Dockview
     category: ui
     mode: web-library
-    ownership: kairo-ui
+    ownership: nevolium-ui
     profile: web
   - id: react-flow
     name: React Flow
     category: graph-ui
     mode: web-library
-    ownership: kairo-ui
+    ownership: nevolium-ui
     profile: web
   - id: react-three-fiber
     name: React Three Fiber
     category: graph-ui
     mode: web-library
-    ownership: kairo-ui
+    ownership: nevolium-ui
     profile: web
   - id: react-force-graph-3d
     name: react-force-graph-3d
     category: graph-ui
     mode: web-library
-    ownership: kairo-ui
+    ownership: nevolium-ui
     profile: web
   - id: svar-gantt
     name: SVAR React Gantt
     category: planning-ui
     mode: web-library
-    ownership: kairo-ui
+    ownership: nevolium-ui
     profile: web
   - id: lexical
     name: Lexical
     category: editor-ui
     mode: web-library
-    ownership: kairo-ui
+    ownership: nevolium-ui
     profile: web
   - id: excalidraw
     name: Excalidraw
     category: whiteboard-ui
     mode: web-library
-    ownership: kairo-ui
+    ownership: nevolium-ui
     profile: web
   - id: schedule-x
     name: Schedule-X
     category: calendar-ui
     mode: web-library
-    ownership: kairo-ui
+    ownership: nevolium-ui
     profile: web
   - id: echarts
     name: Apache ECharts
     category: analytics-ui
     mode: web-library
-    ownership: kairo-ui
+    ownership: nevolium-ui
     profile: web
   - id: maplibre
     name: MapLibre GL JS
     category: maps-ui
     mode: web-library
-    ownership: kairo-ui
+    ownership: nevolium-ui
     profile: web

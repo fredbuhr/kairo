@@ -28,7 +28,7 @@ def wait_ready() -> None:
             return
         except Exception:
             time.sleep(1)
-    raise RuntimeError("KAIRO Core did not become ready")
+    raise RuntimeError("Nevolium Core did not become ready")
 
 
 def multipart_file(
@@ -37,7 +37,7 @@ def multipart_file(
     content_type: str,
     project_id: str | None = None,
 ) -> tuple[bytes, str]:
-    boundary = "----kairo-doc-" + uuid.uuid4().hex
+    boundary = "----nevolium-doc-" + uuid.uuid4().hex
     parts: list[bytes] = []
     if project_id is not None:
         parts.append(
@@ -85,7 +85,7 @@ def wait_version(document_id: str, generation: int) -> dict:
 def main() -> None:
     wait_ready()
     source = (
-        "KAIRO document ingestion proof.\n\n"
+        "Nevolium document ingestion proof.\n\n"
         "This first paragraph establishes canonical provenance.\n\n"
         "This second paragraph proves deterministic chunk extraction without a model call."
     ).encode()
@@ -119,7 +119,7 @@ def main() -> None:
 
     # An uploaded asset is allowed to be unscoped, but document Tasks are not.
     # Prove the canonical document explicitly falls back to the owner-scoped
-    # KAIRO Documents workspace and that Temporal ingestion still completes.
+    # Nevolium Documents workspace and that Temporal ingestion still completes.
     unscoped_asset = upload_text_asset("unscoped.txt", b"Unscoped assets still need a durable document workspace.")
     assert unscoped_asset["project_id"] is None, unscoped_asset
     unscoped_run = request(
@@ -131,7 +131,7 @@ def main() -> None:
     owner_subject = str((unscoped_document.get("metadata_json") or {}).get("owner_subject") or "").strip()
     assert owner_subject, unscoped_run
     expected_documents_project_id = str(
-        uuid.uuid5(uuid.NAMESPACE_URL, f"kairo:project:documents:subject:{owner_subject}")
+        uuid.uuid5(uuid.NAMESPACE_URL, f"nevolium:project:documents:subject:{owner_subject}")
     )
     assert unscoped_document["project_id"] == expected_documents_project_id, unscoped_run
     projects = request("GET", "/v1/projects")
@@ -140,7 +140,7 @@ def main() -> None:
         None,
     )
     assert documents_project is not None, projects
-    assert documents_project["name"] == "KAIRO Documents", documents_project
+    assert documents_project["name"] == "Nevolium Documents", documents_project
     unscoped_version = wait_version(unscoped_document["id"], 1)
     assert unscoped_version["status"] == "completed", unscoped_version
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Integration proof for KAIRO's canonical MCP tool registry and deny-by-default policy."""
+"""Integration proof for Nevolium's canonical MCP tool registry and deny-by-default policy."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ import urllib.request
 from typing import Any
 
 CORE = "http://localhost:8000"
-INTERNAL_TOKEN = os.getenv("KAIRO_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
-INTERNAL = {"X-Kairo-Internal-Token": INTERNAL_TOKEN}
+INTERNAL_TOKEN = os.getenv("NEVOLIUM_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
+INTERNAL = {"X-Nevolium-Internal-Token": INTERNAL_TOKEN}
 
 
 def json_request(
@@ -54,7 +54,7 @@ def wait_ready() -> None:
         except Exception as exc:  # noqa: BLE001
             last_error = exc
         time.sleep(1)
-    raise RuntimeError(f"KAIRO Core did not become ready: {last_error}")
+    raise RuntimeError(f"Nevolium Core did not become ready: {last_error}")
 
 
 def main() -> None:
@@ -152,7 +152,7 @@ def main() -> None:
         payload={
             "project_id": project["id"],
             "tool_key": "smoke.search",
-            "input": {"query": "kairo"},
+            "input": {"query": "nevolium"},
         },
     )
 
@@ -188,7 +188,7 @@ def main() -> None:
         payload={
             "project_id": project["id"],
             "tool_key": "smoke.search",
-            "input": {"query": "kairo"},
+            "input": {"query": "nevolium"},
             "idempotency_key": "smoke-tool-invocation-1",
         },
     )
@@ -212,7 +212,7 @@ def main() -> None:
         payload={
             "project_id": project["id"],
             "tool_key": "smoke.search",
-            "input": {"query": "kairo"},
+            "input": {"query": "nevolium"},
             "idempotency_key": "smoke-tool-invocation-1",
         },
     )
@@ -285,7 +285,7 @@ def main() -> None:
         payload={
             "project_id": project["id"],
             "tool_key": "smoke.search",
-            "input": {"query": "kairo"},
+            "input": {"query": "nevolium"},
         },
     )
     _, fresh = json_request(
@@ -295,7 +295,7 @@ def main() -> None:
         payload={
             "project_id": project["id"],
             "tool_key": "smoke.search",
-            "input": {"query": "kairo", "limit": 5},
+            "input": {"query": "nevolium", "limit": 5},
             "idempotency_key": "smoke-tool-invocation-v2",
         },
     )

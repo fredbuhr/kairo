@@ -8,7 +8,7 @@ Date: 2026-09-10
 
 Autonomous Research can now use canonical document chunks, rebuildable Mem0/Graphiti projections and policy-bound MCP tools. Reading those stores directly inside the replay-sensitive Research activity would make retries nondeterministic: personal context may legitimately change between the original attempt and a retry after a Worker crash.
 
-Large context payloads also do not belong in Temporal heartbeats, whose purpose in KAIRO is to preserve compact progress and replay-critical model-call checkpoints.
+Large context payloads also do not belong in Temporal heartbeats, whose purpose in Nevolium is to preserve compact progress and replay-critical model-call checkpoints.
 
 ## Decision
 
@@ -27,7 +27,7 @@ Canonical document records have `D*` evidence ids and `authority=canonical`. Mem
 
 All Context Pack contents are treated as untrusted data by both planner and synthesizer. Context may help the planner avoid redundant tool calls, but it cannot grant tool authority or modify schemas. The synthesizer may cite only supplied `D*`, `M*`, `G*` or `E*` identifiers, and Core/Worker validation still rejects invented evidence ids.
 
-If no MCP tool is available, KAIRO skips the planning model call. Context-only synthesis may use the full Research model budget and the resulting Artifact does not claim that a planner model was invoked.
+If no MCP tool is available, Nevolium skips the planning model call. Context-only synthesis may use the full Research model budget and the resulting Artifact does not claim that a planner model was invoked.
 
 The final Artifact stores the bounded context evidence needed for claim provenance plus a sanitized Context Pack source summary. Backend exception messages from Mem0/Neo4j are not part of the public Research result contract.
 
@@ -40,4 +40,4 @@ Public Research result reads require the exact authenticated `requester_subject`
 - canonical documents, derived memory and MCP evidence share one inspectable claim-evidence contract without sharing authority;
 - derived-store outages degrade context quality but do not become authorization failures;
 - context-only questions can be answered without unnecessary Web calls;
-- larger retrieval, semantic reranking and owner-level Graphiti projections remain replaceable future improvements behind the same KAIRO Context Pack boundary.
+- larger retrieval, semantic reranking and owner-level Graphiti projections remain replaceable future improvements behind the same Nevolium Context Pack boundary.

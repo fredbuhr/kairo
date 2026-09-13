@@ -17,8 +17,8 @@ from typing import Any, Callable
 CORE = "http://localhost:8000"
 MODEL_FIXTURE = "http://localhost:14000"
 MCP_METRICS = "http://localhost:18766"
-INTERNAL_TOKEN = os.getenv("KAIRO_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
-INTERNAL = {"X-Kairo-Internal-Token": INTERNAL_TOKEN}
+INTERNAL_TOKEN = os.getenv("NEVOLIUM_INTERNAL_TOKEN", "CHANGE_ME_INTERNAL_TOKEN")
+INTERNAL = {"X-Nevolium-Internal-Token": INTERNAL_TOKEN}
 COMPOSE = ["docker", "compose", "-f", "compose.yaml", "-f", "compose.research-crash.yaml"]
 
 
@@ -81,7 +81,7 @@ def wait_until(label: str, predicate: Callable[[], Any], *, timeout: float, inte
 
 def wait_core_ready() -> None:
     wait_until(
-        "KAIRO Core readiness",
+        "Nevolium Core readiness",
         lambda: core_request("GET", "/health/ready").get("status") == "ready",
         timeout=90,
         interval=1,
@@ -219,7 +219,7 @@ def main() -> None:
     task_id = uuid.UUID(started["task_id"])
     invocation_id = uuid.uuid5(
         uuid.NAMESPACE_URL,
-        f"kairo:research:{task_id}:slot:0:crash.search",
+        f"nevolium:research:{task_id}:slot:0:crash.search",
     )
 
     wait_until("one planner call", one_planner_call, timeout=30)
@@ -253,12 +253,12 @@ def main() -> None:
         raise AssertionError(f"Synthesis started before the intended crash window: {before_model}")
 
     print(
-        "CRASH CHECKPOINT: child invocation is canonical/completed; sending SIGKILL to kairo-worker",
+        "CRASH CHECKPOINT: child invocation is canonical/completed; sending SIGKILL to nevolium-worker",
         flush=True,
     )
-    subprocess.run([*COMPOSE, "kill", "-s", "SIGKILL", "kairo-worker"], check=True)
+    subprocess.run([*COMPOSE, "kill", "-s", "SIGKILL", "nevolium-worker"], check=True)
     time.sleep(1.0)
-    subprocess.run([*COMPOSE, "start", "kairo-worker"], check=True)
+    subprocess.run([*COMPOSE, "start", "nevolium-worker"], check=True)
 
     completed = wait_until(
         "Research completion after Worker restart",

@@ -1,6 +1,6 @@
 import { type FormEventHandler, useEffect, useState } from 'react'
 
-import { kairoFetch } from './lib/apiClient'
+import { nevoliumFetch } from './lib/apiClient'
 
 export type NewsSource = {
   id: string
@@ -105,7 +105,7 @@ function AuthenticatedNewsAudio({ apiUrl, taskId, voice }: AuthenticatedNewsAudi
     setLoadingAudio(true)
     setAudioError(null)
     try {
-      const response = await kairoFetch(
+      const response = await nevoliumFetch(
         `${apiUrl}/v1/news/briefs/${taskId}/audio?voice=${encodeURIComponent(voice)}`,
       )
       if (!response.ok) {
@@ -217,7 +217,7 @@ export default function NewsWorkspacePanel({
 
       {running && !brief?.artifact && !error && (
         <div className="progress-panel">
-          <strong>KAIRO recherche et recoupe les sources.</strong>
+          <strong>Nevolium recherche et recoupe les sources.</strong>
           <span>La tâche est durable : elle peut reprendre après un redémarrage du Worker.</span>
         </div>
       )}
@@ -251,7 +251,7 @@ export default function NewsWorkspacePanel({
           {brief.output !== 'text' && (
             <div className="audio-panel">
               <div>
-                <strong>Lecture KAIRO</strong>
+                <strong>Lecture Nevolium</strong>
                 <small>Voix locale Kokoro · français</small>
               </div>
               <AuthenticatedNewsAudio

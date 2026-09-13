@@ -1,4 +1,4 @@
-# KAIRO Desktop / Sidecar
+# Nevolium Desktop / Sidecar
 
 This app will become the Tauri trust boundary for local-device capabilities: summon shortcut, microphone, clipboard, screenshots, selected filesystem scopes, local notifications, wake word/VAD/transcription and approved local commands.
 

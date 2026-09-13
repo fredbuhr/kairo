@@ -3,20 +3,20 @@ import asyncio
 import httpx
 from mcp import Client
 
-from kairo_worker import web_mcp
-from kairo_worker.tool_runtime import _result_payload
-from kairo_worker.web_mcp_bootstrap import EXPECTED_TOOL_NAMES, catalog_item
+from nevolium_worker import web_mcp
+from nevolium_worker.tool_runtime import _result_payload
+from nevolium_worker.web_mcp_bootstrap import EXPECTED_TOOL_NAMES, catalog_item
 
 
 async def main() -> None:
     async def fake_search(**kwargs):
-        assert kwargs["query"] == "KAIRO architecture", kwargs
+        assert kwargs["query"] == "Nevolium architecture", kwargs
         assert kwargs["mode"] == "general", kwargs
         return [
             {
                 "id": "S1",
-                "title": "KAIRO architecture",
-                "url": "https://example.com/kairo",
+                "title": "Nevolium architecture",
+                "url": "https://example.com/nevolium",
                 "domain": "example.com",
                 "snippet": "Canonical state and durable workflows.",
                 "published_at": "2026-09-10",
@@ -26,12 +26,12 @@ async def main() -> None:
         ]
 
     async def fake_fetch(_client, value: str):
-        assert value == "https://example.com/kairo", value
+        assert value == "https://example.com/nevolium", value
         return httpx.Response(
             200,
             request=httpx.Request("GET", value),
             headers={"content-type": "text/html; charset=utf-8"},
-            text="<html><body><article>KAIRO keeps canonical state and durable workflows.</article></body></html>",
+            text="<html><body><article>Nevolium keeps canonical state and durable workflows.</article></body></html>",
         )
 
     original_search = web_mcp.news._search_searxng
@@ -52,7 +52,7 @@ async def main() -> None:
                 await client.call_tool(
                     "search",
                     {
-                        "query": "KAIRO architecture",
+                        "query": "Nevolium architecture",
                         "language": "fr",
                         "time_range": "month",
                         "max_results": 4,
@@ -61,7 +61,7 @@ async def main() -> None:
             )
             assert not search_result.get("isError", search_result.get("is_error", False)), search_result
             structured = search_result.get("structuredContent") or search_result.get("structured_content")
-            assert structured["results"][0]["url"] == "https://example.com/kairo", structured
+            assert structured["results"][0]["url"] == "https://example.com/nevolium", structured
             assert "Canonical state" in structured["results"][0]["snippet"], structured
 
             # The real SSRF guard rejects local/private targets before any network request.
@@ -72,16 +72,16 @@ async def main() -> None:
 
             web_mcp.news._fetch_public_html = fake_fetch
             web_mcp.news.extract = lambda *_args, **_kwargs: (
-                "KAIRO keeps canonical state and durable workflows. " * 200
+                "Nevolium keeps canonical state and durable workflows. " * 200
             )
             fetch_result = _result_payload(
                 await client.call_tool(
-                    "fetch", {"url": "https://example.com/kairo", "max_chars": 1200}
+                    "fetch", {"url": "https://example.com/nevolium", "max_chars": 1200}
                 )
             )
             assert not fetch_result.get("isError", fetch_result.get("is_error", False)), fetch_result
             fetched = fetch_result.get("structuredContent") or fetch_result.get("structured_content")
-            assert fetched["final_url"] == "https://example.com/kairo", fetched
+            assert fetched["final_url"] == "https://example.com/nevolium", fetched
             assert "durable workflows" in fetched["excerpt"], fetched
             assert len(fetched["excerpt"]) <= 1200, fetched
             assert fetched["excerpt_char_limit"] == 1200, fetched

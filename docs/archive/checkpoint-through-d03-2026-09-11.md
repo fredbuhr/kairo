@@ -4,7 +4,7 @@ Historique de preuve ; la prochaine action courante reste dans PROJECT_STATE.
 
 ## Identités vérifiées
 
-- PR [#87](https://github.com/fredbuhr/kairo/pull/87), une livraison D03 cohérente.
+- PR [#87](https://github.com/fredbuhr/nevolium/pull/87), une livraison D03 cohérente.
 - Base `ec38ce3b8c479be9ff56df36a24e7ee895754ada`.
 - Head final `d931f9607b662272daf315ddc1988fede28af96c`.
 - Merge ref testé `4614e59f8d781020ee10cb318d8e6d7e39889bf0`.
@@ -16,15 +16,15 @@ Historique de preuve ; la prochaine action courante reste dans PROJECT_STATE.
 
 ## Neuf workflows du head final
 
-- [News ownership validation](https://github.com/fredbuhr/kairo/actions/runs/34617677542) — succès, PR, head `d931f960…`.
-- [Code quality validation](https://github.com/fredbuhr/kairo/actions/runs/34617677306) — succès, PR, head `d931f960…`.
-- [UI workspace validation](https://github.com/fredbuhr/kairo/actions/runs/34617677499) — succès, PR, head `d931f960…`.
-- [Document ingestion validation](https://github.com/fredbuhr/kairo/actions/runs/34617677409) — succès, PR, head `d931f960…`.
-- [Baseline reproducibility validation](https://github.com/fredbuhr/kairo/actions/runs/34617677618) — succès, PR, head `d931f960…`.
-- [MCP tool registry validation](https://github.com/fredbuhr/kairo/actions/runs/34617677661) — succès, PR, head `d931f960…`.
-- [Autonomous research validation](https://github.com/fredbuhr/kairo/actions/runs/34617677560) — succès, PR, head `d931f960…`.
-- [Multi-user isolation validation](https://github.com/fredbuhr/kairo/actions/runs/34617676912) — succès, PR, head `d931f960…`.
-- [Foundation validation](https://github.com/fredbuhr/kairo/actions/runs/34617677437) — succès, PR, head `d931f960…`.
+- [News ownership validation](https://github.com/fredbuhr/nevolium/actions/runs/34617677542) — succès, PR, head `d931f960…`.
+- [Code quality validation](https://github.com/fredbuhr/nevolium/actions/runs/34617677306) — succès, PR, head `d931f960…`.
+- [UI workspace validation](https://github.com/fredbuhr/nevolium/actions/runs/34617677499) — succès, PR, head `d931f960…`.
+- [Document ingestion validation](https://github.com/fredbuhr/nevolium/actions/runs/34617677409) — succès, PR, head `d931f960…`.
+- [Baseline reproducibility validation](https://github.com/fredbuhr/nevolium/actions/runs/34617677618) — succès, PR, head `d931f960…`.
+- [MCP tool registry validation](https://github.com/fredbuhr/nevolium/actions/runs/34617677661) — succès, PR, head `d931f960…`.
+- [Autonomous research validation](https://github.com/fredbuhr/nevolium/actions/runs/34617677560) — succès, PR, head `d931f960…`.
+- [Multi-user isolation validation](https://github.com/fredbuhr/nevolium/actions/runs/34617676912) — succès, PR, head `d931f960…`.
+- [Foundation validation](https://github.com/fredbuhr/nevolium/actions/runs/34617677437) — succès, PR, head `d931f960…`.
 
 Les neuf workflows restent actifs sur PR et main. Le double lancement par push de branche a été
 retiré. Ne pas comparer mécaniquement 9 PR actuels avec les 17 exécutions PR+push de D02 : aucune
@@ -40,7 +40,7 @@ gate fonctionnelle n'a été retirée ; des preuves production ont été ajouté
 - `103323565881` : PostgreSQL/JetStream réels D02 conservés ; rôles dédiés, migration canonique avec
   rôle sans superuser, transfert d'une table serial de développement, répétition du provisioning,
   DML Core autorisé et DDL/TRUNCATE/table Alembic/connexions inter-bases refusés ; contrôle startup
-  positif avec kairo_app et négatif avec administrateur. Régression downgrade/reapply D02 conservée.
+  positif avec nevolium_app et négatif avec administrateur. Régression downgrade/reapply D02 conservée.
 - `103323567503` : quatre builds multi-stage figés ; Web statique non root, routes et refus POST/fichier
   serveur ; installation SQL de production dans Docker, Core avec identité restreinte et authentification
   imposée, connexion SQL Core autorisée, refus Web→PostgreSQL par nom et IP, arrêt Uvicorn complet.
@@ -53,7 +53,7 @@ sont des fixtures ; le transport TLS, les connexions Docker/SQL et les processus
 
 ## Défauts trouvés puis corrigés dans le même lot
 
-1. Provisionnement initial : grant vers kairo_app avant sa création. Toutes les identités sont
+1. Provisionnement initial : grant vers nevolium_app avant sa création. Toutes les identités sont
    maintenant créées avant les grants, y compris sur une base entièrement neuve.
 2. Le JSON Compose peut avoir `command: null` ; le garde traite ce cas sans erreur interne.
 3. Fixture HTTP/TLS sur ports 80/443 : autorisation de bind manquante sur le runner. Corrigée dans

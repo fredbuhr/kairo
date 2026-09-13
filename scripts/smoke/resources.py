@@ -10,15 +10,15 @@ import urllib.parse
 import urllib.request
 import uuid
 
-CORE = os.getenv("KAIRO_CORE_HTTP", "http://127.0.0.1:8000").rstrip("/")
+CORE = os.getenv("NEVOLIUM_CORE_HTTP", "http://127.0.0.1:8000").rstrip("/")
 KEYCLOAK = os.getenv("KEYCLOAK_HTTP", "http://127.0.0.1:8081").rstrip("/")
 OPENBAO = os.getenv("OPENBAO_HTTP", "http://127.0.0.1:8200").rstrip("/")
-REALM = os.getenv("KEYCLOAK_REALM", "kairo")
-CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "kairo-web")
-USERNAME = os.getenv("KEYCLOAK_DEV_USERNAME", "kairo-dev")
-PASSWORD = os.getenv("KEYCLOAK_DEV_PASSWORD", "kairo-dev")
+REALM = os.getenv("KEYCLOAK_REALM", "nevolium")
+CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "nevolium-web")
+USERNAME = os.getenv("KEYCLOAK_DEV_USERNAME", "nevolium-dev")
+PASSWORD = os.getenv("KEYCLOAK_DEV_PASSWORD", "nevolium-dev")
 OPENBAO_TOKEN = os.getenv("OPENBAO_DEV_TOKEN", "CHANGE_ME_OPENBAO")
-SECRET_PROOF = "kairo-ci-secret-value-must-never-leak"
+SECRET_PROOF = "nevolium-ci-secret-value-must-never-leak"
 
 
 def request(
@@ -118,7 +118,7 @@ def seed_openbao() -> None:
     ).encode()
     request(
         "POST",
-        f"{OPENBAO}/v1/secret/data/kairo/integration",
+        f"{OPENBAO}/v1/secret/data/nevolium/integration",
         body=body,
         headers={
             "Content-Type": "application/json",
@@ -129,7 +129,7 @@ def seed_openbao() -> None:
 
 
 def multipart_file(field: str, filename: str, content_type: str, content: bytes) -> tuple[bytes, str]:
-    boundary = f"----kairo-{uuid.uuid4().hex}"
+    boundary = f"----nevolium-{uuid.uuid4().hex}"
     chunks = [
         f"--{boundary}\r\n".encode(),
         f'Content-Disposition: form-data; name="{field}"; filename="{filename}"\r\n'.encode(),
@@ -143,7 +143,7 @@ def multipart_file(field: str, filename: str, content_type: str, content: bytes)
 
 def main() -> int:
     wait_for(f"{KEYCLOAK}/realms/{REALM}/.well-known/openid-configuration", "Keycloak realm")
-    wait_for(f"{CORE}/health/trust", "KAIRO trust boundary")
+    wait_for(f"{CORE}/health/trust", "Nevolium trust boundary")
 
     # Sensitive endpoints are closed by default.
     json_request(
@@ -189,7 +189,7 @@ def main() -> int:
         token=token,
         payload={
             "name": "integration-proof",
-            "provider_path": "secret/data/kairo/integration",
+            "provider_path": "secret/data/nevolium/integration",
             "purpose": "prove OpenBao metadata boundary",
         },
         expected={201},
@@ -207,7 +207,7 @@ def main() -> int:
     assert secret_status["keys"] == ["api_key", "region"]
     assert SECRET_PROOF.encode() not in status_raw
 
-    proof = b"KAIRO SeaweedFS authenticated asset proof\n"
+    proof = b"Nevolium SeaweedFS authenticated asset proof\n"
     multipart, boundary = multipart_file("file", "proof.txt", "text/plain", proof)
     _, asset_raw, _ = request(
         "POST",

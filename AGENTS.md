@@ -1,4 +1,4 @@
-# KAIRO agent operating rules
+# Nevolium agent operating rules
 
 This file is the mandatory entrypoint for any coding agent or ChatGPT session working on this repository.
 
@@ -19,10 +19,11 @@ Conversation history, model memory and previous-chat summaries are advisory only
 - `main` is the only canonical integrated source of truth.
 - Keep at most one normal development branch active at a time.
 - Do not create a new branch when `PROJECT_STATE.md` names an active branch unless the current gate explicitly requires replacing it.
-- A branch is temporary workspace, not a KAIRO version.
+- A branch is temporary workspace, not a Nevolium version.
 - After a gate is validated and merged, update `PROJECT_STATE.md`, then delete/retire the merged branch during repository cleanup.
 - Preserve milestones with Git tags/releases, not long-lived implementation branches.
-- Experimental reservoirs such as `feat/kairo-test-interface-v1` must never be merged wholesale; salvage isolated components only after explicit review.
+- Experimental reservoirs such as the legacy interface prototype at commit `ed12d503…` must never
+  be merged wholesale; salvage isolated components only after explicit review.
 
 ## 3. Deliver coherent recoverable lots
 

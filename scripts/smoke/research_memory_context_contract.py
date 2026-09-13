@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from kairo_worker.research_memory_context import (
+from nevolium_worker.research_memory_context import (
     MAX_DERIVED_CONTEXT_EXCERPT_CHARS,
     collect_derived_memory_context,
 )
@@ -16,11 +16,11 @@ async def main() -> None:
         return [
             {
                 "id": "mem-1",
-                "memory": "The user prefers canonical KAIRO state over derived stores.",
+                "memory": "The user prefers canonical Nevolium state over derived stores.",
                 "score": 0.91,
                 "metadata": {
-                    "kairo_message_id": "00000000-0000-0000-0000-000000000001",
-                    "kairo_conversation_id": "00000000-0000-0000-0000-000000000010",
+                    "nevolium_message_id": "00000000-0000-0000-0000-000000000001",
+                    "nevolium_conversation_id": "00000000-0000-0000-0000-000000000010",
                 },
             }
         ]
@@ -31,22 +31,22 @@ async def main() -> None:
             {
                 "uuid": "00000000-0000-0000-0000-000000000002",
                 "group_id": "conversation:00000000-0000-0000-0000-000000000020",
-                "content": "user: KAIRO research should retain durable provenance.",
+                "content": "user: Nevolium research should retain durable provenance.",
                 "score": 2,
             }
         ]
 
     result = await collect_derived_memory_context(
-        query="KAIRO canonical durable provenance",
+        query="Nevolium canonical durable provenance",
         mem0_user_id="subject:user-a",
         graphiti_group_ids=["conversation:00000000-0000-0000-0000-000000000020"],
         limit_per_source=4,
         mem0_search=fake_mem0,
         graphiti_search=fake_graphiti,
     )
-    assert observed["mem0"] == ("KAIRO canonical durable provenance", "subject:user-a", 4), observed
+    assert observed["mem0"] == ("Nevolium canonical durable provenance", "subject:user-a", 4), observed
     assert observed["graphiti"] == (
-        "KAIRO canonical durable provenance",
+        "Nevolium canonical durable provenance",
         ["conversation:00000000-0000-0000-0000-000000000020"],
         4,
     ), observed
@@ -64,7 +64,7 @@ async def main() -> None:
         raise RuntimeError("mem0 fixture unavailable")
 
     degraded = await collect_derived_memory_context(
-        query="KAIRO canonical durable provenance",
+        query="Nevolium canonical durable provenance",
         mem0_user_id="subject:user-a",
         graphiti_group_ids=["conversation:00000000-0000-0000-0000-000000000020"],
         mem0_search=failing_mem0,

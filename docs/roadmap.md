@@ -1,10 +1,10 @@
-# KAIRO — ordre des livraisons
+# Nevolium — ordre des livraisons
 
 Révision : 2026-09-11. Le [plan détaillé](implementation-plan.md) porte périmètres, dépendances
 et critères de sortie. [PROJECT_STATE](../PROJECT_STATE.md) seul indique le lot actif et les preuves.
 La table donne le séquencement ; elle ne déclare pas tous les lots livrés. **D01–D03 sont terminés**
 (#84–#87). Le reste de D02 a été réuni en une seule PR avec validation commune.
-**Prochain lot : D04/H5**, preuves réelles avant les fonctions produit. D03 a été livré dans une seule PR #87.
+**Lot actif : D04/H5 (#88)**, campagne commune et validation de la cible avant les fonctions produit. D03 a été livré dans une seule PR #87.
 Le détail opérationnel et les preuves restent dans le checkpoint.
 
 | Phase | Lots, dans l'ordre nominal | Résultat |
@@ -14,6 +14,11 @@ Le détail opérationnel et les preuves restent dans le checkpoint.
 | C — vie quotidienne | D11 connecteurs → D12 attention/synchronisation → D13 pilote personnel à deux | Première version utilisable chaque jour |
 | D — présence/autonomie | D14 Desktop → D15 voix → D16 automatisations/browser → D17 agent dev | Assistant disponible sur les appareils, actions contrôlées |
 | E — extensions/exploitation | D18 finance/crypto lecture → D19 simulations → D20 maison/cartes → D21 capacité/coûts → D22 distribution | Modules utiles puis lancement maîtrisé |
+
+La [cible multi-appareil retenue](decisions/ADR-029-server-personal-and-offline-clients.md) privilégie
+le serveur et permet le même backend sur PC personnel. D05 prépare le Web/PWA adaptatif, D12 porte
+le hors ligne borné et la synchronisation, D13 le pilote PC/mobile/tablette, D14 l'enveloppe Desktop
+et D22 les installateurs/matrices de compatibilité. Aucun nouveau lot n'est créé.
 
 ## Jalons
 

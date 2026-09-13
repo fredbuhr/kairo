@@ -11,6 +11,8 @@ services:
   keycloak:
     command: ["start-dev", "--import-realm"]
     environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL}
     volumes:
       - ./infrastructure/keycloak:/opt/keycloak/data/import:ro
@@ -33,10 +35,10 @@ services:
       LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
       LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
 
-  kairo-core:
+  nevolium-core:
     environment:
-      KAIRO_AUTH_ENABLED: ${KAIRO_AUTH_ENABLED}
-      KAIRO_POLICY_SIGNING_KEY: ${KAIRO_POLICY_SIGNING_KEY}
+      NEVOLIUM_AUTH_ENABLED: ${NEVOLIUM_AUTH_ENABLED}
+      NEVOLIUM_POLICY_SIGNING_KEY: ${NEVOLIUM_POLICY_SIGNING_KEY}
       ASSET_MAX_BYTES: ${ASSET_MAX_BYTES}
       SEAWEED_FILER_ENDPOINT: http://seaweedfs:8888
       OPENBAO_TOKEN: ${OPENBAO_DEV_TOKEN}

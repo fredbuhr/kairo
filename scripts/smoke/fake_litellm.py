@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
@@ -31,7 +32,7 @@ class Handler(BaseHTTPRequestHandler):
         request = json.loads(self.rfile.read(length) or b"{}")
         text = json.dumps(request.get("messages") or [], ensure_ascii=False)
         if "capability_catalog" not in text or "news.brief" not in text:
-            self.send_error(422, "Expected KAIRO semantic-routing catalog")
+            self.send_error(422, "Expected Nevolium semantic-routing catalog")
             return
 
         proposal = {
@@ -50,8 +51,15 @@ class Handler(BaseHTTPRequestHandler):
             },
             "rationale": "The ambiguous request is asking for current local events in Paris.",
         }
+        if "NEVOLIUM-CI-SLOW-SEMANTIC" in text:
+            # Disposable CI only: exercise a real HTTP wait beyond the former 60 s cutoff.
+            time.sleep(70)
+            proposal = {
+                "outcome": "unsupported", "capability": None, "confidence": 0,
+                "parameters": {}, "rationale": "Slow fixture: no business action requested.",
+            }
         response = {
-            "id": "chatcmpl-kairo-semantic-ci",
+            "id": "chatcmpl-nevolium-semantic-ci",
             "object": "chat.completion",
             "created": 1788897600,
             "model": "ollama/qwen3:8b",
@@ -71,7 +79,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("x-litellm-response-cost", "0.000100")
         self.send_header(
             "x-litellm-call-id",
-            self.headers.get("x-litellm-call-id") or "kairo-semantic-ci",
+            self.headers.get("x-litellm-call-id") or "nevolium-semantic-ci",
         )
         self.end_headers()
         self.wfile.write(body)

@@ -6,9 +6,9 @@ Accepted for the first autonomous research slice.
 
 ## Context
 
-KAIRO now has a canonical MCP tool registry, explicit enablement, authority classification, Temporal policy gates and replay-safe tool invocations. The next requirement is to let an agent choose useful tools without turning model output into an authority source.
+Nevolium now has a canonical MCP tool registry, explicit enablement, authority classification, Temporal policy gates and replay-safe tool invocations. The next requirement is to let an agent choose useful tools without turning model output into an authority source.
 
-A naive agent loop that connects PydanticAI directly to MCP would bypass the controls already established by KAIRO. It would also make retries dangerous because a model/tool loop could repeat remote side effects after Worker failure.
+A naive agent loop that connects PydanticAI directly to MCP would bypass the controls already established by Nevolium. It would also make retries dangerous because a model/tool loop could repeat remote side effects after Worker failure.
 
 ## Decision
 
@@ -40,7 +40,7 @@ The v1 planner has one accounted model-call slot. The initial result intentional
 
 ### Give PydanticAI direct MCP tools
 
-Rejected because MCP transport metadata is not an authority boundary and direct execution would bypass KAIRO's canonical Task, policy and audit model.
+Rejected because MCP transport metadata is not an authority boundary and direct execution would bypass Nevolium's canonical Task, policy and audit model.
 
 ### Allow all enabled tools and rely on approval prompts
 
@@ -48,4 +48,4 @@ Rejected for the first autonomous slice. Autonomous research is intentionally re
 
 ### Let the model synthesize and call tools in an unconstrained loop
 
-Rejected until KAIRO has first-class durable multi-turn/multi-slot model checkpoints. Hidden model retries or repeated tool calls are unacceptable for a replayable personal agent.
+Rejected until Nevolium has first-class durable multi-turn/multi-slot model checkpoints. Hidden model retries or repeated tool calls are unacceptable for a replayable personal agent.

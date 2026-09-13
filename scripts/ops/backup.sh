@@ -4,8 +4,8 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
-ENV_FILE="${KAIRO_COMPOSE_ENV_FILE:-.env}"
-OVERLAY="${KAIRO_COMPOSE_OVERLAY:-compose.override.yaml}"
+ENV_FILE="${NEVOLIUM_COMPOSE_ENV_FILE:-.env}"
+OVERLAY="${NEVOLIUM_COMPOSE_OVERLAY:-compose.override.yaml}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Missing $ENV_FILE. Create it from the appropriate environment template first." >&2
@@ -26,13 +26,13 @@ ops() {
   docker compose "${OPS_ARGS[@]}" --profile ops "$@"
 }
 
-mkdir -p .kairo-backup-staging "${RESTIC_LOCAL_PATH:-./backups/restic}"
+mkdir -p .nevolium-backup-staging "${RESTIC_LOCAL_PATH:-./backups/restic}"
 
 QUIESCE_SERVICES=(
-  kairo-web
-  kairo-realtime
-  kairo-worker
-  kairo-core
+  nevolium-web
+  nevolium-realtime
+  nevolium-worker
+  nevolium-core
   temporal-ui
   keycloak
   temporal
@@ -66,7 +66,7 @@ resume_services() {
 trap resume_services EXIT INT TERM
 
 if ((${#STOPPED_SERVICES[@]} > 0)); then
-  echo "Quiescing KAIRO durable-state writers: ${STOPPED_SERVICES[*]}"
+  echo "Quiescing Nevolium durable-state writers: ${STOPPED_SERVICES[*]}"
   compose stop -t 30 "${STOPPED_SERVICES[@]}"
 fi
 
@@ -81,7 +81,7 @@ ops run --rm restic backup \
   /data/nats \
   /data/seaweed \
   /data/openbao \
-  --tag kairo \
+  --tag nevolium \
   --tag block1
 
 ops run --rm restic check
@@ -89,4 +89,4 @@ ops run --rm restic check
 resume_services
 trap - EXIT INT TERM
 
-echo "KAIRO backup completed and previously running services were resumed."
+echo "Nevolium backup completed and previously running services were resumed."

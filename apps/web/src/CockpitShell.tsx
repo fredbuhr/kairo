@@ -15,7 +15,7 @@ import {
 } from 'dockview-react'
 import 'dockview-react/dist/styles/dockview.css'
 
-import { kairoFetch } from './lib/apiClient'
+import { nevoliumFetch } from './lib/apiClient'
 
 export type CockpitSlots = {
   command: ReactNode
@@ -54,7 +54,7 @@ const CockpitContentContext = createContext<CockpitContent | null>(null)
 const dockPanelStyle = { height: '100%', overflow: 'auto' } as const
 const LAYOUT_SCHEMA_VERSION = 1
 const DEFAULT_WORKSPACE_KEY = 'cockpit.main'
-const DEFAULT_API_URL = (import.meta.env.VITE_KAIRO_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+const DEFAULT_API_URL = (import.meta.env.VITE_NEVOLIUM_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 const SAVE_DEBOUNCE_MS = 700
 
 const PANEL_DEFINITIONS = {
@@ -102,7 +102,7 @@ function normalizeExtraPanels(extraPanels: CockpitExtraPanel[]): CockpitExtraPan
       ids.has(id)
 
     if (invalid) {
-      console.warn('KAIRO Cockpit ignored invalid or duplicate extra panel', panel)
+      console.warn('Nevolium Cockpit ignored invalid or duplicate extra panel', panel)
       return false
     }
 
@@ -140,7 +140,7 @@ function ExtraPanel(props: IDockviewPanelProps) {
     <div style={dockPanelStyle}>
       {content ?? (
         <div className="progress-panel">
-          <strong>Panneau KAIRO indisponible.</strong>
+          <strong>Panneau Nevolium indisponible.</strong>
           <span>Ce layout référence un module qui n’est pas enregistré dans cette version.</span>
         </div>
       )}
@@ -186,11 +186,11 @@ function openExtraPanel(api: CockpitApi, panel: CockpitExtraPanel) {
 }
 
 async function loadWorkspaceLayout(apiUrl: string, workspaceKey: string) {
-  const response = await kairoFetch(
+  const response = await nevoliumFetch(
     `${apiUrl}/v1/ui/workspaces/${encodeURIComponent(workspaceKey)}/layout`,
   )
   if (response.status === 404) return null
-  if (!response.ok) throw new Error(`KAIRO Core layout read failed (${response.status})`)
+  if (!response.ok) throw new Error(`Nevolium Core layout read failed (${response.status})`)
   const value = (await response.json()) as WorkspaceLayoutEnvelope
   if (
     value.schema_version !== LAYOUT_SCHEMA_VERSION ||
@@ -204,7 +204,7 @@ async function loadWorkspaceLayout(apiUrl: string, workspaceKey: string) {
 }
 
 async function saveWorkspaceLayout(apiUrl: string, workspaceKey: string, layout: unknown) {
-  const response = await kairoFetch(
+  const response = await nevoliumFetch(
     `${apiUrl}/v1/ui/workspaces/${encodeURIComponent(workspaceKey)}/layout`,
     {
       method: 'PUT',
@@ -212,7 +212,7 @@ async function saveWorkspaceLayout(apiUrl: string, workspaceKey: string, layout:
       body: JSON.stringify({ schema_version: LAYOUT_SCHEMA_VERSION, layout }),
     },
   )
-  if (!response.ok) throw new Error(`KAIRO Core layout save failed (${response.status})`)
+  if (!response.ok) throw new Error(`Nevolium Core layout save failed (${response.status})`)
 }
 
 export default function CockpitShell({
@@ -259,7 +259,7 @@ export default function CockpitShell({
             restored = true
           }
         } catch (layoutError) {
-          console.warn('KAIRO Cockpit layout restore failed; using default layout', layoutError)
+          console.warn('Nevolium Cockpit layout restore failed; using default layout', layoutError)
         }
 
         if (disposedRef.current) return
@@ -270,7 +270,7 @@ export default function CockpitShell({
           saveTimer = window.setTimeout(() => {
             void saveWorkspaceLayout(apiUrl, workspaceKey, event.api.toJSON()).catch(
               (layoutError) => {
-                console.warn('KAIRO Cockpit layout save failed', layoutError)
+                console.warn('Nevolium Cockpit layout save failed', layoutError)
               },
             )
           }, SAVE_DEBOUNCE_MS)
@@ -310,7 +310,7 @@ export default function CockpitShell({
     <CockpitContentContext.Provider value={cockpitContent}>
       <section
         className="cockpit-shell"
-        aria-label="KAIRO Cockpit"
+        aria-label="Nevolium Cockpit"
         style={{
           height: 'min(78vh, 920px)',
           minHeight: 620,

@@ -18,7 +18,7 @@ jobs:
       - name: Prove uv workspace lockfile matches declarations
         run: uv lock --check
       - name: Import Core with research router
-        run: uv run --locked --project services/core python -c "from kairo_core.main import app; assert app.title == 'KAIRO Core'"
+        run: uv run --locked --project services/core python -c "from nevolium_core.main import app; assert app.title == 'Nevolium Core'"
       - name: Prove bounded PydanticAI research planner and grounded synthesis
         run: uv run --locked --project services/worker python scripts/smoke/research_agent_contract.py
       - name: Prove bounded multi-source Research Context Pack
@@ -54,17 +54,17 @@ jobs:
       - name: Prepare research environment
         run: |
           cp .env.example .env
-          echo 'KAIRO_AUTH_ENABLED=false' >> .env
-          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+          echo 'NEVOLIUM_AUTH_ENABLED=false' >> .env
+          echo 'NEVOLIUM_WORKER_EXTRAS=' >> .env
       - name: Start canonical research substrate
-        run: docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+        run: docker compose up -d --build postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace nevolium-core
       - name: Prove read-only A1 research boundary and canonical result contract
         run: python scripts/smoke/research_boundary.py
       - name: Dump research state on failure
         if: failure()
         run: |
           docker compose ps -a
-          docker compose logs --no-color --tail=500 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace kairo-core
+          docker compose logs --no-color --tail=500 postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace nevolium-core
       - name: Tear down research stack
         if: always()
         run: docker compose down -v --remove-orphans
@@ -77,12 +77,12 @@ jobs:
       - name: Prepare deterministic crash environment
         run: |
           cp .env.example .env
-          echo 'KAIRO_WORKER_EXTRAS=' >> .env
+          echo 'NEVOLIUM_WORKER_EXTRAS=' >> .env
       - name: Start Research crash topology
         run: |
           docker compose -f compose.yaml -f compose.research-crash.yaml up -d --build \
             postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace \
-            kairo-core fake-research-litellm fake-research-mcp kairo-worker
+            nevolium-core fake-research-litellm fake-research-mcp nevolium-worker
       - name: Prove real Worker SIGKILL replay invariants
         run: python scripts/smoke/research_crash_replay.py
       - name: Dump crash replay state on failure
@@ -91,7 +91,7 @@ jobs:
           docker compose -f compose.yaml -f compose.research-crash.yaml ps -a
           docker compose -f compose.yaml -f compose.research-crash.yaml logs --no-color --tail=800 \
             postgres nats seaweedfs temporal-admin-tools temporal temporal-create-namespace \
-            kairo-core kairo-worker fake-research-litellm fake-research-mcp
+            nevolium-core nevolium-worker fake-research-litellm fake-research-mcp
       - name: Tear down crash replay stack
         if: always()
         run: docker compose -f compose.yaml -f compose.research-crash.yaml down -v --remove-orphans

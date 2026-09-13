@@ -2,9 +2,9 @@
 
 Historique seulement ; ne décrit plus les lockfiles/images actuels.
 
-# KAIRO reproducibility policy
+# Nevolium reproducibility policy
 
-KAIRO treats reproducibility as a progressive hardening boundary, not as a claim that every upstream dependency is already immutable.
+Nevolium treats reproducibility as a progressive hardening boundary, not as a claim that every upstream dependency is already immutable.
 
 ## G50 baseline rule
 
@@ -35,17 +35,17 @@ The web/realtime Dockerfiles still use `pnpm install --no-frozen-lockfile`, and 
 
 ## Promotion rule
 
-Do not fabricate lockfiles or guess image digests. A lockfile must be produced by the real package resolver from the repository manifests. An image digest should be captured from a build/test path that KAIRO actually validates.
+Do not fabricate lockfiles or guess image digests. A lockfile must be produced by the real package resolver from the repository manifests. An image digest should be captured from a build/test path that Nevolium actually validates.
 
 When debt is retired, the CI contract intentionally fails until the retired entry is removed from the baseline. This forces reproducibility improvements to be recorded as first-class changes instead of silently changing the meaning of the baseline.
 
 ## Production target
 
-Before KAIRO is treated as production/commercial-ready, the hardening block should include:
+Before Nevolium is treated as production/commercial-ready, the hardening block should include:
 
 - resolver-generated lockfiles used in frozen/offline-capable install paths where practical;
 - immutable digests for production container images;
 - controlled dependency/image update automation;
 - SBOM and vulnerability/license scanning;
-- reproducible build metadata tied to the deployed KAIRO release;
+- reproducible build metadata tied to the deployed Nevolium release;
 - upgrade and rollback drills using the same canonical backup/recovery boundaries.

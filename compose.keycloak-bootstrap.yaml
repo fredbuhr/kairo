@@ -1,0 +1,7 @@
+# One-time production overlay. Remove it from every command after a nominated
+# realm administrator has been proven and before retiring the master bootstrap.
+services:
+  keycloak:
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}

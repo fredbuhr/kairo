@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic proof of KAIRO's logical model gateway accounting, replay and trace contract."""
+"""Deterministic proof of Nevolium's logical model gateway accounting, replay and trace contract."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 
-from kairo_worker import model_gateway
+from nevolium_worker import model_gateway
 
 TASK_ID = "00000000-0000-0000-0000-000000000001"
 EXECUTION_ID = "00000000-0000-0000-0000-000000000002"
@@ -75,17 +75,17 @@ async def main() -> None:
             provider_posts.append(dict(kwargs))
             payload = kwargs["json"]
             assert payload["model"] == "smart", payload
-            assert payload["max_tokens"] == model_gateway.settings.kairo_model_max_output_tokens
+            assert payload["max_tokens"] == model_gateway.settings.nevolium_model_max_output_tokens
             metadata = payload["metadata"]
             assert metadata == {
-                "generation_name": "kairo.model.invoke",
+                "generation_name": "nevolium.model.invoke",
                 "trace_id": "00000000000000000000000000000003",
                 "session_id": EXECUTION_ID,
-                "tags": ["kairo", "model:smart"],
-                "kairoTaskId": TASK_ID,
-                "kairoWorkflowExecutionId": EXECUTION_ID,
-                "kairoModelCallKey": CALL_KEY,
-                "kairoModelAlias": "smart",
+                "tags": ["nevolium", "model:smart"],
+                "nevoliumTaskId": TASK_ID,
+                "nevoliumWorkflowExecutionId": EXECUTION_ID,
+                "nevoliumModelCallKey": CALL_KEY,
+                "nevoliumModelAlias": "smart",
             }, metadata
             assert len(metadata["trace_id"]) == 32, metadata
             assert metadata["trace_id"].isalnum() and metadata["trace_id"] == metadata["trace_id"].lower()
@@ -277,12 +277,25 @@ async def main() -> None:
             "usage": {"prompt_tokens": 3, "completion_tokens": 2},
         },
         httpx.Headers({}),
+        model_alias="smart",
     )
     assert missing_cost.total_tokens == 5, missing_cost
     assert missing_cost.cost_usd == Decimal("0"), missing_cost
     assert missing_cost.cost_reported is False, missing_cost
+    local_zero_cost = model_gateway.parse_usage(
+        {
+            "model": "local-fast",
+            "usage": {"prompt_tokens": 3, "completion_tokens": 2},
+        },
+        httpx.Headers({}),
+        model_alias="local-fast",
+    )
+    assert local_zero_cost.cost_usd == Decimal("0"), local_zero_cost
+    assert local_zero_cost.cost_reported is True, local_zero_cost
     for invalid_cost in ("NaN", "Infinity", "-1", "bad-cost"):
-        cost, reported = model_gateway._response_cost(httpx.Headers({"x-litellm-response-cost": invalid_cost}))
+        cost, reported = model_gateway._response_cost(
+            httpx.Headers({"x-litellm-response-cost": invalid_cost}), model_alias="local-fast"
+        )
         assert cost == 0 and reported is False
 
     print(

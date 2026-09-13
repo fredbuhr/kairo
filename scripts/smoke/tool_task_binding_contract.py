@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 from temporalio.exceptions import ApplicationError
 
-from kairo_worker import tool_runtime as runtime
+from nevolium_worker import tool_runtime as runtime
 
 
 class ToolTaskBindingContract(unittest.IsolatedAsyncioTestCase):

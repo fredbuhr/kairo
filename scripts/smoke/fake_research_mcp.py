@@ -59,7 +59,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
 
 
 def build_server() -> MCPServer:
-    server = MCPServer("KAIRO Research Crash Fixture")
+    server = MCPServer("Nevolium Research Crash Fixture")
 
     @server.tool(
         name="search",
@@ -88,8 +88,8 @@ def build_server() -> MCPServer:
             "query": query,
             "items": [
                 {
-                    "title": "KAIRO crash/replay fixture",
-                    "url": "https://example.invalid/kairo-crash-replay",
+                    "title": "Nevolium crash/replay fixture",
+                    "url": "https://example.invalid/nevolium-crash-replay",
                     "snippet": "Canonical MCP evidence survived the Worker interruption without duplicate remote execution.",
                 }
             ],

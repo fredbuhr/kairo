@@ -1,6 +1,6 @@
 > Historical snapshot. Read ../../PROJECT_STATE.md for current state and ../implementation-plan.md for the active delivery plan. Statements below describe their original checkpoint and may be superseded.
 
-# KAIRO implementation plan
+# Nevolium implementation plan
 
 The plan uses large coherent blocks. Each block should finish with an end-to-end usable capability, but the architecture and component registry are present from the beginning.
 
@@ -34,11 +34,11 @@ Deliverables:
 - Keycloak identity + device registration;
 - OpenBao secret references;
 - Temporal namespaces/workers and durable workflow correlation;
-- health/readiness endpoints across KAIRO services;
+- health/readiness endpoints across Nevolium services;
 - backup/restore with restic;
 - local development bootstrap and production configuration separation.
 
-**Exit:** KAIRO can create/read canonical entities, publish domain events, store assets, survive service restarts and restore from backup.
+**Exit:** Nevolium can create/read canonical entities, publish domain events, store assets, survive service restarts and restore from backup.
 
 The exit is enforced by four CI gates: general build/topology validation, Temporal/outbox crash recovery, authenticated Keycloak/OpenBao/SeaweedFS resource integration, and a destructive Restic restore drill covering PostgreSQL, NATS, SeaweedFS and OpenBao.
 
@@ -46,7 +46,7 @@ The exit is enforced by four CI gates: general build/topology validation, Tempor
 
 **Status: core exit reached — 2026-09-11; Repository Reset through R6 complete, awaiting R7 baseline.**
 
-**Purpose:** make KAIRO reason and work durably without coupling intelligence to one provider/runtime.
+**Purpose:** make Nevolium reason and work durably without coupling intelligence to one provider/runtime.
 
 Deliverables:
 
@@ -60,15 +60,15 @@ Deliverables:
 - SearXNG research path;
 - Playwright deterministic browser activities and Browser Use only where AI navigation is needed;
 - Activepieces adapter for external automations;
-- Langfuse trace correlation with KAIRO audit IDs.
+- Langfuse trace correlation with Nevolium audit IDs.
 
 **Exit:** an approved autonomous workflow can research, use tools, create canonical artefacts, survive interruption, respect authority/cost limits and explain what it did.
 
 The core exit is now proven by the validated Research path: bounded planning and synthesis, owner-scoped Context Packs, canonical MCP ToolInvocations, canonical Research Artifacts, model/tool accounting and a real Worker `SIGKILL` replay test that does not duplicate the planner, remote tool call or synthesis. G48 also added a real two-Keycloak-user isolation test over the critical control-plane boundaries.
 
-Some integration-depth items listed above are intentionally not treated as blockers for the core exit. General Browser Use/Playwright automation and Activepieces-specific workflows remain follow-up work when a product slice actually needs them; they must still enter through the same KAIRO policy, Task, Artifact and audit contracts.
+Some integration-depth items listed above are intentionally not treated as blockers for the core exit. General Browser Use/Playwright automation and Activepieces-specific workflows remain follow-up work when a product slice actually needs them; they must still enter through the same Nevolium policy, Task, Artifact and audit contracts.
 
-## Block 3 — KAIRO Cockpit, graph and planning workspace
+## Block 3 — Nevolium Cockpit, graph and planning workspace
 
 **Status: G51 foundation present; deeper product work resumes after the R7 clean tagged baseline.**
 
@@ -76,16 +76,16 @@ Some integration-depth items listed above are intentionally not treated as block
 
 Deliverables:
 
-- Dockview-based customizable workspace and KAIRO design system;
+- Dockview-based customizable workspace and Nevolium design system;
 - Command Center/chat, Today, Projects, Knowledge, Agents, Approvals and Activity surfaces;
 - Lexical documents and Excalidraw whiteboards;
 - 2D React Flow mindmap and realtime 3D graph view backed by the same canonical graph;
 - Yjs/Hocuspocus realtime collaboration and cross-device synchronization;
-- KAIRO scheduling engine + SVAR Gantt renderer with simple manipulation, dependencies, critical path and AI-assisted replanning;
+- Nevolium scheduling engine + SVAR Gantt renderer with simple manipulation, dependencies, critical path and AI-assisted replanning;
 - Schedule-X calendar, ECharts dashboards and MapLibre place/map views;
 - universal search across canonical records, documents, embeddings and graph context.
 
-**Exit:** KAIRO is usable every day through one customizable Cockpit, including mindmap 3D and Gantt.
+**Exit:** Nevolium is usable every day through one customizable Cockpit, including mindmap 3D and Gantt.
 
 The stabilized line already contains the Cockpit shell, persisted owner-scoped workspace layouts and initial Command Center, Projects, Research, News and Knowledge surfaces. The mature Gantt, 2D/3D Brain, collaboration and universal search remain to be implemented on that baseline.
 
@@ -103,11 +103,11 @@ Deliverables:
 - calendar/contact/email/message adapters through MCP/Activepieces/native connectors where appropriate;
 - Headscale private device network for remote access.
 
-**Exit:** KAIRO can be summoned, listen/speak through approved paths, act on a registered device and continue work server-side when clients disconnect.
+**Exit:** Nevolium can be summoned, listen/speak through approved paths, act on a registered device and continue work server-side when clients disconnect.
 
 ## Block 5 — Specialist systems: developer, finance, crypto and home
 
-**Purpose:** connect high-value personal systems without compromising KAIRO's unified model.
+**Purpose:** connect high-value personal systems without compromising Nevolium's unified model.
 
 Deliverables:
 
@@ -120,11 +120,11 @@ Deliverables:
 - Home Assistant adapter for devices/scenes/automations;
 - cross-domain dashboards and alerts linking financial/home/dev state to projects and attention items.
 
-**Exit:** KAIRO can manage and reason across these systems while every side effect still passes through one policy/audit model.
+**Exit:** Nevolium can manage and reason across these systems while every side effect still passes through one policy/audit model.
 
 ## Block 6 — Hardening, self-maintenance and production operations
 
-**Purpose:** make KAIRO trustworthy enough to run persistently.
+**Purpose:** make Nevolium trustworthy enough to run persistently.
 
 Deliverables:
 
@@ -137,4 +137,4 @@ Deliverables:
 - load/performance testing of graph, realtime, Temporal and model paths;
 - full audit/export/delete lifecycle for user data.
 
-**Exit:** production KAIRO can run continuously, fail safely, recover, explain its actions and evolve without silently rewriting its own trust boundaries.
+**Exit:** production Nevolium can run continuously, fail safely, recover, explain its actions and evolve without silently rewriting its own trust boundaries.

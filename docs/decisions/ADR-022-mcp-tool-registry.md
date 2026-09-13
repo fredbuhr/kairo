@@ -6,13 +6,13 @@ Date: 2026-09-09
 
 ## Context
 
-KAIRO needs a large and replaceable tool surface without allowing external MCP servers, model-generated tool names or remote annotations to become an authority boundary. Tools may be read-only, mutating or destructive, and a Worker crash can make the outcome of a remote side effect ambiguous.
+Nevolium needs a large and replaceable tool surface without allowing external MCP servers, model-generated tool names or remote annotations to become an authority boundary. Tools may be read-only, mutating or destructive, and a Worker crash can make the outcome of a remote side effect ambiguous.
 
-The existing Block 2 boundary already makes PostgreSQL canonical, Temporal durable, and KAIRO Core authoritative for policy, approvals and budgets. MCP must fit inside that boundary rather than create a parallel agent runtime with its own permissions.
+The existing Block 2 boundary already makes PostgreSQL canonical, Temporal durable, and Nevolium Core authoritative for policy, approvals and budgets. MCP must fit inside that boundary rather than create a parallel agent runtime with its own permissions.
 
 ## Decision
 
-KAIRO owns a canonical PostgreSQL registry composed of `ToolServer`, `ToolDefinition` and `ToolInvocation` records.
+Nevolium owns a canonical PostgreSQL registry composed of `ToolServer`, `ToolDefinition` and `ToolInvocation` records.
 
 ### Discovery is not permission
 
@@ -24,23 +24,23 @@ Remote annotations are treated only as conservative hints for initial classifica
 - `destructiveHint=true` defaults to `risk_class=destructive`, authority A3 and `no_retry`;
 - unknown or ordinary tools default to `risk_class=write`, authority A2 and `no_retry` unless an idempotency hint justifies `safe_retry`.
 
-Only KAIRO policy state can enable a tool or change its authority/retry classification.
+Only Nevolium policy state can enable a tool or change its authority/retry classification.
 
 ### Schemas are untrusted contracts
 
-Remote input and output schemas are validated as JSON Schema before catalog state is accepted. Invocation arguments are validated against the currently registered input schema before KAIRO creates a Task.
+Remote input and output schemas are validated as JSON Schema before catalog state is accepted. Invocation arguments are validated against the currently registered input schema before Nevolium creates a Task.
 
-A remote schema hash is part of the effective authorization contract. If the schema changes, KAIRO updates the catalog record but automatically disables the tool. An administrator must review and explicitly re-enable the new contract.
+A remote schema hash is part of the effective authorization contract. If the schema changes, Nevolium updates the catalog record but automatically disables the tool. An administrator must review and explicitly re-enable the new contract.
 
 Previously created Tasks keep the schema hash and policy snapshot they were created with. Re-enabling a drifted tool does not upgrade an old pending invocation: Core rejects the stale snapshot and requires a new invocation.
 
-### Stable KAIRO tool keys
+### Stable Nevolium tool keys
 
-A remote MCP tool is addressed inside KAIRO by `<namespace>.<remote_name>`. The remote server and protocol implementation remain replaceable behind that key. Catalog drift is inspectable without changing KAIRO's logical identity.
+A remote MCP tool is addressed inside Nevolium by `<namespace>.<remote_name>`. The remote server and protocol implementation remain replaceable behind that key. Catalog drift is inspectable without changing Nevolium's logical identity.
 
 ### Every invocation is canonical
 
-A requested invocation creates a canonical `ToolInvocation` and a normal KAIRO `Task` with capability `tool.invoke`. The Task carries the exact tool key, schema hash, authority level, estimated cost, risk class, retry policy and server key. Temporal therefore reaches the existing KAIRO Core policy gate before the Worker can cross the MCP network boundary.
+A requested invocation creates a canonical `ToolInvocation` and a normal Nevolium `Task` with capability `tool.invoke`. The Task carries the exact tool key, schema hash, authority level, estimated cost, risk class, retry policy and server key. Temporal therefore reaches the existing Nevolium Core policy gate before the Worker can cross the MCP network boundary.
 
 The invocation ledger owns a stable idempotency key. Reusing a key for a different project, tool or input is rejected.
 
@@ -60,7 +60,7 @@ The Worker checkpoints MCP calls with Temporal heartbeats:
 
 A persisted result may be replayed into Core without calling the remote tool again.
 
-For `no_retry` tools, a retry that sees only `pre_call` raises a non-retryable Temporal application error because the first call may already have performed a side effect. KAIRO does not assume MCP transports or remote servers provide exactly-once execution.
+For `no_retry` tools, a retry that sees only `pre_call` raises a non-retryable Temporal application error because the first call may already have performed a side effect. Nevolium does not assume MCP transports or remote servers provide exactly-once execution.
 
 For explicitly `safe_retry` tools, the Worker may repeat a call after an ambiguous attempt.
 

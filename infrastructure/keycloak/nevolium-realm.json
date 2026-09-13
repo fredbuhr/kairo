@@ -1,0 +1,88 @@
+{
+  "realm": "nevolium",
+  "enabled": true,
+  "displayName": "Nevolium",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "nevolium-user",
+        "description": "Authenticated Nevolium user"
+      },
+      {
+        "name": "nevolium-admin",
+        "description": "Nevolium trust-boundary administrator"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "nevolium-web",
+      "name": "Nevolium Web",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
+      "protocolMappers": [
+        {
+          "name": "nevolium-core-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "nevolium-core",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "nevolium-dev",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Nevolium",
+      "lastName": "Developer",
+      "email": "nevolium-dev@localhost",
+      "realmRoles": [
+        "nevolium-user",
+        "nevolium-admin"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "nevolium-dev",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "nevolium-dev-2",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Nevolium",
+      "lastName": "Isolation",
+      "email": "nevolium-dev-2@localhost",
+      "realmRoles": [
+        "nevolium-user"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "nevolium-dev-2",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

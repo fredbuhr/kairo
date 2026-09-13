@@ -1,0 +1,34 @@
+[Unit]
+Description=Renew and verify the Nevolium OpenBao workload token
+Documentation=https://github.com/fredbuhr/nevolium/blob/main/docs/deployment.md
+Requires=docker.service
+After=docker.service
+ConditionPathExists=/etc/nevolium/production.env
+ConditionPathExists=/etc/nevolium/openbao-workload.json
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/local/libexec/nevolium-openbao-renew
+TimeoutStartSec=2min
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+RestrictAddressFamilies=AF_UNIX
+ReadOnlyPaths=/etc/nevolium /opt/nevolium/source
+ReadWritePaths=/run/lock

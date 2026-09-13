@@ -19,7 +19,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-BASE_URL = os.environ.get("KAIRO_API_URL", "http://127.0.0.1:8000").rstrip("/")
+BASE_URL = os.environ.get("NEVOLIUM_API_URL", "http://127.0.0.1:8000").rstrip("/")
 
 
 def request(method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, Any]:
@@ -63,7 +63,7 @@ def main() -> int:
         "/health/ready",
         lambda payload: payload.get("status") == "ready",
         120,
-        "KAIRO Core readiness",
+        "Nevolium Core readiness",
     )
     print("ready:", ready)
 
@@ -154,7 +154,7 @@ def main() -> int:
 
     # `stop -t 0` forces immediate termination but leaves the container explicitly stopped,
     # preventing the restart policy from hiding the failure interval.
-    compose("stop", "-t", "0", "kairo-worker")
+    compose("stop", "-t", "0", "nevolium-worker")
     time.sleep(7)
 
     code, during_stop = request("GET", f"/v1/tasks/{task['id']}")
@@ -162,7 +162,7 @@ def main() -> int:
     assert during_stop["status"] == "running", during_stop
     print("canonical task remained running while worker was down")
 
-    compose("start", "kairo-worker")
+    compose("start", "nevolium-worker")
 
     completed = wait_for(
         f"/v1/tasks/{task['id']}",

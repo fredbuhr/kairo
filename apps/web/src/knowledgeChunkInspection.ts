@@ -8,7 +8,7 @@ import type {
   KnowledgeChunkWindow,
   KnowledgeInspectionTarget,
 } from './knowledgeTypes'
-import { kairoFetch } from './lib/apiClient'
+import { nevoliumFetch } from './lib/apiClient'
 
 type Options = {
   apiUrl: string
@@ -120,7 +120,7 @@ export function useKnowledgeChunkInspection({
           chunk_id: inspectionTarget.chunkId,
           limit: String(MAX_CHUNK_PREVIEW_ITEMS),
         })
-        const response = await kairoFetch(
+        const response = await nevoliumFetch(
           `${apiUrl}/v1/knowledge/chunk-window?${params.toString()}`,
         )
         const window = await readKnowledgeJson<KnowledgeChunkWindow>(response)
@@ -188,7 +188,7 @@ export function useKnowledgeChunkInspection({
     setChunksLoaded(false)
     setFocusedChunkId(null)
     try {
-      const response = await kairoFetch(
+      const response = await nevoliumFetch(
         `${apiUrl}/v1/document-versions/${selectedVersion.id}/chunks?offset=${normalizedOffset}&limit=${MAX_CHUNK_PREVIEW_ITEMS}`,
       )
       const loadedChunks = await readKnowledgeJson<DocumentChunk[]>(response)

@@ -11,7 +11,7 @@ import NewsWorkspacePanel, {
 import ProjectsWorkspace from './ProjectsWorkspace'
 import ResearchWorkspace from './ResearchWorkspace'
 import TodayWorkspace from './TodayWorkspace'
-import { kairoFetch } from './lib/apiClient'
+import { nevoliumFetch } from './lib/apiClient'
 import {
   type CapabilityTaskView,
   isTerminalTaskStatus,
@@ -51,7 +51,7 @@ const activeSpaces = new Set([
   'Research',
 ])
 
-const API_URL = (import.meta.env.VITE_KAIRO_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+const API_URL = (import.meta.env.VITE_NEVOLIUM_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
 type NewsRun = {
   task_id: string
@@ -119,8 +119,8 @@ export default function App() {
 
     const poll = async () => {
       try {
-        const response = await kairoFetch(`${API_URL}/v1/commands/${pendingCommandId}`)
-        if (!response.ok) throw new Error(`KAIRO Core répond ${response.status}`)
+        const response = await nevoliumFetch(`${API_URL}/v1/commands/${pendingCommandId}`)
+        if (!response.ok) throw new Error(`Nevolium Core répond ${response.status}`)
         const state = (await response.json()) as CommandState
         if (cancelled) return
 
@@ -148,13 +148,33 @@ export default function App() {
         }
 
         if (state.status === 'unsupported') {
+          setLastRoute({
+            command_id: state.id,
+            conversation_id: state.conversation_id,
+            status: 'unsupported',
+            routing: 'semantic',
+            capability: null,
+            confidence: state.confidence == null ? null : Number(state.confidence),
+            route_reason: state.route_reason || 'semantic.unsupported',
+            parameters: state.parameters_json || {},
+          })
           setPendingCommandId(null)
-          setError('KAIRO n’a pas encore de capacité enregistrée capable de traiter cette demande en sécurité.')
+          setError('Nevolium n’a pas encore de capacité enregistrée capable de traiter cette demande en sécurité.')
           return
         }
         if (state.status === 'failed') {
+          setLastRoute({
+            command_id: state.id,
+            conversation_id: state.conversation_id,
+            status: 'failed',
+            routing: 'semantic',
+            capability: null,
+            confidence: state.confidence == null ? null : Number(state.confidence),
+            route_reason: state.route_reason || 'semantic.execution-failed',
+            parameters: state.parameters_json || {},
+          })
           setPendingCommandId(null)
-          setError('Le routage sémantique KAIRO a échoué. La demande n’a pas été exécutée.')
+          setError('Le routage sémantique Nevolium a échoué. La demande n’a pas été exécutée.')
           return
         }
         timer = window.setTimeout(poll, 700)
@@ -193,7 +213,7 @@ export default function App() {
       } catch (pollError) {
         if (!cancelled) {
           setError(
-            pollError instanceof Error ? pollError.message : 'Impossible de suivre la tâche KAIRO.',
+            pollError instanceof Error ? pollError.message : 'Impossible de suivre la tâche Nevolium.',
           )
         }
       }
@@ -223,7 +243,7 @@ export default function App() {
     resetTaskSurface()
 
     try {
-      const response = await kairoFetch(`${API_URL}/v1/assistant/commands`, {
+      const response = await nevoliumFetch(`${API_URL}/v1/assistant/commands`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -238,7 +258,7 @@ export default function App() {
         const detail = responseBody?.detail
         if (detail?.conversation_id) setConversationId(detail.conversation_id)
         throw new Error(
-          detail?.message || `KAIRO ne sait pas encore router cette demande (${response.status}).`,
+          detail?.message || `Nevolium ne sait pas encore router cette demande (${response.status}).`,
         )
       }
 
@@ -250,7 +270,7 @@ export default function App() {
         return
       }
       if (!run.task_id || !run.capability) {
-        throw new Error('KAIRO a accepté la commande sans fournir de capacité finale.')
+        throw new Error('Nevolium a accepté la commande sans fournir de capacité finale.')
       }
 
       setTaskCapability(run.capability)
@@ -273,7 +293,7 @@ export default function App() {
     resetTaskSurface()
 
     try {
-      const response = await kairoFetch(`${API_URL}/v1/news/briefs`, {
+      const response = await nevoliumFetch(`${API_URL}/v1/news/briefs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -345,7 +365,7 @@ export default function App() {
       <header>
         <div>
           <span className="eyebrow">PERSONAL AI OPERATING SYSTEM</span>
-          <h1>KAIRO</h1>
+          <h1>Nevolium</h1>
         </div>
         <span className="status">cockpit + durable command kernel</span>
       </header>
@@ -387,7 +407,7 @@ export default function App() {
         ]}
       />
 
-      <section className="grid" aria-label="KAIRO spaces">
+      <section className="grid" aria-label="Nevolium spaces">
         {spaces.map((space) => (
           <article
             key={space}

@@ -1,10 +1,10 @@
-# KAIRO — clôture D02, 11 septembre 2026
+# Nevolium — clôture D02, 11 septembre 2026
 
 Archive historique ; seule la prochaine action de [PROJECT_STATE](../../PROJECT_STATE.md) fait foi.
 
 ## Livraison complète
 
-D02 est terminé par #85 (budgets IA) et [#86](https://github.com/fredbuhr/kairo/pull/86)
+D02 est terminé par #85 (budgets IA) et [#86](https://github.com/fredbuhr/nevolium/pull/86)
 (reste du lot en une PR). Base `cc550150664b1c4c11924ad6b486f863831633d6` ;
 head `3ed90a8bdd3eafd47d73fe21b8e2eddf3e5b1c2c` ; arbre `e3233b9d4cff20263a39574e1ed7e7d53b984ec9`.
 Merge ref CI `2af631c5283af7a5ee2d547e7ed7bea5c2d03462` ; merge réel
@@ -15,32 +15,32 @@ et a bien tourné sur le diff cumulé de la PR. Aucun succès d'un ancien head n
 
 | Workflow | Événement | Run | Résultat |
 |---|---|---|---|
-| Autonomous research validation | pull_request | [34611948296](https://github.com/fredbuhr/kairo/actions/runs/34611948296) | success |
-| Baseline reproducibility validation | pull_request | [34611948380](https://github.com/fredbuhr/kairo/actions/runs/34611948380) | success |
-| Code quality validation | pull_request | [34611948300](https://github.com/fredbuhr/kairo/actions/runs/34611948300) | success |
-| Document ingestion validation | pull_request | [34611948315](https://github.com/fredbuhr/kairo/actions/runs/34611948315) | success |
-| Foundation validation | pull_request | [34611948382](https://github.com/fredbuhr/kairo/actions/runs/34611948382) | success |
-| MCP tool registry validation | pull_request | [34611948381](https://github.com/fredbuhr/kairo/actions/runs/34611948381) | success |
-| Multi-user isolation validation | pull_request | [34611948520](https://github.com/fredbuhr/kairo/actions/runs/34611948520) | success |
-| News ownership validation | pull_request | [34611948388](https://github.com/fredbuhr/kairo/actions/runs/34611948388) | success |
-| UI workspace validation | pull_request | [34611948397](https://github.com/fredbuhr/kairo/actions/runs/34611948397) | success |
-| Autonomous research validation | push | [34611944187](https://github.com/fredbuhr/kairo/actions/runs/34611944187) | success |
-| Baseline reproducibility validation | push | [34611944203](https://github.com/fredbuhr/kairo/actions/runs/34611944203) | success |
-| Code quality validation | push | [34611944197](https://github.com/fredbuhr/kairo/actions/runs/34611944197) | success |
-| Document ingestion validation | push | [34611944334](https://github.com/fredbuhr/kairo/actions/runs/34611944334) | success |
-| Foundation validation | push | [34611944156](https://github.com/fredbuhr/kairo/actions/runs/34611944156) | success |
-| MCP tool registry validation | push | [34611944206](https://github.com/fredbuhr/kairo/actions/runs/34611944206) | success |
-| Multi-user isolation validation | push | [34611944229](https://github.com/fredbuhr/kairo/actions/runs/34611944229) | success |
-| UI workspace validation | push | [34611944327](https://github.com/fredbuhr/kairo/actions/runs/34611944327) | success |
+| Autonomous research validation | pull_request | [34611948296](https://github.com/fredbuhr/nevolium/actions/runs/34611948296) | success |
+| Baseline reproducibility validation | pull_request | [34611948380](https://github.com/fredbuhr/nevolium/actions/runs/34611948380) | success |
+| Code quality validation | pull_request | [34611948300](https://github.com/fredbuhr/nevolium/actions/runs/34611948300) | success |
+| Document ingestion validation | pull_request | [34611948315](https://github.com/fredbuhr/nevolium/actions/runs/34611948315) | success |
+| Foundation validation | pull_request | [34611948382](https://github.com/fredbuhr/nevolium/actions/runs/34611948382) | success |
+| MCP tool registry validation | pull_request | [34611948381](https://github.com/fredbuhr/nevolium/actions/runs/34611948381) | success |
+| Multi-user isolation validation | pull_request | [34611948520](https://github.com/fredbuhr/nevolium/actions/runs/34611948520) | success |
+| News ownership validation | pull_request | [34611948388](https://github.com/fredbuhr/nevolium/actions/runs/34611948388) | success |
+| UI workspace validation | pull_request | [34611948397](https://github.com/fredbuhr/nevolium/actions/runs/34611948397) | success |
+| Autonomous research validation | push | [34611944187](https://github.com/fredbuhr/nevolium/actions/runs/34611944187) | success |
+| Baseline reproducibility validation | push | [34611944203](https://github.com/fredbuhr/nevolium/actions/runs/34611944203) | success |
+| Code quality validation | push | [34611944197](https://github.com/fredbuhr/nevolium/actions/runs/34611944197) | success |
+| Document ingestion validation | push | [34611944334](https://github.com/fredbuhr/nevolium/actions/runs/34611944334) | success |
+| Foundation validation | push | [34611944156](https://github.com/fredbuhr/nevolium/actions/runs/34611944156) | success |
+| MCP tool registry validation | push | [34611944206](https://github.com/fredbuhr/nevolium/actions/runs/34611944206) | success |
+| Multi-user isolation validation | push | [34611944229](https://github.com/fredbuhr/nevolium/actions/runs/34611944229) | success |
+| UI workspace validation | push | [34611944327](https://github.com/fredbuhr/nevolium/actions/runs/34611944327) | success |
 
 ## Preuves ciblées et portée
 
-- [PostgreSQL et JetStream réels](https://github.com/fredbuhr/kairo/actions/runs/34611948382/job/103304549425) :
+- [PostgreSQL et JetStream réels](https://github.com/fredbuhr/nevolium/actions/runs/34611948382/job/103304549425) :
   budgets #85, jeu de 1000 Tasks, ownership avant LIMIT, curseurs/versions, six rubriques Today,
   invalidité des types de curseur refusée par 422, quotas concurrents, expiration, cache/rejeu,
   échec mémoire terminal, reconstruction bornée à reçus idempotents, outbox sans verrou SQL pendant
   le réseau, rétention et conservation des données, limites du stream et du consumer existant.
-- [Build et processus Worker](https://github.com/fredbuhr/kairo/actions/runs/34611948382/job/103304549889) :
+- [Build et processus Worker](https://github.com/fredbuhr/nevolium/actions/runs/34611948382/job/103304549889) :
   typecheck/build Web, six régressions nouvelles sur attente/timers, continue-as-new, perte de lease,
   arrêt/récupération de l'enfant avant libération, sous-processus mémoire réel en mode stub et
   exclusion des jetons Core/fournisseur. Les dix régressions D01 restent dans la CI Documents.
@@ -83,7 +83,7 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 
 ## État canonique établi
 
-- Première tranche D02 intégrée par [PR #85](https://github.com/fredbuhr/kairo/pull/85).
+- Première tranche D02 intégrée par [PR #85](https://github.com/fredbuhr/nevolium/pull/85).
 - Merge : `759db57211dcc4960e20cc9486558a88ac063b52` ; base vérifiée : `ceec99309c389aa2f24e30350d0a11d232a99edf`.
 - Head final testé : `3a531b967349d61e253c5d7491d95d8ff87901c3` ; **16/16 workflows réussis**.
 - Merge ref testé `9c1ac617da9b465e4be2a722dfb0fd75796da70b`, même arbre
@@ -97,7 +97,7 @@ Dernière revue : 2026-09-11. **Vérifier GitHub live avant toute action.**
 | Champ | Valeur |
 |---|---|
 | Branche de développement active | `hardening/d02-complete-capacity-and-data` |
-| PR active | [#86](https://github.com/fredbuhr/kairo/pull/86) |
+| PR active | [#86](https://github.com/fredbuhr/nevolium/pull/86) |
 | Dernière livraison | **D02 — admission et réservations des appels IA** |
 | Dernier lot entièrement terminé | **D01** |
 | Prochain travail | **Terminer D02 dans une livraison commune : capacité et volume des données** |
@@ -158,7 +158,8 @@ Preuves des 8 workflows PR (les 8 miroirs push ont aussi réussi) :
   [checkpoint D01 archivé](checkpoint-through-d01-2026-09-11.md).
 - `hardening/d02-model-admission` et `hardening/d01-bounded-worker-execution` sont **retirées**.
   Les anciennes branches H1–H3b2e et `hardening/h4-task-dispatch-isolation` restent retirées.
-- Réservoirs non canoniques : `feat/kairo-test-interface-v1`, `consolidate/g49-research-durable-stages`.
+- Réservoirs non canoniques : prototype d'interface historique à `ed12d503…`,
+  `consolidate/g49-research-durable-stages`.
   Inspection/récupération sélective uniquement, jamais reprise ou merge en bloc.
 
 ## D02 — livraison groupée en cours
@@ -202,4 +203,3 @@ et la mise à jour d'un consumer durable existant (job `103303522635`). Dernier 
 revue : refuser par HTTP 422 les curseurs JSON valides dont l'identifiant/type est incorrect,
 au lieu de laisser remonter une erreur Python 500. Contrat PostgreSQL étendu ; attendre tous
 les workflows du nouveau head avant clôture. Aucune nouvelle fonction ni sous-lot ajouté.
-

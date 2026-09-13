@@ -5,10 +5,10 @@ import uuid
 
 from fastapi import HTTPException
 
-from kairo_core.assistant import _conversation_for_command, _owned_conversation
-from kairo_core.auth import Principal
-from kairo_core.command_models import Conversation
-from kairo_core.schemas import AssistantCommandCreate
+from nevolium_core.assistant import _conversation_for_command, _owned_conversation
+from nevolium_core.auth import Principal
+from nevolium_core.command_models import Conversation
+from nevolium_core.schemas import AssistantCommandCreate
 
 
 def principal(subject: str) -> Principal:
@@ -16,7 +16,7 @@ def principal(subject: str) -> Principal:
         subject=subject,
         username=subject,
         email=None,
-        roles=frozenset({"kairo-user"}),
+        roles=frozenset({"nevolium-user"}),
         claims={},
     )
 
@@ -59,7 +59,7 @@ async def main() -> None:
     session = FakeSession()
 
     created = await _conversation_for_command(
-        AssistantCommandCreate(text="Create an owned KAIRO conversation", locale="fr-FR", output="text"),
+        AssistantCommandCreate(text="Create an owned Nevolium conversation", locale="fr-FR", output="text"),
         owner,
         session,
     )
