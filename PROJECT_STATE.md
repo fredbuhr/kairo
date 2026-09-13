@@ -17,9 +17,9 @@ Dernière revue : 2026-09-13. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Dernier code déployé confirmé | Core/Worker `e3adbe648b245e2567970769e6a4bf4333b3e4a4` ; checkpoint Web MCP `5a01be167e67388e8056466dfce7eb53f18931ee` synchronisé ; Worker existant inchangé |
-| Validation | Web MCP réel confiné et joignable ; registre exact : un serveur, deux outils uniques `web.search`/`web.fetch`, actifs A1, lecture seule, coût nul et aucun doublon. Jeton administrateur éphémère non conservé |
-| Prochaine action | Enregistrer ce checkpoint, puis exécuter le premier parcours Research authentifié et owner-scoped avec les outils réels |
+| Dernier code déployé confirmé | Core/Worker `e3adbe648b245e2567970769e6a4bf4333b3e4a4` ; Web MCP `db3da89acfb041db75e6c7a2417a83dbafc6ce80` ; checkpoint registre `02be8f12f35e26b6e0ad2d3cafa5d9fc8c977368` synchronisé |
+| Validation | Registre Web exact et sans doublon. Le premier Research authentifié échoue pendant le planning avant tout outil : zéro usage et artefact, réservation locale expirée conservée `started`. Worker et Web MCP restent opérationnels |
+| Prochaine action | Valider en CI puis déployer le délai Research 180 s, le proxy 210 s et l'arrêt non rejouable des issues modèle inconnues ; lancer ensuite une nouvelle Task de preuve sans rejouer l'échec |
 | Conditions manquantes | Pertinence générale du routage et choix du modèle quotidien, Research canonique de bout en bout, backup Restic indépendant, campagne cible/charge/rollback |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 
@@ -149,7 +149,7 @@ actuel. Le tableau de reprise ci-dessus et le complément d'incident dans le rap
 
 Les preuves CPU de CI ne clôturent pas H5. La séparation des clés OpenBao et le renouvellement du workload
 sont désormais prouvés sur la cible, ainsi que les projections mémoire propriétaire et leur rejeu sans doublon.
-Restent : routage à froid/chaud, parcours Research, charge et files en usage mixte, upgrade/rollback
+Restent : parcours Research de bout en bout, charge et files en usage mixte, upgrade/rollback
 compatible et restauration applicative Restic indépendante sur volumes neufs. TLS/ingress, identités
 nominatives, premiers parcours News/sémantique et comptabilité locale sont maintenant prouvés sur la cible.
 Le modèle de test 0.5B ne sélectionne pas le modèle quotidien ; le PDF à couche texte ne qualifie pas

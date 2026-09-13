@@ -166,18 +166,12 @@ async def prove_gateway_deadline(delay: float, *, expires: bool) -> None:
         if expires:
             try:
                 await semantic_router.perform_semantic_route(activity_payload())
-            except TimeoutError:
-                pass
-            else:
-                raise AssertionError("Provider deadline must remain effective")
-            assert stages == ["started"], stages
-            assert not usages and not applied
-            try:
-                await semantic_router.perform_semantic_route(activity_payload())
             except semantic_router.ApplicationError as exc:
                 assert exc.non_retryable and exc.type == "ModelCallOutcomeUnknown", exc
             else:
-                raise AssertionError("An expired call must not be sent again")
+                raise AssertionError("An ambiguous provider deadline must stop retries immediately")
+            assert stages == ["started"], stages
+            assert not usages and not applied
         else:
             result = await semantic_router.perform_semantic_route(activity_payload())
             assert result["content"]["applied"]["status"] == "unsupported"

@@ -3,7 +3,7 @@
 Révision : 2026-09-13, D03 terminé par #87 ; D04/H5 actif dans #88.
 Toujours vérifier le live ; branche/PR/lot actif dans [PROJECT_STATE](../PROJECT_STATE.md).
 
-## Complément courant : mémoire et incident sémantique
+## Complément courant : mémoire, routage et incident Research
 
 Les contrôles opérateur ont prouvé Mem0 sur le bon propriétaire, un scope étranger vide, un épisode
 Graphiti et le rejeu mémoire génération 2 sans doublon. Le correctif sémantique `dd20b002…` est actif :
@@ -33,7 +33,18 @@ exactement un serveur `nevolium-web`, synchronise exactement `web.search` et `we
 deux politiques en autorité A1, lecture seule, rejeu sûr et coût nul. La vérification SQL en lecture seule
 confirme les comptes `1|1|2|2|2|0|0` : serveur unique attendu, deux outils exacts et actifs, aucun doublon
 de clé, namespace ou nom distant. Le jeton n'est ni versionné, ni écrit dans l'environnement de production,
-ni conservé après la commande. Le parcours Research authentifié de bout en bout reste requis.
+ni conservé après la commande. Le premier Research authentifié crée une Task unique, mais échoue
+pendant le planning après 124,30 s. Aucun outil MCP n'est appelé, aucun usage modèle ni artefact n'est
+enregistré, et la réservation locale expirée reste prudemment `started`. Le journal Ollama contient une
+réponse HTTP 500 à 120 s ; les reprises Temporal atteignent la tentative 10, mais le checkpoint refuse
+chaque renvoi aveugle du même appel dont l'issue est inconnue.
+
+Le correctif de branche porte le délai client Research à 180 s, le plafond du gateway à 180 s et le
+proxy LiteLLM à 210 s, sous le lease Core de 300 s. Le heartbeat Research passe à 210 s dans l'activité
+toujours bornée à 10 minutes. Planning et synthèse transforment désormais immédiatement un timeout,
+une erreur de transport ou un checkpoint incertain en `ModelCallOutcomeUnknown` non rejouable. Les
+contrats hors ligne couvrent les trois bornes et ce statut terminal ; l'activation et une nouvelle Task
+de preuve restent requises. La Task échouée et sa réservation ne sont ni modifiées ni relancées.
 
 Les sections ci-dessous conservent l'historique des paliers. Six espaces UI sont raccordés, pas quinze
 modules futurs ; le cockpit Mycelium reste D05. L'erreur partagée Command/News, les débordements de panneaux

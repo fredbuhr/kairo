@@ -4,7 +4,7 @@ import asyncio
 import json
 from collections.abc import Awaitable, Callable
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 
 import httpx
 from pydantic import BaseModel, Field
@@ -17,6 +17,7 @@ from temporalio.exceptions import ApplicationError
 from .config import settings
 from .model_gateway import (
     ModelCheckpointLedger,
+    ModelCallOutcomeUnknown,
     chat_completion,
     deterministic_model_call_key,
 )
@@ -26,6 +27,11 @@ from .semantic_router import render_provider_messages
 MAX_EVIDENCE_ITEM_CHARS = 12_000
 MAX_EVIDENCE_TOTAL_CHARS = 48_000
 RESEARCH_PROGRESS_KEY = "research_progress"
+RESEARCH_MODEL_TIMEOUT_SECONDS = 180.0
+RESEARCH_HEARTBEAT_TIMEOUT_SECONDS = 210
+RESEARCH_ACTIVITY_TIMEOUT_SECONDS = 600
+
+T = TypeVar("T")
 
 
 class PlannedToolCall(BaseModel):
@@ -52,6 +58,22 @@ class ResearchSynthesis(BaseModel):
 
 
 CompletionFn = Callable[[list[dict[str, Any]]], Awaitable[str]]
+
+
+async def run_research_model_stage(
+    stage: Literal["planning", "synthesis"],
+    operation: Callable[[], Awaitable[T]],
+) -> T:
+    """Stop Temporal retries when one Research model request may have been dispatched."""
+
+    try:
+        return await operation()
+    except ModelCallOutcomeUnknown as exc:
+        raise ApplicationError(
+            f"Research {stage} model outcome is unknown; refusing blind replay",
+            type="ModelCallOutcomeUnknown",
+            non_retryable=True,
+        ) from exc
 
 RESEARCH_PLANNER_INSTRUCTIONS = """
 You are Nevolium's bounded research planner. You do not answer the research question yourself.
@@ -379,7 +401,7 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
                 checkpoint_ledger=model_checkpoints,
                 temperature=0.0,
                 estimated_cost_usd=planner_estimated_cost,
-                timeout_seconds=45.0,
+                timeout_seconds=RESEARCH_MODEL_TIMEOUT_SECONDS,
             )
             return result.content
 
@@ -393,12 +415,15 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
             )
         else:
             try:
-                plan = await plan_research(
-                    query=query,
-                    tools=tools,
-                    max_tool_calls=max_calls,
-                    completion=accounted_planning_completion,
-                    context_pack=context_evidence,
+                plan = await run_research_model_stage(
+                    "planning",
+                    lambda: plan_research(
+                        query=query,
+                        tools=tools,
+                        max_tool_calls=max_calls,
+                        completion=accounted_planning_completion,
+                        context_pack=context_evidence,
+                    ),
                 )
             except UnexpectedModelBehavior as exc:
                 raise ApplicationError(
@@ -515,15 +540,18 @@ async def perform_autonomous_research(payload: dict[str, Any]) -> dict[str, Any]
                     checkpoint_ledger=model_checkpoints,
                     temperature=0.0,
                     estimated_cost_usd=synthesis_estimated_cost,
-                    timeout_seconds=60.0,
+                    timeout_seconds=RESEARCH_MODEL_TIMEOUT_SECONDS,
                 )
                 return result.content
 
             try:
-                synthesis = await synthesize_research(
-                    query=query,
-                    evidence=evidence,
-                    completion=accounted_synthesis_completion,
+                synthesis = await run_research_model_stage(
+                    "synthesis",
+                    lambda: synthesize_research(
+                        query=query,
+                        evidence=evidence,
+                        completion=accounted_synthesis_completion,
+                    ),
                 )
             except UnexpectedModelBehavior as exc:
                 raise ApplicationError(

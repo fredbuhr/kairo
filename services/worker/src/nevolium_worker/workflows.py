@@ -11,7 +11,11 @@ with workflow.unsafe.imports_passed_through():
     from .memory_projection import perform_memory_projection
     from .news_activity import perform_news_brief
     from .policy_activities import check_policy_gate
-    from .research_agent import perform_autonomous_research
+    from .research_agent import (
+        RESEARCH_ACTIVITY_TIMEOUT_SECONDS,
+        RESEARCH_HEARTBEAT_TIMEOUT_SECONDS,
+        perform_autonomous_research,
+    )
     from .research_context_pack import prepare_research_context_pack
     from .semantic_router import (
         SEMANTIC_ACTIVITY_TIMEOUT_SECONDS,
@@ -153,11 +157,14 @@ class TaskExecutionWorkflow:
                 result = await workflow.execute_activity(
                     perform_autonomous_research,
                     research_payload,
-                    start_to_close_timeout=timedelta(minutes=10),
-                    # Research emits progress while waiting for child tools. Keep this above the
-                    # longest individual model HTTP timeout (60s) so a slow provider does not turn
-                    # into an artificial ambiguous replay, while still detecting a dead Worker.
-                    heartbeat_timeout=timedelta(seconds=90),
+                    start_to_close_timeout=timedelta(
+                        seconds=RESEARCH_ACTIVITY_TIMEOUT_SECONDS
+                    ),
+                    # Research emits progress around each model/tool stage. Keep the heartbeat
+                    # above the 180s model deadline while retaining the 10-minute activity bound.
+                    heartbeat_timeout=timedelta(
+                        seconds=RESEARCH_HEARTBEAT_TIMEOUT_SECONDS
+                    ),
                     retry_policy=ACTIVITY_RETRY,
                 )
             elif capability == "memory.project":

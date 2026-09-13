@@ -18,6 +18,7 @@ MODEL_CHECKPOINT_BUNDLE_KIND = "nevolium.model-call-bundle"
 MODEL_CHECKPOINT_BUNDLE_VERSION = 1
 MAX_MODEL_CHECKPOINT_SLOTS = 32
 ZERO_COST_MODEL_ALIASES = frozenset({"local-fast"})
+MODEL_REQUEST_TIMEOUT_CAP_SECONDS = 180.0
 
 
 class ModelCallOutcomeUnknown(RuntimeError):
@@ -560,24 +561,36 @@ async def chat_completion(
         checkpoint_ledger=checkpoint_ledger,
     )
     # Absolute deadline, including slow streaming responses. Core's dispatch lease is
-    # 300s and proxy timeout 120s; a timed-out request remains financially uncertain.
-    async with asyncio.timeout(min(timeout_seconds, 120.0)), httpx.AsyncClient(timeout=min(timeout_seconds, 120.0)) as client:
-        response = await client.post(
-            f"{settings.litellm_url.rstrip('/')}/v1/chat/completions",
-            headers=_litellm_headers(idempotency_key),
-            json=request,
-        )
-        response.raise_for_status()
-        data = response.json()
-        usage = parse_usage(data, response.headers, model_alias=model_alias)
+    # 300s and the production proxy timeout is 210s; a timed-out request remains
+    # financially uncertain. Keep client calls below both bounds.
+    bounded_timeout = min(timeout_seconds, MODEL_REQUEST_TIMEOUT_CAP_SECONDS)
+    try:
+        async with asyncio.timeout(bounded_timeout), httpx.AsyncClient(
+            timeout=bounded_timeout
+        ) as client:
+            response = await client.post(
+                f"{settings.litellm_url.rstrip('/')}/v1/chat/completions",
+                headers=_litellm_headers(idempotency_key),
+                json=request,
+            )
+            response.raise_for_status()
+            data = response.json()
+            usage = parse_usage(data, response.headers, model_alias=model_alias)
 
-    choices = data.get("choices") or []
-    if not choices or not isinstance(choices[0], dict):
-        raise RuntimeError("LiteLLM returned no completion choice")
-    message = choices[0].get("message") or {}
-    content = str(message.get("content") or "")
-    if not content:
-        raise RuntimeError("LiteLLM returned an empty completion")
+        choices = data.get("choices") or []
+        if not choices or not isinstance(choices[0], dict):
+            raise RuntimeError("LiteLLM returned no completion choice")
+        message = choices[0].get("message") or {}
+        content = str(message.get("content") or "")
+        if not content:
+            raise RuntimeError("LiteLLM returned an empty completion")
+    except Exception as exc:
+        # The dispatch claim and its heartbeat already exist. Any failure from the provider request
+        # through response validation is therefore financially ambiguous and must stop blind replay
+        # in the same activity attempt.
+        raise ModelCallOutcomeUnknown(
+            f"Model call {idempotency_key} outcome is unknown after provider dispatch"
+        ) from exc
 
     result = ChatCompletionResult(content=content, usage=usage, raw=data)
     _heartbeat_model_checkpoint(

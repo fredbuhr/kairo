@@ -18,7 +18,7 @@ model_list:
 router_settings:
   routing_strategy: least-busy
   num_retries: 0
-  timeout: 120
+  timeout: 210
 
 litellm_settings:
   num_retries: 0

@@ -276,3 +276,19 @@ politique active A1, `read`, `safe_retry` et coût nul. La vérification SQL fin
 actives et aucun doublon de clé, namespace ou nom distant. Web MCP et Worker restent opérationnels et
 les services publics restent sains. Cette transition qualifie le registre canonique ; le prochain point
 sûr est une exécution Research authentifiée, propriétaire, avec appels MCP et artefact sourcé inspectables.
+
+Cette première exécution authentifiée est ensuite lancée par l'utilisateur standard sur son projet avec
+deux appels outils au maximum. La Task et son workflow échouent pendant le planning après 124,30 s. Les
+tables canoniques contiennent zéro invocation outil, zéro usage modèle et zéro artefact ; la réservation
+locale expirée reste `started`. Le journal Web MCP ne montre aucun appel Research. Le journal Ollama
+associe la fenêtre à une réponse HTTP 500 après 120 s. Les reprises de l'activité vont jusqu'à la tentative
+10, mais le checkpoint `started` refuse chaque renvoi aveugle de l'appel modèle initial : l'échec est
+conservé sans rejouer la Task ni inventer un résultat.
+
+Le code préparé après ce diagnostic remplace les délais Research de 45 s et 60 s par un plafond client
+commun de 180 s. LiteLLM garde zéro retry et reçoit 210 s, sous le lease Core de 300 s ; le heartbeat
+Research passe à 210 s dans l'activité bornée à 10 minutes. Planning et synthèse convertissent un timeout,
+une erreur de transport ou une issue déjà inconnue en `ModelCallOutcomeUnknown` non rejouable dès la même
+tentative. Les contrats locaux prouvent ces relations et la préservation des checkpoints. Ce correctif
+reste à passer en CI, à activer sur la cible puis à qualifier avec une nouvelle Task distincte. L'ancienne
+réservation expirée reste intacte jusqu'à un rapprochement canonique séparé.
