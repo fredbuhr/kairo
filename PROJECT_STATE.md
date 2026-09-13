@@ -17,9 +17,9 @@ Dernière revue : 2026-09-13. **Vérifier GitHub live avant toute action.**
 | Lot actif | **D04 — moteurs réels et exploitation (H5)** |
 | Branche active | `hardening/d04-real-engine-qualification` |
 | Livraison active | [PR #88](https://github.com/fredbuhr/nevolium/pull/88), ouverte en draft, non fusionnée |
-| Dernier code déployé confirmé | Core/Worker `e3adbe648b245e2567970769e6a4bf4333b3e4a4` ; topologie Web MCP corrigée `db3da89acfb041db75e6c7a2417a83dbafc6ce80` synchronisée et active ; Worker existant inchangé |
-| Validation | Veto : 10/10 workflows et preuve cible sans Task métier. Web MCP réel : catalogue exact `search`/`fetch`, trois résultats publics, destination privée refusée, confinement `search`/`egress`, aucun port hôte ni jeton interne ; registre canonique encore vide |
-| Prochaine action | Enregistrer ce checkpoint, puis déclarer et activer canoniquement `web.search` et `web.fetch` avant le parcours Research authentifié |
+| Dernier code déployé confirmé | Core/Worker `e3adbe648b245e2567970769e6a4bf4333b3e4a4` ; checkpoint Web MCP `5a01be167e67388e8056466dfce7eb53f18931ee` synchronisé ; Worker existant inchangé |
+| Validation | Web MCP réel confiné et joignable ; registre exact : un serveur, deux outils uniques `web.search`/`web.fetch`, actifs A1, lecture seule, coût nul et aucun doublon. Jeton administrateur éphémère non conservé |
+| Prochaine action | Enregistrer ce checkpoint, puis exécuter le premier parcours Research authentifié et owner-scoped avec les outils réels |
 | Conditions manquantes | Pertinence générale du routage et choix du modèle quotidien, Research canonique de bout en bout, backup Restic indépendant, campagne cible/charge/rollback |
 | Méthode | Garder cette PR ; commits internes comme checkpoints, aucun nouveau sous-lot et aucun D05 avant la sortie H5 |
 

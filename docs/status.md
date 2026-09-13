@@ -28,7 +28,12 @@ est synchronisé et permet l'activation isolée du Web MCP. Le conteneur reste l
 et TMPFS `/tmp` valide. Son catalogue réel contient exactement les outils en lecture seule `search` et
 `fetch` ; `web.search` renvoie trois sources publiques et `web.fetch` refuse une destination loopback.
 Le Worker existant n'est pas recréé, les services publics restent sains et le registre canonique demeure
-vide. L'enregistrement explicite des deux outils puis le parcours Research authentifié restent requis.
+vide. Après synchronisation du checkpoint, une session OIDC éphémère de l'administrateur nominatif crée
+exactement un serveur `nevolium-web`, synchronise exactement `web.search` et `web.fetch`, puis active les
+deux politiques en autorité A1, lecture seule, rejeu sûr et coût nul. La vérification SQL en lecture seule
+confirme les comptes `1|1|2|2|2|0|0` : serveur unique attendu, deux outils exacts et actifs, aucun doublon
+de clé, namespace ou nom distant. Le jeton n'est ni versionné, ni écrit dans l'environnement de production,
+ni conservé après la commande. Le parcours Research authentifié de bout en bout reste requis.
 
 Les sections ci-dessous conservent l'historique des paliers. Six espaces UI sont raccordés, pas quinze
 modules futurs ; le cockpit Mycelium reste D05. L'erreur partagée Command/News, les débordements de panneaux

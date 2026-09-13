@@ -266,3 +266,13 @@ services publics restent sains et le registre conserve exactement zéro serveur 
 preuve qualifie l'adaptateur isolé ; elle n'active pas encore les outils dans le registre canonique et ne
 vaut donc pas parcours Research de bout en bout. Le prochain point sûr est l'enregistrement explicite de
 `web.search` et `web.fetch`, puis une exécution Research authentifiée et owner-scoped.
+
+Le checkpoint `5a01be1…` est ensuite synchronisé. Un jeton OIDC court de l'administrateur nominatif est
+transmis par entrée masquée au seul processus de bootstrap, puis effacé sans être ajouté au fichier
+d'environnement ou à l'historique de commande. Le bootstrap découvre de nouveau le catalogue réel,
+crée un unique serveur `nevolium-web`, synchronise les deux définitions et applique aux deux outils une
+politique active A1, `read`, `safe_retry` et coût nul. La vérification SQL finale donne
+`1|1|2|2|2|0|0` : un serveur total et conforme, deux définitions totales et conformes, deux politiques
+actives et aucun doublon de clé, namespace ou nom distant. Web MCP et Worker restent opérationnels et
+les services publics restent sains. Cette transition qualifie le registre canonique ; le prochain point
+sûr est une exécution Research authentifiée, propriétaire, avec appels MCP et artefact sourcé inspectables.
