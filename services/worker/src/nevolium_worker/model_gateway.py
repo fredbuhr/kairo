@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import uuid
+from contextlib import suppress
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -19,6 +20,7 @@ MODEL_CHECKPOINT_BUNDLE_VERSION = 1
 MAX_MODEL_CHECKPOINT_SLOTS = 32
 ZERO_COST_MODEL_ALIASES = frozenset({"local-fast"})
 MODEL_REQUEST_TIMEOUT_CAP_SECONDS = 180.0
+MODEL_REQUEST_HEARTBEAT_INTERVAL_SECONDS = 30.0
 
 
 class ModelCallOutcomeUnknown(RuntimeError):
@@ -341,6 +343,22 @@ def _heartbeat_model_checkpoint(
         activity.heartbeat(payload)
 
 
+async def _heartbeat_started_model_call(
+    *,
+    idempotency_key: str,
+    checkpoint_ledger: ModelCheckpointLedger | None,
+) -> None:
+    """Keep a long provider request alive without weakening Worker crash detection."""
+
+    while True:
+        await asyncio.sleep(MODEL_REQUEST_HEARTBEAT_INTERVAL_SECONDS)
+        _heartbeat_model_checkpoint(
+            stage="started",
+            idempotency_key=idempotency_key,
+            checkpoint_ledger=checkpoint_ledger,
+        )
+
+
 async def _authorize_model_call(
     *,
     task_id: str,
@@ -564,26 +582,42 @@ async def chat_completion(
     # 300s and the production proxy timeout is 210s; a timed-out request remains
     # financially uncertain. Keep client calls below both bounds.
     bounded_timeout = min(timeout_seconds, MODEL_REQUEST_TIMEOUT_CAP_SECONDS)
-    try:
-        async with asyncio.timeout(bounded_timeout), httpx.AsyncClient(
-            timeout=bounded_timeout
-        ) as client:
-            response = await client.post(
-                f"{settings.litellm_url.rstrip('/')}/v1/chat/completions",
-                headers=_litellm_headers(idempotency_key),
-                json=request,
+    heartbeat_task = (
+        asyncio.create_task(
+            _heartbeat_started_model_call(
+                idempotency_key=idempotency_key,
+                checkpoint_ledger=checkpoint_ledger,
             )
-            response.raise_for_status()
-            data = response.json()
-            usage = parse_usage(data, response.headers, model_alias=model_alias)
+        )
+        if activity.in_activity()
+        else None
+    )
+    try:
+        try:
+            async with asyncio.timeout(bounded_timeout), httpx.AsyncClient(
+                timeout=bounded_timeout
+            ) as client:
+                response = await client.post(
+                    f"{settings.litellm_url.rstrip('/')}/v1/chat/completions",
+                    headers=_litellm_headers(idempotency_key),
+                    json=request,
+                )
+                response.raise_for_status()
+                data = response.json()
+                usage = parse_usage(data, response.headers, model_alias=model_alias)
 
-        choices = data.get("choices") or []
-        if not choices or not isinstance(choices[0], dict):
-            raise RuntimeError("LiteLLM returned no completion choice")
-        message = choices[0].get("message") or {}
-        content = str(message.get("content") or "")
-        if not content:
-            raise RuntimeError("LiteLLM returned an empty completion")
+            choices = data.get("choices") or []
+            if not choices or not isinstance(choices[0], dict):
+                raise RuntimeError("LiteLLM returned no completion choice")
+            message = choices[0].get("message") or {}
+            content = str(message.get("content") or "")
+            if not content:
+                raise RuntimeError("LiteLLM returned an empty completion")
+        finally:
+            if heartbeat_task is not None:
+                heartbeat_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await heartbeat_task
     except Exception as exc:
         # The dispatch claim and its heartbeat already exist. Any failure from the provider request
         # through response validation is therefore financially ambiguous and must stop blind replay

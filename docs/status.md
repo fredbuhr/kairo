@@ -40,8 +40,9 @@ réponse HTTP 500 à 120 s ; les reprises Temporal atteignent la tentative 10, m
 chaque renvoi aveugle du même appel dont l'issue est inconnue.
 
 Le correctif de branche porte le délai client Research à 180 s, le plafond du gateway à 180 s et le
-proxy LiteLLM à 210 s, sous le lease Core de 300 s. Le heartbeat Research passe à 210 s dans l'activité
-toujours bornée à 10 minutes. Planning et synthèse transforment désormais immédiatement un timeout,
+proxy LiteLLM à 210 s, sous le lease Core de 300 s. Pendant l'appel, le gateway réémet le checkpoint
+`started` toutes les 30 s ; le heartbeat Research reste à 90 s dans l'activité bornée à 10 minutes afin
+de détecter rapidement la perte du Worker. Planning et synthèse transforment immédiatement un timeout,
 une erreur de transport ou un checkpoint incertain en `ModelCallOutcomeUnknown` non rejouable. Les
 contrats hors ligne couvrent les trois bornes et ce statut terminal ; l'activation et une nouvelle Task
 de preuve restent requises. La Task échouée et sa réservation ne sont ni modifiées ni relancées.

@@ -160,8 +160,9 @@ class TaskExecutionWorkflow:
                     start_to_close_timeout=timedelta(
                         seconds=RESEARCH_ACTIVITY_TIMEOUT_SECONDS
                     ),
-                    # Research emits progress around each model/tool stage. Keep the heartbeat
-                    # above the 180s model deadline while retaining the 10-minute activity bound.
+                    # The gateway refreshes the replay checkpoint every 30s during model calls.
+                    # A 90s heartbeat therefore permits 180s inference while detecting a dead
+                    # Worker early enough for the durable crash-recovery path.
                     heartbeat_timeout=timedelta(
                         seconds=RESEARCH_HEARTBEAT_TIMEOUT_SECONDS
                     ),

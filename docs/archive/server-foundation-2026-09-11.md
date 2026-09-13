@@ -286,8 +286,10 @@ associe la fenêtre à une réponse HTTP 500 après 120 s. Les reprises de l'act
 conservé sans rejouer la Task ni inventer un résultat.
 
 Le code préparé après ce diagnostic remplace les délais Research de 45 s et 60 s par un plafond client
-commun de 180 s. LiteLLM garde zéro retry et reçoit 210 s, sous le lease Core de 300 s ; le heartbeat
-Research passe à 210 s dans l'activité bornée à 10 minutes. Planning et synthèse convertissent un timeout,
+commun de 180 s. LiteLLM garde zéro retry et reçoit 210 s, sous le lease Core de 300 s. Le gateway
+renouvelle le checkpoint `started` toutes les 30 s pendant l'appel ; le heartbeat Research reste à 90 s
+dans l'activité bornée à 10 minutes, afin qu'une perte réelle du Worker reste détectée rapidement. Planning
+et synthèse convertissent un timeout,
 une erreur de transport ou une issue déjà inconnue en `ModelCallOutcomeUnknown` non rejouable dès la même
 tentative. Les contrats locaux prouvent ces relations et la préservation des checkpoints. Ce correctif
 reste à passer en CI, à activer sur la cible puis à qualifier avec une nouvelle Task distincte. L'ancienne

@@ -77,7 +77,7 @@ def run():
         new = dict(params, idempotency_key=str(uuid.uuid4()), timeout_seconds=15)
         try:
             asyncio.run(chat_completion(**new))
-        except (httpx.HTTPError, TimeoutError):
+        except ModelCallOutcomeUnknown:
             pass
         else:
             raise AssertionError('Unavailable local model unexpectedly returned a completion')
@@ -88,7 +88,9 @@ def run():
         else:
             raise AssertionError('Uncertain dispatch must not be retried blindly')
         compose('up', '-d', 'ollama')
-        return {'known_result_replayed_without_engine':True, 'unknown_outcome_replay_refused':True}
+        return {'known_result_replayed_without_engine':True,
+                'unknown_outcome_failed_closed_immediately':True,
+                'unknown_outcome_replay_refused':True}
     evidence.case('engine-loss-known-replay-and-unknown-outcome', 90, replay_without_engine)
     evidence.case('local-engine-restart', 115, lambda: inference_after_restart(params))
 
